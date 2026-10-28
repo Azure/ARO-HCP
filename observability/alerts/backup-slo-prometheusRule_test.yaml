@@ -1022,3 +1022,2299 @@ tests:
         summary: "no successful Velero server metrics scrape for 15m on int-eastus-mgmt-server-missing"
         description: "Management cluster int-eastus-mgmt-server-missing is in the underlay-cluster inventory but has had no successful Velero server metrics scrape for 15m. Check Velero, its PodMonitor, and the management-cluster metrics pipeline. A healthy empty cluster with up=1 is not a failure merely because it has no backup attempts."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
+
+# ========================================
+# Overload (ARO-29950): Queue & Accumulation alerts modeled on ROSA-HCP's
+# OADP observability doc (threshold/duration values match that doc).
+# These are count-based (how many distinct Backup/DeleteBackupRequest CRs
+# match a label combination), unlike every other alert in this file, which
+# is rate/ratio/gauge-based - genuinely hitting 300/100 requires that many
+# distinct synthetic CRs. To get both a "right at the threshold, must not
+# fire" and a "over it, must fire" proof without needing 300+301 separate
+# series, the 301st CR's info series is simply absent for the test's first
+# 50m (as if not yet created) then appears - letting one input_series set
+# cover both boundaries by moving the eval_time, not the series count.
+# ========================================
+- interval: 5m
+  name: overload_queue_backlog_boundary_and_breach
+  input_series:
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0000", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0001", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0002", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0003", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0004", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0005", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0006", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0007", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0008", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0009", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0010", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0011", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0012", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0013", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0014", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0015", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0016", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0017", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0018", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0019", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0020", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0021", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0022", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0023", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0024", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0025", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0026", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0027", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0028", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0029", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0030", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0031", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0032", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0033", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0034", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0035", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0036", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0037", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0038", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0039", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0040", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0041", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0042", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0043", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0044", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0045", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0046", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0047", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0048", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0049", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0050", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0051", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0052", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0053", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0054", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0055", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0056", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0057", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0058", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0059", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0060", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0061", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0062", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0063", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0064", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0065", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0066", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0067", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0068", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0069", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0070", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0071", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0072", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0073", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0074", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0075", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0076", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0077", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0078", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0079", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0080", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0081", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0082", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0083", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0084", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0085", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0086", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0087", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0088", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0089", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0090", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0091", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0092", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0093", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0094", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0095", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0096", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0097", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0098", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0099", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0100", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0101", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0102", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0103", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0104", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0105", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0106", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0107", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0108", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0109", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0110", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0111", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0112", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0113", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0114", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0115", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0116", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0117", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0118", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0119", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0120", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0121", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0122", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0123", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0124", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0125", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0126", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0127", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0128", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0129", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0130", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0131", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0132", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0133", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0134", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0135", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0136", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0137", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0138", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0139", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0140", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0141", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0142", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0143", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0144", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0145", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0146", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0147", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0148", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0149", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0150", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0151", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0152", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0153", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0154", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0155", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0156", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0157", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0158", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0159", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0160", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0161", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0162", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0163", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0164", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0165", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0166", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0167", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0168", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0169", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0170", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0171", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0172", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0173", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0174", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0175", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0176", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0177", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0178", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0179", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0180", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0181", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0182", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0183", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0184", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0185", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0186", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0187", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0188", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0189", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0190", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0191", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0192", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0193", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0194", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0195", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0196", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0197", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0198", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0199", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0200", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0201", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0202", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0203", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0204", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0205", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0206", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0207", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0208", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0209", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0210", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0211", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0212", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0213", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0214", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0215", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0216", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0217", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0218", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0219", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0220", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0221", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0222", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0223", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0224", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0225", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0226", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0227", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0228", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0229", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0230", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0231", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0232", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0233", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0234", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0235", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0236", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0237", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0238", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0239", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0240", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0241", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0242", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0243", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0244", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0245", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0246", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0247", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0248", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0249", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0250", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0251", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0252", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0253", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0254", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0255", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0256", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0257", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0258", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0259", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0260", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0261", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0262", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0263", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0264", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0265", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0266", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0267", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0268", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0269", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0270", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0271", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0272", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0273", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0274", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0275", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0276", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0277", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0278", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0279", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0280", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0281", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0282", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0283", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0284", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0285", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0286", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0287", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0288", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0289", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0290", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0291", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0292", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0293", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0294", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0295", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0296", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0297", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0298", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0299", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="overload-mc", name="backup-0300", namespace="ns-overload"}'
+    values: "_x9 1x40"
+  alert_rule_test:
+  # At 45m: only the 300 always-enqueued CRs exist yet (the 301st hasn't
+  # been "created" - its info series is still absent). Exactly at the
+  # threshold - `> 300` must not fire.
+  - eval_time: 45m
+    alertname: userJourneyBackupQueueBacklog
+    exp_alerts: []
+  # At 50m the 301st CR's info series appears (301 enqueued now), but
+  # for:30m has not elapsed since then yet.
+  - eval_time: 65m
+    alertname: userJourneyBackupQueueBacklog
+    exp_alerts: []
+  # At 50m+35m=85m: 301 enqueued, breach sustained for 35m - past for:30m.
+  - eval_time: 85m
+    alertname: userJourneyBackupQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyBackupQueueBacklog
+        cluster: overload-mc
+        component: slo
+        severity: "4"
+      exp_annotations:
+        summary: "more than 300 Backup CRs are enqueued (not yet started) on overload-mc"
+        description: "Management cluster overload-mc has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupQueueBacklog/overload-mc"
+
+# ========================================
+# DeletionQueueBacklog: identical enqueued-detection formula as
+# QueueBacklog above, against veleroDeleteBackupRequest_info/_phase
+# instead of veleroBackup_info/_phase. One breach test at the real
+# threshold confirms the metric names and KSM config (observability/
+# prometheus/values-mgmt.yaml's new DeleteBackupRequest groupVersionKind
+# block) actually line up with this expression; boundary/dedup are not
+# re-proven since the formula shape is identical to QueueBacklog's.
+# ========================================
+- interval: 5m
+  name: overload_deletion_queue_backlog_breach
+  input_series:
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0000", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0001", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0002", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0003", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0004", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0005", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0006", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0007", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0008", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0009", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0010", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0011", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0012", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0013", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0014", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0015", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0016", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0017", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0018", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0019", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0020", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0021", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0022", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0023", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0024", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0025", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0026", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0027", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0028", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0029", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0030", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0031", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0032", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0033", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0034", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0035", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0036", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0037", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0038", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0039", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0040", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0041", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0042", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0043", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0044", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0045", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0046", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0047", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0048", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0049", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0050", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0051", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0052", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0053", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0054", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0055", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0056", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0057", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0058", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0059", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0060", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0061", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0062", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0063", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0064", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0065", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0066", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0067", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0068", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0069", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0070", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0071", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0072", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0073", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0074", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0075", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0076", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0077", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0078", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0079", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0080", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0081", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0082", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0083", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0084", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0085", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0086", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0087", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0088", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0089", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0090", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0091", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0092", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0093", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0094", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0095", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0096", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0097", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0098", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0099", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0100", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0101", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0102", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0103", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0104", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0105", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0106", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0107", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0108", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0109", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0110", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0111", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0112", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0113", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0114", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0115", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0116", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0117", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0118", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0119", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0120", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0121", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0122", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0123", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0124", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0125", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0126", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0127", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0128", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0129", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0130", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0131", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0132", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0133", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0134", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0135", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0136", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0137", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0138", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0139", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0140", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0141", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0142", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0143", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0144", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0145", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0146", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0147", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0148", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0149", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0150", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0151", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0152", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0153", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0154", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0155", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0156", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0157", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0158", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0159", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0160", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0161", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0162", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0163", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0164", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0165", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0166", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0167", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0168", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0169", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0170", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0171", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0172", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0173", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0174", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0175", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0176", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0177", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0178", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0179", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0180", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0181", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0182", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0183", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0184", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0185", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0186", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0187", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0188", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0189", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0190", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0191", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0192", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0193", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0194", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0195", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0196", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0197", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0198", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0199", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0200", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0201", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0202", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0203", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0204", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0205", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0206", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0207", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0208", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0209", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0210", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0211", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0212", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0213", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0214", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0215", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0216", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0217", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0218", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0219", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0220", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0221", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0222", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0223", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0224", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0225", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0226", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0227", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0228", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0229", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0230", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0231", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0232", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0233", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0234", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0235", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0236", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0237", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0238", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0239", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0240", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0241", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0242", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0243", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0244", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0245", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0246", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0247", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0248", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0249", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0250", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0251", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0252", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0253", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0254", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0255", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0256", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0257", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0258", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0259", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0260", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0261", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0262", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0263", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0264", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0265", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0266", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0267", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0268", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0269", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0270", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0271", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0272", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0273", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0274", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0275", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0276", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0277", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0278", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0279", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0280", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0281", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0282", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0283", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0284", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0285", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0286", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0287", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0288", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0289", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0290", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0291", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0292", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0293", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0294", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0295", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0296", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0297", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0298", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0299", namespace="ns-overload"}'
+    values: "1x50"
+  - series: 'veleroDeleteBackupRequest_info{cluster="del-overload-mc", name="backup-0300", namespace="ns-overload"}'
+    values: "1x50"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: userJourneyBackupDeletionQueueBacklog
+    exp_alerts: []
+  - eval_time: 35m
+    alertname: userJourneyBackupDeletionQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyBackupDeletionQueueBacklog
+        cluster: del-overload-mc
+        component: slo
+        severity: "4"
+      exp_annotations:
+        summary: "more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on del-overload-mc"
+        description: "Management cluster del-overload-mc has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupDeletionQueueBacklog/del-overload-mc"
+
+# ========================================
+# NonTerminalBacklog: same combined boundary+breach trick as QueueBacklog -
+# 100 Backup CRs already stuck in Finalizing (a genuinely in-flight,
+# non-terminal phase - NOT Failed/PartiallyFailed/FailedValidation, which
+# are deliberately excluded from this alert's counted set, see the
+# TTL-duplication regression test below) from t=0, plus a 101st that only
+# reaches Finalizing partway through the test (its phase="Finalizing"
+# series is absent for the first 50m). Proves both "exactly 100, must not
+# fire" and "101 sustained past for:1h, must fire" from one input_series
+# set.
+#
+# Also includes "ambiguous-0101": a single CR whose two HA Prometheus
+# replicas permanently disagree on phase (replica 0 reports InProgress,
+# replica 1 reports Completed) - simulating a scrape caught mid-transition.
+# This is a regression test for a bug caught in PR #7764 review: an
+# earlier version of this alert's expr subtracted each benign phase
+# separately (`count(phase="Completed") - count(phase="InProgress") - ...`)
+# rather than as a set, so a single such CR was subtracted TWICE (once per
+# phase it appeared under) instead of once - at this test's scale that
+# would have silently turned the correct 101-stuck/breach result into 100
+# (not > 100), wrongly suppressing the alert. With the current set-based
+# `unless` formula, ambiguous-0101 is excluded exactly once regardless of
+# how many benign-phase rows it produced, so the 115m assertion below
+# still correctly fires on exactly 101 genuinely-stuck CRs.
+# ========================================
+- interval: 5m
+  name: overload_nonterminal_backlog_boundary_and_breach
+  input_series:
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0000", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0001", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0002", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0003", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0004", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0005", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0006", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0007", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0008", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0009", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0010", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0011", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0012", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0013", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0014", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0015", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0016", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0017", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0018", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0019", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0020", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0021", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0022", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0023", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0024", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0025", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0026", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0027", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0028", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0029", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0030", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0031", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0032", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0033", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0034", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0035", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0036", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0037", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0038", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0039", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0040", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0041", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0042", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0043", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0044", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0045", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0046", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0047", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0048", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0049", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0050", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0051", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0052", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0053", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0054", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0055", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0056", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0057", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0058", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0059", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0060", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0061", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0062", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0063", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0064", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0065", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0066", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0067", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0068", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0069", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0070", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0071", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0072", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0073", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0074", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0075", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0076", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0077", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0078", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0079", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0080", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0081", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0082", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0083", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0084", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0085", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0086", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0087", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0088", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0089", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0090", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0091", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0092", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0093", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0094", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0095", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0096", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0097", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0098", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0099", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0000", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0001", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0002", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0003", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0004", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0005", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0006", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0007", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0008", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0009", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0010", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0011", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0012", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0013", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0014", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0015", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0016", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0017", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0018", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0019", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0020", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0021", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0022", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0023", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0024", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0025", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0026", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0027", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0028", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0029", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0030", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0031", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0032", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0033", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0034", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0035", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0036", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0037", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0038", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0039", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0040", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0041", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0042", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0043", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0044", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0045", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0046", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0047", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0048", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0049", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0050", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0051", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0052", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0053", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0054", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0055", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0056", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0057", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0058", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0059", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0060", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0061", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0062", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0063", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0064", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0065", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0066", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0067", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0068", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0069", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0070", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0071", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0072", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0073", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0074", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0075", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0076", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0077", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0078", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0079", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0080", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0081", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0082", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0083", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0084", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0085", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0086", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0087", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0088", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0089", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0090", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0091", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0092", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0093", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0094", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0095", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0096", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0097", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0098", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0099", namespace="ns-stuck", phase="Finalizing"}'
+    values: "1x50"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="backup-0100", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="backup-0100", namespace="ns-stuck", phase="Finalizing"}'
+    values: "_x9 1x40"
+  - series: 'veleroBackup_info{cluster="stuck-mc", name="ambiguous-0101", namespace="ns-stuck"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="ambiguous-0101", namespace="ns-stuck", phase="InProgress", prometheus_replica="0"}'
+    values: "1x50"
+  - series: 'veleroBackup_phase{cluster="stuck-mc", name="ambiguous-0101", namespace="ns-stuck", phase="Completed", prometheus_replica="1"}'
+    values: "1x50"
+  alert_rule_test:
+  # At 45m: only 100 CRs are in Failed - exactly at the threshold, `> 100`
+  # must not fire.
+  - eval_time: 45m
+    alertname: userJourneyBackupNonTerminalBacklog
+    exp_alerts: []
+  # At 50m the 101st CR's phase="Finalizing" series appears (101 stuck now),
+  # but for:1h has not elapsed since then yet.
+  - eval_time: 90m
+    alertname: userJourneyBackupNonTerminalBacklog
+    exp_alerts: []
+  # At 50m+65m=115m: 101 stuck, sustained for 65m - past for:1h.
+  - eval_time: 115m
+    alertname: userJourneyBackupNonTerminalBacklog
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyBackupNonTerminalBacklog
+        cluster: stuck-mc
+        component: slo
+        severity: "4"
+      exp_annotations:
+        summary: "more than 100 Backup CRs are stuck mid-processing on stuck-mc"
+        description: "Management cluster stuck-mc has more than 100 Backup CRs stuck in a non-terminal, non-queued, non-failed phase - e.g. Finalizing, WaitingForPluginOperations, or Deleting - sustained for 1h. Terminal phases (Failed/PartiallyFailed/FailedValidation) are excluded here since they just await TTL cleanup and are already covered by userJourneyBackupErrors at the time of failure; this alert indicates a systemic issue requiring manual CR triage/purge rather than a transient blip - check `kubectl get backups -A` phase distribution on the management cluster."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupNonTerminalBacklog/stuck-mc"
+
+# ========================================
+# NonTerminalBacklog TTL/duplication regression: 101 Backup CRs sitting in
+# Failed (terminal, TTL-bound - 30/90 days per Velero's default backup TTL
+# handling) for the entire window - comfortably above the 100 threshold and
+# sustained well past for:1h. Must NOT fire: Failed/PartiallyFailed/
+# FailedValidation are excluded from this alert's counted set specifically so
+# a single incident's worth of failed backups doesn't keep this alert firing
+# for weeks until TTL garbage collection, duplicating userJourneyBackupErrors
+# (which already caught the failure rate at the time it happened). Without
+# the Failed/PartiallyFailed/FailedValidation exclusion, this exact input
+# would wrongly fire (101 > 100). Flagged in review on PR #7764 before this
+# exclusion was added.
+# ========================================
+- interval: 5m
+  name: nonterminal_backlog_excludes_ttl_bound_terminal_phases
+  input_series:
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0000", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0000", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0001", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0001", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0002", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0002", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0003", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0003", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0004", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0004", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0005", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0005", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0006", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0006", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0007", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0007", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0008", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0008", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0009", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0009", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0010", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0010", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0011", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0011", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0012", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0012", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0013", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0013", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0014", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0014", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0015", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0015", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0016", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0016", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0017", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0017", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0018", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0018", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0019", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0019", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0020", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0020", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0021", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0021", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0022", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0022", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0023", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0023", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0024", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0024", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0025", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0025", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0026", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0026", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0027", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0027", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0028", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0028", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0029", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0029", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0030", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0030", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0031", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0031", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0032", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0032", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0033", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0033", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0034", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0034", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0035", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0035", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0036", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0036", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0037", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0037", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0038", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0038", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0039", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0039", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0040", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0040", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0041", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0041", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0042", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0042", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0043", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0043", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0044", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0044", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0045", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0045", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0046", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0046", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0047", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0047", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0048", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0048", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0049", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0049", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0050", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0050", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0051", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0051", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0052", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0052", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0053", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0053", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0054", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0054", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0055", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0055", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0056", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0056", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0057", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0057", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0058", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0058", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0059", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0059", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0060", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0060", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0061", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0061", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0062", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0062", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0063", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0063", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0064", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0064", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0065", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0065", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0066", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0066", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0067", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0067", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0068", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0068", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0069", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0069", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0070", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0070", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0071", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0071", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0072", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0072", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0073", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0073", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0074", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0074", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0075", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0075", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0076", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0076", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0077", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0077", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0078", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0078", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0079", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0079", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0080", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0080", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0081", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0081", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0082", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0082", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0083", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0083", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0084", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0084", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0085", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0085", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0086", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0086", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0087", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0087", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0088", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0088", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0089", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0089", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0090", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0090", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0091", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0091", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0092", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0092", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0093", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0093", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0094", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0094", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0095", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0095", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0096", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0096", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0097", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0097", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0098", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0098", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0099", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0099", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  - series: 'veleroBackup_info{cluster="ttl-mc", name="ttl-backup-0100", namespace="ns-ttl"}'
+    values: "1x30"
+  - series: 'veleroBackup_phase{cluster="ttl-mc", name="ttl-backup-0100", namespace="ns-ttl", phase="Failed"}'
+    values: "1x30"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyBackupNonTerminalBacklog
+    exp_alerts: []
+
+# ========================================
+# Formula unit checks at small scale (promql_expr_test, not alert_rule_test
+# - these assert the computed VALUE directly, independent of the 300/100
+# alert thresholds, to pin the arithmetic itself cheaply):
+#   - QueueBacklog's enqueued-count correctly dedups HA Prometheus replicas
+#     (2 CRs x 2 replicas = 4 raw info series must still count as 2, not 4).
+#   - NonTerminalBacklog's set-based exclusion correctly excludes Completed/
+#     InProgress/queued CRs - including a CR whose replicas disagree on
+#     which benign phase it's in - and counts only the genuinely-stuck one.
+# ========================================
+- interval: 1m
+  name: overload_formula_unit_checks
+  input_series:
+  - series: 'veleroBackup_info{cluster="formula-mc", name="dedup-a", namespace="ns-f", prometheus_replica="0"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="dedup-a", namespace="ns-f", prometheus_replica="1"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="dedup-b", namespace="ns-f", prometheus_replica="0"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="dedup-b", namespace="ns-f", prometheus_replica="1"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="completed-a", namespace="ns-f"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="completed-a", namespace="ns-f", phase="Completed"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="inprogress-a", namespace="ns-f"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="inprogress-a", namespace="ns-f", phase="InProgress"}'
+    values: "1x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="queued-a", namespace="ns-f"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="queued-a", namespace="ns-f", phase="New"}'
+    values: "1x10"
+  # queued-a's StateSet zero-valued siblings - a real KSM StateSet
+  # metric emits one row per `list` entry for any CR with phase resolved,
+  # so a genuinely-New CR ALSO emits these at value 0, not just its own
+  # "New"=1 row. Without the `== 1` filter on the exclusion's right-hand
+  # side, a label-only match on "InProgress" would hit this zero-valued
+  # row and wrongly treat queued-a as already-active.
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="queued-a", namespace="ns-f", phase="InProgress"}'
+    values: "0x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="queued-a", namespace="ns-f", phase="Completed"}'
+    values: "0x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="stuck-a", namespace="ns-f"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="stuck-a", namespace="ns-f", phase="Finalizing"}'
+    values: "1x10"
+  # stuck-a's StateSet zero-valued siblings - same fan-out as queued-a
+  # above, this is the exact scenario Copilot review flagged on PR #7764:
+  # a stuck Backup still emits Completed=0/InProgress=0 rows, and
+  # without `== 1` a label-only match on those rows would wrongly
+  # exclude a genuinely-stuck CR from userJourneyBackupNonTerminalBacklog.
+  # Uses "Finalizing" rather than "Failed" so this formula-level check
+  # exercises a phase userJourneyBackupNonTerminalBacklog actually counts
+  # as stuck - Failed/PartiallyFailed/FailedValidation are deliberately
+  # excluded from that alert's counted set (see
+  # nonterminal_backlog_excludes_ttl_bound_terminal_phases earlier in
+  # this file), so a Failed fixture here would silently test an
+  # exclusion predicate the real alert no longer uses.
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="stuck-a", namespace="ns-f", phase="Completed"}'
+    values: "0x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="stuck-a", namespace="ns-f", phase="InProgress"}'
+    values: "0x10"
+  - series: 'veleroBackup_info{cluster="formula-mc", name="ambiguous-a", namespace="ns-f"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="ambiguous-a", namespace="ns-f", phase="InProgress", prometheus_replica="0"}'
+    values: "1x10"
+  - series: 'veleroBackup_phase{cluster="formula-mc", name="ambiguous-a", namespace="ns-f", phase="Completed", prometheus_replica="1"}'
+    values: "1x10"
+  promql_expr_test:
+  # dedup-a and dedup-b are each reported by both HA replicas (2 enqueued
+  # CRs, 4 raw series) - proving group by (cluster, name, namespace)
+  # collapses the replica duplication rather than double-counting it.
+  # queued-a has an explicit phase="New" row (phase-bearing, not merely
+  # absent) PLUS its StateSet zero-valued InProgress/Completed siblings,
+  # and must still survive the subtraction - proving (a) the
+  # `phase!~"New|Queued|ReadyToStart"` filter correctly treats a
+  # still-queued phase the same as no phase at all (the bug Copilot
+  # review flagged first on PR #7764: phase-bearing queued Backups were
+  # invisible to both this alert and userJourneyBackupNonTerminalBacklog),
+  # and (b) the trailing `== 1` keeps queued-a's zero-valued
+  # "InProgress"=0 sibling row from being label-matched into the excluded
+  # set and wrongly treated as already-active (the second bug Copilot
+  # review flagged, once the StateSet fan-out was accounted for).
+  # Expected count: dedup-a + dedup-b + queued-a = 3.
+  - expr: |
+      count by (cluster) (
+        group by (cluster, name, namespace) (veleroBackup_info)
+        unless on (cluster, name, namespace)
+        group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{cluster="formula-mc"}'
+      value: 3
+  # Of the 5 CRs with a phase set (completed-a/inprogress-a/queued-a/
+  # stuck-a/ambiguous-a), only stuck-a (Finalizing) should survive the
+  # exclusion - must read 1, proving Completed/InProgress/New are
+  # actually excluded rather than merely counted as "has some phase".
+  # The right-hand regex here is kept in sync with
+  # userJourneyBackupNonTerminalBacklog's actual exclusion set
+  # (Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|
+  # FailedValidation) - a Copilot review finding on PR #7764 caught an
+  # earlier version of this check still using the pre-TTL-fix regex
+  # (without the trailing three terminal phases), which silently tested
+  # an exclusion predicate the deployed alert no longer uses.
+  # ambiguous-a's two replicas disagree (one reports InProgress, the
+  # other Completed) - it must still count as exactly one excluded CR,
+  # not escape exclusion and not get subtracted twice. This is the
+  # formula-level regression check for the double-subtraction bug caught
+  # in PR #7764 review (see the fuller alert-threshold version of this
+  # same regression in overload_nonterminal_backlog_boundary_and_breach
+  # above, using "ambiguous-0101"). stuck-a's zero-valued
+  # Completed=0/InProgress=0 StateSet siblings must NOT cause it to be
+  # label-matched into the excluded set either - without the trailing
+  # `== 1`, this is exactly the second bug Copilot review caught: a
+  # stuck Backup's own zero-valued benign-phase rows would wrongly
+  # exclude it, making the left-hand presence set's unfiltered (no
+  # `== 1`) label match the only thing distinguishing "phase resolved at
+  # all" from "phase resolved to something benign".
+  - expr: |
+      count by (cluster) (
+        group by (cluster, name, namespace) (veleroBackup_phase)
+        unless on (cluster, name, namespace)
+        group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{cluster="formula-mc"}'
+      value: 1
