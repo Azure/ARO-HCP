@@ -43,20 +43,9 @@ upstream versions and proposes one upstream family at a time. All five
 Native Bingo updates regenerate module/checksum files and the Make/shell helpers,
 including their host-platform build settings.
 
-The agent has read-only repository permissions. The existing `aro-hcp-robot`
-App publishes through safe outputs with an explicit file allowlist. A fresh
-publication-time check serializes only the App's tool-update PRs targeting
-`main`, identified by `agentic-tool-upgrade` or the tool-update title plus
-`agentic-tool-family` body marker if the label is absent. Any such open PR
-blocks a new family until it closes, avoiding competing agent branches for
-shared generated helpers. API queries filter by the known owner and open state;
-only matching tool-update PRs receive a metadata lookup to confirm `main`.
-Incomplete pagination or ownership metadata fails closed.
-Unrelated workflows and Dependabot PRs do not block merely because they share
-the bot author. No human PRs or PR file inventories are scanned for coordination;
-conflicts with human or unrelated PRs are left to normal development rather
-than blocking daily automation. The PR is ready for the existing CI/Tide
-auto-merge path, without agent-requested human reviews or new approval gates.
+Tool updates are serialized against existing agent-owned tool-update PRs.
+Human PRs and unrelated automation do not block daily updates. Published PRs
+use the existing CI/Tide auto-merge path.
 
 Checks use the proposed tool: bicep compiles the committed golden fixtures,
 promtool runs the Prometheus rule generator's consumer tests, and Bingo updates build their tools
