@@ -281,7 +281,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning\"}) > 900) or vector(0)",
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -351,7 +351,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|updating\"}) > 600) or vector(0)",
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|updating\"}) > 600) or vector(0)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -421,7 +421,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"deleting\"}) > 900) or vector(0)",
+          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"deleting\"}) > 900) or vector(0)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -723,80 +723,6 @@
       "title": "Degraded OIDC Clients",
       "type": "stat",
       "description": "Number of individual OIDC client components currently failing health checks across all ExternalAuth resources."
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 300
-              },
-              {
-                "color": "red",
-                "value": 600
-              }
-            ]
-          },
-          "unit": "s",
-          "mappings": [],
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "N/A"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 4,
-        "x": 12,
-        "y": 17
-      },
-      "id": 704,
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "max(time() - backend_externalauth_degraded_last_evaluation_seconds{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"})",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Oldest Degraded Eval",
-      "type": "stat",
-      "description": "Time since the oldest degraded-condition evaluation across all ExternalAuths. Green (<5m) means evaluations are fresh. Yellow/Red means the degraded aggregator may be stuck."
     },
     {
       "datasource": {
@@ -1599,7 +1525,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) * on(resource_id, subscription_id, resource_type, operation_type, phase) group_left() backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}",
+          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) * on(resource_id, subscription_id, resource_type, operation_type, phase) group_left() backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1713,7 +1639,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
+          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
           "legendFormat": "{{ operation_type }}: {{ resource_id }}",
           "range": true,
           "refId": "A"
@@ -2443,7 +2369,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"} == 0) / count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100 or vector(0)",
+          "expr": "(count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"} == 0) / count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2517,7 +2443,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"}) < 900) / count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"})) * 100",
+          "expr": "(count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"}) < 900) or vector(0)) / count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"})) * 100",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2674,228 +2600,6 @@
       "title": "In-Flight Operations",
       "type": "stat",
       "description": "Number of ExternalAuth operations currently in non-terminal phases. Excludes AwaitingSecret (customer-blocked)."
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 25
-              },
-              {
-                "color": "green",
-                "value": 50
-              }
-            ]
-          },
-          "unit": "percent",
-          "mappings": [],
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "N/A"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 0,
-        "y": 73
-      },
-      "id": 800,
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(\n  (\n    (count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}))\n    - 0.99\n  ) / (1 - 0.99) * 100,\n  0\n)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Error Budget Remaining",
-      "type": "stat",
-      "description": "Remaining error budget as a percentage. Based on 99% availability SLO. 100% = full budget remaining, 0% = budget exhausted. Red <25%, Yellow 25-50%, Green >50%."
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 2
-              },
-              {
-                "color": "red",
-                "value": 10
-              }
-            ]
-          },
-          "unit": "x",
-          "mappings": [],
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "0"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 8,
-        "y": 73
-      },
-      "id": 801,
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "(\n  1 - (\n    count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"})\n    / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})\n  )\n) / (1 - 0.99)",
-          "legendFormat": "Burn Rate",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Error Budget Burn Rate",
-      "type": "stat",
-      "description": "Current error budget burn rate. 1x = consuming budget at exactly the SLO rate. >1x = burning faster than sustainable. Green <2x, Yellow 2-10x, Red >10x."
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 25
-              },
-              {
-                "color": "green",
-                "value": 50
-              }
-            ]
-          },
-          "unit": "percent",
-          "mappings": [],
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "N/A"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 16,
-        "y": 73
-      },
-      "id": 802,
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(\n  (\n    (count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"} == 0) / count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}))\n    - 0.95\n  ) / (1 - 0.95) * 100,\n  0\n)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Degraded Health Budget",
-      "type": "stat",
-      "description": "Remaining health budget based on 95% non-degraded SLO. 100% = all healthy, 0% = budget exhausted."
     },
     {
       "datasource": {
