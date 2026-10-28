@@ -73,6 +73,10 @@ def bundle_paths(bundle, branch, patch):
         ["git", "rev-parse", "--path-format=absolute", "--git-path", "objects"],
         check=True, stdout=subprocess.PIPE, text=True,
     ).stdout.strip()
+    shallow = Path(subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-path", "shallow"],
+        check=True, stdout=subprocess.PIPE, text=True,
+    ).stdout.strip())
     environment = os.environ.copy()
     for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"):
         environment.pop(key, None)
@@ -91,6 +95,10 @@ def bundle_paths(bundle, branch, patch):
             ).stdout
 
         git("init", "--bare", "--quiet", "--template=")
+        # Alternates share objects, not shallow boundaries. Preserve the actual
+        # checkout boundaries so ancestry checks do not walk unavailable parents.
+        if shallow.exists():
+            (Path(temporary) / "shallow").write_bytes(shallow.read_bytes())
         # unbundle imports objects only into the temporary repository and rejects
         # missing prerequisites or corrupt packs; it never fetches from a remote.
         heads = git("bundle", "unbundle", str(bundle.resolve())).decode("utf-8").splitlines()
