@@ -62,10 +62,10 @@ type GatherInput struct {
 	// began. A zero value means no cleanup time is available.
 	CleanupStartTime time.Time
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter to scope results to only
-	// the relevant clusters.
+	// ServiceClusterName is the AKS cluster that emitted service-side logs.
+	// ManagementClusterName is resolved from the hosted cluster's placement
+	// during PR snapshots and is empty for non-PR snapshots. When both are
+	// non-empty, queries include a "| where cluster in (...)" filter.
 	ServiceClusterName    string
 	ManagementClusterName string
 }
@@ -277,19 +277,17 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		PhaseEndTime:   input.TimeWindow.End,
 	}
 
-	pool := &queryPool{gatherer: g, input: input}
-
 	// =========================================================================
 	// Phase-independent discovery
 	// =========================================================================
 
 	discoveryDir := filepath.Join(outputDir, "discovery")
 
-	// Run context queries (frontendRequests) to discover all ARM requests.
-	for _, q := range contextQueries {
-		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
-			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
-		}
+	// Discover frontend requests first. This query only needs the service
+	// cluster filter, and its results identify the cluster whose placement
+	// must be resolved before management-side queries can be scoped.
+	if _, err := g.executeQuery(ctx, frontendRequestQuery, &seedData, discoveryDir, input); err != nil {
+		return nil, nil, fmt.Errorf("context query %s failed: %w", frontendRequestQuery.key(), err)
 	}
 
 	// Discover all ARM requests from the frontend request data.
@@ -298,6 +296,26 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		logger.Error(err, "Failed to discover requests, continuing with empty request list")
 		requests = nil
 	}
+
+	if input.ServiceClusterName != "" {
+		managementClusterName, err := g.resolveManagementCluster(ctx, input, seedData, requests, discoveryDir)
+		if err != nil {
+			return nil, nil, err
+		}
+		input.ManagementClusterName = managementClusterName
+		seedData.ManagementClusterName = managementClusterName
+		logger.Info("Resolved management cluster", "managementCluster", managementClusterName)
+	}
+
+	// Run the remaining context queries now that management-cluster placement
+	// is known.
+	for _, q := range scopedContextQueries {
+		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
+			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
+		}
+	}
+
+	pool := &queryPool{gatherer: g, input: input}
 
 	// Run per-request and per-resource discovery.
 	trackedReqs, resources, resourceOrder := g.runDiscovery(ctx, pool, seedData, requests, discoveryDir, report, logger)

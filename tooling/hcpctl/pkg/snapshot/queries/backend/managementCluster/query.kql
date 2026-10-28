@@ -1,0 +1,32 @@
+let desires = cosmosResourceSnapshots
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+| where cluster == '{{ .ServiceClusterName }}'
+| where subscriptionID == '{{ .SubscriptionID }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where resourceID startswith '{{ .ClusterResourceID }}/'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| extend resourceID = tolower(resourceID), ts = tolong(content._ts)
+| summarize arg_max(timestamp, *) by cluster, resourceID, ts
+| summarize arg_max(ts, *) by cluster, resourceID
+| where isempty(content.deletionTimestamp)
+| extend manifest = content.properties.status.kubeContent
+| where manifest.kind == 'HostedCluster' and isempty(manifest.metadata.deletionTimestamp)
+| extend managementCluster = tolower(tostring(content.properties.spec.managementCluster))
+| where isnotempty(managementCluster)
+| project managementCluster;
+let fleet = cosmosResourceSnapshots
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+| where cluster == '{{ .ServiceClusterName }}'
+| where resourceType =~ 'microsoft.redhatopenshift/stamps/managementclusters'
+| extend managementCluster = tolower(resourceID), ts = tolong(content._ts)
+| join kind=leftsemi desires on managementCluster
+| summarize arg_max(timestamp, *) by cluster, managementCluster, ts
+| summarize arg_max(ts, *) by cluster, managementCluster
+| where isempty(content.deletionTimestamp)
+| extend managementClusterName = tostring(split(tostring(content.properties.status.aksResourceID), '/')[-1])
+| where isnotempty(managementClusterName)
+| project managementCluster, managementClusterName;
+desires
+| join kind=inner fleet on managementCluster
+| distinct managementClusterName
+| project managementCluster = managementClusterName

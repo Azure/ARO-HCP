@@ -118,9 +118,10 @@ type queryData struct {
 	MonitoringEventsDatabase string
 	ResourceGroup            string
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter.
+	// ServiceClusterName is the AKS cluster that emitted service-side logs.
+	// ManagementClusterName is the actual hosting management cluster resolved
+	// from placement. When both are non-empty, queries include a
+	// "| where cluster in (...)" filter.
 	ServiceClusterName    string
 	ManagementClusterName string
 
@@ -768,17 +769,21 @@ var allQueries = []querySpec{
 	},
 }
 
-// contextQueries are broader queries not tied to a specific correlation ID.
-// They discover all frontend requests in the resource group during the time window.
-// These are written directly to the top-level output directory.
-var contextQueries = []querySpec{
-	{
-		component:    "frontend",
-		queryName:    "frontendRequests",
-		templatePath: "queries/frontend/frontendRequests/query.kql",
-		database:     "service",
-		category:     categoryContext,
-	},
+// frontendRequestQuery discovers all frontend requests in the resource group
+// during the time window. It runs before management-cluster placement is known,
+// so its template filters only on the service cluster.
+var frontendRequestQuery = querySpec{
+	component:    "frontend",
+	queryName:    "frontendRequests",
+	templatePath: "queries/frontend/frontendRequests/query.kql",
+	database:     "service",
+	category:     categoryContext,
+}
+
+// scopedContextQueries are broader queries not tied to a specific correlation
+// ID. They run after management-cluster placement has been resolved so their
+// cluster filters can include the actual hosting stamp.
+var scopedContextQueries = []querySpec{
 	{
 		component:    "alerts",
 		queryName:    "uncategorized",
