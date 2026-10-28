@@ -156,8 +156,8 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, existingCluster)
-	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
+	operationalState, observationErr := c.determineOperationState(ctx, operation, existingCluster)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}

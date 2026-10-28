@@ -143,16 +143,16 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	if state != nil {
 		states = append(states, state.WithSource("externalAuthDeletion"))
 	}
-	state, err = operationbase.SummarizeOperationStates(states, observationErr)
+	state, observationErr = operationbase.SummarizeOperationStates(states, observationErr)
 	var logValues []any
 	if state != nil {
 		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
 	}
-	if err != nil {
-		logValues = append(logValues, "error", err)
+	if observationErr != nil {
+		logValues = append(logValues, "error", observationErr)
 	}
 	logger.Info("summarized operation state", logValues...)
-	state, err = operationbase.ApplyOperationDeadline(state, err, externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline, c.clock.Now(), "External auth deletion did not complete within the allowed time.")
+	state, err = operationbase.ApplyOperationDeadline(state, observationErr, externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline, c.clock.Now(), "External auth deletion did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
