@@ -61,7 +61,8 @@ func TestHealthzStartup(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			api := NewAdminAPI(testr.New(t), "test", nil, nil,
 				db, nil, nil, nil, nil, nil, nil, nil, nil,
-				time.Minute, time.Hour, nil, registry, registry, nil)
+				time.Minute, time.Hour, nil, registry, registry, nil,
+				nil, "", nil)
 
 			for _, endpoint := range []struct {
 				name    string
