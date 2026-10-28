@@ -1,0 +1,163 @@
+rule_files:
+- hypershiftUserJourney-recordingRule.yaml
+- hypershiftOperatorUserJourney-prometheusRule.yaml
+group_eval_order:
+- hypershift-operator-recording-rules
+- hypershift-operator-monitor-rules
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  name: "Healthy HyperShift Operator fires no alerts"
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "4+0x120"
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3+0x120"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3+0x120"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
+    values: "0+10x120"
+  alert_rule_test:
+  - eval_time: 120m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: hypershiftOperatorPodsDown
+    exp_alerts: []
+  - eval_time: 120m
+    alertname: hypershiftOperatorIdle
+    exp_alerts: []
+- interval: 1m
+  name: "One HyperShift Operator pod unavailable"
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "2+0x60"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3+0x60"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator pods unavailable"
+        description: |
+          1 hypershift-operator pod(s) have been unavailable for 15 minutes.
+          Management Cluster: mc1
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
+        correlationId: "hypershiftOperatorPodsUnavailable/mc1"
+  - eval_time: 20m
+    alertname: hypershiftOperatorPodsDown
+    exp_alerts: []
+- interval: 1m
+  name: "Two HyperShift Operator pods unavailable"
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "4+0x60"
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "1+0x60"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3+0x60"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: hypershiftOperatorPodsDown
+    exp_alerts:
+    - exp_labels:
+        severity: "2"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator pods down"
+        description: |
+          2 hypershift-operator pods have been unavailable for 5 minutes.
+          Management Cluster: mc1
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
+        correlationId: "hypershiftOperatorPodsDown/mc1"
+  - eval_time: 20m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator pods unavailable"
+        description: |
+          2 hypershift-operator pod(s) have been unavailable for 15 minutes.
+          Management Cluster: mc1
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
+        correlationId: "hypershiftOperatorPodsUnavailable/mc1"
+  # With no operator reconciling there is no reconcile series, so Idle stays quiet and does not duplicate the pod alerts.
+  - eval_time: 60m
+    alertname: hypershiftOperatorIdle
+    exp_alerts: []
+- interval: 1m
+  name: "Short HyperShift Operator pod outages fire no alerts"
+  input_series:
+  # mc1: one pod unavailable from 6m to 15m (10 minutes, under the 15m hold).
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3x5 2x9 3x45"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3+0x60"
+  # mc2: two pods unavailable from 6m to 8m (3 minutes, under the 5m hold).
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "3x5 1x2 3x52"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "3+0x60"
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: hypershiftOperatorPodsDown
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: hypershiftOperatorPodsUnavailable
+    exp_alerts: []
+- interval: 1m
+  name: "HyperShift Operator wedged while HostedClusters exist"
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "4+0x100"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
+    values: "5+0x100"
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: hypershiftOperatorIdle
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: hypershift-operator-traffic
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "mc1: hypershift-operator has not reconciled anything for 30 minutes"
+        description: |
+          hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+          Management Cluster: mc1
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
+        correlationId: "hypershiftOperatorIdle/mc1"
+- interval: 1m
+  name: "HyperShift Operator idle without HostedClusters fires no alert"
+  input_series:
+  - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1"}'
+    values: "0+0x100"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", result="success", cluster="mc1"}'
+    values: "5+0x100"
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: hypershiftOperatorIdle
+    exp_alerts: []
