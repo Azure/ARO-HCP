@@ -107,7 +107,7 @@ func NewAdminAPI(
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/breakglass"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(resourcesDBClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(resourcesDBClient, fleetDBClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/breakglass/{sessionName}/kubeconfig"),
