@@ -63,11 +63,13 @@ type GatherInput struct {
 	CleanupStartTime time.Time
 
 	// ServiceClusterName is the AKS cluster that emitted service-side logs.
-	// ManagementClusterName is resolved from the hosted cluster's placement
-	// during PR snapshots and is empty for non-PR snapshots. When both are
-	// non-empty, queries include a "| where cluster in (...)" filter.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ManagementClusterNames are resolved from hosted-cluster placement during
+	// PR snapshots and are empty for non-PR snapshots. When both are non-empty,
+	// queries include a "| where cluster in (...)" filter. ManagementClusterName
+	// remains as a single-cluster fallback for existing callers.
+	ServiceClusterName     string
+	ManagementClusterName  string
+	ManagementClusterNames []string
 }
 
 // validate checks that all required fields are set.
@@ -270,6 +272,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		ResourceGroup:            input.ResourceGroup,
 		ServiceClusterName:       input.ServiceClusterName,
 		ManagementClusterName:    input.ManagementClusterName,
+		ManagementClusterNames:   managementClusterNames(input),
 		FullStartTime:            input.TimeWindow.Start,
 		FullEndTime:              input.TimeWindow.End,
 		// Discovery queries use the full window for phase fields too.
@@ -298,13 +301,15 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	if input.ServiceClusterName != "" {
-		managementClusterName, err := g.resolveManagementCluster(ctx, input, seedData, requests, discoveryDir)
+		managementClusterNames, err := g.resolveManagementCluster(ctx, input, seedData, requests, discoveryDir)
 		if err != nil {
 			return nil, nil, err
 		}
-		input.ManagementClusterName = managementClusterName
-		seedData.ManagementClusterName = managementClusterName
-		logger.Info("Resolved management cluster", "managementCluster", managementClusterName)
+		input.ManagementClusterName = ""
+		input.ManagementClusterNames = managementClusterNames
+		seedData.ManagementClusterName = ""
+		seedData.ManagementClusterNames = managementClusterNames
+		logger.Info("Resolved management clusters", "managementClusters", managementClusterNames)
 	}
 
 	// Run the remaining context queries now that management-cluster placement
@@ -852,17 +857,18 @@ func (g *Gatherer) gatherPhase(
 	// Service-level event queries for this phase.
 	serviceEventsDir := filepath.Join(phaseDir, "events")
 	serviceEventData := queryData{
-		ClusterURI:            input.ClusterURI,
-		ServiceDatabase:       input.ServiceDatabase,
-		HCPDatabase:           input.HCPDatabase,
-		ResourceGroup:         input.ResourceGroup,
-		ServiceClusterName:    input.ServiceClusterName,
-		ManagementClusterName: input.ManagementClusterName,
-		FullStartTime:         input.TimeWindow.Start,
-		FullEndTime:           input.TimeWindow.End,
-		PhaseStartTime:        phase.start,
-		PhaseEndTime:          phase.end,
-		PhaseName:             phase.name,
+		ClusterURI:             input.ClusterURI,
+		ServiceDatabase:        input.ServiceDatabase,
+		HCPDatabase:            input.HCPDatabase,
+		ResourceGroup:          input.ResourceGroup,
+		ServiceClusterName:     input.ServiceClusterName,
+		ManagementClusterName:  input.ManagementClusterName,
+		ManagementClusterNames: managementClusterNames(input),
+		FullStartTime:          input.TimeWindow.Start,
+		FullEndTime:            input.TimeWindow.End,
+		PhaseStartTime:         phase.start,
+		PhaseEndTime:           phase.end,
+		PhaseName:              phase.name,
 	}
 	serviceEventMu := &sync.Mutex{}
 	for _, q := range queriesByCategory(categoryEvents) {

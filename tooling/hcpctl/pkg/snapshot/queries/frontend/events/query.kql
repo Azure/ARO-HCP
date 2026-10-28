@@ -1,7 +1,7 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
-{{- if and .ServiceClusterName .ManagementClusterName }}
-| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- if and .ServiceClusterName .ManagementClusterNames }}
+| where cluster in ('{{ .ServiceClusterName }}'{{ range .ManagementClusterNames }}, '{{ . }}'{{ end }})
 {{- end }}
 | where eventNamespace == 'aro-hcp'
 | where objectName has 'frontend'

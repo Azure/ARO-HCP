@@ -16,6 +16,7 @@ package snapshot
 
 import (
 	"io/fs"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -28,10 +29,10 @@ func TestManagementClusterResolverData(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		requests []frontendRequest
-		wantErr  string
-		wantData queryData
+		name        string
+		requests    []frontendRequest
+		wantErr     string
+		wantTargets []managementClusterTarget
 	}{
 		{
 			name:    "no requests",
@@ -46,19 +47,31 @@ func TestManagementClusterResolverData(t *testing.T) {
 			wantErr: "no frontend request provided a cluster resource ID and subscription ID",
 		},
 		{
-			name: "valid request supplies placement inputs",
+			name: "all distinct cluster requests supply placement inputs",
 			requests: []frontendRequest{
 				{ClusterResourceID: "incomplete"},
 				{
+					SubscriptionID:    "SUB",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b/",
+				},
+				{
 					SubscriptionID:    "sub",
-					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+				},
+				{
+					SubscriptionID:    "sub",
+					ClusterResourceID: "/SUBSCRIPTIONS/SUB/RESOURCEGROUPS/RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/CLUSTER-A/",
 				},
 			},
-			wantData: queryData{
-				ServiceClusterName: "ci01-j5162112-svc",
-				ResourceGroup:      "test-resource-group",
-				SubscriptionID:     "sub",
-				ClusterResourceID:  "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+			wantTargets: []managementClusterTarget{
+				{
+					SubscriptionID:    "sub",
+					ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-a",
+				},
+				{
+					SubscriptionID:    "sub",
+					ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-b",
+				},
 			},
 		},
 	}
@@ -75,8 +88,8 @@ func TestManagementClusterResolverData(t *testing.T) {
 			if err != nil {
 				t.Fatalf("managementClusterResolverData() error = %v", err)
 			}
-			if got.SubscriptionID != tt.wantData.SubscriptionID || got.ClusterResourceID != tt.wantData.ClusterResourceID {
-				t.Fatalf("managementClusterResolverData() = %+v, want %+v", got, tt.wantData)
+			if !reflect.DeepEqual(got.ManagementClusterTargets, tt.wantTargets) {
+				t.Fatalf("managementClusterResolverData() targets = %+v, want %+v", got.ManagementClusterTargets, tt.wantTargets)
 			}
 			if got.ServiceClusterName != seedData.ServiceClusterName || got.ResourceGroup != seedData.ResourceGroup {
 				t.Fatalf("managementClusterResolverData() lost seed data: got %+v", got)
@@ -85,65 +98,102 @@ func TestManagementClusterResolverData(t *testing.T) {
 	}
 }
 
-func TestManagementClusterFromRows(t *testing.T) {
+func TestManagementClustersFromRows(t *testing.T) {
+	clusterA := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a"
+	clusterB := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b"
+	targets := []managementClusterTarget{
+		{ClusterResourceID: clusterA, SubscriptionID: "sub"},
+		{ClusterResourceID: clusterB, SubscriptionID: "sub"},
+	}
 	tests := []struct {
 		name    string
 		rows    []resultRow
-		want    string
+		targets []managementClusterTarget
+		want    []string
 		wantErr string
 	}{
 		{
-			name: "valid row",
+			name: "single cluster placement",
 			rows: []resultRow{{
-				columns: []string{"managementCluster"},
-				values:  []string{"ci01-j5162112-mgmt-2"},
+				columns: []string{"clusterResourceID", "managementCluster"},
+				values:  []string{clusterA, "ci01-j5162112-mgmt-2"},
 			}},
-			want: "ci01-j5162112-mgmt-2",
+			targets: targets[:1],
+			want:    []string{"ci01-j5162112-mgmt-2"},
+		},
+		{
+			name: "different clusters may have different placements",
+			rows: []resultRow{
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "ci01-j5162112-mgmt-1"}},
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterB, "ci01-j5162112-mgmt-2"}},
+			},
+			targets: targets,
+			want:    []string{"ci01-j5162112-mgmt-1", "ci01-j5162112-mgmt-2"},
+		},
+		{
+			name: "same placement across clusters is deduplicated",
+			rows: []resultRow{
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "ci01-j5162112-mgmt-1"}},
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterB, "ci01-j5162112-mgmt-1"}},
+			},
+			targets: targets,
+			want:    []string{"ci01-j5162112-mgmt-1"},
+		},
+		{
+			name: "conflicting placement for one cluster is ambiguous",
+			rows: []resultRow{
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "mgmt-1"}},
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "mgmt-2"}},
+			},
+			targets: targets[:1],
+			wantErr: "2 distinct placements",
 		},
 		{
 			name:    "no rows",
 			wantErr: "returned no results",
 		},
 		{
-			name: "ambiguous rows",
+			name: "missing placement for a requested cluster",
 			rows: []resultRow{
-				{columns: []string{"managementCluster"}, values: []string{"mgmt-1"}},
-				{columns: []string{"managementCluster"}, values: []string{"mgmt-2"}},
+				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "mgmt-1"}},
 			},
-			wantErr: "returned 2 distinct results",
+			targets: targets,
+			wantErr: "no placement for cluster resource ID",
 		},
 		{
 			name: "missing column",
 			rows: []resultRow{{
-				columns: []string{"clusterName"},
+				columns: []string{"managementCluster"},
 				values:  []string{"ci01-j5162112-mgmt-2"},
 			}},
-			wantErr: "missing the managementCluster column",
+			targets: targets[:1],
+			wantErr: "missing the clusterResourceID column",
 		},
 		{
 			name: "empty value",
 			rows: []resultRow{{
-				columns: []string{"managementCluster"},
-				values:  []string{""},
+				columns: []string{"clusterResourceID", "managementCluster"},
+				values:  []string{clusterA, ""},
 			}},
-			wantErr: "empty managementCluster value",
+			targets: targets[:1],
+			wantErr: "empty clusterResourceID or managementCluster",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := managementClusterFromRows(tt.rows)
+			got, err := managementClustersFromRows(tt.rows, tt.targets)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("managementClusterFromRows() error = %v, want error containing %q", err, tt.wantErr)
+					t.Fatalf("managementClustersFromRows() error = %v, want error containing %q", err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("managementClusterFromRows() error = %v", err)
+				t.Fatalf("managementClustersFromRows() error = %v", err)
 			}
-			if got != tt.want {
-				t.Fatalf("managementClusterFromRows() = %q, want %q", got, tt.want)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("managementClustersFromRows() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -154,30 +204,38 @@ func TestManagementClusterQueryIsTargeted(t *testing.T) {
 		ClusterURI:         "https://kusto.example.com",
 		ServiceDatabase:    "service-db",
 		ServiceClusterName: "ci01-j5162112-svc",
-		SubscriptionID:     "sub",
 		ResourceGroup:      "rg",
-		ClusterResourceID:  "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
-		FullStartTime:      time.Unix(0, 0).UTC(),
-		FullEndTime:        time.Unix(60, 0).UTC(),
+		ManagementClusterTargets: []managementClusterTarget{{
+			SubscriptionID:    "sub",
+			ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster",
+		}},
+		FullStartTime: time.Unix(0, 0).UTC(),
+		FullEndTime:   time.Unix(60, 0).UTC(),
 	})
 	if err != nil {
 		t.Fatalf("renderQuery() error = %v", err)
 	}
 
 	assertions := []string{
+		"let targets = datatable(clusterResourceID:string, targetSubscriptionID:string)",
+		"'/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster', 'sub'",
 		"| where timestamp <= datetime(1970-01-01T00:01:00Z)",
 		"| where cluster == 'ci01-j5162112-svc'",
-		"| where resourceID startswith '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/'",
+		"| where tolower(subscriptionID) == targetSubscriptionID",
+		"| where resourceID startswith strcat(clusterResourceID, '/')",
 		"| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'",
-		"| summarize arg_max(timestamp, *) by cluster, resourceID, ts",
-		"| summarize arg_max(ts, *) by cluster, resourceID",
+		"| summarize arg_max(timestamp, *) by cluster, resourceID, ts, clusterResourceID",
+		"| summarize arg_max(ts, *) by cluster, resourceID, clusterResourceID",
+		"content.properties.spec.targetItem.group",
+		"content.properties.spec.targetItem.resource",
+		"content.properties.spec.managementCluster",
 		"| where resourceType =~ 'microsoft.redhatopenshift/stamps/managementclusters'",
 		"| join kind=leftsemi desires on managementCluster",
 		"| summarize arg_max(timestamp, *) by cluster, managementCluster, ts",
 		"| summarize arg_max(ts, *) by cluster, managementCluster",
-		"| extend managementClusterName = tostring(split(tostring(content.properties.status.aksResourceID), '/')[-1])",
+		"| extend managementClusterName = tolower(tostring(split(tostring(content.properties.status.aksResourceID), '/')[-1]))",
 		"| join kind=inner fleet on managementCluster",
-		"| project managementCluster = managementClusterName",
+		"| project clusterResourceID, managementCluster = managementClusterName",
 	}
 	for _, assertion := range assertions {
 		if !strings.Contains(rendered, assertion) {
@@ -188,6 +246,44 @@ func TestManagementClusterQueryIsTargeted(t *testing.T) {
 		t.Errorf("management cluster query must allow placement documents that predate the test window:\n%s", rendered)
 	}
 	assertBalancedKQL(t, rendered)
+}
+
+func TestManagementClusterQueryPreservesPlacementDuringCleanup(t *testing.T) {
+	rendered, err := renderQuery(managementClusterQuery.templatePath, queryData{
+		ServiceClusterName: "ci01-j5162112-svc",
+		ResourceGroup:      "rg",
+		FullEndTime:        time.Unix(60, 0).UTC(),
+		ManagementClusterTargets: []managementClusterTarget{{
+			ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster",
+			SubscriptionID:    "sub",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("renderQuery() error = %v", err)
+	}
+	desiresQuery := strings.SplitN(rendered, "let fleet", 2)[0]
+
+	cleanupStates := []struct {
+		name           string
+		obsoleteFilter string
+	}{
+		{name: "soft-deleted ReadDesire", obsoleteFilter: "where isempty(content.deletionTimestamp)"},
+		{name: "terminating HostedCluster", obsoleteFilter: "manifest.metadata.deletionTimestamp"},
+		{name: "cleared kubeContent", obsoleteFilter: "content.properties.status.kubeContent"},
+	}
+	for _, cleanupState := range cleanupStates {
+		t.Run(cleanupState.name, func(t *testing.T) {
+			if strings.Contains(desiresQuery, cleanupState.obsoleteFilter) {
+				t.Errorf("ReadDesire placement is still discarded by %q:\n%s", cleanupState.obsoleteFilter, desiresQuery)
+			}
+			if !strings.Contains(desiresQuery, "content.properties.spec.targetItem.resource") {
+				t.Errorf("ReadDesire query does not identify HostedClusters through spec.targetItem:\n%s", desiresQuery)
+			}
+			if !strings.Contains(desiresQuery, "content.properties.spec.managementCluster") {
+				t.Errorf("ReadDesire query does not retain placement from spec.managementCluster:\n%s", desiresQuery)
+			}
+		})
+	}
 }
 
 func assertBalancedKQL(t *testing.T, query string) {
@@ -250,15 +346,15 @@ func TestQueryTemplatesFilterResolvedManagementCluster(t *testing.T) {
 	}
 
 	const clusterFilter = "| where cluster in ("
-	const wantFilter = "| where cluster in ('ci01-j5162112-svc', 'ci01-j5162112-mgmt-2')"
+	const wantFilter = "| where cluster in ('ci01-j5162112-svc', 'ci01-j5162112-mgmt-1', 'ci01-j5162112-mgmt-2')"
 	filtered := 0
 	for _, path := range templatePaths {
 		t.Run(path, func(t *testing.T) {
 			withCluster, err := renderQuery(path, queryData{
-				ServiceClusterName:    "ci01-j5162112-svc",
-				ManagementClusterName: "ci01-j5162112-mgmt-2",
-				FullStartTime:         time.Unix(0, 0).UTC(),
-				FullEndTime:           time.Unix(60, 0).UTC(),
+				ServiceClusterName:     "ci01-j5162112-svc",
+				ManagementClusterNames: []string{"ci01-j5162112-mgmt-1", "ci01-j5162112-mgmt-2"},
+				FullStartTime:          time.Unix(0, 0).UTC(),
+				FullEndTime:            time.Unix(60, 0).UTC(),
 			})
 			if err != nil {
 				t.Fatalf("renderQuery() error = %v", err)

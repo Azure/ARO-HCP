@@ -119,11 +119,14 @@ type queryData struct {
 	ResourceGroup            string
 
 	// ServiceClusterName is the AKS cluster that emitted service-side logs.
-	// ManagementClusterName is the actual hosting management cluster resolved
-	// from placement. When both are non-empty, queries include a
-	// "| where cluster in (...)" filter.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ManagementClusterNames are the actual hosting management clusters
+	// resolved from placement. When both are non-empty, queries include a
+	// "| where cluster in (...)" filter. ManagementClusterName remains as a
+	// single-cluster fallback for callers that have not migrated to the slice.
+	ServiceClusterName       string
+	ManagementClusterName    string
+	ManagementClusterNames   []string
+	ManagementClusterTargets []managementClusterTarget
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
@@ -818,13 +821,30 @@ func kqlDatetime(t time.Time) string {
 
 // templateFuncMap provides template functions available to KQL templates.
 var templateFuncMap = template.FuncMap{
-	"kqlDatetime": kqlDatetime,
-	"toLower":     strings.ToLower,
+	"kqlDatetime":                 kqlDatetime,
+	"kqlManagementClusterTargets": kqlManagementClusterTargets,
+	"toLower":                     strings.ToLower,
+}
+
+func kqlManagementClusterTargets(targets []managementClusterTarget) string {
+	rows := make([]string, 0, len(targets))
+	for _, target := range targets {
+		rows = append(rows, fmt.Sprintf("%s, %s", kqlStringLiteral(target.ClusterResourceID), kqlStringLiteral(target.SubscriptionID)))
+	}
+	return strings.Join(rows, ",\n")
+}
+
+func kqlStringLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // renderQuery reads and renders an embedded KQL template with the given data.
 // Shared partial templates from queries/_partials/ are automatically available.
 func renderQuery(templatePath string, data queryData) (string, error) {
+	if len(data.ManagementClusterNames) == 0 && data.ManagementClusterName != "" {
+		data.ManagementClusterNames = []string{data.ManagementClusterName}
+	}
+
 	tmplBytes, err := queriesFS.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read embedded query %s: %w", templatePath, err)
