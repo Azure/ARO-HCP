@@ -32,14 +32,22 @@ missing-resource diagnostic from representing a failed read. Missing cluster,
 service-provider, subscription, tenant, cluster-service ID, or resource-group
 name prerequisites wait for later reconciliation. UDR and deletion are skipped.
 Existence is sufficient; provisioning state and address assignment are not gates.
-Once all expected resources are confirmed, observation stops. Pending resources
-are rechecked on the controller's five-minute resync or relevant cache events.
+Once a complete enumeration confirms all expected resources, observation stops.
+Pending resources are rechecked on the controller's five-minute resync or relevant
+cache events.
 A pass with missing resources or an observation error sets a jittered
 one-to-one-and-a-half minute minimum recheck time and explicitly queues that
 retry. Early status events reschedule the remaining delay without enumeration
 or service-provider document replacements, preventing self-triggered
 invalidation/read cycles even after a partial enumeration. Observation errors
 are still returned; unconfirmed IDs remain unknown rather than missing.
+Cooldown passes preserve the persisted controller health condition and its
+transition time rather than reporting a successful observation. This lets a
+continuous observation failure reach the cluster degraded aggregator's reporting
+threshold, including after a controller restart. Successful enumeration clears
+the observation error even when some expected resources are missing. An expired
+retry still enumerates when all expected IDs were found before a later page
+failed.
 
 Cluster creation includes an `egressPublicIPs` completion source. Missing or
 unknown resources keep the operation provisioning rather than returning a Go
