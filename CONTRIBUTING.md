@@ -103,7 +103,8 @@ All pull requests must follow these standards. Reviewers will check for complian
 - Lead with motivation and business context, then briefly describe the technical approach.
 
 ### 4. Link to Relevant Ticket or Issue
-- Every PR must reference its tracking ticket (Jira, GitHub Issue).
+- PRs authored by `aro-hcp-robot[bot]` do not require a separate Jira or GitHub tracking issue. The bot PR itself tracks the automated change, including dependency, component, image and tool updates. This exception does not waive CI, security checks or substantive code review.
+- All other PRs must reference their tracking ticket (Jira, GitHub Issue) or explain why no ticket is needed.
 - Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
 - If no ticket exists, create one first or explain why in the PR body.
 
