@@ -6,8 +6,18 @@ on:
 permissions: {}
 jobs:
   continue-tool-updates:
-    if: >-
-      github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.repo.full_name == github.repository && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'aro-hcp-robot[bot]' && (contains(github.event.pull_request.labels.*.name, 'agentic-tool-upgrade') || (startsWith(github.event.pull_request.title, 'chore(tools): ') && contains(github.event.pull_request.body, '<!-- agentic-tool-family:')))
+    if: |-
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'aro-hcp-robot[bot]' && (
+        contains(github.event.pull_request.labels.*.name, 'agentic-tool-upgrade') || (
+          startsWith(github.event.pull_request.title, 'chore(tools): ') &&
+          contains(github.event.pull_request.body, '<!-- agentic-tool-family:')
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
