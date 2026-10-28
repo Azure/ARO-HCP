@@ -16,6 +16,8 @@ package controllerutils
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +25,8 @@ import (
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -40,6 +44,68 @@ import (
 type capturingNotifier struct {
 	addFunc    func(any)
 	updateFunc func(any, any)
+}
+
+func TestClusterWatchingControllerSkippedSync(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		err      error
+		preserve bool
+	}{
+		{name: "skipped", err: ErrSyncSkipped, preserve: true},
+		{name: "success"},
+		{name: "failure", err: errors.New("read failed")},
+		{name: "wrapped", err: fmt.Errorf("failed: %w", ErrSyncSkipped)},
+		{name: "joined", err: errors.Join(ErrSyncSkipped, errors.New("unrelated failure"))},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			key := HCPClusterKey{SubscriptionID: "00000000-0000-0000-0000-000000000000", ResourceGroupName: "test-rg", HCPClusterName: "test-cluster"}
+			database := corecosmosstoragetesting.NewMockResourcesDBClient()
+			crud := database.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
+			const name = "test-controller"
+			require.NoError(t, WriteController(ctx, crud, name, key.InitialController, ReportSyncError(errors.New("original failure"))))
+			original, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.NoError(t, WriteController(ctx, crud, "other-controller", key.InitialController, ReportSyncError(errors.New("other failure"))))
+			other, err := crud.Get(ctx, "other-controller")
+			require.NoError(t, err)
+			otherKey := key
+			otherKey.HCPClusterName = "other-cluster"
+			otherCRUD := database.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(otherKey.HCPClusterName)
+			require.NoError(t, WriteController(ctx, otherCRUD, name, otherKey.InitialController, ReportSyncError(errors.New("other cluster failure"))))
+			otherCluster, err := otherCRUD.Get(ctx, name)
+			require.NoError(t, err)
+			controller := &clusterWatchingController{
+				name: name, resourcesDBClient: database,
+				clusterLister: newFakeClusterLister(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName),
+				syncer:        &mockClusterSyncer{syncOnceFunc: func(context.Context, HCPClusterKey) error { return testCase.err }},
+			}
+			err = controller.SyncOnce(ctx, key)
+			if testCase.preserve || testCase.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, testCase.err)
+			}
+			updated, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			condition := meta.FindStatusCondition(updated.Status.Conditions, "Degraded")
+			if testCase.preserve {
+				require.Equal(t, original, updated)
+			} else if testCase.err == nil {
+				require.Equal(t, metav1.ConditionFalse, condition.Status)
+			} else {
+				require.Equal(t, metav1.ConditionTrue, condition.Status)
+				require.Contains(t, condition.Message, testCase.err.Error())
+			}
+			unchanged, err := crud.Get(ctx, "other-controller")
+			require.NoError(t, err)
+			require.Equal(t, other, unchanged)
+			unchanged, err = otherCRUD.Get(ctx, name)
+			require.NoError(t, err)
+			require.Equal(t, otherCluster, unchanged)
+		})
+	}
 }
 
 func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {

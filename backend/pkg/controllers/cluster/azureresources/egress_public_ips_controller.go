@@ -81,8 +81,8 @@ func (c *egressPublicIPsSyncer) NeedsWork(cluster *coreapi.Cluster, serviceProvi
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || !coreapihelpers.UsesLoadBalancerEgress(cluster) {
 		return false
 	}
-	if recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil && c.clock.Now().Before(recheck.Time) {
-		return false
+	if recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil {
+		return !c.clock.Now().Before(recheck.Time)
 	}
 	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
 	if err != nil || len(expected) == 0 {
@@ -114,6 +114,7 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if !c.NeedsWork(cluster, existing) {
 		if recheck := existing.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName]; recheck != nil && c.clock.Now().Before(recheck.Time) && cluster.ServiceProviderProperties.DeletionTimestamp == nil && coreapihelpers.UsesLoadBalancerEgress(cluster) {
 			c.scheduleRecheck(key, existing)
+			return controllerutils.ErrSyncSkipped
 		}
 		return nil
 	}
