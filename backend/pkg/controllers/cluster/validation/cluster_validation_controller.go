@@ -210,6 +210,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	} else {
 		previousCondition := meta.FindStatusCondition(existingServiceProviderCluster.Status.Validations, c.validation.Name())
 		desiredCondition := result.ToCondition(c.validation.Name())
+
 		consecutiveUnknowns := c.trackConsecutiveUnknowns(key, desiredCondition)
 		if c.shouldWriteCondition(previousCondition, consecutiveUnknowns) {
 			meta.SetStatusCondition(&replacement.Status.Validations, desiredCondition)

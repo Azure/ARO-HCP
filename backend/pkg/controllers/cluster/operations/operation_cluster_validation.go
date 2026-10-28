@@ -28,6 +28,7 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,10 +36,7 @@ import (
 
 // clusterValidationFailureTimeout is how long a validation must have been continuously failing,
 // on an operation at least as old, before the operation is failed terminally.
-//
-// Fifteen minutes gives the documented typical Azure RBAC propagation time (~10 minutes)
-// some margin without extending a genuine missing-permission error to the operation deadline.
-const clusterValidationFailureTimeout = 15 * time.Minute
+const clusterValidationFailureTimeout = 10 * time.Minute
 
 var (
 	// validationStaleProbeDeferrals counts operation evaluations in which a
