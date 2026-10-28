@@ -50,6 +50,11 @@ avoiding competing branches for shared generated helpers. The PR is ready for
 the existing CI/Tide auto-merge path, without agent-requested human reviews or
 new approval gates.
 
+Bundle verification uses an isolated Git object database with the publication
+checkout's objects and shallow-history boundaries. This supports depth-one
+checkouts without fetching additional history or changing the source checkout;
+missing bases and invalid ancestry still fail closed.
+
 Checks use the proposed tool: bicep compiles the committed golden fixtures,
 promtool runs the Prometheus rule generator's consumer tests, and Bingo updates build their tools
 and run repository verification/lint. Dockerfile and `.bingo/` changes also

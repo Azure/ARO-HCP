@@ -214,10 +214,12 @@ else:
         )
         return result.stdout
 
-    def write_bundle(self, *filenames, merge_only_path=None):
+    def write_bundle(self, *filenames, merge_only_path=None, shallow=False):
         """Generate the default paired transport with real, local Git objects."""
         producer = self.directory / "producer"
         self.git("init", "--quiet", "--initial-branch=main", str(producer))
+        if shallow:
+            self.git("commit", "--quiet", "--allow-empty", "-m", "older history", cwd=producer)
         base_files = [*filenames]
         if merge_only_path is not None:
             base_files.append(merge_only_path)
@@ -255,7 +257,7 @@ else:
         checkout = self.directory / "checkout"
         self.git(
             "clone", "--quiet", "--no-local", "--single-branch", "--branch", "main",
-            str(producer), str(checkout),
+            *(["--depth=1"] if shallow else []), str(producer), str(checkout),
         )
         self.checkout = checkout
 
@@ -552,6 +554,60 @@ else:
         result, written, _, _ = self.run_guard()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(written), self.output)
+
+    def test_depth_one_checkout_preserves_boundaries_and_detects_bundle_overlap(self):
+        self.write_bundle(".bingo/yq.mod", merge_only_path=".bingo/helm.mod", shallow=True)
+        git_directory = self.checkout / ".git"
+        before = {
+            path.relative_to(git_directory): path.read_bytes()
+            for path in git_directory.rglob("*") if path.is_file()
+        }
+        base = self.proposal["base_commit"]
+        parent = self.git("rev-parse", f"{base}^", cwd=self.directory / "producer").strip()
+        self.assertEqual((git_directory / "shallow").read_text().strip(), base)
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.git("cat-file", "-e", parent)
+        # Reproduce the original object-only alternate database failure. This
+        # must not pass merely because this fixture happens to retain history.
+        verifier = self.directory / "without-shallow-boundaries"
+        self.git("init", "--quiet", "--bare", str(verifier))
+        alternates = verifier / "objects/info/alternates"
+        alternates.write_text(str(git_directory / "objects") + "\n")
+        heads = self.git("bundle", "unbundle", str(self.qualified_bundle), cwd=verifier)
+        tip = next(line.split()[0] for line in heads.splitlines()
+                   if line.endswith(f" refs/heads/{self.branch}"))
+        with self.assertRaises(subprocess.CalledProcessError) as failure:
+            self.git("merge-base", "--is-ancestor", base, tip, cwd=verifier)
+        self.assertEqual(failure.exception.returncode, 128)
+        self.assertIn(parent, failure.exception.stderr)
+        # The checkout cannot fetch missing parents from its now-absent remote.
+        (self.directory / "producer").rename(self.directory / "offline-producer")
+        self.inventory(self.open_pr(120, ".bingo/helm.mod"))
+        result, written, _, _ = self.run_guard()
+        self.assert_deferred(result, written, 120)
+        self.inventory(self.open_pr(121, ".bingo/kustomize.mod"))
+        result, written, _, _ = self.run_guard()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(written), self.output)
+        after = {
+            path.relative_to(git_directory): path.read_bytes()
+            for path in git_directory.rglob("*") if path.is_file()
+        }
+        self.assertEqual(after, before)
+
+    def test_depth_one_checkout_does_not_bypass_missing_base_or_ancestry(self):
+        self.write_bundle(".bingo/yq.mod", shallow=True)
+        patch = self.qualified_patch.read_text()
+        base = self.proposal["base_commit"]
+        parent = self.git("rev-parse", f"{base}^", cwd=self.directory / "producer").strip()
+        unrelated = self.git("commit-tree", f"{base}^{{tree}}", "-m", "unrelated root").strip()
+        for recorded_base in (parent, unrelated):
+            with self.subTest(recorded_base=recorded_base):
+                self.qualified_patch.write_text(patch.replace(
+                    f"X-GH-AW-Base-Commit: {base}\n",
+                    f"X-GH-AW-Base-Commit: {recorded_base}\n",
+                ))
+                self.assert_failed_closed()
 
     def test_merge_only_bundle_change_is_included_in_overlap_inventory(self):
         self.write_bundle(".bingo/yq.mod", merge_only_path=".bingo/helm.mod")
