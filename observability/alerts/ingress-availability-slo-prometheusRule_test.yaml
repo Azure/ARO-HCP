@@ -93,7 +93,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "4"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
@@ -115,7 +115,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bbb"
         component: slo
         long_window: 6h
-        severity: "3"
+        severity: "4"
         short_window: 30m
         slo: ingress-availability
       exp_annotations:
@@ -245,7 +245,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hhh"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "4"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
@@ -292,7 +292,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ggg"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "4"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
@@ -385,7 +385,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "4"
         short_window: 5m
         slo: ingress-latency
       exp_annotations:
@@ -405,7 +405,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"
         component: slo
         long_window: 6h
-        severity: "3"
+        severity: "4"
         short_window: 30m
         slo: ingress-latency
       exp_annotations:
@@ -590,7 +590,7 @@ tests:
         resource_id: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/recovered-fast"
         component: slo
         long_window: 1h
-        severity: "3"
+        severity: "4"
         short_window: 5m
         slo: ingress-availability
       exp_annotations:
