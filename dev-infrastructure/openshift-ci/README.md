@@ -37,7 +37,8 @@ The baseimage-generator presubmit retains its non-root Go build/test check.
 ### Agentic Tool Updates
 
 The [tool-version-updates GitHub Agentic Workflow](../../.github/workflows/tool-version-updates.md)
-checks bicep, promtool and every Bingo-managed tool daily. It resolves stable
+checks bicep, promtool and every Bingo-managed tool daily and after an owned
+tool-update PR merges. It resolves stable
 upstream versions and proposes one upstream family at a time. All five
 `k8s.io/code-generator` tools update together; unrelated tools remain separate.
 Native Bingo updates regenerate module/checksum files and the Make/shell helpers,
