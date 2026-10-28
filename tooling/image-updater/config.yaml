@@ -74,7 +74,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
+      tag: "v2.17.4-548" # Pinned: v2.17.4-554 hypershift-addon-agent crash-loops (configz-ping checksum mismatch + informer sync failure)
       repoVersionUpgrade:
         repoPrefix: "mce-operator-bundle-mce-"
     targets:
