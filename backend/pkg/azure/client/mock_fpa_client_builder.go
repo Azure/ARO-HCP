@@ -12,7 +12,7 @@ package client
 import (
 	reflect "reflect"
 
-	armdeploymentstacks "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	armdeploymentstacks "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 	gomock "go.uber.org/mock/gomock"
 )
 
