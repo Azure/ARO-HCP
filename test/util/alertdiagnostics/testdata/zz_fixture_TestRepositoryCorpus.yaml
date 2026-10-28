@@ -5635,6 +5635,111 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors1h5m
+  occurrence: 1
+  input: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors3d6h
+  occurrence: 1
+  input: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors6h30m
+  occurrence: 1
+  input: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_canary_liveness_alerts
+  alert: userJourneyIngressCanaryAbsent
+  occurrence: 1
+  input: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+  plan:
+    expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+    conditions:
+      - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+        path: root/unless:left
+        queries:
+          - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors1h5m
+  occurrence: 1
+  input: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors3d6h
+  occurrence: 1
+  input: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors6h30m
+  occurrence: 1
+  input: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id, region) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
   alert: hypershiftCPODown
   occurrence: 1
@@ -10114,6 +10219,208 @@
         thresholds:
           - operator: '>'
             value: 0
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors1h5m
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary:total_5m >= 3
+        and
+        errors:ingress_canary:error_rate_5m > 0.072
+      )
+      and
+      (
+        errors:ingress_canary:total_1h >= 10
+        and
+        errors:ingress_canary:error_rate_1h > 0.072
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_5m >= 3 and errors:ingress_canary:error_rate_5m > 0.072) and (errors:ingress_canary:total_1h >= 10 and errors:ingress_canary:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors3d6h
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary:total_6h >= 30
+        and
+        errors:ingress_canary:error_rate_6h > 0.005
+      )
+      and
+      (
+        errors:ingress_canary:total_3d >= 60
+        and
+        errors:ingress_canary:error_rate_3d > 0.005
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.005) and (errors:ingress_canary:total_3d >= 60 and errors:ingress_canary:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_availability_slo_alerts
+  alert: userJourneyIngressAvailabilityErrors6h30m
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary:total_30m >= 15
+        and
+        errors:ingress_canary:error_rate_30m > 0.030
+      )
+      and
+      (
+        errors:ingress_canary:total_6h >= 30
+        and
+        errors:ingress_canary:error_rate_6h > 0.030
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary:total_30m >= 15 and errors:ingress_canary:error_rate_30m > 0.03) and (errors:ingress_canary:total_6h >= 30 and errors:ingress_canary:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_canary_liveness_alerts
+  alert: userJourneyIngressCanaryAbsent
+  occurrence: 1
+  input: |
+    (
+      count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
+      * on (_id) group_left(resource_id)
+      group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    )
+    unless on (_id, cluster, region)
+    count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+  plan:
+    expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+    conditions:
+      - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+        path: root/unless:left
+        queries:
+          - expression: (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[1w])) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)) unless on (_id, cluster, region) (count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m])))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors1h5m
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary_latency:total_5m >= 3
+        and
+        errors:ingress_canary_latency:error_rate_5m > 0.072
+      )
+      and
+      (
+        errors:ingress_canary_latency:total_1h >= 10
+        and
+        errors:ingress_canary_latency:error_rate_1h > 0.072
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_5m >= 3 and errors:ingress_canary_latency:error_rate_5m > 0.072) and (errors:ingress_canary_latency:total_1h >= 10 and errors:ingress_canary_latency:error_rate_1h > 0.072)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors3d6h
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary_latency:total_6h >= 30
+        and
+        errors:ingress_canary_latency:error_rate_6h > 0.005
+      )
+      and
+      (
+        errors:ingress_canary_latency:total_3d >= 60
+        and
+        errors:ingress_canary_latency:error_rate_3d > 0.005
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.005) and (errors:ingress_canary_latency:total_3d >= 60 and errors:ingress_canary_latency:error_rate_3d > 0.005)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/ingress-availability-slo-prometheusRule.yaml
+  group: arohcp_ingress_latency_slo_alerts
+  alert: userJourneyIngressLatencyP99Errors6h30m
+  occurrence: 1
+  input: |
+    (
+      (
+        errors:ingress_canary_latency:total_30m >= 15
+        and
+        errors:ingress_canary_latency:error_rate_30m > 0.030
+      )
+      and
+      (
+        errors:ingress_canary_latency:total_6h >= 30
+        and
+        errors:ingress_canary_latency:error_rate_6h > 0.030
+      )
+    )
+    * on (_id) group_left(resource_id)
+    group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+  plan:
+    expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+    conditions:
+      - expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        path: root
+        queries:
+          - expression: ((errors:ingress_canary_latency:total_30m >= 15 and errors:ingress_canary_latency:error_rate_30m > 0.03) and (errors:ingress_canary_latency:total_6h >= 30 and errors:ingress_canary_latency:error_rate_6h > 0.03)) * on (_id) group_left (resource_id) group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+            role: signal
+        thresholds: []
         unsupported: ""
 - source: observability/alerts/kubeContainerOOM-prometheusRule.yaml
   group: kube-container-oom-rules
