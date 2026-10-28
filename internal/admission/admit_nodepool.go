@@ -204,23 +204,49 @@ func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissio
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
 type NodePoolDeleteAdmissionContext struct {
 	// NodePools is a list of all node pools for the cluster, including the one being deleted.
+	// Node pools whose deletion has already been requested (ServiceProviderProperties.DeletionTimestamp
+	// set) are also here, since their Cosmos document is only removed once the underlying
+	// teardown completes.
 	NodePools []*coreapi.NodePool
 }
 
 // AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
-func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.NodePool) field.ErrorList {
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, nodePoolBeingDeleted *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
-	// if we are. This is because as of now (2026-05-29) it is not possible to delete the last node pool from the cluster
-	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
-	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
-	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
-	if len(admissionContext.NodePools) <= 1 {
-		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
-	}
+	errs = append(errs, admitAtLeastOneNodePoolRemains(ctx, admissionContext, nodePoolBeingDeleted)...)
 
 	return errs
+}
+
+// admitAtLeastOneNodePoolRemains is a *best-effort* check to see if we are the last node pool on the
+// cluster and prevent deletion if we are. This is because as of now (2026-05-29) it is not possible
+// to delete the last node pool from the cluster OCPBUGS-86702. This check won't fully prevent the
+// last node pool deletion in all cases as there are edge cases where race conditions can occur, but
+// it should be good enough to prevent the last node pool deletion in most cases.
+// admissionContext.NodePools includes node pools whose deletion has already been requested
+// (DeletionTimestamp set) but whose document has not yet been removed. Those must not count as
+// survivors, or the last active node pool could be deleted concurrently with others already tearing
+// down, leaving zero, which is what this check is trying to prevent.
+// TODO once OCPBUGS-86702 is fixed, we should remove this check.
+func admitAtLeastOneNodePoolRemains(_ context.Context, admissionContext *NodePoolDeleteAdmissionContext, nodePoolBeingDeleted *coreapi.NodePool) field.ErrorList {
+	// A retried DELETE call on a node pool whose deletion was already accepted skips this check
+	// rather than being re-evaluated by it: the deletion is already underway and will proceed
+	// regardless of this request's outcome, so the retry is accepted idempotently here.
+	if nodePoolBeingDeleted.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
+
+	for _, nodePool := range admissionContext.NodePools {
+		if strings.EqualFold(nodePool.ResourceID.String(), nodePoolBeingDeleted.ResourceID.String()) {
+			continue
+		}
+		if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+			// At least one of the other node pools is not being deleted, so we can allow the deletion.
+			return nil
+		}
+	}
+	return field.ErrorList{field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster.")}
 }
 
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
