@@ -11,36 +11,44 @@ cluster control planes run on shared management clusters rather than on the cust
    operations that CS still owns. CS exposes the desired Kubernetes resources through its
    cluster resources API. The backend's `ClusterResources` controller polls that API and
    writes `ApplyDesire` and `ReadDesire` documents to Cosmos. Other backend controllers also
-   write desires directly; check the deployed source code for the owner of each resource.
+   write desires directly, and CS writes a few ReadDesires of its own (`csReadonly*`) to observe
+   the objects its lifecycle depends on; check the deployed source code for the owner of each desire.
 3. **Kube-applier**, running on each management cluster, reconciles those desires against
    the local kube-apiserver. `ApplyDesire` uses `spec.type=ServerSideApply` to apply an object
    or `spec.type=Delete` to delete one and wait for its finalizers. `ReadDesire` watches
    objects and returns their observed content and status through Cosmos.
 4. **HyperShift** reconciles HostedCluster and NodePool custom resources on the management
    cluster, creating the actual control plane pods in a hosted-control-plane namespace.
-5. The **Backend** consumes observed state from ReadDesires, mirrors relevant status onto
-   ServiceProviderCluster and controller conditions, and updates async operation status.
+5. The **Backend** consumes observed state from ReadDesires and mirrors relevant status onto
+   ServiceProviderCluster and controller conditions. It sets async operation status from the
+   worst of several sources: that observed HyperShift state, CS cluster or node pool status, and
+   its own checks such as validation, placement, certificates, and role assignments.
    The frontend reads this persisted state; it does not contact management clusters directly.
 
 The management-cluster delivery path is **Backend → Cosmos desires → kube-applier →
-Kubernetes objects → HyperShift**. Status returns through **ReadDesire → Cosmos → Backend**.
-Clusters Service remains a lifecycle and desired-resource source while those responsibilities
-move into backend controllers; it is not the cross-cluster delivery mechanism.
+Kubernetes objects → HyperShift**. Status returns through **ReadDesire → Cosmos → Backend**
+(or CS, for its own ReadDesires). Clusters Service remains a lifecycle and desired-resource
+source while those responsibilities move into backend controllers; it is not the cross-cluster
+delivery mechanism.
 
 ## Deletion Flow
 
-The frontend records deletion and the backend coordinates lifecycle cleanup, including any
-Clusters Service API calls still required by the deployed version. Kubernetes cleanup uses
-kube-applier desires. Inspect the backend's `ClusterResources` controller and
-`backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go` for the current order.
+The frontend records deletion. The backend then issues the Clusters Service delete call and,
+independently, starts tearing down its kube-applier desires. The two resulting sequential chains
+run concurrently and meet at the HostedCluster: the backend removes management-cluster objects,
+and CS cleans up Azure and service-side resources once the HostedCluster is gone. In both
+chains a blocked step prevents later steps from running and is retried on later reconciles.
+Inspect `backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go` and the CS
+`pkg/clusterprovisioner/acm/aro/destruct/chain.go` for the current order.
 
 ### Cluster Deletion
 
-The backend tears down its owned ApplyDesires in a sequential chain:
+The backend's `ClusterResources` controller tears down its owned ApplyDesires in order:
 
 1. Stop reconciling objects covered by HostedCluster teardown or namespace deletion, including
    NodePools, by dropping their desire documents.
-2. Delete the ManagedCluster and then shared ingress manifests, waiting for each step.
+2. Delete the ManagedCluster (only older clusters have one; new clusters no longer get ACM
+   ingress wiring) and then shared ingress manifests, waiting for each step.
 3. Delete the HostedCluster and wait for HyperShift to finish its finalizer, control plane,
    and cloud-resource cleanup while the required namespaces still exist.
 4. Delete SWIFT networking resources in reverse creation order.
@@ -52,22 +60,46 @@ Kube-applier deletes the object and waits for finalizers. The backend must confi
 a valid fallback for delete completion. **Removing an ApplyDesire document alone does not delete its Kubernetes object**;
 it only stops reconciliation. A live apply desire can recreate an object deleted manually.
 
-A blocked step prevents later steps from running; the backend retries on subsequent reconciles.
-For stuck deletion, correlate backend controller conditions, kube-applier logs, ReadDesire state,
-Kubernetes events, and the target object's finalizers. ManagedCluster addon pre-delete hooks can
-still block its removal; check `conditions/acm/managedClusterConditions` when that object exists.
+Clusters Service sets the cluster to `uninstalling` and runs its destruct chain in-process,
+restarting from the first step on each reconcile:
+
+1. `swift-sal-deleter`, `rh-managed-nsg-deleter`, and `managed-resource-group-deleter` each wait
+   until CS's `csReadonlyHypershiftHostedCluster` ReadDesire no longer observes the HostedCluster,
+   i.e. until the backend chain has finished step 3. CS treats a missing ReadDesire or empty
+   `kubeContent` as absent without checking `Successful`.
+2. `read-desires-deleter` removes CS's own ReadDesires.
+3. `dns-recordsets-deleter`, `container-registry-token-deleter`, `oidc-config-deleter`,
+   `data-plane-identity-unfederator`, `managed-identities-secrets-deleter`, and
+   `tls-certificate-deleter` clean up Azure resources, then `archiver` archives the cluster.
+
+For stuck deletion, first find the blocked chain. CS logs `Destructor '<name>' did not finish.
+Not continuing to the next destructor` in `clustersServiceLogs`; if it is waiting on the
+HostedCluster, the blocker is in the backend chain. There, correlate backend controller
+conditions, kube-applier logs, ReadDesire state, Kubernetes events, and the target object's
+finalizers. ManagedCluster addon pre-delete hooks can still block its removal; check
+`conditions/acm/managedClusterConditions` when that object exists.
 
 ### Node Pool Deletion
 
-The backend coordinates node pool lifecycle cleanup and removes the node pool's desired resources
-through kube-applier. HyperShift handles node draining and Azure VM deallocation when the NodePool
-is deleted. Check the deployed backend and CS code for remaining lifecycle responsibilities,
-then correlate kube-applier reconciliation with NodePool conditions and finalizers.
+The backend issues the Clusters Service node pool delete without waiting on desires. Once the
+node pool has a deletion timestamp, the `ClusterResources` controller treats its NodePool
+ApplyDesire as stale, switches it to `spec.type=Delete`, waits for `SuccessfullyDeleted=True`,
+and then purges the ApplyDesire and its ReadDesire. HyperShift handles node draining and Azure VM
+deallocation when the NodePool is deleted.
+
+Meanwhile CS runs its node pool destruct chain: `node-pool-cr-destructor` removes the NodePool
+from CS cluster resources, `node-pool-rh-managed-nsg-subnet-dissociation-destructor` detaches
+the RH-managed NSG when the node pool subnet differs from the cluster subnet,
+`node-pool-read-desire-deleter` removes CS's NodePool ReadDesire, and
+`node-pool-destructor-from-db` deletes the record. A blocked step logs `destructor '<name>' ...
+has not completed yet`. Correlate kube-applier reconciliation of the NodePool desire with
+NodePool conditions and finalizers, and CS logs for the destruct chain.
 
 ## Topology
 
 - **Management clusters**: Run HyperShift, kube-applier, and hosted control planes for many customers.
-- **Service clusters**: Run the Frontend, Backend, Clusters Service, and fleet.
+- **Service clusters**: Run the Frontend, Backend, Clusters Service, fleet, and the Maestro server
+  (still deployed, but no longer on the delivery path).
 - Each environment has its own Kusto cluster with service, control-plane, and monitoring databases:
   - **Service database**: Frontend, Backend, Clusters Service, kube-applier, and HyperShift operator logs.
   - **Monitoring database**: Prometheus/metric alert events.

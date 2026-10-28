@@ -36,8 +36,12 @@ not yet moved into backend controllers. Check the deployed source code for the c
 - Interacts with Azure to provision infrastructure required for a cluster
 - Exposes desired management-cluster resources through the cluster resources API, consumed by
   the backend and delivered through kube-applier
+- Observes the management-cluster objects it depends on through its own `csReadonly*` ReadDesires
+- Cleans up Azure and service-side resources in sequential cluster and node pool destruct chains;
+  cluster cleanup starts once its HostedCluster ReadDesire no longer observes the HostedCluster
 
-**Failure modes:** State machine stuck, desired-resource generation failure, internal errors, dependency on
+**Failure modes:** State machine stuck, desired-resource generation failure, blocked destruct chain,
+internal errors, dependency on
 external services (e.g. DNS, certificate provisioning).
 
 ## Kube Applier (`kube-applier`)
@@ -46,8 +50,8 @@ Bridge from the backend (service cluster) to the management cluster kube-apiserv
 cross-cluster API access.
 
 **Responsibilities:**
-- Reconciles `ApplyDesire` and `ReadDesire` documents the backend writes to Cosmos
-  (partitioned by management-cluster resource ID)
+- Reconciles `ApplyDesire` documents from the backend and `ReadDesire` documents from the backend
+  and Clusters Service in Cosmos (partitioned by management-cluster resource ID)
 - Applies or deletes objects according to `ApplyDesire.spec.type` (`ServerSideApply` / `Delete`)
 - Watches local Kubernetes objects through ReadDesires and writes observed content/status to Cosmos
 - Reports apply/delete outcome through `SuccessfullyApplied` / `SuccessfullyDeleted` and
@@ -56,7 +60,7 @@ cross-cluster API access.
 **Key identifiers:**
 - Desire documents in a dedicated Cosmos container for each management cluster; the partition key
   is the lowercased management-cluster resource ID. Kube-applier credentials are scoped to its
-  own container, while the backend uses per-management-cluster clients.
+  own container, while the backend and Clusters Service use per-management-cluster clients.
 - Parent resource ID linking a desire back to the HCP cluster or node pool
 
 **Interpreting status:**
@@ -93,7 +97,8 @@ resource quota exceeded, image pull failures.
 ## ACM / ManagedCluster Layer
 
 Advanced Cluster Management (ACM) and Multicluster Engine (MCE) components manage cluster
-registration and addon lifecycle on the management cluster.
+registration and addon lifecycle on the management cluster. Only older clusters are registered
+as ManagedClusters; new clusters no longer get ACM ingress wiring.
 
 **Key objects:**
 - `ManagedCluster` (cluster-scoped): represents a registered cluster, named by the CS cluster ID.
