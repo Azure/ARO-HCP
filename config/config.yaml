@@ -651,7 +651,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: "1.35"
+      kubernetesVersion: "1.36"
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       upgradeSettings:
@@ -790,7 +790,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: "1.35"
+      kubernetesVersion: "1.36"
       networkDataplane: "azure"
       networkPolicy: "azure"
       upgradeSettings:
