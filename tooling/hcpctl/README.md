@@ -51,7 +51,7 @@ set `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, or supply
 ```bash
 hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
   --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
-  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+  --clusters-service /path/to/clusters-service
 ```
 
 Both Claude providers support `--claude-backend vertex` with Google Application
@@ -113,7 +113,7 @@ checking model support.
 ```bash
 hcpctl snapshot analyze /path/to/snapshot --model gpt-6-luna --effort high \
   --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
-  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+  --clusters-service /path/to/clusters-service
 ```
 
 Go callers set the same option on the provider configuration

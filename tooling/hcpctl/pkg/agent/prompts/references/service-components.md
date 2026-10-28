@@ -19,36 +19,26 @@ Processes async operations created by the Frontend. Runs as a set of controllers
 **Responsibilities:**
 - Polling async operation status
 - Translating ARM operations into Clusters Service API calls
+- Polling the CS cluster resources API and writing ApplyDesire / ReadDesire documents to Cosmos
+- Consuming observed Kubernetes state from ReadDesires and mirroring status onto ServiceProviderCluster
+- Coordinating ordered deletion through kube-applier desires
 - Dumping resource state periodically (the `datadump` and `csstatedump` controllers)
 
 **Failure modes:** CS API errors, stale state, controller crash loops, provisioning state stuck.
 
 ## Clusters Service (`aro-hcp-clusters-service`)
 
-Red Hat-hosted service that manages the full cluster and node pool lifecycle.
+Red Hat-hosted service that manages cluster and node pool lifecycle responsibilities that have
+not yet moved into backend controllers. Check the deployed source code for the current boundary.
 
 **Responsibilities:**
 - Maintains its own state machine for cluster/nodepool provisioning
 - Interacts with Azure to provision infrastructure required for a cluster
-- Produces Maestro resource bundles describing desired management-cluster state
+- Exposes desired management-cluster resources through the cluster resources API, consumed by
+  the backend and delivered through kube-applier
 
-**Failure modes:** State machine stuck, bundle creation failure, internal errors, dependency on
+**Failure modes:** State machine stuck, desired-resource generation failure, internal errors, dependency on
 external services (e.g. DNS, certificate provisioning).
-
-## Maestro
-
-Resource delivery system. The **server** runs on the service cluster; the **agent** runs on each
-management cluster.
-
-**Responsibilities:**
-- Server: accepts resource bundles from CS, persists them, signals agents
-- Agent: watches for bundles, applies them as ManifestWork objects on the management cluster
-
-**Key identifiers:**
-- Bundle IDs (from CS logs)
-- ManifestWork names (applied on management cluster)
-
-**Failure modes:** Agent not connected, bundle apply failure, ManifestWork rejected, stale bundles.
 
 ## Kube Applier (`kube-applier`)
 
@@ -56,16 +46,31 @@ Bridge from the backend (service cluster) to the management cluster kube-apiserv
 cross-cluster API access.
 
 **Responsibilities:**
-- Reconciles `ApplyDesire`, `DeleteDesire`, and `ReadDesire` documents the backend writes to Cosmos
-  (partitioned per management cluster)
-- Applies, deletes, or watches individual Kubernetes objects on the local management cluster
-- Reports outcome via `Successful` and `Degraded` conditions on each desire
+- Reconciles `ApplyDesire` and `ReadDesire` documents the backend writes to Cosmos
+  (partitioned by management-cluster resource ID)
+- Applies or deletes objects according to `ApplyDesire.spec.type` (`ServerSideApply` / `Delete`)
+- Watches local Kubernetes objects through ReadDesires and writes observed content/status to Cosmos
+- Reports apply/delete outcome through `SuccessfullyApplied` / `SuccessfullyDeleted` and
+  controller health through `Degraded`; ReadDesires report observation through `Successful`
 
 **Key identifiers:**
-- Desire documents in the kube-applier Cosmos container (partition = management cluster name)
+- Desire documents in a dedicated Cosmos container for each management cluster; the partition key
+  is the lowercased management-cluster resource ID. Kube-applier credentials are scoped to its
+  own container, while the backend uses per-management-cluster clients.
 - Parent resource ID linking a desire back to the HCP cluster or node pool
 
-**Failure modes:** Desire stuck with `Successful=False` or `Degraded=True`, kube API errors (`KubeAPIError`), pre-check failures, orphaned desires after parent deletion.
+**Interpreting status:**
+- `SuccessfullyApplied=True` means the Kubernetes apply call succeeded. Assess resource readiness
+  separately through the target object's conditions and the responsible operator's state.
+- Delete completion requires `SuccessfullyDeleted=True`, which means the target is absent and
+  its finalizers have completed. Never fall back to legacy `Successful` for deletion.
+- ReadDesire `Successful=True` means the informer synced and `status.kubeContent` reflects its
+  last observation. Nil content with `Successful=True` means observed absence; nil content alone
+  may mean the object has not been observed yet. ReadDesire has no explicit observed-at timestamp
+  or contractual refresh guarantee, so correlate mirrored state with Kubernetes events and logs.
+
+**Failure modes:** Apply/delete completion condition remains false, ReadDesire `Successful=False`,
+`Degraded=True`, kube API errors (`KubeAPIError`), pre-check failures, or orphaned desires after parent deletion.
 
 ## HyperShift
 
@@ -102,10 +107,11 @@ registration and addon lifecycle on the management cluster.
 - Addon lifecycle management (install, upgrade, pre-delete hooks)
 
 **Role in deletion:**
-The CS destruct chain runs `hypershift-managed-cluster-destructor`, which checks ManagedCluster
-status. The ManagedCluster enters `Detaching` state, triggering addon pre-delete hooks. Each
+The backend's ApplyDesire removal chain deletes the ManagedCluster through kube-applier and
+waits for the object to disappear. The ManagedCluster enters `Detaching` state, triggering
+addon pre-delete hooks. Each
 addon's pre-delete hook pod must complete and remove its finalizers before the ManagedCluster
-can finish detaching. Until all addons are cleaned up, the destruct chain is blocked.
+can finish detaching. Until all addons are cleaned up, the deletion chain is blocked.
 
 **Failure modes:**
 - Addon pre-delete pod eviction: node resource pressure (MemoryPressure, DiskPressure) evicts
@@ -120,5 +126,5 @@ can finish detaching. Until all addons are cleaned up, the destruct chain is blo
   `log.msg == 'pod event'` and `log.namespace == 'klusterlet-<cluster-id>'`. Evicted pods
   have `log.object.status.reason == 'Evicted'` with `log.object.status.message` containing
   the node condition (e.g. `"The node was low on resource: memory"`).
-- Destruct chain: `clustersServiceLogs` — filter for `log has '<cluster-id>'` and
-  `log has 'destructor'` to see which destructor is blocking and how many iterations.
+- Deletion chain: backend `ClusterResources` controller logs and `kubeApplierLogs` — correlate
+  desire resource IDs, target objects, waiting conditions, and finalizers to locate the blocked step.

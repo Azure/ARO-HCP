@@ -28,11 +28,11 @@ resource. Review the manifest's `directory_layout` for the full structure. Key l
 
 ### Kusto (via kusto_query tool)
 
-Each environment has two databases:
+Each environment has three databases:
 
 - **`ServiceLogs`**: Frontend (`frontendLogs`), Backend (`backendLogs`), Clusters
-  Service (`clustersServiceLogs`), general service/container logs (`containerLogs`), Kubernetes
-  events (`kubernetesEvents`), audit logs (`kubeAudit`), Kubernetes resource snapshots
+  Service (`clustersServiceLogs`), kube-applier (`kubeApplierLogs`), general
+  service/container logs (`containerLogs`), Kubernetes events (`kubernetesEvents`), audit logs (`kubeAudit`), Kubernetes resource snapshots
   (`kubernetesResourceSnapshots`), Cosmos DB document snapshots
   (`cosmosResourceSnapshots`). Management cluster data
   (mgmt-agent, HyperShift operator) is also in this database — filter by `cluster`.

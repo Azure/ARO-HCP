@@ -34,6 +34,7 @@ const (
 	L2ClusterService = taxonomy.L2ClusterService
 	L2Backend        = taxonomy.L2Backend
 	L2Maestro        = taxonomy.L2Maestro
+	L2KubeApplier    = taxonomy.L2KubeApplier
 	L2HyperShift     = taxonomy.L2HyperShift
 	L2RHUpstream     = taxonomy.L2RHUpstream
 )
