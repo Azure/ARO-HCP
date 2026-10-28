@@ -98,17 +98,21 @@ verify-kql:
 	hack/kql-verify.sh
 .PHONY: verify-kql
 
-verify-bicep-fixtures:
+verify-bicep-fixtures: $(JQ)
 	hack/verify-bicep-fixtures.sh
 .PHONY: verify-bicep-fixtures
 
-update-bicep-golden:
+update-bicep-golden: $(JQ)
 	hack/generate-bicep-golden.sh
 .PHONY: update-bicep-golden
 
 verify-tool-versions:
 	$(MAKE) -C dev-infrastructure/openshift-ci verify
 .PHONY: verify-tool-versions
+
+verify-tool-automation: $(JQ)
+	python3 -m unittest discover -s .github/scripts -p 'test_tool*.py'
+.PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
 	python3 -m unittest discover -s .github/scripts -p 'test_agentic_pr_maintenance.py'
@@ -117,7 +121,7 @@ verify-agentic-maintenance:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-agentic-maintenance
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-gomega-cmpdiff verify-mi-containers verify-schema verify-bicep-fixtures verify-tool-versions verify-tool-automation verify-agentic-maintenance
 .PHONY: verify
 
 verify-schema:
