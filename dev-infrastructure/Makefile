@@ -13,6 +13,7 @@ endif
 
 PERSIST ?= false
 NPROC ?= $(shell command -v nproc > /dev/null 2>&1 && nproc || echo 4)
+BICEP ?= bicep
 
 MGMT_KUBECONFIG_FILE ?= ${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig
 SVC_KUBECONFIG_FILE ?= ${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig
@@ -66,10 +67,10 @@ FORCE:
 		--output "$@"
 
 %.bicep.fmt %.bicepparam.fmt:
-	@AZURE_BICEP_CHECK_VERSION=False az bicep format --file $(basename $@) 2>&1 | awk 'NF'
+	@set -o pipefail; $(BICEP) format $(basename $@) 2>&1 | awk 'NF'
 
 %.bicep.lint %.bicepparam.lint:
-	@AZURE_BICEP_CHECK_VERSION=False az bicep lint --file $(basename $@) 2>&1 | awk 'NF'
+	@set -o pipefail; $(BICEP) lint $(basename $@) 2>&1 | awk 'NF'
 
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
