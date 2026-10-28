@@ -1,0 +1,378 @@
+rule_files:
+- cluster-autoscaler-slo-prometheusRule.yaml
+- cluster-autoscaler-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Healthy autoscaler — no alerts
+# ========================================
+# safe=1, no unschedulable pods, ready(3) < max(6), main loop tracks wall clock
+# (last_activity == time() so seconds_since == 0), no scale-up failures, no errors.
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerStalled
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerErrors
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+# ========================================
+# Test 2: Unsafe to autoscale — UserJourneyClusterAutoscalerSafetyDisabled fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler is not safe to autoscale"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
+        correlationId: 'UserJourneyClusterAutoscalerSafetyDisabled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerStalled
+# ========================================
+# Test 3: Main loop stalled — UserJourneyClusterAutoscalerStalled fires
+# ========================================
+# last_activity constant at 0 while time() advances -> seconds_since grows past
+# the 600s threshold; sustained 15m; evaluated at 27m with margin past the boundary.
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  - eval_time: 27m
+    alertname: UserJourneyClusterAutoscalerStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler main loop stalled"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has not completed a main loop iteration in over 10 minutes, sustained for 15 minutes. The autoscaler pod is running but its control loop is wedged; no scaling is happening for this hosted cluster. Note: this alert only fires while the pod is running — a truly dead autoscaler pod produces no metric and requires separate absent-detection. This is an autoscaler malfunction, independent of the customer's autoscaling configuration."
+        correlationId: 'UserJourneyClusterAutoscalerStalled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+  - eval_time: 27m
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
+# ========================================
+# Test 4: Scale-up failures — UserJourneyClusterAutoscalerScaleUpFailures fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+1x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  promql_expr_test:
+  - expr: errors:cluster_autoscaler:failed_scale_ups:rate15m > bool 0
+    eval_time: 20m
+    exp_samples:
+    - labels: '{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "3"
+        slo: cluster-autoscaler-scaling
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler scale-up attempts are failing"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has been recording failed scale-up attempts for over 15 minutes. Common causes are Azure quota exhaustion, lack of capacity in the target zone/VM size, or provider errors — all SRE/infra concerns. Pending pods will not receive new nodes until this clears."
+        correlationId: 'UserJourneyClusterAutoscalerScaleUpFailures/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerErrors
+# ========================================
+# Test 5: Autoscaler internal errors — UserJourneyClusterAutoscalerErrors fires
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+1x70"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerErrors
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler is reporting internal errors"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has been recording internal errors (cluster_autoscaler_errors_total) for over 15 minutes. This points at a malfunction in the scaling controller (cloud provider or API errors) that an SRE should investigate; it is independent of the customer's autoscaling configuration."
+        correlationId: 'UserJourneyClusterAutoscalerErrors/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+  - eval_time: 20m
+    alertname: UserJourneyClusterAutoscalerScaleUpFailures
+# ========================================
+# Test 6: Unsafe cluster (safe_to_autoscale=0) with pending pods AND headroom.
+# The autoscaler has disabled itself for safety, so unschedulable pods pile up
+# below max. Exactly one incident fires: SafetyDisabled.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_cluster_safe_to_autoscale{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_unschedulable_pods_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_nodes_count{state="ready", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "3x70"
+  - series: 'cluster_autoscaler_max_nodes_count{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "6x70"
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x70"
+  - series: 'cluster_autoscaler_failed_scale_ups_total{reason="failed", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  - series: 'cluster_autoscaler_errors_total{type="cloudProviderError", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x70"
+  alert_rule_test:
+  # The unsafe condition is owned by SafetyDisabled.
+  - eval_time: 22m
+    alertname: UserJourneyClusterAutoscalerSafetyDisabled
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "4"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler is not safe to autoscale"
+        description: "The cluster autoscaler for hosted cluster ocm-dev-abc-cluster21-01 has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
+        correlationId: 'UserJourneyClusterAutoscalerSafetyDisabled/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+# ========================================
+# Test 7: Autoscaler telemetry absent — UserJourneyClusterAutoscalerMetricsAbsent
+# fires. The autoscaler stops emitting while its Deployment still desires one
+# replica (kube_deployment_spec_replicas stays at 1), so
+# health:cluster_autoscaler:metrics_availability reads 0 for this hosted cluster
+# and the 15m `for` window elapses.
+# Timeline: autoscaler reports 0-9m, silent from 10m; the rule reads 0 from
+# ~10m, so the alert is still pending at 24m and firing by 27m.
+# ========================================
+- interval: 1m
+  input_series:
+  # Autoscaler reports 0-9m, then goes silent (pod down / scrape or
+  # remote-write path broken for this cluster only).
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x9"
+  # The Deployment still desires one replica for the whole test: an autoscaler is
+  # expected here, so silence reads as 0 (pod down) rather than "autoscaling
+  # disabled".
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x50"
+  promql_expr_test:
+  # Guard the underlying signal: 1 while reporting, 0 once silent.
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 5m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 1
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 20m
+    exp_samples:
+    - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+      value: 0
+  alert_rule_test:
+  # Still inside the 15m `for` window -> pending, not firing.
+  - eval_time: 24m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+  # Window elapsed -> fires, attributed to the affected hosted cluster.
+  - eval_time: 27m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "3"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler metrics absent"
+        description: "No cluster autoscaler metrics have been received from hosted cluster ocm-dev-abc-cluster21-01 for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster."
+        correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+# ========================================
+# Test 8: Deleted / fully gone hosted cluster must NOT page. Both the autoscaler
+# metrics AND the cluster-autoscaler Deployment disappear, so the recording rule
+# emits no series at all (neither 1 nor 0) and the alert stays silent. This is
+# the cluster-teardown case: absence of telemetry is expected, not an incident.
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x9"
+  # The Deployment goes away at 10m too (whole hosted cluster removed), so no
+  # autoscaler is expected any more and the rule must stay silent.
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x9"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+# ========================================
+# Test 9: Per-cluster attribution — only the silent hosted cluster alerts; the
+# healthy cluster on the same management cluster stays quiet. Guards against a
+# regression to a fleet-wide (label-less) expression that would page for every
+# cluster when one is silent.
+# ========================================
+- interval: 1m
+  input_series:
+  # mgmt-1: healthy for the whole test (autoscaler reporting, one replica desired).
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x50"
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x50"
+  # mgmt-2: autoscaler silent from 10m while its Deployment still desires a replica.
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+    values: "0+60x9"
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+    values: "1x50"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-2"
+        namespace: "ocm-dev-abc-cluster22-01"
+        component: slo
+        severity: "3"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster22-01: cluster autoscaler metrics absent"
+        description: "No cluster autoscaler metrics have been received from hosted cluster ocm-dev-abc-cluster22-01 for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster."
+        correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent/mgmt-2/ocm-dev-abc-cluster22-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+# ========================================
+# Test 10: Recovery — the alert must resolve once telemetry returns. Autoscaler
+# reports 0-9m, silent 10-34m, reporting again from 35m. The rule reads 0 long
+# enough to fire (~25m) and must stop firing once fresh samples refill the 1m
+# window (evaluated at 40m).
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0+60x9 _x25 0+60x35"
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "1x70"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        namespace: "ocm-dev-abc-cluster21-01"
+        component: slo
+        severity: "3"
+        slo: cluster-autoscaler-health
+      exp_annotations:
+        summary: "ocm-dev-abc-cluster21-01: cluster autoscaler metrics absent"
+        description: "No cluster autoscaler metrics have been received from hosted cluster ocm-dev-abc-cluster21-01 for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster."
+        correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent/mgmt-1/ocm-dev-abc-cluster21-01'
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
+  # Telemetry resumed -> resolved.
+  - eval_time: 40m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
+# ========================================
+# Test 11: Autoscaling not enabled must NOT page. When no NodePool sets
+# spec.autoScaling, HyperShift sets the cluster-autoscaler Deployment's replicas
+# to 0, so no autoscaler is expected and no cluster_autoscaler_* series ever
+# exist. health:cluster_autoscaler:metrics_availability must emit nothing at all
+# (neither 1 nor 0). Regression guard against paging every hosted cluster that
+# does not use autoscaling.
+# ========================================
+- interval: 1m
+  input_series:
+  # Autoscaling disabled: the Deployment exists but desires zero replicas.
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+    values: "0x50"
+  promql_expr_test:
+  # No series at all — not a 0, so MetricsAbsent has nothing to match.
+  - expr: health:cluster_autoscaler:metrics_availability
+    eval_time: 20m
+  alert_rule_test:
+  # Well past the 15m `for` window: silence here means the alert never matched.
+  - eval_time: 40m
+    alertname: UserJourneyClusterAutoscalerMetricsAbsent
