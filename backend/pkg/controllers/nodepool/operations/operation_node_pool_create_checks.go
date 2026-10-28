@@ -44,6 +44,10 @@ func (c *nodePoolCreateClusterServiceCheck) CalculateOperationStatus(ctx context
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
+	// Deletion may have cleared the ID since SynchronizeOperation read the node pool.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil, utils.TrackError(fmt.Errorf("node pool cluster service ID is no longer available"))
+	}
 	logger := utils.LoggerFromContext(ctx)
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
