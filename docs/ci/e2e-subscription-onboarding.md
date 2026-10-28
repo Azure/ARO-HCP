@@ -65,11 +65,12 @@ A brand-new subscription typically has no Azure resource providers registered be
    - DEV pools use `region_mode: weighted` with `westus3`, `centralus`, and `canadacentral`; dedicated E2E identity containers are provisioned in `westus3`, and infrastructure identities are leased from `dev-infrastructure-identities`.
 
 2. Request the Azure quota increases for the new subscription.
-   - File a quota request for every region the new pool runs in. The current per-region targets are:
-     - Standard DSv3 Family vCPUs: `2000`
-     - Public IP Addresses: `3000`
-     - Role Assignments: `8000`
-   - Quota approvals are asynchronous and routed through Microsoft support, so file them early — they gate identity-container provisioning (step 5) and determine the Role Assignment limit reported by monitoring (step 6).
+   - Request these regional limits in every region the pool runs in:
+     - Total regional vCPUs: `2000`
+     - A worker VM family supported by the CI configuration: `2000` vCPUs. Prefer DSv5 or DSv6; use another family only when supported by the job's worker-family policy. Limits are not interchangeable between families.
+     - Standard IPv4 Public IP Addresses: `3000`
+   - Request a subscription-wide Role Assignment limit of `8000`.
+   - If self-service quota requests fail, open a quota support request with the affected regions and failed request IDs. Support API submission requires an eligible support plan; otherwise use the Azure portal.
 
 3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
    - Run:
