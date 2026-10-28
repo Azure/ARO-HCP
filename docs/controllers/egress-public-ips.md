@@ -28,7 +28,11 @@ pages may remain found even when a later page fails.
 Before retrying an observation, previous missing observations are durably marked
 unknown. If invalidation conflicts, no Azure read is attempted. If the final
 observation write conflicts or fails, the durable unknown state prevents an older
-missing-resource diagnostic from representing a failed read. Missing cluster,
+missing-resource diagnostic from representing a failed read. An expired retry
+marker is retained through invalidation and removed or renewed only together
+with the final observation replacement. A conflict or interruption before that
+replacement therefore leaves the observation retryable, including when an earlier
+incomplete enumeration found all nine IDs. Missing cluster,
 service-provider, subscription, tenant, cluster-service ID, or resource-group
 name prerequisites wait for later reconciliation. UDR and deletion are skipped.
 Existence is sufficient; provisioning state and address assignment are not gates.

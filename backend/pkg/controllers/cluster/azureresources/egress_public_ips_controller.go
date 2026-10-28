@@ -124,7 +124,6 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 			invalidation.Status.AzureResources.EgressPublicIPs[resourceID] = coreapi.AzureResourceUnknown
 		}
 	}
-	delete(invalidation.Spec.EarliestRecheckTimesByController, EgressPublicIPsControllerName)
 	if controllerutil.NeedsUpdate(existing, invalidation) {
 		existing, err = c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, invalidation, nil)
 		if err != nil {
@@ -134,6 +133,7 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	observations, observationErr := c.observe(ctx, cluster)
 	replacement := existing.DeepCopy()
 	replacement.Status.AzureResources.EgressPublicIPs = observations
+	delete(replacement.Spec.EarliestRecheckTimesByController, EgressPublicIPsControllerName)
 	for _, observation := range observations {
 		if observation == coreapi.AzureResourceNotFound || observationErr != nil {
 			if replacement.Spec.EarliestRecheckTimesByController == nil {

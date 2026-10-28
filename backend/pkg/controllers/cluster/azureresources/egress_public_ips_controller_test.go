@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -40,6 +41,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -61,6 +63,216 @@ import (
 type egressTestInformers struct {
 	coreinformers.BackendInformers
 	database corecosmosstorage.ResourcesDBClient
+}
+
+type egressWriteFaultDB struct {
+	corecosmosstorage.ResourcesDBClient
+	beforeReplace func()
+	afterReplace  func()
+	replacements  int
+	replaceErr    error
+}
+
+func (database *egressWriteFaultDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return &egressWriteFaultCRUD{ResourceCRUD: database.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName), database: database}
+}
+
+type egressWriteFaultCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+	database *egressWriteFaultDB
+}
+
+func (crud *egressWriteFaultCRUD) Replace(ctx context.Context, value *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	crud.database.replacements++
+	if crud.database.beforeReplace != nil {
+		crud.database.beforeReplace()
+	}
+	stored, err := crud.ResourceCRUD.Replace(ctx, value, options)
+	crud.database.replaceErr = err
+	if err == nil && crud.database.afterReplace != nil {
+		crud.database.afterReplace()
+	}
+	return stored, err
+}
+
+func TestEgressPublicIPsUnfinishedObservation(t *testing.T) {
+	for _, initialState := range []string{"all found with error", "partial with error", "malformed", "missing"} {
+		for _, faultPoint := range []string{"after invalidation", "before final write", "final conflict", "after final write", "after pending write", "invalidation conflict", "before invalidation"} {
+			if (faultPoint == "invalidation conflict" || faultPoint == "before invalidation") && initialState != "missing" {
+				continue
+			}
+			t.Run(initialState+"/"+faultPoint, func(t *testing.T) {
+				ctx := context.Background()
+				cluster := newTestCluster(false)
+				clusterID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
+				cluster.ServiceProviderProperties.ClusterServiceID = &clusterID
+				expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+				require.NoError(t, err)
+				memory, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, newTestServiceProviderCluster(coreapi.AzureReference{})})
+				require.NoError(t, err)
+				database := &egressWriteFaultDB{ResourcesDBClient: memory}
+				crud := memory.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				stored := func() *coreapi.ServiceProviderCluster {
+					value, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, err)
+					return value
+				}
+				health := func() *metav1.Condition {
+					value, err := memory.HCPClusters(testSubscriptionID, testResourceGroupName).Controllers(testClusterName).Get(ctx, EgressPublicIPsControllerName)
+					require.NoError(t, err)
+					return meta.FindStatusCondition(value.Status.Conditions, "Degraded")
+				}
+				values := egressListValues(expected)
+				transport := &egressListTransport{test: t, pages: []egressListPage{{values: values}, {status: 503}}}
+				switch initialState {
+				case "partial with error":
+					transport.pages[0].values = values[:4]
+				case "malformed":
+					transport.pages[1] = egressListPage{values: []*armnetwork.PublicIPAddress{nil}}
+				case "missing":
+					transport.pages = []egressListPage{{values: values[:8]}}
+				}
+				clock := clocktesting.NewFakePassiveClock(time.Now())
+				enqueuer := &fakeAfterEnqueuer{}
+				builder := azureclient.NewMockFirstPartyApplicationClientBuilder(gomock.NewController(t))
+				client := newEgressListClient(t, transport)
+				observing := false
+				fault := ""
+				builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).DoAndReturn(func(_, _ string) (azureclient.PublicIPAddressesClient, error) {
+					for _, observation := range stored().Status.AzureResources.EgressPublicIPs {
+						require.NotEqual(t, coreapi.AzureResourceNotFound, observation, "missing state must be durably invalidated before Azure reads")
+					}
+					if fault == "after invalidation" {
+						goruntime.Goexit()
+					}
+					observing = true
+					return client, nil
+				}).AnyTimes()
+				informers := &egressTestInformers{database: database}
+				_, clusterLister := informers.Clusters()
+				newController := func() controllerutils.Controller {
+					indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+					require.NoError(t, indexer.Add(stored()))
+					serviceProviderLister := corelisters.NewServiceProviderClusterLister(indexer)
+					return controllerutils.NewClusterWatchingController(EgressPublicIPsControllerName, database, informers, nil, time.Minute, &egressPublicIPsSyncer{
+						clock: clock, resourcesDBClient: database, clusterLister: clusterLister, serviceProviderClusterLister: serviceProviderLister,
+						subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+						azureFPAClientBuilder: builder, enqueueAfter: enqueuer,
+					})
+				}
+				key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+				run := func(interrupted bool) error {
+					observing = false
+					returned := false
+					var syncErr error
+					done := make(chan struct{})
+					go func() {
+						defer close(done)
+						syncErr = newController().SyncOnce(ctx, key)
+						returned = true
+					}()
+					<-done
+					require.Equal(t, !interrupted, returned)
+					return syncErr
+				}
+				require.Equal(t, initialState != "missing", run(false) != nil)
+				originalHealth := health().DeepCopy()
+				initial := stored()
+				deadline := initial.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].DeepCopy()
+				clock.SetTime(deadline.Time)
+				fault = faultPoint
+				conflict := fault == "final conflict" || fault == "invalidation conflict"
+				database.beforeReplace = func() {
+					if (observing && fault == "before final write") || (!observing && fault == "before invalidation") {
+						goruntime.Goexit()
+					}
+					if (observing && fault == "final conflict") || (!observing && fault == "invalidation conflict") {
+						sibling := stored()
+						sibling.Status.AzureResources.ManagedResourceGroup.AzureResource = testManagedResourceGroupID(t)
+						if sibling.Spec.EarliestRecheckTimesByController == nil {
+							sibling.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+						}
+						sibling.Spec.EarliestRecheckTimesByController["other-controller"] = ptr.To(metav1.NewTime(clock.Now().Add(time.Hour)))
+						_, err := crud.Replace(ctx, sibling, nil)
+						require.NoError(t, err)
+					}
+				}
+				database.afterReplace = func() {
+					if observing && (fault == "after final write" || fault == "after pending write") {
+						goruntime.Goexit()
+					}
+				}
+				if fault == "after final write" {
+					transport.pages = []egressListPage{{values: values}}
+				}
+				requestCount := transport.requests
+				err = run(!conflict)
+				if conflict {
+					require.True(t, cosmosstorageutils.IsPreconditionFailedError(database.replaceErr))
+					require.ErrorIs(t, err, database.replaceErr)
+				} else {
+					require.Equal(t, originalHealth, health(), "interruption must not report a completed observation")
+				}
+				if fault == "after invalidation" || fault == "before invalidation" || fault == "invalidation conflict" {
+					require.Equal(t, requestCount, transport.requests)
+				}
+				fault = ""
+				database.beforeReplace, database.afterReplace = nil, nil
+				if faultPoint == "after pending write" {
+					pending := stored()
+					writes, reads := database.replacements, transport.requests
+					require.NoError(t, run(false))
+					require.Equal(t, pending, stored())
+					require.Equal(t, writes, database.replacements)
+					require.Equal(t, reads, transport.requests)
+					require.Equal(t, originalHealth, health())
+					deadline = pending.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].DeepCopy()
+					clock.SetTime(deadline.Time)
+				}
+				if faultPoint != "after final write" {
+					assert.Equal(t, deadline, stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName], "unfinished retry must retain its durable marker")
+					transport.pages = []egressListPage{{values: values}, {status: 403}}
+					requestCount = transport.requests
+					require.Error(t, run(false), "restart must observe again, not report success from an old all-Found map")
+					require.Equal(t, requestCount+2, transport.requests)
+					require.Equal(t, metav1.ConditionTrue, health().Status)
+					if originalHealth.Status == metav1.ConditionTrue {
+						require.Equal(t, originalHealth.LastTransitionTime, health().LastTransitionTime)
+					}
+					for range 2 {
+						before := stored()
+						writes, reads, retries := database.replacements, transport.requests, len(enqueuer.enqueuedKeys)
+						require.NoError(t, run(false))
+						require.Equal(t, before, stored())
+						require.Equal(t, writes, database.replacements)
+						require.Equal(t, reads, transport.requests)
+						require.Len(t, enqueuer.enqueuedKeys, retries+1)
+						require.Equal(t, metav1.ConditionTrue, health().Status)
+					}
+					clock.SetTime(stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].Time)
+					require.Error(t, run(false))
+					clock.SetTime(stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].Time)
+					transport.pages = []egressListPage{{values: values[:8]}}
+					require.NoError(t, run(false))
+					require.Equal(t, metav1.ConditionFalse, health().Status, "successful missing-only observation clears the error")
+					require.Equal(t, coreapi.AzureResourceNotFound, stored().Status.AzureResources.EgressPublicIPs[expected[8].String()])
+					clock.SetTime(stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].Time)
+					transport.pages = []egressListPage{{values: values}}
+					require.NoError(t, run(false))
+				}
+				requestCount, replacements := transport.requests, database.replacements
+				require.NoError(t, run(false))
+				require.Equal(t, requestCount, transport.requests, "persisted successful completion retains the all-Found fast path")
+				require.Equal(t, replacements, database.replacements)
+				require.Equal(t, metav1.ConditionFalse, health().Status)
+				require.Nil(t, stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName])
+				if conflict {
+					require.NotNil(t, stored().Status.AzureResources.ManagedResourceGroup.AzureResource)
+					require.NotNil(t, stored().Spec.EarliestRecheckTimesByController["other-controller"])
+				}
+			})
+		}
+	}
 }
 
 func (informers *egressTestInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
@@ -743,5 +955,5 @@ func TestEgressPublicIPsInvalidationAndConflict(t *testing.T) {
 		require.Equal(t, coreapi.AzureResourceUnknown, observation, "failed final persist must not resurrect a missing diagnostic")
 	}
 	require.NotNil(t, stored.Status.AzureResources.ManagedResourceGroup.AzureResource, "concurrent sibling updates must be preserved")
-	require.Nil(t, stored.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName], "failed reads must remain retryable")
+	require.Equal(t, initial.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName], stored.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName], "unfinished observations must retain their expired retry marker")
 }
