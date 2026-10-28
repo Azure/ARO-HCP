@@ -16,6 +16,7 @@ package snapshot
 
 import (
 	"io/fs"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,7 +37,7 @@ func TestManagementClusterResolverData(t *testing.T) {
 	}{
 		{
 			name:    "no requests",
-			wantErr: "no frontend request provided a cluster resource ID and subscription ID",
+			wantErr: "no frontend request provided a named HCP cluster resource ID and subscription ID",
 		},
 		{
 			name: "request missing placement inputs is skipped",
@@ -44,7 +45,131 @@ func TestManagementClusterResolverData(t *testing.T) {
 				{ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"},
 				{SubscriptionID: "sub"},
 			},
-			wantErr: "no frontend request provided a cluster resource ID and subscription ID",
+			wantErr: "no frontend request provided a named HCP cluster resource ID and subscription ID",
+		},
+		{
+			name: "not-found top-level cluster GET is not a placement target",
+			requests: []frontendRequest{
+				{
+					Method:            http.MethodGet,
+					Status:            http.StatusNotFound,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+					ResourceType:      "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+					SubscriptionID:    "sub",
+				},
+			},
+		},
+		{
+			name: "not-found cluster GET is skipped while hosted placements remain required",
+			requests: []frontendRequest{
+				{
+					Method:            http.MethodGet,
+					Status:            http.StatusNotFound,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b",
+					ResourceType:      "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b",
+					SubscriptionID:    "sub",
+				},
+				{
+					Status:            http.StatusOK,
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					SubscriptionID:    "sub",
+				},
+			},
+			wantTargets: []managementClusterTarget{{
+				SubscriptionID:    "sub",
+				ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-a",
+			}},
+		},
+		{
+			name: "admission-rejected create is optional beside a hosted cluster",
+			requests: []frontendRequest{
+				{
+					Method:            http.MethodPut,
+					Status:            http.StatusAccepted,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					ResourceType:      hcpOpenShiftClusterResourceType,
+					ResourceName:      "cluster-a",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					SubscriptionID:    "sub",
+				},
+				{
+					Method:            http.MethodPut,
+					Status:            http.StatusBadRequest,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b",
+					ResourceType:      hcpOpenShiftClusterResourceType,
+					ResourceName:      "cluster-b",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-b",
+					SubscriptionID:    "sub",
+				},
+			},
+			wantTargets: []managementClusterTarget{
+				{
+					SubscriptionID:    "sub",
+					ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-a",
+				},
+				{
+					SubscriptionID:    "sub",
+					ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-b",
+					Optional:          true,
+				},
+			},
+		},
+		{
+			name: "failed create remains required when another request targets the same cluster",
+			requests: []frontendRequest{
+				{
+					Method:            http.MethodPut,
+					Status:            http.StatusBadRequest,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					ResourceType:      hcpOpenShiftClusterResourceType,
+					ResourceName:      "cluster-a",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					SubscriptionID:    "sub",
+				},
+				{
+					Method:            http.MethodGet,
+					Status:            http.StatusOK,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					ResourceType:      hcpOpenShiftClusterResourceType,
+					ResourceName:      "cluster-a",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-a",
+					SubscriptionID:    "sub",
+				},
+			},
+			wantTargets: []managementClusterTarget{{
+				SubscriptionID:    "sub",
+				ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-a",
+			}},
+		},
+		{
+			name: "cluster collection GET with resource-group fallback is not a placement target",
+			requests: []frontendRequest{{
+				Method:            http.MethodGet,
+				Status:            http.StatusOK,
+				ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+				ResourceType:      hcpOpenShiftClusterResourceType,
+				ClusterResourceID: "/subscriptions/sub/resourceGroups/rg",
+				SubscriptionID:    "sub",
+			}},
+		},
+		{
+			name: "not-found child GET still requires parent cluster placement",
+			requests: []frontendRequest{
+				{
+					Method:            http.MethodGet,
+					Status:            http.StatusNotFound,
+					ResourceID:        "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/pool",
+					ResourceType:      "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+					ClusterResourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+					SubscriptionID:    "sub",
+				},
+			},
+			wantTargets: []managementClusterTarget{{
+				SubscriptionID:    "sub",
+				ClusterResourceID: "/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster",
+			}},
 		},
 		{
 			name: "all distinct cluster requests supply placement inputs",
@@ -153,6 +278,27 @@ func TestManagementClustersFromRows(t *testing.T) {
 			wantErr: "returned no results",
 		},
 		{
+			name: "missing optional rejected create placement is ignored",
+			rows: []resultRow{{
+				columns: []string{"clusterResourceID", "managementCluster"},
+				values:  []string{clusterA, "mgmt-1"},
+			}},
+			targets: []managementClusterTarget{
+				{ClusterResourceID: clusterA, SubscriptionID: "sub"},
+				{ClusterResourceID: clusterB, SubscriptionID: "sub", Optional: true},
+			},
+			want: []string{"mgmt-1"},
+		},
+		{
+			name: "no rows for optional rejected create placement",
+			targets: []managementClusterTarget{{
+				ClusterResourceID: clusterB,
+				SubscriptionID:    "sub",
+				Optional:          true,
+			}},
+			want: nil,
+		},
+		{
 			name: "missing placement for a requested cluster",
 			rows: []resultRow{
 				{columns: []string{"clusterResourceID", "managementCluster"}, values: []string{clusterA, "mgmt-1"}},
@@ -217,6 +363,7 @@ func TestManagementClusterQueryIsTargeted(t *testing.T) {
 	}
 
 	assertions := []string{
+		"cluster('https://kusto.example.com').database('service-db').table('cosmosResourceSnapshots')",
 		"let targets = datatable(clusterResourceID:string, targetSubscriptionID:string)",
 		"'/subscriptions/sub/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster', 'sub'",
 		"| where timestamp <= datetime(1970-01-01T00:01:00Z)",
@@ -241,6 +388,9 @@ func TestManagementClusterQueryIsTargeted(t *testing.T) {
 		if !strings.Contains(rendered, assertion) {
 			t.Errorf("management cluster query does not contain %q:\n%s", assertion, rendered)
 		}
+	}
+	if got := strings.Count(rendered, "cluster('https://kusto.example.com').database('service-db').table('cosmosResourceSnapshots')"); got != 2 {
+		t.Errorf("management cluster query must qualify both snapshot sources, got %d:\n%s", got, rendered)
 	}
 	if strings.Contains(rendered, "| where timestamp between (") {
 		t.Errorf("management cluster query must allow placement documents that predate the test window:\n%s", rendered)
@@ -351,10 +501,11 @@ func TestQueryTemplatesFilterResolvedManagementCluster(t *testing.T) {
 	for _, path := range templatePaths {
 		t.Run(path, func(t *testing.T) {
 			withCluster, err := renderQuery(path, queryData{
-				ServiceClusterName:     "ci01-j5162112-svc",
-				ManagementClusterNames: []string{"ci01-j5162112-mgmt-1", "ci01-j5162112-mgmt-2"},
-				FullStartTime:          time.Unix(0, 0).UTC(),
-				FullEndTime:            time.Unix(60, 0).UTC(),
+				ServiceClusterName:                 "ci01-j5162112-svc",
+				ManagementClusterNames:             []string{"ci01-j5162112-mgmt-1", "ci01-j5162112-mgmt-2"},
+				ManagementClusterPlacementResolved: true,
+				FullStartTime:                      time.Unix(0, 0).UTC(),
+				FullEndTime:                        time.Unix(60, 0).UTC(),
 			})
 			if err != nil {
 				t.Fatalf("renderQuery() error = %v", err)
@@ -363,6 +514,19 @@ func TestQueryTemplatesFilterResolvedManagementCluster(t *testing.T) {
 				filtered++
 				if !strings.Contains(withCluster, wantFilter) {
 					t.Errorf("cluster filter does not use the resolved management cluster, want %q in:\n%s", wantFilter, withCluster)
+				}
+
+				serviceOnly, err := renderQuery(path, queryData{
+					ServiceClusterName:                 "ci01-j5162112-svc",
+					ManagementClusterPlacementResolved: true,
+					FullStartTime:                      time.Unix(0, 0).UTC(),
+					FullEndTime:                        time.Unix(60, 0).UTC(),
+				})
+				if err != nil {
+					t.Fatalf("renderQuery() with no resolved management clusters error = %v", err)
+				}
+				if !strings.Contains(serviceOnly, "| where cluster in ('ci01-j5162112-svc')") {
+					t.Errorf("cluster filter must stay scoped to the service cluster when no placement is resolved:\n%s", serviceOnly)
 				}
 			}
 

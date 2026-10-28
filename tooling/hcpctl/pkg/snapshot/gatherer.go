@@ -64,12 +64,14 @@ type GatherInput struct {
 
 	// ServiceClusterName is the AKS cluster that emitted service-side logs.
 	// ManagementClusterNames are resolved from hosted-cluster placement during
-	// PR snapshots and are empty for non-PR snapshots. When both are non-empty,
-	// queries include a "| where cluster in (...)" filter. ManagementClusterName
-	// remains as a single-cluster fallback for existing callers.
-	ServiceClusterName     string
-	ManagementClusterName  string
-	ManagementClusterNames []string
+	// PR snapshots and are empty for non-PR snapshots. When placement resolution
+	// has completed, queries are scoped to the service cluster and any resolved
+	// management clusters. ManagementClusterName remains as a single-cluster
+	// fallback for existing callers.
+	ServiceClusterName                 string
+	ManagementClusterName              string
+	ManagementClusterNames             []string
+	ManagementClusterPlacementResolved bool
 }
 
 // validate checks that all required fields are set.
@@ -307,8 +309,10 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		}
 		input.ManagementClusterName = ""
 		input.ManagementClusterNames = managementClusterNames
+		input.ManagementClusterPlacementResolved = true
 		seedData.ManagementClusterName = ""
 		seedData.ManagementClusterNames = managementClusterNames
+		seedData.ManagementClusterPlacementResolved = true
 		logger.Info("Resolved management clusters", "managementClusters", managementClusterNames)
 	}
 
@@ -857,18 +861,19 @@ func (g *Gatherer) gatherPhase(
 	// Service-level event queries for this phase.
 	serviceEventsDir := filepath.Join(phaseDir, "events")
 	serviceEventData := queryData{
-		ClusterURI:             input.ClusterURI,
-		ServiceDatabase:        input.ServiceDatabase,
-		HCPDatabase:            input.HCPDatabase,
-		ResourceGroup:          input.ResourceGroup,
-		ServiceClusterName:     input.ServiceClusterName,
-		ManagementClusterName:  input.ManagementClusterName,
-		ManagementClusterNames: managementClusterNames(input),
-		FullStartTime:          input.TimeWindow.Start,
-		FullEndTime:            input.TimeWindow.End,
-		PhaseStartTime:         phase.start,
-		PhaseEndTime:           phase.end,
-		PhaseName:              phase.name,
+		ClusterURI:                         input.ClusterURI,
+		ServiceDatabase:                    input.ServiceDatabase,
+		HCPDatabase:                        input.HCPDatabase,
+		ResourceGroup:                      input.ResourceGroup,
+		ServiceClusterName:                 input.ServiceClusterName,
+		ManagementClusterName:              input.ManagementClusterName,
+		ManagementClusterNames:             managementClusterNames(input),
+		ManagementClusterPlacementResolved: input.ManagementClusterPlacementResolved,
+		FullStartTime:                      input.TimeWindow.Start,
+		FullEndTime:                        input.TimeWindow.End,
+		PhaseStartTime:                     phase.start,
+		PhaseEndTime:                       phase.end,
+		PhaseName:                          phase.name,
 	}
 	serviceEventMu := &sync.Mutex{}
 	for _, q := range queriesByCategory(categoryEvents) {

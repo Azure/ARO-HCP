@@ -1,6 +1,6 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
-{{- if and .ServiceClusterName .ManagementClusterNames }}
+{{- if .ManagementClusterPlacementResolved }}
 | where cluster in ('{{ .ServiceClusterName }}'{{ range .ManagementClusterNames }}, '{{ . }}'{{ end }})
 {{- end }}
 | where namespace_name == 'hypershift'

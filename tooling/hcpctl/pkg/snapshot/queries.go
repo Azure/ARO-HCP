@@ -120,13 +120,15 @@ type queryData struct {
 
 	// ServiceClusterName is the AKS cluster that emitted service-side logs.
 	// ManagementClusterNames are the actual hosting management clusters
-	// resolved from placement. When both are non-empty, queries include a
-	// "| where cluster in (...)" filter. ManagementClusterName remains as a
-	// single-cluster fallback for callers that have not migrated to the slice.
-	ServiceClusterName       string
-	ManagementClusterName    string
-	ManagementClusterNames   []string
-	ManagementClusterTargets []managementClusterTarget
+	// resolved from placement. When placement resolution has completed, queries
+	// are scoped to the service cluster and any resolved management clusters.
+	// ManagementClusterName remains as a single-cluster fallback for callers
+	// that have not migrated to the slice.
+	ServiceClusterName                 string
+	ManagementClusterName              string
+	ManagementClusterNames             []string
+	ManagementClusterPlacementResolved bool
+	ManagementClusterTargets           []managementClusterTarget
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and

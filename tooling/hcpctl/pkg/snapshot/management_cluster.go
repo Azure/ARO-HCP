@@ -17,9 +17,14 @@ package snapshot
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
+
+const hcpOpenShiftClusterResourceType = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 
 var managementClusterQuery = querySpec{
 	component:    "backend",
@@ -42,6 +47,9 @@ func (g *Gatherer) resolveManagementCluster(
 	if err != nil {
 		return nil, err
 	}
+	if len(resolverData.ManagementClusterTargets) == 0 {
+		return nil, nil
+	}
 
 	rows, err := g.executeQuery(ctx, managementClusterQuery, &resolverData, discoveryDir, input)
 	if err != nil {
@@ -52,9 +60,19 @@ func (g *Gatherer) resolveManagementCluster(
 
 func managementClusterResolverData(seedData queryData, requests []frontendRequest) (queryData, error) {
 	targets := make([]managementClusterTarget, 0, len(requests))
-	seen := make(map[string]struct{}, len(requests))
+	targetIndexes := make(map[string]int, len(requests))
+	sawNeverHostedClusterRequest := false
+	sawClusterCollectionRequest := false
 	for _, request := range requests {
-		clusterResourceID := normalizeClusterResourceID(request.ClusterResourceID)
+		if isNeverHostedClusterRequest(request) {
+			sawNeverHostedClusterRequest = true
+			continue
+		}
+		if isClusterCollectionRequest(request) {
+			sawClusterCollectionRequest = true
+			continue
+		}
+		clusterResourceID := clusterResourceIDFromRequest(request)
 		subscriptionID := strings.ToLower(strings.TrimSpace(request.SubscriptionID))
 		if clusterResourceID == "" || subscriptionID == "" {
 			continue
@@ -62,16 +80,23 @@ func managementClusterResolverData(seedData queryData, requests []frontendReques
 		target := managementClusterTarget{
 			ClusterResourceID: clusterResourceID,
 			SubscriptionID:    subscriptionID,
+			Optional:          isRejectedClusterCreateRequest(request, clusterResourceID),
 		}
 		key := target.ClusterResourceID + "\x00" + target.SubscriptionID
-		if _, ok := seen[key]; ok {
+		if index, ok := targetIndexes[key]; ok {
+			// Any request that requires placement makes the deduplicated target
+			// required, even if another request for the same cluster was rejected.
+			targets[index].Optional = targets[index].Optional && target.Optional
 			continue
 		}
-		seen[key] = struct{}{}
+		targetIndexes[key] = len(targets)
 		targets = append(targets, target)
 	}
 	if len(targets) == 0 {
-		return queryData{}, fmt.Errorf("cannot resolve management clusters: no frontend request provided a cluster resource ID and subscription ID")
+		if sawNeverHostedClusterRequest || sawClusterCollectionRequest {
+			return emptyManagementClusterResolverData(seedData), nil
+		}
+		return queryData{}, fmt.Errorf("cannot resolve management clusters: no frontend request provided a named HCP cluster resource ID and subscription ID")
 	}
 	sort.Slice(targets, func(i, j int) bool {
 		if targets[i].ClusterResourceID != targets[j].ClusterResourceID {
@@ -87,9 +112,81 @@ func managementClusterResolverData(seedData queryData, requests []frontendReques
 	return resolverData, nil
 }
 
+func emptyManagementClusterResolverData(seedData queryData) queryData {
+	resolverData := seedData
+	resolverData.SubscriptionID = ""
+	resolverData.ClusterResourceID = ""
+	resolverData.ManagementClusterTargets = nil
+	return resolverData
+}
+
+// isNeverHostedClusterRequest identifies the negative lookup for a cluster
+// resource itself. Failed child-resource requests still require placement,
+// since they may belong to a hosted cluster.
+func isNeverHostedClusterRequest(request frontendRequest) bool {
+	return strings.EqualFold(strings.TrimSpace(request.Method), http.MethodGet) &&
+		request.Status == http.StatusNotFound &&
+		strings.EqualFold(strings.TrimSpace(request.ResourceType), hcpOpenShiftClusterResourceType) &&
+		clusterResourceIDFromARMID(request.ResourceID) == normalizeClusterResourceID(request.ResourceID)
+}
+
+// isClusterCollectionRequest identifies a list request that names the HCP
+// cluster collection but no individual cluster.
+func isClusterCollectionRequest(request frontendRequest) bool {
+	return strings.EqualFold(strings.TrimSpace(request.Method), http.MethodGet) &&
+		strings.EqualFold(strings.TrimSpace(request.ResourceType), hcpOpenShiftClusterResourceType) &&
+		clusterResourceIDFromARMID(request.ResourceID) == ""
+}
+
+// isRejectedClusterCreateRequest marks a failed top-level write as optional:
+// it may have been rejected before a ReadDesire existed. Keep it in the query
+// so a placement is still used if the resource already exists.
+func isRejectedClusterCreateRequest(request frontendRequest, clusterResourceID string) bool {
+	method := strings.TrimSpace(request.Method)
+	if !strings.EqualFold(method, http.MethodPut) && !strings.EqualFold(method, http.MethodPost) {
+		return false
+	}
+	if request.Status < http.StatusBadRequest ||
+		request.Status >= http.StatusInternalServerError ||
+		request.Status == http.StatusConflict {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(request.ResourceType), hcpOpenShiftClusterResourceType) &&
+		normalizeClusterResourceID(request.ResourceID) == clusterResourceID
+}
+
+// clusterResourceIDFromRequest returns the named HCP cluster in either the
+// request path or its reported cluster ID. This prevents collection and
+// resource-group parent IDs from becoming broad placement-query prefixes.
+func clusterResourceIDFromRequest(request frontendRequest) string {
+	if isClusterCollectionRequest(request) {
+		return ""
+	}
+	for _, resourceID := range []string{request.ResourceID, request.ClusterResourceID} {
+		if clusterResourceID := clusterResourceIDFromARMID(resourceID); clusterResourceID != "" {
+			return clusterResourceID
+		}
+	}
+	return ""
+}
+
+func clusterResourceIDFromARMID(resourceID string) string {
+	parsed, err := azcorearm.ParseResourceID(strings.TrimSpace(resourceID))
+	if err != nil {
+		return ""
+	}
+	for current := &parsed; current != nil; current = current.Parent {
+		if strings.EqualFold(current.ResourceType.String(), hcpOpenShiftClusterResourceType) && strings.TrimSpace(current.Name) != "" {
+			return normalizeClusterResourceID(current.String())
+		}
+	}
+	return ""
+}
+
 type managementClusterTarget struct {
 	ClusterResourceID string
 	SubscriptionID    string
+	Optional          bool // Failed top-level writes may not have produced a ReadDesire.
 }
 
 func managementClusterNames(input GatherInput) []string {
@@ -118,7 +215,15 @@ func normalizeClusterResourceID(resourceID string) string {
 
 func managementClustersFromRows(rows []resultRow, targets []managementClusterTarget) ([]string, error) {
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("management cluster query returned no results")
+		if len(targets) == 0 {
+			return nil, fmt.Errorf("management cluster query returned no results")
+		}
+		for _, target := range targets {
+			if !target.Optional {
+				return nil, fmt.Errorf("management cluster query returned no results")
+			}
+		}
+		return nil, nil
 	}
 
 	clusterResourceIDIndex, managementClusterIndex := -1, -1
@@ -160,6 +265,9 @@ func managementClustersFromRows(rows []resultRow, targets []managementClusterTar
 		clusterResourceID := normalizeClusterResourceID(target.ClusterResourceID)
 		placements := placementsByCluster[clusterResourceID]
 		if len(placements) == 0 {
+			if target.Optional {
+				continue
+			}
 			return nil, fmt.Errorf("management cluster query returned no placement for cluster resource ID %q", target.ClusterResourceID)
 		}
 		if len(placements) > 1 {

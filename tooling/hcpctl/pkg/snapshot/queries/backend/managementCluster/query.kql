@@ -3,7 +3,7 @@ let targets = datatable(clusterResourceID:string, targetSubscriptionID:string)
 {{ kqlManagementClusterTargets .ManagementClusterTargets }}
 ]
 | extend joinKey = 1;
-let desires = cosmosResourceSnapshots
+let desires = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp <= {{ kqlDatetime .FullEndTime }}
 | where cluster == '{{ .ServiceClusterName }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
@@ -19,7 +19,7 @@ let desires = cosmosResourceSnapshots
 | extend managementCluster = tolower(tostring(content.properties.spec.managementCluster))
 | where isnotempty(managementCluster)
 | project clusterResourceID, managementCluster;
-let fleet = cosmosResourceSnapshots
+let fleet = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp <= {{ kqlDatetime .FullEndTime }}
 | where cluster == '{{ .ServiceClusterName }}'
 | where resourceType =~ 'microsoft.redhatopenshift/stamps/managementclusters'

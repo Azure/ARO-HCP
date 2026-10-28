@@ -7,7 +7,7 @@ cluster('{{ .ClusterURI }}').database('{{ .MonitoringEventsDatabase }}').table('
     )
 | extend cluster = tostring(alertContext.labels.cluster)
 | where isnotnull(cluster)
-{{- if and .ServiceClusterName .ManagementClusterNames }}
+{{- if .ManagementClusterPlacementResolved }}
 | where cluster in ('{{ .ServiceClusterName }}'{{ range .ManagementClusterNames }}, '{{ . }}'{{ end }})
 {{- end }}
 {{- end -}}
