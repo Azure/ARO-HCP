@@ -22,10 +22,12 @@ import (
 	"time"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/billingapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
@@ -73,6 +75,95 @@ func TestBillingDocumentWatermarks(t *testing.T) {
 			require.NotContains(t, string(snapshot), "lastBillingTimeOfMngtEvent")
 		})
 	}
+}
+
+func TestBillingDocumentSharedContract(t *testing.T) {
+	const fullDocument = `{
+		"id":"billing-doc", "subscriptionId":"sub", "creationTime":"2026-10-09T09:00:00Z",
+		"deletionTime":"2026-10-09T12:00:00Z", "location":"eastus", "tenantId":"tenant",
+		"resourceId":"/subscriptions/sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/Cluster",
+		"managedResourceGroup":"/subscriptions/sub/resourceGroups/managed-rg",
+		"lastBillingTimeOfVMEvent":"2026-10-09T10:00:00Z", "lastBillingTimeOfMngtEvent":"2026-10-09T11:00:00Z",
+		"orphanedSince":"2026-10-09T11:30:00Z",
+		"ttl":3600, "_rid":"cosmos-rid", "_self":"self", "_etag":"etag", "_attachments":"attachments", "_ts":123
+	}`
+	for _, tc := range []struct {
+		name     string
+		input    string
+		wantJSON string
+		wantErr  bool
+	}{
+		{name: "complete flat document", input: fullDocument, wantJSON: fullDocument},
+		{name: "missing optional fields", input: `{"id":"legacy","creationTime":"2026-10-09T09:00:00Z"}`, wantJSON: `{"id":"legacy","creationTime":"2026-10-09T09:00:00Z"}`},
+		{name: "null optional fields", input: `{"creationTime":"2026-10-09T09:00:00Z","resourceId":null,"deletionTime":null,"lastBillingTimeOfVMEvent":null,"lastBillingTimeOfMngtEvent":null,"orphanedSince":null}`, wantJSON: `{"creationTime":"2026-10-09T09:00:00Z"}`},
+		{name: "empty resource ID", input: `{"resourceId":""}`, wantErr: true},
+		{name: "malformed resource ID", input: `{"resourceId":"not-an-arm-id"}`, wantErr: true},
+		{name: "object resource ID", input: `{"resourceId":{"name":"cluster"}}`, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stored billingcosmosstorage.BillingDocument
+			var shared billingapi.BillingDocument
+			storedErr := json.Unmarshal([]byte(tc.input), &stored)
+			sharedErr := json.Unmarshal([]byte(tc.input), &shared)
+			if tc.wantErr {
+				require.Error(t, storedErr)
+				require.Error(t, sharedErr)
+				return
+			}
+			require.NoError(t, storedErr)
+			require.NoError(t, sharedErr)
+			compareOptions := cmp.AllowUnexported(azcorearm.ResourceID{}, azcorearm.ResourceType{})
+			if diff := cmp.Diff(shared, stored.BillingDocument, compareOptions); diff != "" {
+				t.Fatalf("shared contract (-want +got):\n%s", diff)
+			}
+			snapshot, err := json.Marshal(&stored)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.wantJSON, string(snapshot), "preserve the flat wire contract and RP metadata")
+			var legacy struct {
+				ResourceID string `json:"resourceId"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(tc.input), &legacy))
+			if shared.ResourceID != nil {
+				if diff := cmp.Diff(legacy.ResourceID, shared.ResourceID.String()); diff != "" {
+					t.Fatalf("Billing resource ID string (-want +got):\n%s", diff)
+				}
+			}
+			copied := stored.DeepCopy()
+			if diff := cmp.Diff(&stored, copied, compareOptions); diff != "" {
+				t.Fatalf("deep copy (-want +got):\n%s", diff)
+			}
+			for _, timestamps := range []struct {
+				name     string
+				original *time.Time
+				copied   *time.Time
+			}{
+				{"deletion", stored.DeletionTime, copied.DeletionTime},
+				{"compute watermark", stored.LastBillingTimeOfVMEvent, copied.LastBillingTimeOfVMEvent},
+				{"hosting watermark", stored.LastBillingTimeOfMngtEvent, copied.LastBillingTimeOfMngtEvent},
+				{"orphan candidacy", stored.OrphanedSince, copied.OrphanedSince},
+			} {
+				if timestamps.original != nil && timestamps.original == timestamps.copied {
+					t.Errorf("%s timestamp aliases the original", timestamps.name)
+				}
+			}
+			checkResourceIDCopy(t, stored.ResourceID, copied.ResourceID)
+		})
+	}
+	require.Nil(t, (*billingapi.BillingDocument)(nil).DeepCopy())
+}
+
+func checkResourceIDCopy(t *testing.T, original, copied *azcorearm.ResourceID) {
+	t.Helper()
+	if original == nil {
+		return
+	}
+	if original == copied {
+		t.Fatal("resource ID aliases the original")
+	}
+	if len(original.ResourceType.Types) > 0 && &original.ResourceType.Types[0] == &copied.ResourceType.Types[0] {
+		t.Fatal("resource type slice aliases the original")
+	}
+	checkResourceIDCopy(t, original.Parent, copied.Parent)
 }
 
 func TestDumpBillingToLogger(t *testing.T) {
