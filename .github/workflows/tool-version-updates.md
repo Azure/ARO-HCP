@@ -37,6 +37,13 @@ steps:
     with:
       go-version-file: go.work
       check-latest: true
+  - name: Collect deterministic tool-family inventory
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      set -euo pipefail
+      printf '%s\n' tool-version-inventory.json >> "$(git rev-parse --git-path info/exclude)"
+      python3 .github/scripts/tool_version_inventory.py > tool-version-inventory.json
   - name: Bootstrap the repository-pinned Bingo
     env:
       GOTOOLCHAIN: local
@@ -122,22 +129,32 @@ block this daily automation.
    `aro-hcp-robot[bot]`. Validate the owner and apply the same label or
    title-and-family-marker ownership rule as the publication guard. Fetch only
    matching tool-update PR metadata with the read-only GitHub tools to confirm
-   the PR is still open and targets `main`. If one exists, emit `noop`
-   identifying it and stop, regardless of family. Ignore unrelated bot PRs;
-   do not fetch human PRs or any PR filenames. Waiting for CI or an existing
-   owned tool-update PR is not missing data and does not need an issue.
-2. Inspect both tools in `dev-infrastructure/openshift-ci/versions.mk` and every
-   `.bingo/*.mod` tool pin. `.bingo/go.mod` is only Bingo's fake root, not a tool.
-   Use `bingo list` and the module files; do not maintain a second hardcoded list.
-3. Resolve official stable releases: GitHub releases for bicep/promtool and
-   `GOWORK=off GOTOOLCHAIN=local go -C .bingo list -m -json <module>@latest`
-   for Bingo's upstream modules. Record an explicit target version before edits.
-   Never downgrade, select prereleases, cross an import-path major version, or
-   change the Go toolchain to make an otherwise unsupported release build.
-4. Group Bingo tools by their required upstream module. In particular, all five
-   `k8s.io/code-generator` tools belong to one version-coherent update. The Bingo
-   updater itself is a separate family. Prefer the oldest pinned release among
-   eligible families so frequently released tools do not starve other tools.
+   the PR is still open and targets `main`. If one exists, defer all new work
+   regardless of family, but still read the inventory below before reporting.
+   Ignore unrelated bot PRs; do not fetch human PRs or any PR filenames. Waiting
+   for CI or an owned tool-update PR alone is not missing data and needs no issue.
+2. Read `tool-version-inventory.json`, produced by the read-only preflight from
+   the updater's CI tool mapping and every `.bingo/*.mod` tool pin except the fake
+   `go.mod` root. Its `families` rows group shared upstream modules, with
+   `toolNames`, per-tool `pins`, `sourceURL`, `current`, `latest`, `status` and
+   `reason`. Do not maintain another tool list or redo version classification
+   from memory, string ordering, or an individual lookup.
+3. Use this machine output as the authority for every version classification in
+   selection, PR bodies and final summaries: only `status: current` means
+   current; `outdated` means an update exists; `ahead` means never downgrade.
+   `error`, missing rows/data, or `complete: false` are missing-data failures,
+   never evidence that tools are current. Report their explicit reasons using
+   `report_incomplete`; do not hide them behind a successful update or `noop`.
+   `blocked` rows are ineligible and must retain their reason. An outdated
+   family not attempted because of single-flight, the two-family limit, or a
+   failed gate is deferred/blocked, not current. Keep version status separate
+   from execution outcomes.
+4. Select only `outdated` rows and use their exact `latest` target versions.
+   Never select prereleases, cross an import-path major version, or change the
+   Go toolchain to make an otherwise unsupported release build. All tools in
+   one row, including the `k8s.io/code-generator` family, update together.
+   Prefer the oldest pinned release among eligible families so frequently
+   released tools do not starve other tools.
 
 Try no more than two eligible candidate families in one run, prioritizing the
 oldest pinned release. For each family, create a temporary detached worktree at
@@ -204,8 +221,11 @@ PR template with the actual old/new versions and exercised regression checks.
 Record the family with `<!-- agentic-tool-family: <upstream module or repo> -->`
 in the body. Do not claim local checks prove the later Prow jobs succeeded.
 
-If candidate checks are blocked, report one aggregated `report_incomplete` with
-each family, gate, baseline/candidate classification, and the concise failure
-signature. Keep already-current or already-covered families silent. If all
-families are current or already covered and there are no blocked candidates,
-call `noop` with a concise inspection summary. Do not create routine reports.
+If inventory data or candidate checks are blocked, report one aggregated
+`report_incomplete` with each family, gate, baseline/candidate classification,
+and concise failure signature. A required gate not run is unverified, not a
+pass; runner OOMs and failed baseline checks remain explicit blocked outcomes.
+Keep successfully inspected current or covered families silent. Use `noop`
+only when there is no missing data or blocked candidate; summarize versions
+from the inventory and identify waiting/deferred work separately. Do not
+create routine reports for single-flight waiting alone.
