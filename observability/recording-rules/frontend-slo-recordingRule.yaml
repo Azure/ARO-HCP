@@ -15,8 +15,9 @@ spec:
   # ========================================
   # Baseline SLIs per ARO HCP Alerting Recommendation ADR.
   # Availability and errors are good/total (or 5xx/total) ratios at 5m.
-  # 30d availability is request-weighted: avg(good RPS)/avg(total RPS), not
-  # avg_over_time of the 5m ratio (that ignores per-window request volume).
+  # For 30d availability status, use request-weighted math:
+  # avg(good RPS)/avg(total RPS), not avg_over_time of the 5m ratio
+  # (that ignores per-window request volume).
   # Latency p99/p95 are diagnostic seconds values. Alerts use the
   # request-weighted share over 1s directly from the histogram.
   # Traffic is absolute RPS. Ready is kube available/spec.
@@ -209,20 +210,6 @@ spec:
             }[5m])
           )
         )
-    - record: sli:frontend_http:availability:rate_avg_30d
-      # Request-weighted 30-day availability for SLO status panels (not fast burn).
-      # avg(good RPS) / avg(total RPS) over equal 5m steps equals
-      # sum(good requests) / sum(total requests). Averaging the rate5m *ratio*
-      # would treat a 1-request window the same as a 10k-request window.
-      # Extra rate1h/rate6h ratio windows do not fix that (same avg-of-ratios).
-      expr: |
-        (
-          avg_over_time(sli:frontend_http:good:rate5m[30d:5m])
-          /
-          avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])
-        )
-        and
-        avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0
     - record: sli:frontend:ready:ratio5m
       # Process health: available / desired replicas. Kube readiness probes
 

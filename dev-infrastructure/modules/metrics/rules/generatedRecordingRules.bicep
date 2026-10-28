@@ -685,10 +685,6 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
       }
       {
-        record: 'sli:frontend_http:availability:rate_avg_30d'
-        expression: '(avg_over_time(sli:frontend_http:good:rate5m[30d:5m]) / avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0'
-      }
-      {
         record: 'sli:frontend:ready:ratio5m'
         expression: '(sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
       }
