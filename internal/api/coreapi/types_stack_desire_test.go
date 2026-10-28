@@ -30,7 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 )
 
 func TestStackDesireSDKJSONPreservesReadonlyStatus(t *testing.T) {
@@ -76,7 +76,7 @@ func TestStackDesireSpecHash(t *testing.T) {
 			spec.Stack.Properties.Template.(map[string]any)["b"] = float64(43)
 		},
 		"delete policy": func(spec *StackDesireSpec) {
-			spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete)}
+			spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete)}
 		},
 		"bypass out of sync": func(spec *StackDesireSpec) {
 			spec.Stack.Properties.BypassStackOutOfSyncError = ptr.To(true)
@@ -129,7 +129,7 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 				Properties: &armdeploymentstacks.DeploymentStackProperties{
 					Template:                  map[string]any{"resources": []any{map[string]any{"name": "resource"}}},
 					Parameters:                map[string]*armdeploymentstacks.DeploymentParameter{"parameter": {Value: map[string]any{"key": "value"}}},
-					ActionOnUnmanage:          &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete)},
+					ActionOnUnmanage:          &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete)},
 					BypassStackOutOfSyncError: ptr.To(true),
 				},
 			},
@@ -174,7 +174,7 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	*copy.Spec.Stack.Tags["tag"] = "changed"
 	copy.Spec.Stack.Properties.Template.(map[string]any)["resources"].([]any)[0].(map[string]any)["name"] = "changed"
 	copy.Spec.Stack.Properties.Parameters["parameter"].Value.(map[string]any)["key"] = "changed"
-	*copy.Spec.Stack.Properties.ActionOnUnmanage.Resources = armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach
+	*copy.Spec.Stack.Properties.ActionOnUnmanage.Resources = armdeploymentstacks.UnmanageActionResourceModeDetach
 	*copy.Spec.Stack.Properties.BypassStackOutOfSyncError = false
 	*copy.Status.Stack.ID = "changed"
 	*copy.Status.Stack.Tags["tag"] = "changed"
@@ -191,7 +191,7 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	require.Equal(t, "value", *desire.Spec.Stack.Tags["tag"])
 	require.Equal(t, "resource", desire.Spec.Stack.Properties.Template.(map[string]any)["resources"].([]any)[0].(map[string]any)["name"])
 	require.Equal(t, "value", desire.Spec.Stack.Properties.Parameters["parameter"].Value.(map[string]any)["key"])
-	require.Equal(t, armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete, *desire.Spec.Stack.Properties.ActionOnUnmanage.Resources)
+	require.Equal(t, armdeploymentstacks.UnmanageActionResourceModeDelete, *desire.Spec.Stack.Properties.ActionOnUnmanage.Resources)
 	require.True(t, *desire.Spec.Stack.Properties.BypassStackOutOfSyncError)
 	require.Equal(t, target.String(), *desire.Status.Stack.ID)
 	require.Equal(t, "value", *desire.Status.Stack.Tags["tag"])
