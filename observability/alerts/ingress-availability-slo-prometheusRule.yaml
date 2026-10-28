@@ -67,12 +67,23 @@ spec:
   # + 1` neutralizes the joined value so only its resource_id label is
   # consumed; the join is an inner join, so an _id with no corresponding
   # HostedCluster record (e.g. already deleted) also won't fire here.
+  #
+  # Fast/medium tiers are Sev 4, not the Sev 3 the ADR's "customer-facing UJ
+  # degraded" category would otherwise call for: the canary's router pods and
+  # load balancer run on the customer's own workers and network, so a
+  # customer scaling their worker pool to zero or changing their own NSG
+  # rules fails the canary exactly like a genuine platform-side
+  # ingress-operator or routing-stack problem would, with no way today to
+  # tell them apart. This is an interim, uniform downgrade to stop
+  # customer-caused failures from paging RP on-call at Sev 3; it also slows
+  # response to genuinely platform-caused failures until that distinction
+  # exists. Tracked in ARO-30462.
   - name: arohcp_ingress_availability_slo_alerts
     labels:
       component: slo
     rules:
     # ----------------------------------------
-    # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
+    # Fast Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
     # ----------------------------------------
     - alert: userJourneyIngressAvailabilityErrors1h5m
       expr: |
@@ -93,7 +104,7 @@ spec:
         group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 10m
       labels:
-        severity: "3"
+        severity: "4"
         slo: ingress-availability
         long_window: 1h
         short_window: 5m
@@ -105,7 +116,7 @@ spec:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
     # ----------------------------------------
-    # Medium Burn Alert (IcM Sev 3)
+    # Medium Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
     # ----------------------------------------
     - alert: userJourneyIngressAvailabilityErrors6h30m
       expr: |
@@ -126,7 +137,7 @@ spec:
         group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 30m
       labels:
-        severity: "3"
+        severity: "4"
         slo: ingress-availability
         long_window: 6h
         short_window: 30m
@@ -197,13 +208,15 @@ spec:
   #
   # Same resource_id enrichment via hostedClusterAPI_kubeapiserver_available
   # as the availability group above -- see its header comment for the full
-  # rationale.
+  # rationale. Same interim Sev 4 downgrade on the fast/medium tiers too,
+  # same reasoning (ARO-30462): the canary can't distinguish a customer-caused
+  # failure from a platform-caused one.
   - name: arohcp_ingress_latency_slo_alerts
     labels:
       component: slo
     rules:
     # ----------------------------------------
-    # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
+    # Fast Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
     # ----------------------------------------
     - alert: userJourneyIngressLatencyP99Errors1h5m
       expr: |
@@ -224,7 +237,7 @@ spec:
         group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 10m
       labels:
-        severity: "3"
+        severity: "4"
         slo: ingress-latency
         long_window: 1h
         short_window: 5m
@@ -236,7 +249,7 @@ spec:
         runbook_url: "https://aka.ms/arohcp-runbook-ingress"
         correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
     # ----------------------------------------
-    # Medium Burn Alert (IcM Sev 3)
+    # Medium Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
     # ----------------------------------------
     - alert: userJourneyIngressLatencyP99Errors6h30m
       expr: |
@@ -257,7 +270,7 @@ spec:
         group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
       for: 30m
       labels:
-        severity: "3"
+        severity: "4"
         slo: ingress-latency
         long_window: 6h
         short_window: 30m
