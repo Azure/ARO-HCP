@@ -116,15 +116,21 @@ type Options struct {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
-	for _, item := range []struct {
+	type requiredFlag struct {
 		flag  string
 		name  string
 		value *string
-	}{
+	}
+	required := []requiredFlag{
 		{flag: "output", name: "output dir", value: &o.OutputDir},
 		{flag: "rendered-config", name: "rendered config", value: &o.RenderedConfig},
-		{flag: "subscription-id", name: "subscription ID", value: &o.SubscriptionID},
-	} {
+	}
+	// Persistent-env mode reads alerts from the environment Kusto, not from
+	// Azure Monitor resources in a subscription.
+	if !o.PersistentEnv {
+		required = append(required, requiredFlag{flag: "subscription-id", name: "subscription ID", value: &o.SubscriptionID})
+	}
+	for _, item := range required {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
 		}
@@ -151,6 +157,61 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	// making expensive Azure API calls.
 	if err := os.MkdirAll(o.OutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory %s: %w", o.OutputDir, err)
+	}
+
+	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load test timing info: %w", err)
+	}
+
+	var startFallback *time.Time
+	if o.StartTimeFallback != "" {
+		t, err := time.Parse(time.RFC3339, o.StartTimeFallback)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse --start-time-fallback %q: %w", o.StartTimeFallback, err)
+		}
+		startFallback = &t
+	}
+
+	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, nil, testTimingInfo, startFallback)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute time window: %w", err)
+	}
+
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+
+	knownIssues, knownIssuesError := parseKnownIssues(defaultKnownIssuesData)
+	if knownIssuesError != nil {
+		knownIssuesError = fmt.Errorf("failed to parse known issues config: %w", knownIssuesError)
+	}
+	logger.Info("loaded known issues config", "patterns", len(knownIssues))
+
+	// Persistent-environment (int/stg/prod) mode needs only the environment
+	// Kusto connection, not the dev-only workspace, Cosmos and query setup
+	// below. Kusto setup failures are deferred to collection time so the step
+	// degrades gracefully (see runEnv).
+	if o.PersistentEnv {
+		envKusto, envKustoError := setupEnvKusto(o.RenderedConfig, cred)
+		if envKustoError != nil {
+			logger.Error(envKustoError, "environment Kusto unavailable; alert collection will degrade")
+		}
+		return &Options{completedOptions: &completedOptions{
+			PersistentEnv:     true,
+			OutputDir:         o.OutputDir,
+			TimeWindow:        tw,
+			SeverityThreshold: o.severityThreshold,
+			knownIssues:       knownIssues,
+			knownIssuesError:  knownIssuesError,
+			testTimingInfo:    testTimingInfo,
+			envKusto:          envKusto,
+			envKustoError:     envKustoError,
+		}}, nil
 	}
 
 	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
@@ -205,33 +266,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		cosmosError = errors.Join(cosmosError, err)
 	}
 
-	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load test timing info: %w", err)
-	}
-
-	var startFallback *time.Time
-	if o.StartTimeFallback != "" {
-		t, err := time.Parse(time.RFC3339, o.StartTimeFallback)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse --start-time-fallback %q: %w", o.StartTimeFallback, err)
-		}
-		startFallback = &t
-	}
-
-	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, nil, testTimingInfo, startFallback)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute time window: %w", err)
-	}
-
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-		AdditionallyAllowedTenants:   []string{"*"},
-		RequireAzureTokenCredentials: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
-	}
-
 	metricResources := map[string]azcorearm.ResourceID{}
 	if cosmosDBName != "" {
 		id, err := azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s", o.SubscriptionID, regionRG, cosmosDBName))
@@ -249,28 +283,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		logger.Info("loaded embedded queries config", "panels", len(queries.Panels))
 	}
 
-	knownIssues, knownIssuesError := parseKnownIssues(defaultKnownIssuesData)
-	if knownIssuesError != nil {
-		knownIssuesError = fmt.Errorf("failed to parse known issues config: %w", knownIssuesError)
-	}
-	logger.Info("loaded known issues config", "patterns", len(knownIssues))
-
-	// Persistent-environment (int/stg/prod) mode resolves the environment
-	// Kusto cluster from the same rendered config the job runs with. Setup
-	// failures are deferred to collection time so the step degrades
-	// gracefully (see runEnv).
-	var envKusto envKustoConfig
-	var envKustoError error
-	if o.PersistentEnv {
-		envKusto, envKustoError = setupEnvKusto(o.RenderedConfig, cred)
-		if envKustoError != nil {
-			logger.Error(envKustoError, "environment Kusto unavailable; alert collection will degrade")
-		}
-	}
-
 	return &Options{completedOptions: &completedOptions{
 		AMWOnly:            o.AMWOnly,
-		PersistentEnv:      o.PersistentEnv,
 		OutputDir:          o.OutputDir,
 		Workspaces:         workspaces,
 		MetricResources:    metricResources,
@@ -285,9 +299,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		knownIssuesError:   knownIssuesError,
 		cosmosError:        cosmosError,
 		cosmosAutoscaleMax: cosmosAutoscaleMax,
-		testTimingInfo:     testTimingInfo,
-		envKusto:           envKusto,
-		envKustoError:      envKustoError,
 	}}, nil
 }
 
@@ -490,48 +501,11 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	sortAlerts(alerts)
 
 	// Build output used for both JSON and HTML
-	severityCounts := map[armalertsmanagement.Severity]int{}
-	var knownCount int
-	for _, a := range alerts {
-		severityCounts[a.Alert.Severity]++
-		if a.Metadata.KnownIssue {
-			knownCount++
-		}
-	}
-	unknownCount := len(alerts) - knownCount
-
-	logger.Info("classified alerts", "known", knownCount, "unknown", unknownCount)
-
-	filterKeys, filterOptions := collectFilterOptions(alerts)
-	output := alertsOutput{
-		Alerts: alerts,
-		Summary: alertsSummary{
-			Total:      len(alerts),
-			Known:      knownCount,
-			Unknown:    unknownCount,
-			BySeverity: severityCounts,
-		},
-		TimeWindow: timeWindow{
-			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
-			End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
-		},
-		FilterKeys:       filterKeys,
-		FilterOptions:    filterOptions,
-		CollectionErrors: collectionErrors,
-	}
+	output := buildAlertsOutput(alerts, o.TimeWindow, collectionErrors)
+	logger.Info("classified alerts", "known", output.Summary.Known, "unknown", output.Summary.Unknown)
 
 	writeJSON := func(name string, data any) {
-		content, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			record(fmt.Errorf("failed to marshal %s: %w", name, err))
-			return
-		}
-		path := filepath.Join(o.OutputDir, name)
-		if err := deps.writeFile(path, content, 0644); err != nil {
-			record(fmt.Errorf("failed to write %s: %w", path, err))
-		} else {
-			logger.Info("wrote JSON artifact", "path", path)
-		}
+		record(writeJSONArtifact(logger, deps, o.OutputDir, name, data))
 	}
 	writeJSON("alerts.json", output)
 
@@ -609,6 +583,50 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	}
 
 	return utils.TrackError(errors.Join(fatalErrors...))
+}
+
+// buildAlertsOutput summarizes classified alerts into the payload written to
+// alerts.json and rendered into the alerts HTML tab.
+func buildAlertsOutput(alerts []alert, tw timing.TimeWindow, collectionErrors []string) alertsOutput {
+	severityCounts := map[armalertsmanagement.Severity]int{}
+	var knownCount int
+	for _, a := range alerts {
+		severityCounts[a.Alert.Severity]++
+		if a.Metadata.KnownIssue {
+			knownCount++
+		}
+	}
+	filterKeys, filterOptions := collectFilterOptions(alerts)
+	return alertsOutput{
+		Alerts: alerts,
+		Summary: alertsSummary{
+			Total:      len(alerts),
+			Known:      knownCount,
+			Unknown:    len(alerts) - knownCount,
+			BySeverity: severityCounts,
+		},
+		TimeWindow: timeWindow{
+			Start: tw.Start.UTC().Format(time.RFC3339),
+			End:   tw.End.UTC().Format(time.RFC3339),
+		},
+		FilterKeys:       filterKeys,
+		FilterOptions:    filterOptions,
+		CollectionErrors: collectionErrors,
+	}
+}
+
+// writeJSONArtifact marshals data and writes it into the output directory.
+func writeJSONArtifact(logger logr.Logger, deps gatherDependencies, outputDir, name string, data any) error {
+	content, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s: %w", name, err)
+	}
+	path := filepath.Join(outputDir, name)
+	if err := deps.writeFile(path, content, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	logger.Info("wrote JSON artifact", "path", path)
+	return nil
 }
 
 func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData, deps gatherDependencies) ([]observabilityTab, error) {

@@ -27,9 +27,10 @@ import (
 
 	"github.com/go-logr/logr"
 
-	azkustodata "github.com/Azure/azure-kusto-go/azkustodata"
-	"github.com/Azure/azure-kusto-go/azkustodata/kql"
+	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/azure-kusto-go/azkustodata"
+	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 
@@ -52,29 +53,9 @@ const (
 
 	// envAlertWindowPadding extends the alert query window past the run window
 	// so alerts that fired late in a test but were ingested after the run's
-	// end are still attributed. It is a KQL timespan literal, not a
-	// time.Duration, so it can be interpolated directly into the query.
+	// end are still attributed. It is a KQL timespan literal.
 	envAlertWindowPadding = "15m"
 )
-
-// envCluster is one HCP cluster created by the run, with the attribution
-// identifiers resolved from the environment Kusto.
-type envCluster struct {
-	ResourceGroup string `json:"resourceGroup"`
-	ClusterName   string `json:"clusterName"`
-	CID           string `json:"cid,omitempty"`
-	Namespace     string `json:"namespace,omitempty"`
-}
-
-// envClusterInventory is the durable per-run cluster inventory artifact
-// (run-clusters.json). Test cleanup deletes the resource groups during the
-// run, so this file is the only post-hoc record of the
-// resource group -> cluster -> cid -> namespace attribution chain.
-type envClusterInventory struct {
-	KustoEndpoint string       `json:"kustoEndpoint"`
-	TimeWindow    timeWindow   `json:"timeWindow"`
-	Clusters      []envCluster `json:"clusters"`
-}
 
 // envKustoConfig holds the environment Kusto connection resolved from the
 // rendered environment config.
@@ -86,9 +67,9 @@ type envKustoConfig struct {
 }
 
 // setupEnvKusto resolves the environment Kusto connection info from the
-// rendered environment config (the same kusto.kustoName/kusto.location keys
-// gather-snapshot reads) and opens a query client. The caller decides how to
-// degrade when setup fails.
+// rendered environment config (the kusto.* keys gather-snapshot also reads)
+// and opens a query client. The caller decides how to degrade when setup
+// fails.
 func setupEnvKusto(renderedConfig string, cred azcore.TokenCredential) (envKustoConfig, error) {
 	rawCfg, err := os.ReadFile(renderedConfig)
 	if err != nil {
@@ -105,8 +86,7 @@ func setupEnvKusto(renderedConfig string, cred azcore.TokenCredential) (envKusto
 	if err != nil {
 		return envKustoConfig{}, fmt.Errorf("failed to build kusto endpoint: %w", err)
 	}
-	kcsb := azkustodata.NewConnectionStringBuilder(endpoint.String()).WithTokenCredential(cred)
-	client, err := azkustodata.New(kcsb)
+	client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(endpoint.String()).WithTokenCredential(cred))
 	if err != nil {
 		return envKustoConfig{}, fmt.Errorf("failed to create Kusto client for %s: %w", endpoint, err)
 	}
@@ -118,9 +98,8 @@ func setupEnvKusto(renderedConfig string, cred azcore.TokenCredential) (envKusto
 	}, nil
 }
 
-// kustoRow is one query result row keyed by column name. Every value is the
-// string representation of the underlying Kusto value; queries are expected
-// to cast/project their columns to strings.
+// kustoRow is one query result row keyed by column name. Values are the
+// string representation of the Kusto value; queries project string columns.
 type kustoRow map[string]string
 
 // kustoQuerier abstracts read-only KQL execution so orchestration tests can
@@ -147,12 +126,11 @@ func (q *azKustoQuerier) Query(ctx context.Context, db, query string) ([]kustoRo
 	if err := primary.Err(); err != nil {
 		return nil, fmt.Errorf("failed to get primary result: %w", err)
 	}
-	table := primary.Table()
-	if table == nil {
+	if primary.Table() == nil {
 		return nil, nil
 	}
 	var rows []kustoRow
-	for rowResult := range table.Rows() {
+	for rowResult := range primary.Table().Rows() {
 		if err := rowResult.Err(); err != nil {
 			return nil, fmt.Errorf("failed to read row: %w", err)
 		}
@@ -160,10 +138,9 @@ func (q *azKustoQuerier) Query(ctx context.Context, db, query string) ([]kustoRo
 		if row == nil {
 			continue
 		}
-		columns := row.Columns()
 		values := row.Values()
-		r := make(kustoRow, len(columns))
-		for i, col := range columns {
+		r := make(kustoRow, len(values))
+		for i, col := range row.Columns() {
 			if i < len(values) {
 				r[col.Name()] = values[i].String()
 			}
@@ -177,23 +154,19 @@ func (q *azKustoQuerier) Close() error {
 	return q.client.Close()
 }
 
-// kqlEscapeString escapes a value for use inside a KQL single-quoted string.
-func kqlEscapeString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	return strings.ReplaceAll(s, `'`, `\'`)
-}
-
-// kqlStringList renders a KQL string list literal from values.
+// kqlStringList renders a KQL string list literal, escaping each value for a
+// single-quoted string.
 func kqlStringList(values []string) string {
 	quoted := make([]string, len(values))
 	for i, v := range values {
-		quoted[i] = fmt.Sprintf("'%s'", kqlEscapeString(v))
+		v = strings.ReplaceAll(v, `\`, `\\`)
+		quoted[i] = "'" + strings.ReplaceAll(v, `'`, `\'`) + "'"
 	}
 	return "(" + strings.Join(quoted, ",") + ")"
 }
 
 func kqlDatetime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05Z")
+	return t.UTC().Format(time.RFC3339)
 }
 
 // envClusterNamesQuery resolves the run's HCP cluster names from frontend
@@ -206,12 +179,12 @@ func envClusterNamesQuery(rgs []string, start, end time.Time) string {
 | where request_path contains "hcpopenshiftclusters"
 | extend cluster_name = extract(@"hcpopenshiftclusters/([a-z0-9-]+)", 1, tostring(request_path))
 | where isnotempty(cluster_name)
-| distinct cluster_name, resource_group`,
+| distinct cluster_name`,
 		kqlDatetime(start), kqlDatetime(end), kqlStringList(rgs))
 }
 
-// envClusterCIDsQuery resolves the cid (the cluster's unique 32-char
-// identifier) per cluster name. Filtering on resource group and name keeps a
+// envClusterCIDsQuery resolves each cluster's cid (its unique 32-char
+// identifier). Filtering on resource group as well as name keeps a
 // same-named cluster created by a concurrent run in the same window from
 // leaking into this run's cid set.
 func envClusterCIDsQuery(rgs, names []string, start, end time.Time) string {
@@ -222,39 +195,30 @@ func envClusterCIDsQuery(rgs, names []string, start, end time.Time) string {
 | where rg in %s
 | extend cn = extract(@"/hcpopenshiftclusters/([a-z0-9-]+)", 1, tolower(tostring(resource_id)))
 | where cn in %s
-| distinct cn, tostring(cid)`,
+| distinct cid = tostring(cid)`,
 		kqlDatetime(start), kqlDatetime(end), kqlStringList(rgs), kqlStringList(names))
 }
 
-// envAlertsQuery fetches alertEvents fired on the run's cluster namespaces.
+// envAlertsQuery fetches the alerts fired on the run's cluster namespaces.
 // The namespace is ocm-arohcp<env>-<cid>-<suffix> and the suffix is the
-// cluster name only in int (it is random in stg/prod), so `has_any` on the
-// cid is the exact join. Columns beyond the validated ones
-// (firedDateTime/resolvedDateTime/alertContext) are read through
-// column_ifexists so an alertEvents schema change degrades to empty values
-// instead of failing the whole query.
+// cluster name only in int (it is random in stg/prod), so matching on the cid
+// is the exact join. alertEvents records one row per state change, so rows
+// are collapsed to each alert's latest state.
 func envAlertsQuery(cids []string, start, end time.Time) string {
 	return fmt.Sprintf(`alertEvents
 | where firedDateTime between (datetime('%s') .. datetime('%s') + %s)
 | extend alertName = tostring(alertContext.labels.alertname), ns = tostring(alertContext.labels.namespace)
 | where ns has_any %s and isnotempty(alertName)
-| extend fired = format_datetime(firedDateTime, "yyyy-MM-ddTHH:mm:ssZ")
-| extend resolved = iff(isnull(resolvedDateTime), '', format_datetime(todatetime(resolvedDateTime), "yyyy-MM-ddTHH:mm:ssZ"))
-| project alertName,
-    severity = tostring(column_ifexists('severity', '')),
-    condition = coalesce(tostring(column_ifexists('monitorCondition', '')), tostring(column_ifexists('state', ''))),
-    signalType = tostring(column_ifexists('signalType', '')),
-    alertRule = tostring(column_ifexists('ruleName', '')),
-    targetResourceId = tostring(column_ifexists('targetResourceId', '')),
-    fired, resolved,
-    labels = tostring(alertContext.labels),
-    expression = tostring(alertContext.expression)`,
+| extend lastChange = coalesce(resolvedDateTime, firedDateTime)
+| summarize arg_max(lastChange, *) by alertId
+| project alertName, severity, condition = monitorCondition, signalType, alertRule, targetResourceId,
+    fired = tostring(firedDateTime), resolved = tostring(resolvedDateTime),
+    labels = tostring(alertContext.labels), expression = tostring(alertContext.expression)`,
 		kqlDatetime(start), kqlDatetime(end), envAlertWindowPadding, kqlStringList(cids))
 }
 
-// envSeverity maps an alertEvents severity string ("Sev0".."Sev4") to the SDK
-// severity used across the shared pipeline. Unknown or missing values map to
-// Sev4 (verbose) so they are still surfaced but never escalated.
+// envSeverity maps an alertEvents severity ("Sev0".."Sev4") to the SDK
+// severity. Unknown values map to Sev4 so they surface without escalating.
 func envSeverity(s string) armalertsmanagement.Severity {
 	if sev := armalertsmanagement.Severity(s); severityRank(sev) >= 0 {
 		return sev
@@ -262,29 +226,32 @@ func envSeverity(s string) armalertsmanagement.Severity {
 	return armalertsmanagement.SeveritySev4
 }
 
-// parseEnvAlertLabels decodes the JSON representation of the alertContext
-// labels dynamic column. Non-string values are stringified; unparseable input
-// yields nil.
+// parseEnvAlertLabels decodes the JSON of the alertContext.labels column.
+// Non-string values are stringified; unparseable input yields nil.
 func parseEnvAlertLabels(s string) map[string]string {
-	if s == "" {
-		return nil
-	}
 	var raw map[string]any
 	if err := json.Unmarshal([]byte(s), &raw); err != nil {
 		return nil
 	}
 	labels := make(map[string]string, len(raw))
 	for k, v := range raw {
-		if v == nil {
-			continue
-		}
-		if str, ok := v.(string); ok {
-			labels[k] = str
-		} else {
+		switch v := v.(type) {
+		case nil:
+		case string:
+			labels[k] = v
+		default:
 			labels[k] = fmt.Sprintf("%v", v)
 		}
 	}
 	return labels
+}
+
+func parseEnvTime(s string) *time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // envAlertsFromRows maps alertEvents rows into the alert shape used by the
@@ -292,24 +259,18 @@ func parseEnvAlertLabels(s string) map[string]string {
 func envAlertsFromRows(rows []kustoRow) []alert {
 	alerts := make([]alert, 0, len(rows))
 	for _, row := range rows {
-		var a alertData
-		a.Name = row["alertName"]
-		a.Severity = envSeverity(row["severity"])
-		a.Condition = row["condition"]
-		a.AlertRule = row["alertRule"]
-		a.SignalType = row["signalType"]
-		if t, err := time.Parse(time.RFC3339, row["fired"]); err == nil {
-			a.StartsAt = &t
-		}
-		if row["resolved"] != "" {
-			if t, err := time.Parse(time.RFC3339, row["resolved"]); err == nil {
-				a.EndsAt = &t
-			}
-		}
-		a.Labels = parseEnvAlertLabels(row["labels"])
-		a.Expression = row["expression"]
 		alerts = append(alerts, alert{
-			Alert: a,
+			Alert: alertData{
+				Name:       row["alertName"],
+				Severity:   envSeverity(row["severity"]),
+				Condition:  row["condition"],
+				AlertRule:  row["alertRule"],
+				SignalType: row["signalType"],
+				StartsAt:   parseEnvTime(row["fired"]),
+				EndsAt:     parseEnvTime(row["resolved"]),
+				Labels:     parseEnvAlertLabels(row["labels"]),
+				Expression: row["expression"],
+			},
 			Metadata: alertMetadata{
 				MonitoringWorkspace:     row["targetResourceId"],
 				MonitoringWorkspaceType: workspaceEnv,
@@ -331,121 +292,58 @@ func collectEnvResourceGroups(testTimingInfo map[string]timing.TimingInfo) []str
 	return slices.Compact(rgs)
 }
 
-// collectEnvAlerts runs the three-hop attribution chain against the
-// environment Kusto cluster: resource groups -> cluster names -> cids ->
-// fired alerts. The cluster list is returned even when the alert hop fails so
-// the inventory artifact can still be written.
-func (o Options) collectEnvAlerts(ctx context.Context, rgs []string) ([]envCluster, []alert, error) {
+// collectEnvAlerts runs the attribution chain against the environment Kusto
+// cluster: resource groups -> cluster names -> cids -> fired alerts.
+func (o Options) collectEnvAlerts(ctx context.Context, rgs []string) ([]alert, error) {
 	logger := logr.FromContextOrDiscard(ctx)
+	start, end := o.TimeWindow.Start, o.TimeWindow.End
 
-	type clusterKey struct{ rg, name string }
-	clusters := map[clusterKey]envCluster{}
-	byName := map[string][]clusterKey{}
-
-	nameRows, err := o.envKusto.querier.Query(ctx, o.envKusto.serviceDB, envClusterNamesQuery(rgs, o.TimeWindow.Start, o.TimeWindow.End))
+	nameRows, err := o.envKusto.querier.Query(ctx, o.envKusto.serviceDB, envClusterNamesQuery(rgs, start, end))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to resolve cluster names: %w", err)
+		return nil, fmt.Errorf("failed to resolve cluster names: %w", err)
 	}
+	names := sets.New[string]()
 	for _, row := range nameRows {
-		name, rg := row["cluster_name"], row["resource_group"]
-		if name == "" || rg == "" {
-			continue
+		if name := row["cluster_name"]; name != "" {
+			names.Insert(name)
 		}
-		key := clusterKey{rg: rg, name: name}
-		if _, ok := clusters[key]; ok {
-			continue
-		}
-		clusters[key] = envCluster{ResourceGroup: rg, ClusterName: name}
-		byName[name] = append(byName[name], key)
 	}
-	logger.Info("resolved run clusters", "resourceGroups", len(rgs), "clusters", len(clusters))
-	if len(clusters) == 0 {
-		return nil, nil, fmt.Errorf("no HCP clusters found for the run's resource groups within the time window")
+	if names.Len() == 0 {
+		return nil, fmt.Errorf("no HCP clusters found for %d resource group(s) within the time window", len(rgs))
 	}
 
-	var names []string
-	for name := range byName {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-
-	cidRows, err := o.envKusto.querier.Query(ctx, o.envKusto.serviceDB, envClusterCIDsQuery(rgs, names, o.TimeWindow.Start, o.TimeWindow.End))
+	cidRows, err := o.envKusto.querier.Query(ctx, o.envKusto.serviceDB, envClusterCIDsQuery(rgs, sets.List(names), start, end))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to resolve cluster cids: %w", err)
+		return nil, fmt.Errorf("failed to resolve cluster cids: %w", err)
 	}
-	var cids []string
-	seenCID := map[string]bool{}
+	cids := sets.New[string]()
 	for _, row := range cidRows {
-		cn, cid := row["cn"], row["cid"]
-		if cn == "" || cid == "" {
-			continue
-		}
-		for _, key := range byName[cn] {
-			c := clusters[key]
-			c.CID = cid
-			clusters[key] = c
-		}
-		if !seenCID[cid] {
-			seenCID[cid] = true
-			cids = append(cids, cid)
+		if cid := row["cid"]; cid != "" {
+			cids.Insert(cid)
 		}
 	}
-	logger.Info("resolved cluster cids", "cids", len(cids))
+	if cids.Len() == 0 {
+		return nil, fmt.Errorf("no cids found for %d HCP cluster(s)", names.Len())
+	}
 
-	var alerts []alert
-	if len(cids) > 0 {
-		alertRows, err := o.envKusto.querier.Query(ctx, o.envKusto.monitoringDB, envAlertsQuery(cids, o.TimeWindow.Start, o.TimeWindow.End))
-		if err != nil {
-			return envClusterList(clusters), nil, fmt.Errorf("failed to fetch environment alerts: %w", err)
-		}
-		alerts = envAlertsFromRows(alertRows)
-		// Best-effort namespace resolution for the inventory: the full
-		// namespace is only visible on the alerts themselves.
-		for _, a := range alerts {
-			ns := a.Alert.Labels["namespace"]
-			if ns == "" {
-				continue
-			}
-			for key, c := range clusters {
-				if c.CID != "" && c.Namespace == "" && strings.Contains(ns, c.CID) {
-					c.Namespace = ns
-					clusters[key] = c
-				}
-			}
-		}
+	alertRows, err := o.envKusto.querier.Query(ctx, o.envKusto.monitoringDB, envAlertsQuery(sets.List(cids), start, end))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch environment alerts: %w", err)
 	}
-	logger.Info("fetched environment alerts", "alerts", len(alerts))
-	return envClusterList(clusters), alerts, nil
-}
-
-func envClusterList[K comparable](clusters map[K]envCluster) []envCluster {
-	list := make([]envCluster, 0, len(clusters))
-	for _, c := range clusters {
-		list = append(list, c)
-	}
-	slices.SortFunc(list, func(a, b envCluster) int {
-		if c := strings.Compare(a.ResourceGroup, b.ResourceGroup); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ClusterName, b.ClusterName)
-	})
-	return list
+	alerts := envAlertsFromRows(alertRows)
+	logger.Info("fetched environment alerts", "resourceGroups", len(rgs), "clusters", names.Len(), "cids", cids.Len(), "alerts", len(alerts))
+	return alerts, nil
 }
 
 // runEnv implements persistent-environment (int/stg/prod) collection and
-// writes the same artifacts dev runs produce (alerts.json, junit_alerts.xml,
-// observability-summary.html) plus run-clusters.json.
+// writes the same artifacts dev runs produce: alerts.json, junit_alerts.xml
+// and observability-summary.html.
 //
-// Collection failures degrade gracefully: the cluster inventory and any
-// partial alert data are still written and the errors surface in alerts.json
-// and the JUnit output, but the step does not fail on a missing source — the
-// CI credential may not be able to reach the environment Kusto clusters
-// until a Microsoft-side credential grant lands. The step still fails when
-// collection succeeded and un-annotated alerts fired, matching the dev gate.
-//
-// Unlike dev mode the JUnit only contains cases for alerts that actually
-// fired (plus a collection-completeness case): the environment Kusto chain
-// has no rule inventory to assert "did not fire" cases for.
+// Collection failures degrade gracefully: they surface in alerts.json and the
+// JUnit output but do not fail the step, because the CI credential may not
+// reach the environment Kusto clusters until a Microsoft-side credential
+// grant lands. Un-annotated fired alerts still fail the step, matching the
+// dev gate.
 func (o Options) runEnv(ctx context.Context, deps gatherDependencies) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -459,126 +357,55 @@ func (o Options) runEnv(ctx context.Context, deps gatherDependencies) error {
 		}()
 	}
 
-	var collectionErrs []error
-	record := func(err error) {
-		if err != nil {
-			logger.Error(err, "environment alert collection incomplete")
-			collectionErrs = append(collectionErrs, err)
-		}
+	var alerts []alert
+	var collectionErr error
+	rgs := collectEnvResourceGroups(o.testTimingInfo)
+	switch {
+	case o.envKustoError != nil:
+		collectionErr = fmt.Errorf("environment Kusto unavailable: %w", o.envKustoError)
+	case len(rgs) == 0:
+		collectionErr = fmt.Errorf("no test resource groups found in the timing input")
+	default:
+		logger.Info("collecting environment alerts", "kusto", o.envKusto.endpoint, "resourceGroups", len(rgs))
+		alerts, collectionErr = o.collectEnvAlerts(ctx, rgs)
 	}
-	// Artifact write/render failures stay fatal, like dev mode; only
-	// collection failures degrade gracefully.
+	var collectionErrors []string
+	if collectionErr != nil {
+		logger.Error(collectionErr, "environment alert collection incomplete")
+		collectionErrors = []string{fmt.Sprintf("%s: %v", workspaceEnv, collectionErr)}
+	}
+
+	alerts = classifyAlerts(filterAlertsBySeverity(alerts, o.SeverityThreshold), o.knownIssues)
+	// The environment Kusto chain has no rule inventory, so every fired alert
+	// name becomes a rule: the JUnit gets one case per fired alert instead of
+	// "did not fire" cases for every rule.
+	rules := sets.New[string]()
+	for _, a := range alerts {
+		rules.Insert(a.Alert.Name)
+	}
+	workspaces := map[string]*workspaceData{workspaceEnv: {
+		Type:            workspaceEnv,
+		AlertRules:      sets.List(rules),
+		FiredAlerts:     alerts,
+		CollectionError: errors.Join(collectionErr, o.knownIssuesError),
+	}}
+	output := buildAlertsOutput(alerts, o.TimeWindow, collectionErrors)
+
+	// Artifact and known-issues failures stay fatal, like dev mode: without
+	// the known-issues file every firing would count as un-annotated.
 	var fatalErrors []error
 	fail := func(err error) {
 		if err != nil {
-			logger.Error(err, "observability artifact failure")
+			logger.Error(err, "observability collection incomplete")
 			fatalErrors = append(fatalErrors, err)
 		}
 	}
-
-	rgs := collectEnvResourceGroups(o.testTimingInfo)
-	if len(rgs) == 0 {
-		record(fmt.Errorf("no test resource groups found in the timing input; cannot attribute environment alerts"))
-	}
-
-	var clusters []envCluster
-	var alerts []alert
-	switch {
-	case o.envKustoError != nil:
-		record(fmt.Errorf("environment Kusto unavailable: %w", o.envKustoError))
-	case len(rgs) > 0:
-		clusters, alerts, err = o.collectEnvAlerts(ctx, rgs)
-		record(err)
-	}
-
-	writeJSON := func(name string, data any) error {
-		content, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal %s: %w", name, err)
-		}
-		path := filepath.Join(o.OutputDir, name)
-		if err := deps.writeFile(path, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", path, err)
-		}
-		logger.Info("wrote JSON artifact", "path", path)
-		return nil
-	}
-
-	// The inventory artifact is durable evidence of the attribution chain:
-	// test cleanup deletes the resource groups during the run.
-	inventory := envClusterInventory{
-		KustoEndpoint: o.envKusto.endpoint,
-		TimeWindow: timeWindow{
-			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
-			End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
-		},
-		Clusters: clusters,
-	}
-	if inventory.Clusters == nil {
-		inventory.Clusters = []envCluster{}
-	}
-	fail(writeJSON("run-clusters.json", inventory))
-
-	alerts = filterAlertsBySeverity(alerts, o.SeverityThreshold)
-	alerts = classifyAlerts(alerts, o.knownIssues)
-
-	rules := make([]string, 0, len(alerts))
-	seenRule := map[string]bool{}
-	for _, a := range alerts {
-		if !seenRule[a.Alert.Name] {
-			seenRule[a.Alert.Name] = true
-			rules = append(rules, a.Alert.Name)
-		}
-	}
-	slices.Sort(rules)
-
-	collectionErr := errors.Join(collectionErrs...)
-	envWorkspace := &workspaceData{
-		Type:            workspaceEnv,
-		AlertRules:      rules,
-		FiredAlerts:     alerts,
-		CollectionError: collectionErr,
-	}
-	workspaces := map[string]*workspaceData{workspaceEnv: envWorkspace}
-
-	severityCounts := map[armalertsmanagement.Severity]int{}
-	var knownCount int
-	for _, a := range alerts {
-		severityCounts[a.Alert.Severity]++
-		if a.Metadata.KnownIssue {
-			knownCount++
-		}
-	}
-	unknownCount := len(alerts) - knownCount
-	logger.Info("classified environment alerts", "known", knownCount, "unknown", unknownCount)
-
-	filterKeys, filterOptions := collectFilterOptions(alerts)
-	output := alertsOutput{
-		Alerts: alerts,
-		Summary: alertsSummary{
-			Total:      len(alerts),
-			Known:      knownCount,
-			Unknown:    unknownCount,
-			BySeverity: severityCounts,
-		},
-		TimeWindow: timeWindow{
-			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
-			End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
-		},
-		FilterKeys:    filterKeys,
-		FilterOptions: filterOptions,
-	}
-	if collectionErr != nil {
-		output.CollectionErrors = []string{fmt.Sprintf("%s: %v", workspaceEnv, collectionErr)}
-	}
-	fail(writeJSON("alerts.json", output))
+	fail(o.knownIssuesError)
+	fail(writeJSONArtifact(logger, deps, o.OutputDir, "alerts.json", output))
 
 	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
-	suites := alertsToJUnit(logger, workspaces, o.TimeWindow)
-	if err := deps.writeJUnit(junitPath, suites); err != nil {
+	if err := deps.writeJUnit(junitPath, alertsToJUnit(logger, workspaces, o.TimeWindow)); err != nil {
 		fail(fmt.Errorf("failed to write JUnit output: %w", err))
-	} else {
-		logger.Info("wrote alert JUnit artifact", "path", junitPath)
 	}
 
 	alertsHTML, err := deps.renderAlerts(output)
@@ -586,27 +413,12 @@ func (o Options) runEnv(ctx context.Context, deps gatherDependencies) error {
 		fail(fmt.Errorf("failed to render alerts HTML: %w", err))
 	}
 	tabs := []observabilityTab{{Title: "Environment Alerts", HTML: string(incompleteHTML(alertsHTML, err))}}
-	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
-	if err := deps.renderPage(htmlPath, tabs); err != nil {
+	if err := deps.renderPage(filepath.Join(o.OutputDir, "observability-summary.html"), tabs); err != nil {
 		fail(fmt.Errorf("failed to render observability HTML: %w", err))
-	} else {
-		logger.Info("wrote observability HTML artifact", "path", htmlPath, "tabs", len(tabs))
 	}
 
-	// Gate on un-annotated alert firings, not on collection completeness:
-	// collection errors already surfaced in the artifacts must not fail the
-	// step while the environment Kusto credential grant is pending.
-	var alertFailures uint
-	for _, s := range suites.Suites {
-		for _, tc := range s.TestCases {
-			if tc.FailureOutput == nil || strings.HasSuffix(tc.Name, "alert collection is complete") {
-				continue
-			}
-			alertFailures++
-		}
-	}
-	if alertFailures > 0 {
-		fatalErrors = append(fatalErrors, fmt.Errorf("JUnit results contain %d failing test case(s)", alertFailures))
+	if output.Summary.Unknown > 0 {
+		fail(fmt.Errorf("%d un-annotated alert firing(s) on the run's clusters", output.Summary.Unknown))
 	}
 	return utils.TrackError(errors.Join(fatalErrors...))
 }
