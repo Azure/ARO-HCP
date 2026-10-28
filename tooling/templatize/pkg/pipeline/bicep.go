@@ -25,8 +25,6 @@ import (
 	"github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 func modeFromString(mode string) armresources.DeploymentMode {
@@ -38,7 +36,12 @@ func modeFromString(mode string) armresources.DeploymentMode {
 	}
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any, skipBicepparamValidation bool) (*armresources.DeploymentProperties, error) {
+type bicepParamsBuilder interface {
+	BuildParams(ctx context.Context, path string) (string, string, error)
+}
+
+// Transform Bicep parameters into an ARM deployment payload.
+func transformBicepToARMDeployment(ctx context.Context, bicepClient bicepParamsBuilder, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any, skipBicepparamValidation bool) (*armresources.DeploymentProperties, error) {
 	template, params, err := transformParameters(ctx, bicepClient, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir, skipBicepparamValidation)
 	if err != nil {
 		return nil, err
@@ -50,7 +53,8 @@ func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPCl
 	}, nil
 }
 
-func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg types.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string, skipBicepparamValidation bool) (map[string]interface{}, map[string]interface{}, error) {
+// Compile preprocessed Bicep parameters and apply pipeline inputs.
+func transformParameters(ctx context.Context, bicepClient bicepParamsBuilder, cfg types.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string, skipBicepparamValidation bool) (map[string]interface{}, map[string]interface{}, error) {
 	bicepParameterFile := filepath.Join(pipelineWorkingDir, bicepParameterTemplateFile)
 	if !skipBicepparamValidation {
 		rawContent, err := os.ReadFile(bicepParameterFile)

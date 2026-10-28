@@ -97,6 +97,11 @@ Used for deploying Azure infrastructure using [Bicep](bicep.md) templates. These
 3. `parameters`: The path to the Bicep parameters file that provides input values for the template.
 4. `deploymentLevel`: The scope at which the deployment should occur. Valid values are `ResourceGroup` and `Subscription`.
 
+Set `outputOnly: true` for read-only ARM lookups. The local runner refreshes these
+lookups on each pipeline execution rather than reusing persistent cached outputs.
+Dependent steps consume the captured output throughout their retries. Use a separate
+lookup step when a deployment needs a stable observation of external state across retries.
+
 This step type supports dry-run testing via [what-if](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-what-if?tabs=azure-powershell).
 
 Detailed information about Bicep templates in general and how to use the ARM step type, can be found in the [Bicep documentation](bicep.md#deploying-bicep-templates).
