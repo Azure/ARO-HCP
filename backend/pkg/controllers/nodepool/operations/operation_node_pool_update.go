@@ -154,8 +154,8 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, existingNodePool)
-	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "node pool update did not complete before the deadline")
+	operationalState, observationErr := c.determineOperationState(ctx, operation, existingNodePool)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "node pool update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}

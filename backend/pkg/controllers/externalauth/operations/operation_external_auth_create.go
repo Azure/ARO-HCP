@@ -137,8 +137,8 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, externalAuth)
-	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, externalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "External auth creation did not complete within the allowed time.")
+	operationalState, observationErr := c.determineOperationState(ctx, externalAuth)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, externalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "External auth creation did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}

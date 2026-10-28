@@ -156,8 +156,8 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
-	operationalState, err := c.determineOperationState(ctx, operation, cluster)
-	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, err, cluster.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "cluster creation did not complete before the deadline")
+	operationalState, observationErr := c.determineOperationState(ctx, operation, cluster)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, cluster.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "cluster creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}

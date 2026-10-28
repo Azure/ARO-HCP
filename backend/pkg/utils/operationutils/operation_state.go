@@ -168,6 +168,7 @@ func SummarizeOperationStates(states []*OperationState, observationErrors ...err
 // ApplyOperationDeadline uses the observations already collected for normal
 // monitoring. Fully observed terminal outcomes win; observation errors remain
 // retryable before expiry but cannot prevent a timeout afterwards.
+// Whnen the state is non terminal and the deadline has not yet been reached we return the state and observationErr as the error.
 func ApplyOperationDeadline(state *OperationState, observationErr error, deadline *metav1.Time, now time.Time, message string) (*OperationState, error) {
 	if observationErr == nil && state != nil && state.ProvisioningState.IsTerminal() {
 		return state, nil
