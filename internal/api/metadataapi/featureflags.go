@@ -40,9 +40,9 @@ const (
 	// accounts). See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources
 	ExperimentalClusterTagPrefix = "aro-hcp.experimental.cluster."
 
-	// TagClusterSingleReplica is the ARM resource tag that enables
-	// single-replica control plane components when the
-	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// TagClusterSingleReplica retains single-replica control plane components
+	// only on updates to persisted single-replica clusters when the
+	// ExperimentalReleaseFeatures AFEC is registered. New opt-ins are rejected.
 	TagClusterSingleReplica = ExperimentalClusterTagPrefix + "single-replica"
 
 	// TagClusterSizeOverride is the ARM resource tag that enables the
@@ -65,14 +65,21 @@ const (
 	TagClusterCPOImageOverride = ExperimentalClusterTagPrefix + "control-plane-operator-image-override"
 
 	// TagClusterControlPlaneExactVersion is the ARM resource tag that pins the
-	// control plane to an exact OpenShift release (e.g. "4.17.3") when the
+	// control plane to an exact OpenShift release (e.g. "4.17.3", or a full
+	// nightly build such as "4.21.0-0.nightly-2026-08-05-123456") when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription. When
 	// set, the desired control plane version controllers use the exact version
-	// directly and skip Cincinnati/gateway version resolution. The value may be
-	// a full semantic version; alternatively the tag may be present while the
-	// exact version is supplied through the cluster's version.id, in which case
-	// admission relocates the patch version here and reduces version.id to its
-	// "<major>.<minor>" release line.
+	// directly and skip Cincinnati/gateway version resolution.
+	//
+	// This tag is the only way to express an exact version, for every channel
+	// group. version.id always carries the bare "<major>.<minor>" release line
+	// and a patch-bearing version.id is rejected, because version.id does not
+	// round-trip (a GET would return only "<major>.<minor>") while an ARM tag
+	// does. The tag's release line must match version.id.
+	//
+	// The tag is required for the "nightly" channel group: nightly builds are
+	// published to the CI releasestream API rather than the Cincinnati graph,
+	// so the backend cannot resolve a build from a bare "<major>.<minor>".
 	TagClusterControlPlaneExactVersion = ExperimentalClusterTagPrefix + "control-plane-exact-version"
 
 	// TagClusterZStreamUpdatePolicy controls automatic z-stream rollout when the
@@ -99,6 +106,19 @@ const (
 	// The value must be a valid Go time.Duration string (e.g. "24m", "30m").
 	// The tag is set at cluster creation time but consumed at deletion time.
 	TagClusterMaxDeletionDuration = ExperimentalClusterTagPrefix + "max-deletion-duration"
+
+	// TagClusterBackupScheduleOverride is the ARM resource tag that force-enables
+	// the cluster's Velero backup Schedules when the ExperimentalReleaseFeatures
+	// AFEC is registered on the subscription. The only accepted value is
+	// "Enabled"; absent or empty means "no override".
+	//
+	// An "Enabled" override unpauses the cluster's Velero Schedules despite a
+	// deployment-wide --backup-schedule-state=Disabled. It exists so an individual
+	// test can opt its own cluster into active backups in environments that keep
+	// schedules off to avoid snapshot and datamover costs. It does NOT override the
+	// per-cluster admin API pause (ServiceProviderCluster.Spec.BackupScheduleState),
+	// which stays authoritative.
+	TagClusterBackupScheduleOverride = ExperimentalClusterTagPrefix + "backup-schedule-override"
 
 	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
 	// tags. Tags with this prefix are only honored when the

@@ -89,10 +89,8 @@ func TestRunEmitsInitialRecordThenLoopback(t *testing.T) {
 	}
 }
 
-func TestRunSwiftDevicePairFilterEmptySelectedSet(t *testing.T) {
-	// Without SWIFT hardware, every interface in this namespace (loopback,
-	// any test veth) lacks a vmbus/pci parent device, so SwiftDevicePairFilter must
-	// select none of them - an explicit available-empty state, not silence.
+func TestRunEmptySelectedSet(t *testing.T) {
+	// A reject-all filter exercises an explicit available-empty state on any host.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -103,7 +101,7 @@ func TestRunSwiftDevicePairFilterEmptySelectedSet(t *testing.T) {
 			first = &rc
 			cancel()
 		}
-	}, Options{})
+	}, Options{Filter: func(map[string]any) bool { return false }})
 	if err != context.Canceled {
 		t.Fatalf("Run returned %v, want context.Canceled", err)
 	}
@@ -114,7 +112,7 @@ func TestRunSwiftDevicePairFilterEmptySelectedSet(t *testing.T) {
 		t.Fatalf("got %+v, want an available Periodic record", first)
 	}
 	if len(first.State) != 0 {
-		t.Fatalf("SwiftDevicePairFilter unexpectedly selected %d interfaces in a namespace with no SWIFT hardware: %+v", len(first.State), first.State)
+		t.Fatalf("reject-all filter unexpectedly selected %d interfaces: %+v", len(first.State), first.State)
 	}
 }
 

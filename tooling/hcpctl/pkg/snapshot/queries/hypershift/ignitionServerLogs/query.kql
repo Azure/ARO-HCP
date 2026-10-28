@@ -1,0 +1,14 @@
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where namespace_name in ('{{ .HostedClusterNamespace }}'{{ if .HostedControlPlaneNamespace }}, '{{ .HostedControlPlaneNamespace }}'{{ end }})
+| where container_name == 'ignition-server'
+| extend msg = coalesce(tostring(log.msg), tostring(log)), err = tostring(log.error)
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by cluster, namespace_name, pod_name, msg, err
+| order by first_occurrence asc, cluster asc, namespace_name asc, pod_name asc

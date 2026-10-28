@@ -20,10 +20,13 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -71,7 +74,7 @@ func NewClusterClusterServiceCreateController(
 		denyAssignmentsEnabled:       denyAssignmentsEnabled,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceCreateControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -79,6 +82,12 @@ func NewClusterClusterServiceCreateController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+
+	return controller
 }
 
 func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {
@@ -170,13 +179,16 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	tenantID := *subscription.Properties.TenantId
 	mrg := cluster.CustomerProperties.Platform.ManagedResourceGroup
 
-	csCluster, err := c.findAROHCPClusterByAzureInfo(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	csCluster, err := c.findAROHCPClusterByAzureInfo(csCtx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if csCluster == nil {
-		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
+		csCluster, err = c.createClusterServiceCluster(csCtx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
 		}
@@ -326,7 +338,7 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	if result.ID() != clusterServiceUID {

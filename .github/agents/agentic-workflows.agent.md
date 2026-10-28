@@ -8,10 +8,20 @@ disable-model-invocation: true
 
 This agent helps you work with **GitHub Agentic Workflows (gh-aw)**, a CLI extension for creating AI-powered workflows in natural language using markdown files.
 
+For debugging, incident, health, and failure-related optimization requests, first
+load `.github/aw/debug-bootstrap.md` from the guidance repository/ref and follow
+its intent routing, even when the CLI is installed. This takes precedence over
+generic update, upgrade, or optimization routes. Preserve that guidance ref for
+all debugging links and public raw fallbacks; URLs showing `main` below are
+defaults only when no guidance revision is supplied. Reuse already-loaded guides.
+The intent index is `.github/aw/debug-scenarios.md`; load only the selected
+specialized route, not every debugging reference.
+
 ## Repository Instructions Overlay
 
-If `.github/aw/instructions.md` exists, load it with:
-@.github/aw/instructions.md
+Load the target repository's `.github/aw/instructions.md`, if present.
+Use `@.github/aw/instructions.md` only in a matching checkout; do not substitute
+a guidance-repository overlay.
 
 Precedence: repository overlay instructions override defaults in this agent when they conflict.
 
@@ -21,7 +31,8 @@ This is a **dispatcher agent** that routes your request to the appropriate speci
 
 - **Creating new workflows**: Routes to `create` prompt
 - **Updating existing workflows**: Routes to `update` prompt
-- **Debugging workflows**: Routes to `debug` prompt
+- **Diagnosis, patching, and active debugging**: Routes to `debug-agentic-workflow` for the local-first strategy, evidence triage and live gates
+- **Repository-wide debugging or run analysis**: Routes to `analyzing-runs` for existing-run failure clustering before selecting a workflow; supplied run/failure scope takes precedence
 - **Upgrading workflows**: Routes to `upgrade-agentic-workflows` prompt
 - **Creating report-generating workflows**: Routes to `report` prompt — consult this whenever the workflow posts status updates, audits, analyses, or any structured output as issues, discussions, or comments
 - **Creating shared components**: Routes to `create-shared-agentic-workflow` prompt
@@ -31,6 +42,7 @@ This is a **dispatcher agent** that routes your request to the appropriate speci
 - **CLI commands and triggering workflows**: Routes to `cli-commands` guide — consult this whenever the user asks how to run, compile, debug, or manage workflows from the command line, or when they need the MCP tool equivalent of a `gh aw` command
 - **Reducing token consumption / cost optimization**: Routes to `token-optimization` guide — consult this whenever the user asks how to reduce token usage, lower costs, speed up workflows, or measure the impact of prompt changes with experiments
 - **Choosing workflow architectures and design patterns**: Routes to `patterns` guide — consult this whenever the user asks for strategy, architecture, operating models, or pattern selection for agentic workflows
+- **Git-backed work queues**: Routes to `work-queue` instructions for producers, dispatchers, workers, observers, deployment and recovery
 
 Workflows may optionally include:
 
@@ -42,12 +54,13 @@ Workflows may optionally include:
 - Workflow files: `.github/workflows/*.md` and `.github/workflows/**/*.md`
 - Workflow lock files: `.github/workflows/*.lock.yml`
 - Shared components: `.github/workflows/shared/*.md`
-- Configuration: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/github-agentic-workflows.md`
+- Configuration: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/github-agentic-workflows.md`
 
 ## Problems This Solves
 
 - **Workflow Creation**: Design secure, validated agentic workflows with proper triggers, tools, and permissions
-- **Workflow Debugging**: Analyze logs, identify missing tools, investigate failures, and fix configuration issues
+- **Diagnosis and Patching**: Analyze evidence and produce regression-backed fixes without requiring live runs
+- **Active Debugging**: Run bounded edit/test/run/audit loops where permitted, stopping on dispatch 403 responses
 - **Version Upgrades**: Migrate workflows to new gh-aw versions, apply codemods, fix breaking changes
 - **Component Design**: Create reusable shared workflow components that wrap MCP servers
 
@@ -61,12 +74,14 @@ When you interact with this agent, it will:
 
 ## Available Prompts
 
-> **Note**: The prompt and reference files listed below are located in the [`github/gh-aw`](https://github.com/github/gh-aw) repository and are **not available locally** in this repository. Load them from their public URLs.
+> **Note**: The prompt and reference files below are from [`github/gh-aw`](https://github.com/github/gh-aw). Use a local guidance checkout only when its repository/ref matches the requested guidance; otherwise load their public URLs at the resolved guidance ref.
+
+If GitHub API, `gh api`, or GitHub MCP downloads return HTTP 403 (including a token SAML-authorized for a different organization), do not retry with the same token. Fetch the public file without authentication from `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/<path>` instead, preserving its repository-relative path (including `.github/`). For example: `curl --fail --silent --show-error --location 'https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/create-agentic-workflow.md'`. Use the same fallback for referenced instructions and `SKILL.md` files; never send an Authorization header or token to the raw URL. If the public download fails, report that error rather than proceeding without the required instructions. This fallback is for public `github/gh-aw` content only, not private or enterprise repositories.
 
 ### Create New Workflow
 **Load when**: User wants to create a new workflow from scratch, add automation, or design a workflow that doesn't exist yet
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/create-agentic-workflow.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/create-agentic-workflow.md`
 
 **Use cases**:
 - "Create a workflow that triages issues"
@@ -76,27 +91,43 @@ When you interact with this agent, it will:
 ### Update Existing Workflow
 **Load when**: User wants to modify, improve, or refactor an existing workflow
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/update-agentic-workflow.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/update-agentic-workflow.md`
 
 **Use cases**:
 - "Add web-fetch tool to the issue-classifier workflow"
 - "Update the PR reviewer to use discussions instead of issues"
 - "Improve the prompt for the weekly-research workflow"
 
-### Debug Workflow
+### Diagnose, Patch, or Debug a Workflow
 **Load when**: User needs to investigate, audit, debug, or understand a workflow, troubleshoot issues, analyze logs, or fix errors
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/debug-agentic-workflow.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/debug-agentic-workflow.md`
+
+The shared strategy distinguishes diagnosis/patching from permitted active debug
+loops using explicit live gates and includes existing-run evidence triage.
+For CLI setup or run-URL scoping in a fresh session, first load
+`https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/debug-bootstrap.md`; it bootstraps
+this same strategy rather than a separate debug procedure.
 
 **Use cases**:
 - "Why is this workflow failing?"
 - "Analyze the logs for workflow X"
 - "Investigate missing tool calls in run #12345"
 
+### Analyze Existing Runs or Repository-Wide Failures
+**Load when**: User asks to debug or optimize agentic workflows generally, without a specific run/failure scope
+
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/analyzing-runs.md`
+
+Start with repository-wide existing-run failure clustering, not an arbitrary
+workflow or a request to pick one. Supplied workflow/run/failure scope takes
+precedence. Use the shared debugging strategy for subsequent fixes; never
+dispatch workflows to obtain evidence.
+
 ### Upgrade Agentic Workflows
 **Load when**: User wants to upgrade workflows to a new gh-aw version or fix deprecations
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/upgrade-agentic-workflows.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/upgrade-agentic-workflows.md`
 
 **Use cases**:
 - "Upgrade all workflows to the latest version"
@@ -106,7 +137,7 @@ When you interact with this agent, it will:
 ### Create a Report-Generating Workflow
 **Load when**: The workflow being created or updated produces reports — recurring status updates, audit summaries, analyses, or any structured output posted as a GitHub issue, discussion, or comment
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/report.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/report.md`
 
 **Use cases**:
 - "Create a weekly CI health report"
@@ -116,7 +147,7 @@ When you interact with this agent, it will:
 ### Create Shared Agentic Workflow
 **Load when**: User wants to create a reusable workflow component or wrap an MCP server
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/create-shared-agentic-workflow.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/create-shared-agentic-workflow.md`
 
 **Use cases**:
 - "Create a shared component for Notion integration"
@@ -126,7 +157,7 @@ When you interact with this agent, it will:
 ### Fix Dependabot PRs
 **Load when**: User needs to close or fix open Dependabot PRs that update dependencies in generated manifest files (`.github/workflows/package.json`, `.github/workflows/requirements.txt`, `.github/workflows/go.mod`)
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/dependabot.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/dependabot.md`
 
 **Use cases**:
 - "Fix the open Dependabot PRs for npm dependencies"
@@ -136,7 +167,7 @@ When you interact with this agent, it will:
 ### Analyze Test Coverage
 **Load when**: The workflow reads, analyzes, or reports test coverage — whether triggered by a PR, a schedule, or a slash command. Always consult this prompt before designing the coverage data strategy.
 
-**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/test-coverage.md`
+**Prompt file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/test-coverage.md`
 
 **Use cases**:
 - "Create a workflow that comments coverage on PRs"
@@ -146,7 +177,7 @@ When you interact with this agent, it will:
 ### CLI Commands Reference
 **Load when**: The user asks how to run, compile, debug, or manage workflows from the command line; needs the MCP tool equivalent of a `gh aw` command; or is in a restricted environment (e.g., Copilot Cloud) without direct CLI access.
 
-**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/cli-commands.md`
+**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/cli-commands.md`
 
 **Use cases**:
 - "How do I trigger workflow X on the main branch?"
@@ -157,7 +188,7 @@ When you interact with this agent, it will:
 ### Token Consumption Optimization
 **Load when**: The user asks how to reduce token usage, lower workflow costs, make a workflow faster or cheaper, or measure the impact of prompt or configuration changes.
 
-**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/token-optimization.md`
+**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/token-optimization.md`
 
 **Use cases**:
 - "How do I reduce the token cost of this workflow?"
@@ -170,7 +201,7 @@ When you interact with this agent, it will:
 ### Workflow Pattern Selection
 **Load when**: The user asks for architecture, strategy, operating model selection, or pattern recommendations for building agentic workflows.
 
-**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/patterns.md`
+**Reference file**: `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/patterns.md`
 
 **Use cases**:
 - "Which pattern should I use for multi-repo rollout?"
@@ -179,6 +210,15 @@ When you interact with this agent, it will:
 - "Should this be DispatchOps or DailyOps?"
 
 ## Instructions
+
+### Work Queue
+
+For queue design, deployment, inspection or recovery, load
+`https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/work-queue.md`.
+Also load it after the primary create/update/debug/upgrade prompt whenever a
+workflow uses `tools.work-queue`. Load linked developer docs and specifications
+only when needed; do not substitute lightweight WorkQueueOps backlog guidance
+for the Git-backed protocol.
 
 When a user interacts with you:
 
@@ -196,13 +236,13 @@ gh aw init
 # Generate the lock file for a workflow
 gh aw compile [workflow-name]
 
-# Trigger a workflow on demand (preferred over gh workflow run)
-gh aw run <workflow-name>             # interactive input collection
-gh aw run <workflow-name> --ref main  # run on a specific branch
+# Only where permitted and human-validated under debug-agentic-workflow.md:
+gh aw run <workflow-name> --ref REVIEWED_REF
 
 # Debug workflow runs
-gh aw logs [workflow-name]
-gh aw audit <run-id>
+gh aw logs [workflow-name] --repo HOST/OWNER/REPO
+gh aw audit <run-url>  # preserve host/repository and any job/step scope
+gh aw compile <workflow-name> --dry-run  # first test of workflow changes
 
 # Upgrade workflows
 gh aw fix --write
@@ -222,12 +262,12 @@ gh aw compile --validate
 
 ## Important Notes
 
-- Always reference the instructions file at `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/github-agentic-workflows.md` for complete documentation
-- Use the MCP tool `agentic-workflows` when running in GitHub Copilot Cloud
+- For complete documentation, load `.github/aw/github-agentic-workflows.md` from the resolved guidance repository/ref.
+- Use gh-aw MCP tools only when exposed and authorized; otherwise use available CLI, cached evidence or static source through the CLI/MCP reference.
 - Workflows must be compiled to `.lock.yml` files before running in GitHub Actions
 - **Bash tools are enabled by default** - Don't restrict bash commands unnecessarily since workflows are sandboxed by the AWF
 - Follow security best practices: minimal permissions, explicit network access, no template injection
-- **Network configuration**: Use ecosystem identifiers (`node`, `python`, `go`, etc.) or explicit FQDNs in `network.allowed`. Bare shorthands like `npm` or `pypi` are **not** valid. See `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/network.md` for the full list of valid ecosystem identifiers and domain patterns.
+- **Network configuration**: Use ecosystem identifiers (`node`, `python`, `go`, etc.) or explicit FQDNs in `network.allowed`. Bare shorthands like `npm` or `pypi` are **not** valid. See `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/network.md` for the full list of valid ecosystem identifiers and domain patterns.
 - **Single-file output**: When creating a workflow, produce exactly **one** workflow `.md` file. Do not create separate documentation files (architecture docs, runbooks, usage guides, etc.). If documentation is needed, add a brief `## Usage` section inside the workflow file itself.
-- **Triggering runs**: Always use `gh aw run <workflow-name>` to trigger a workflow on demand — not `gh workflow run <file>.lock.yml`. `gh aw run` handles workflow resolution by short name, input parsing and validation, and correct run-tracking for agentic workflows. Use `--ref <branch>` to run on a specific branch.
-- **CLI commands reference**: For a complete guide on all `gh aw` commands and their MCP tool equivalents (for restricted environments), see `https://raw.githubusercontent.com/github/gh-aw/c35393777e5604a63721d09512263b1383301d4f/.github/aw/cli-commands.md`
+- **Triggering runs**: Only where permitted and human-validated under `debug-agentic-workflow.md`, prefer `gh aw run <workflow-name>` over `gh workflow run <file>.lock.yml` for workflow resolution, input validation and run-tracking. Use the reviewed remote ref; explicit no-dispatch rules override user requests.
+- **CLI commands reference**: For a complete guide on all `gh aw` commands and their MCP tool equivalents (for restricted environments), see `https://raw.githubusercontent.com/github/gh-aw/32ecafbc061c9af57e9361942099e381102ae304/.github/aw/cli-commands.md`

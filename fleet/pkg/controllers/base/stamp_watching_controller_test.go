@@ -30,6 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 )
 
@@ -92,8 +94,9 @@ func (s *recordingStampSyncer) calledKeys() []StampKey {
 
 // capturingStampNotifier captures the event handler functions registered via AddEventHandlerWithOptions.
 type capturingStampNotifier struct {
-	addFunc    func(any)
-	updateFunc func(any, any)
+	resyncPeriod *time.Duration
+	addFunc      func(any)
+	updateFunc   func(any, any)
 }
 
 func (n *capturingStampNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
@@ -101,6 +104,7 @@ func (n *capturingStampNotifier) AddEventHandlerWithOptions(handler cache.Resour
 	if !ok {
 		return nil, fmt.Errorf("expected ResourceEventHandlerFuncs, got %T", handler)
 	}
+	n.resyncPeriod = opts.ResyncPeriod
 	n.addFunc = f.AddFunc
 	n.updateFunc = f.UpdateFunc
 	return nil, nil
@@ -117,9 +121,10 @@ func testStamp(stampID string, etag azcore.ETag) *fleetapi.Stamp {
 
 func TestStampQueueForInformers(t *testing.T) {
 	tests := []struct {
-		name    string
-		fire    func(n *capturingStampNotifier)
-		wantKey string
+		name             string
+		fire             func(n *capturingStampNotifier)
+		wantKey          string
+		registerInterest bool
 	}{
 		{
 			name: "add handler enqueues stamp",
@@ -136,18 +141,53 @@ func TestStampQueueForInformers(t *testing.T) {
 			},
 			wantKey: "s2",
 		},
+		{
+			name: "registered read desire resolves stamp through management cluster",
+			fire: func(n *capturingStampNotifier) {
+				rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/s3/managementClusters/default/readDesires/capacity"))
+				n.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+			},
+			wantKey:          "s3",
+			registerInterest: true,
+		},
+		{
+			name: "unregistered child events remain accepted by default",
+			fire: func(n *capturingStampNotifier) {
+				rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/s4/managementClusters/default/readDesires/anything"))
+				n.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+			},
+			wantKey: "s4",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			syncer := &recordingStampSyncer{}
-			controller := NewStampWatchingController("test", syncer, StampWatchingControllerConfig{})
+			stampNotifier := &capturingStampNotifier{}
+			controller := NewStampWatchingController("test", stampNotifier, time.Minute, syncer, StampWatchingControllerConfig{})
+			require.NotNil(t, stampNotifier.resyncPeriod)
+			require.Equal(t, time.Minute, *stampNotifier.resyncPeriod, "stamps provide the periodic resync")
+			if tt.registerInterest {
+				controller.AddInterestingResource(kubeapplierapi.ManagementClusterScopedReadDesireResourceType, "capacity")
+			}
 
 			notifier := &capturingStampNotifier{}
-			if err := controller.QueueForInformers(time.Minute, notifier); err != nil {
+			if err := controller.QueueForInformers(0, notifier); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
+			require.NotNil(t, notifier.resyncPeriod)
+			require.Zero(t, *notifier.resyncPeriod, "other inputs must not resync stamp keys")
+
+			// These events must be ignored even though their ancestors are stamps.
+			// Queue them before the accepted event so an unexpected reconciliation
+			// would be observed before the expected key.
+			if tt.registerInterest {
+				for _, suffix := range []string{"readDesires/sharedingress", "controllers/other", "scheduling/default"} {
+					rid := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/ignored/managementClusters/default/" + suffix))
+					notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: rid})
+				}
+			}
 			tt.fire(notifier)
 
 			ctx, cancel := context.WithCancel(context.Background())

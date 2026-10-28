@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 serviceAccount:
   name: "{{ .fleet.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__fleetMsiClientId__"
@@ -35,4 +36,3 @@ amwScaling:
 azureRegionAvailabilityZoneCount: {{ .azureRegionAvailabilityZoneCount }}
 nodePoolPlanning:
   profile: '{{ .fleet.nodePoolPlanning.profile }}'
-  zones: '{{ .fleet.nodePoolPlanning.zones }}'

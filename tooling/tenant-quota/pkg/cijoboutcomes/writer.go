@@ -128,14 +128,16 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 	}()
 	if ingest {
 		for _, guard := range []struct {
-			target config.KustoTableConfig
-			column string
+			target           config.KustoTableConfig
+			column, dataType string
 		}{
-			{settings.Outcomes, "adoBuildId"}, {settings.TestResults, "message"},
-			{settings.Discovered, "jobUri"}, {settings.Discovered, "buildId"}, {settings.Discovered, "jobName"},
-			{settings.Processed, "buildId"},
+			{settings.Outcomes, "adoBuildId", "string"}, {settings.TestResults, "message", "string"},
+			{settings.Outcomes, "runtimeRegion", "string"}, {settings.Outcomes, "leasedSlot", "string"},
+			{settings.Outcomes, "leasedAssets", "dynamic"},
+			{settings.Discovered, "jobUri", "string"}, {settings.Discovered, "buildId", "string"}, {settings.Discovered, "jobName", "string"},
+			{settings.Processed, "buildId", "string"},
 		} {
-			if err := w.checkMapping(ctx, client, guard.target, guard.column); err != nil {
+			if err := w.checkMapping(ctx, client, guard.target, guard.column, guard.dataType); err != nil {
 				return err
 			}
 		}
@@ -179,6 +181,12 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 			AddLiteral(" == ").AddString(key).AddLiteral(" | take 1 | project found = 'yes'")
 		rows, err := queryStrings(ctx, client, settings.Database, statement, "found")
 		return len(rows) > 0, err
+	}
+	// Names are a dimension: the whole table is read, not a window of it, and
+	// it holds one row per distinct test so the read stays small.
+	w.names.load = func(ctx context.Context) ([]string, error) {
+		statement := kql.New("").AddTable(settings.TestNames.Table).AddLiteral(" | distinct testId")
+		return queryStrings(ctx, client, settings.Database, statement, "testId")
 	}
 	w.discoveredExists = func(ctx context.Context, uri JobURI) (bool, error) {
 		return rowExists(ctx, settings.Discovered, "jobUri", string(uri))
@@ -333,7 +341,7 @@ func queryStrings(ctx context.Context, client *azkustodata.Client, database stri
 	return values, nil
 }
 
-func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, target config.KustoTableConfig, column string) error {
+func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, target config.KustoTableConfig, column, dataType string) error {
 	statement := kql.New(".show table ").AddTable(target.Table).
 		AddLiteral(" ingestion json mapping ").AddString(target.IngestionMapping)
 	dataset, err := client.Mgmt(ctx, w.config.CIJobOutcomes.Database, statement)
@@ -349,7 +357,7 @@ func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, t
 			if err != nil {
 				return err
 			}
-			if err := validateMapping(mapping, column); err != nil {
+			if err := validateMapping(mapping, column, dataType); err != nil {
 				return fmt.Errorf("mapping %q: %w", target.IngestionMapping, err)
 			}
 			return nil
@@ -358,7 +366,7 @@ func (w *Writer) checkMapping(ctx context.Context, client *azkustodata.Client, t
 	return fmt.Errorf("mapping %q is missing; deploy the Kusto schema migration first", target.IngestionMapping)
 }
 
-func validateMapping(mapping, required string) error {
+func validateMapping(mapping, required, dataType string) error {
 	var columns []struct {
 		Column, DataType, Path string
 		Properties             struct{ Path string }
@@ -368,7 +376,7 @@ func validateMapping(mapping, required string) error {
 	}
 	for _, column := range columns {
 		path := "$['" + required + "']"
-		if column.Column == required && column.DataType == "string" && (column.Path == path || column.Properties.Path == path) {
+		if column.Column == required && column.DataType == dataType && (column.Path == path || column.Properties.Path == path) {
 			return nil
 		}
 	}

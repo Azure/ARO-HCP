@@ -55,7 +55,7 @@ func NewExternalAuthWatchingController(
 	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ExternalAuthSyncer,
-) Controller {
+) WatchingController {
 
 	controller := &externalAuthWatchingController{
 		name:              name,
@@ -68,7 +68,15 @@ func NewExternalAuthWatchingController(
 	externalAuthInformer, externalAuthLister := informers.ExternalAuths()
 	controller.externalAuthLister = externalAuthLister
 
+	serviceProviderExternalAuthInformer, _ := informers.ServiceProviderExternalAuths()
+
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
 	err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
+	if err != nil {
+		panic(err)
+	}
+	err = externalAuthGenericWatchingController.QueueForInformers(0, serviceProviderExternalAuthInformer)
 	if err != nil {
 		panic(err) // coding error
 	}

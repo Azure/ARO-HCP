@@ -53,10 +53,11 @@ func APIVersionOption(version APIVersion) string {
 }
 
 // APIVersionFromOptions extracts the API version from operation options.
-// Returns an empty string if no API version option is present.
-func APIVersionFromOptions(options []string) APIVersion {
-	for _, opt := range options {
-		if version, ok := strings.CutPrefix(opt, apiVersionOptionPrefix); ok {
+// Returns an empty string if no API version option is enabled and defined.
+func APIVersionFromOptions(options map[string]bool) APIVersion {
+	for option := range options {
+		enabled, defined := options[option]
+		if version, ok := strings.CutPrefix(option, apiVersionOptionPrefix); ok && enabled && defined {
 			return APIVersion(version)
 		}
 	}

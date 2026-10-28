@@ -139,6 +139,9 @@ func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Cont
 	claimed := claimedDesireNames()
 	owned := make([]*kubeapplierapi.ApplyDesire, 0, len(existing))
 	for _, desire := range existing {
+		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+			continue
+		}
 		if desire.Tags == nil ||
 			desire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
 			continue
@@ -373,6 +376,9 @@ func (c *clusterResourcesController) sweepOrphanedReadDesires(
 	}
 
 	for _, readDesire := range readDesires {
+		if managedByKubeAPIServerServingCertificate(readDesire.ResourceID.Name) {
+			continue
+		}
 		if readDesire.Tags == nil || readDesire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
 			continue
 		}

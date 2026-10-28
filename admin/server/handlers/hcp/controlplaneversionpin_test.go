@@ -370,7 +370,7 @@ func TestVersionPinHandler(t *testing.T) {
 					existing.Spec.PinnedVersion = *tt.existingPin
 				}
 				if tt.observedHistory != nil {
-					existing.Status.ActualHostedCluster = hostedClusterVersionHistory(tt.observedHistory...)
+					existing.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(tt.observedHistory...)
 				}
 				_, err = mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, existing, nil)
 				require.NoError(t, err)
@@ -450,7 +450,7 @@ func TestVersionPinHandler_RejectsDeletingCluster(t *testing.T) {
 			provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, resourceID)
 			require.NoError(t, err)
 			provider.Spec.PinnedVersion.ExactVersion = ptr.To(semver.MustParse("4.17.1"))
-			provider.Status.ActualHostedCluster = hostedClusterVersionHistory(
+			provider.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.10", State: configv1.PartialUpdate},
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.2", State: configv1.CompletedUpdate},
 			)
@@ -487,7 +487,7 @@ func TestVersionPinHandler_PreservesOtherFields(t *testing.T) {
 	existing.Status.ManagementClusterResourceID = mgmtResourceID
 	sizeStr := "Large"
 	existing.Spec.DesiredHostedClusterControlPlaneSize = &sizeStr
-	existing.Status.ActualHostedCluster = hostedClusterVersionHistory(
+	existing.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 		hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.10", State: configv1.CompletedUpdate},
 		hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.2", State: configv1.CompletedUpdate},
 	)
@@ -506,7 +506,7 @@ func TestVersionPinHandler_PreservesOtherFields(t *testing.T) {
 
 	spc, err := mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	require.Equal(t, existing.Status.ActualHostedCluster, spc.Status.ActualHostedCluster, "version pin must preserve observed HostedCluster state")
+	require.Equal(t, existing.Status.ControlPlaneVersionHistory, spc.Status.ControlPlaneVersionHistory, "version pin must preserve observed control-plane history")
 	if spc.Status.ManagementClusterResourceID == nil || spc.Status.ManagementClusterResourceID.String() != mgmtResourceID.String() {
 		t.Errorf("expected ManagementClusterResourceID preserved, got %v", spc.Status.ManagementClusterResourceID)
 	}
@@ -518,12 +518,9 @@ func TestVersionPinHandler_PreservesOtherFields(t *testing.T) {
 	}
 }
 
-func hostedClusterVersionHistory(entries ...hsv1beta1.ControlPlaneUpdateHistory) *hsv1beta1.HostedCluster {
-	return &hsv1beta1.HostedCluster{
-		Status: hsv1beta1.HostedClusterStatus{
-			ControlPlaneVersion: hsv1beta1.ControlPlaneVersionStatus{History: entries},
-		},
-	}
+func controlPlaneVersionHistory(entries ...hsv1beta1.ControlPlaneUpdateHistory) *[]hsv1beta1.ControlPlaneUpdateHistory {
+	history := append([]hsv1beta1.ControlPlaneUpdateHistory{}, entries...)
+	return &history
 }
 
 // versionPinConcurrentUpdateClient returns a stale provider snapshot while a
@@ -579,7 +576,7 @@ func TestVersionPinHandler_ETagConflict(t *testing.T) {
 			provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, resourceID)
 			require.NoError(t, err)
 			provider.Spec.PinnedVersion.ExactVersion = ptr.To(semver.MustParse("4.17.1"))
-			provider.Status.ActualHostedCluster = hostedClusterVersionHistory(
+			provider.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.10", State: configv1.CompletedUpdate},
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.2", State: configv1.CompletedUpdate},
 			)
@@ -636,7 +633,7 @@ func TestVersionPinHandler_RejectsNonObjectAndTrailingJSON(t *testing.T) {
 				ExactVersion:      ptr.To(semver.MustParse("4.17.1")),
 				UntilExactVersion: ptr.To(semver.MustParse("4.17.20")),
 			}
-			provider.Status.ActualHostedCluster = hostedClusterVersionHistory(
+			provider.Status.ControlPlaneVersionHistory = controlPlaneVersionHistory(
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.10", State: configv1.CompletedUpdate},
 				hsv1beta1.ControlPlaneUpdateHistory{Version: "4.17.2", State: configv1.CompletedUpdate},
 			)
@@ -675,27 +672,27 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 		seedClusterVersion string
 		seedChannelGroup   string
 		desiredVersion     string
-		hostedCluster      *hsv1beta1.HostedCluster
+		history            *[]hsv1beta1.ControlPlaneUpdateHistory
 		missingSPC         bool
 		expectedStatusCode int
 		expectedError      string
 	}{
 		{
-			name:          "rollback after completed upgrade",
-			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2"), completed("4.17.0")),
+			name:    "rollback after completed upgrade",
+			target:  "4.17.2",
+			history: controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2"), completed("4.17.0")),
 		},
 		{
-			name:          "rollback during partial upgrade",
-			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(partial("4.17.10"), completed("4.17.2")),
+			name:    "rollback during partial upgrade",
+			target:  "4.17.2",
+			history: controlPlaneVersionHistory(partial("4.17.10"), completed("4.17.2")),
 		},
 		{
 			name:               "rollback between nightlies months apart",
 			target:             "4.21.0-0.nightly-2026-10-01-125400",
 			seedClusterVersion: "4.21",
 			seedChannelGroup:   "nightly",
-			hostedCluster: hostedClusterVersionHistory(
+			history: controlPlaneVersionHistory(
 				completed("4.21.0-0.nightly-2026-12-03-180000"),
 				completed("4.21.0-0.nightly-2026-10-01-125400"),
 			),
@@ -703,76 +700,76 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 		{
 			name:          "arbitrary older z-stream rejected",
 			target:        "4.17.5",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2")),
 			expectedError: "must be the immediately previous successfully installed control-plane version",
 		},
 		{
 			name:          "older installed version rejected",
 			target:        "4.17.0",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2"), completed("4.17.0")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2"), completed("4.17.0")),
 			expectedError: "must be the immediately previous successfully installed control-plane version",
 		},
 		{
-			name:          "current completed version can be held",
-			target:        "4.17.10",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2")),
+			name:    "current completed version can be held",
+			target:  "4.17.10",
+			history: controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2")),
 		},
 		{
-			name:          "current version can be held without a previous entry",
-			target:        "4.17.10",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10")),
+			name:    "current version can be held without a previous entry",
+			target:  "4.17.10",
+			history: controlPlaneVersionHistory(completed("4.17.10")),
 		},
 		{
-			name:          "forward version can be pinned",
-			target:        "4.17.11",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2")),
+			name:    "forward version can be pinned",
+			target:  "4.17.11",
+			history: controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2")),
 		},
 		{
-			name:          "current partial version can be held",
-			target:        "4.17.10",
-			hostedCluster: hostedClusterVersionHistory(partial("4.17.10"), completed("4.17.2")),
+			name:    "current partial version can be held",
+			target:  "4.17.10",
+			history: controlPlaneVersionHistory(partial("4.17.10"), completed("4.17.2")),
 		},
 		{
 			name:           "pin ahead of observed history during upgrade",
 			target:         "4.17.5",
 			desiredVersion: "4.17.10",
-			hostedCluster:  hostedClusterVersionHistory(completed("4.17.2")),
+			history:        controlPlaneVersionHistory(completed("4.17.2")),
 		},
 		{
 			name:          "partial versions are not installed rollback targets",
 			target:        "4.17.5",
-			hostedCluster: hostedClusterVersionHistory(partial("4.17.10"), partial("4.17.5"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(partial("4.17.10"), partial("4.17.5"), completed("4.17.2")),
 			expectedError: "must be the immediately previous successfully installed control-plane version",
 		},
 		{
-			name:          "last completed version after multiple partial attempts",
-			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(partial("4.17.10"), partial("4.17.5"), completed("4.17.2")),
+			name:    "last completed version after multiple partial attempts",
+			target:  "4.17.2",
+			history: controlPlaneVersionHistory(partial("4.17.10"), partial("4.17.5"), completed("4.17.2")),
 		},
 		{
-			name:          "duplicate latest versions skipped",
-			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.10"), completed("4.17.2")),
+			name:    "duplicate latest versions skipped",
+			target:  "4.17.2",
+			history: controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.10"), completed("4.17.2")),
 		},
 		{
 			name:          "single version history rejected",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10")),
+			history:       controlPlaneVersionHistory(completed("4.17.10")),
 			expectedError: "no previous successfully installed control-plane version",
 		},
 		{
 			name:          "no completed previous version rejected",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(partial("4.17.10"), partial("4.17.2")),
+			history:       controlPlaneVersionHistory(partial("4.17.10"), partial("4.17.2")),
 			expectedError: "no previous successfully installed control-plane version",
 		},
 		{
-			name:          "empty history permits pin",
-			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(),
+			name:    "empty history permits pin",
+			target:  "4.17.2",
+			history: controlPlaneVersionHistory(),
 		},
 		{
-			name:   "missing HostedCluster permits pin",
+			name:   "missing mirrored history permits pin",
 			target: "4.17.2",
 		},
 		{
@@ -785,53 +782,45 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 		{
 			name:          "malformed latest version rejected",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(partial("invalid"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(partial("invalid"), completed("4.17.2")),
 			expectedError: "latest control-plane history version",
 		},
 		{
 			name:          "latest version with build metadata cannot validate a hold",
 			target:        "4.17.10",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10+build.1"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(completed("4.17.10+build.1"), completed("4.17.2")),
 			expectedError: "latest control-plane history version \"4.17.10+build.1\" contains build metadata",
 		},
 		{
 			name:          "malformed previous version must not fall back to older entry",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("invalid"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("invalid"), completed("4.17.2")),
 			expectedError: "previous control-plane history version",
 		},
 		{
 			name:          "previous completed version with build metadata cannot validate a rollback",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.2+build.1")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.2+build.1")),
 			expectedError: "previous control-plane history version \"4.17.2+build.1\" contains build metadata",
 		},
 		{
 			name:          "duplicate latest completed version with build metadata cannot be skipped",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.17.10+build.1"), completed("4.17.2")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("4.17.10+build.1"), completed("4.17.2")),
 			expectedError: "previous control-plane history version \"4.17.10+build.1\" contains build metadata",
 		},
 		{
 			name:          "previous minor rejected even when present in history",
 			target:        "4.17.2",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.10"), completed("4.16.2")),
+			history:       controlPlaneVersionHistory(completed("4.17.10"), completed("4.16.2")),
 			expectedError: "must be the immediately previous successfully installed control-plane version",
 		},
 		{
-			name:          "completed rollback does not prevent a forward pin",
-			target:        "4.17.10",
-			hostedCluster: hostedClusterVersionHistory(completed("4.17.2"), completed("4.17.10"), completed("4.17.0")),
+			name:    "completed rollback does not prevent a forward pin",
+			target:  "4.17.10",
+			history: controlPlaneVersionHistory(completed("4.17.2"), completed("4.17.10"), completed("4.17.0")),
 		},
-		{
-			name:   "guest version history does not classify control-plane pin",
-			target: "4.17.2",
-			hostedCluster: &hsv1beta1.HostedCluster{Status: hsv1beta1.HostedClusterStatus{
-				Version: &hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
-					{Version: "4.17.10", State: configv1.CompletedUpdate},
-				}},
-			}},
-		},
+
 		{
 			name: "clear pin without observed history",
 		},
@@ -853,7 +842,7 @@ func TestVersionPinHandler_ValidatesTargetAgainstHistory(t *testing.T) {
 			if !tt.missingSPC {
 				provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, resourceID)
 				require.NoError(t, err)
-				provider.Status.ActualHostedCluster = tt.hostedCluster
+				provider.Status.ControlPlaneVersionHistory = tt.history
 				if len(tt.desiredVersion) > 0 {
 					provider.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(tt.desiredVersion))
 				}

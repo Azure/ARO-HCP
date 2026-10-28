@@ -68,7 +68,7 @@ func NewBackupScheduleController(
 
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	applyDesireInformer, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &backupScheduleSyncer{
@@ -90,16 +90,14 @@ func NewBackupScheduleController(
 		5*time.Minute,
 		syncer,
 	)
+	// Backup desire names include runtime namespace/configuration or key fingerprints.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
-	if kubeApplierInformers != nil {
-		// React to ApplyDesire creation so that a missing ReadDesire can be
-		// created promptly rather than waiting for the next resync cycle.
-		// NewClusterWatchingController only wires ReadDesires (which carry
-		// kube-applier status), so we add the ApplyDesire informer here.
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err)
-		}
-	}
+	// NewClusterWatchingController already watches ApplyDesire changes with no
+	// resync. Resync cluster keys once, not once for every input.
 
 	return controller
 }
@@ -142,7 +140,6 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	hostedClusterNamespace := cachedServiceProviderCluster.Status.HostedClusterNamespace
 	controlPlaneNamespace := cachedServiceProviderCluster.Status.ControlPlaneNamespace
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	clusterPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
 
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
 	if kubeApplierClient == nil {
@@ -183,10 +180,16 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		}
 	}
 
+	// The ARM override can lift the deployment-wide pause, but never the
+	// per-cluster admin API pause; see BackupConfig.SchedulePaused.
+	paused := c.backupConfig.SchedulePaused(
+		cachedServiceProviderCluster.Spec.BackupScheduleState,
+		cachedCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride,
+	)
+
 	configSchedules := c.backupConfig.Schedules()
 	schedules := make([]*velerov1.Schedule, 0, len(configSchedules))
 	for _, scheduleConfig := range configSchedules {
-		paused := c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled || clusterPaused
 		schedule := NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
 		schedules = append(schedules, schedule)
 	}

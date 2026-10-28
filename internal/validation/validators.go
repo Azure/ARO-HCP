@@ -15,14 +15,17 @@
 package validation
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
@@ -262,22 +265,6 @@ func OpenshiftVersionAtMostOneMinorSkewWithField(_ context.Context, _ operation.
 	return nil
 }
 
-func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-
-	_, err := semver.ParseTolerant(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
-	}
-
-	return nil
-}
-
 func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -298,7 +285,10 @@ func OpenShiftWithOptionalPrerelease(_ context.Context, op operation.Operation, 
 	return nil
 }
 
-func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+// OpenshiftVersionWithoutMicroDetail rejects a version ID that carries a PATCH
+// component, reporting the supplied detail. Callers differ only in how they tell
+// the user where the PATCH value belongs.
+func OpenshiftVersionWithoutMicroDetail(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, detail string) field.ErrorList {
 	if value == nil {
 		return nil
 	}
@@ -313,10 +303,17 @@ func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fld
 
 	// The version ID has already passed syntax validation so we know it's a valid semantic version.
 	if len(strings.SplitN(*value, ".", 3)) > 2 {
-		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR; the PATCH value is managed")}
+		return field.ErrorList{field.Invalid(fldPath, value, detail)}
 	}
 
 	return nil
+}
+
+// OpenshiftVersionWithoutMicro rejects a PATCH component for subscriptions
+// without the experimental AFEC, where no exact pin is available at all.
+func OpenshiftVersionWithoutMicro(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	return OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath, value, oldValue,
+		"must be specified as MAJOR.MINOR; the PATCH value is managed")
 }
 
 func MinItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ []T, minLen int) field.ErrorList {
@@ -421,6 +418,11 @@ var (
 	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
 	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
 	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
+
+	// keyVaultKeyVersion See https://github.com/Azure/azure-rest-api-specs/blob/main/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-02-01/openapi.json#L2141-L2146
+	keyVaultKeyVersion            = `^[0-9a-fA-F]{32}$`
+	keyVaultKeyVersionRegex       = regexp.MustCompile(keyVaultKeyVersion)
+	keyVaultKeyVersionErrorString = `(must be a 32-character hexadecimal key version)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -445,6 +447,19 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	}
 	if err := uuid.Validate(*value); err != nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+	return nil
+}
+
+func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if !keyVaultKeyVersionRegex.MatchString(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, keyVaultKeyVersionErrorString)}
 	}
 	return nil
 }
@@ -885,21 +900,6 @@ func newOr[T any](validateFns ...validate.ValidateFunc[T]) validate.ValidateFunc
 	}
 }
 
-// TODO this is compatible with what existed before, but still allows much invalid content
-func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-	if !x509.NewCertPool().AppendCertsFromPEM([]byte(*value)) {
-		return field.ErrorList{field.Invalid(fldPath, *value, "not a valid PEM")}
-	}
-
-	return nil
-}
-
 // EachMapKey validates each element of newMap with the specified validation function.
 // This is a copy from validate.EachMapKey except that the field path includes the key because its more useful for us that way.
 func EachMapKey[K ~string, T any](ctx context.Context, op operation.Operation, fldPath *field.Path, newMap, oldMap map[K]T, validator validate.ValidateFunc[*K]) field.ErrorList {
@@ -1097,4 +1097,127 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	}
 
 	return nil
+}
+
+// pemBlockDiagnostic is the field.Error BadValue for a PEM block. It always
+// includes the 1-based block index and, when known, the certificate subject.
+func pemBlockDiagnostic(blockIndex int, subject string) string {
+	if subject == "" {
+		return fmt.Sprintf("block %d", blockIndex)
+	}
+	return fmt.Sprintf("block %d: %s", blockIndex, subject)
+}
+
+// pemBlockDetail prefixes a CA PEM error with the block index and, when known,
+// the certificate subject so every message has the same identity.
+func pemBlockDetail(blockIndex int, subject, detail string) string {
+	if subject == "" {
+		return fmt.Sprintf("certificate %d %s", blockIndex, detail)
+	}
+	return fmt.Sprintf("certificate %d (%s) %s", blockIndex, subject, detail)
+}
+
+// validateCACertificatePEM checks that a PEM-encoded certificate is a valid CA certificate.
+//   - only CERTIFICATE blocks are allowed (private keys and other types are rejected)
+//   - each certificate must parse as X.509, have the CA basic constraint, and
+//     satisfy certificate is not expired
+//   - trailing non-PEM data after the last block is rejected
+//   - If the leaf certificate in bundle is not a CA certificate, it is accepted as public certificate chain
+func validateCACertificatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	rest := []byte(*value)
+	errs := field.ErrorList{}
+	foundBlock := false
+	blockIndex := 0
+	now := time.Now()
+	firstIsLeaf := false
+	foundCAAfterLeaf := false
+
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		foundBlock = true
+		blockIndex++
+		diagnostic := pemBlockDiagnostic(blockIndex, "")
+
+		if block.Type != "CERTIFICATE" {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				fmt.Sprintf("PEM block %d has type %q; must be CERTIFICATE", blockIndex, block.Type),
+			))
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, "", fmt.Sprintf("is not a valid X.509 certificate: %s", err)),
+			))
+			continue
+		}
+
+		subject := cert.Subject.String()
+		diagnostic = pemBlockDiagnostic(blockIndex, subject)
+
+		if blockIndex == 1 && !cert.IsCA {
+			// First cert is a leaf — this is the start of a public certificate chain.
+			// We require at least one CA cert to follow.
+			firstIsLeaf = true
+		} else if !cert.IsCA {
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, "must be a CA certificate"),
+			))
+		} else if firstIsLeaf {
+			// This is a CA cert following the leaf — the chain requirement is satisfied.
+			foundCAAfterLeaf = true
+		}
+
+		if now.Before(cert.NotBefore) {
+			notBefore := cert.NotBefore.UTC().Format(time.RFC3339)
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, fmt.Sprintf("is not yet valid (NotBefore %s)", notBefore)),
+			))
+		}
+
+		if now.After(cert.NotAfter) {
+			notAfter := cert.NotAfter.UTC().Format(time.RFC3339)
+			errs = append(errs, field.Invalid(
+				fldPath,
+				diagnostic,
+				pemBlockDetail(blockIndex, subject, fmt.Sprintf("has expired (NotAfter %s)", notAfter)),
+			))
+		}
+	}
+
+	if !foundBlock {
+		return field.ErrorList{field.Invalid(fldPath, "", "not a valid PEM")}
+	}
+
+	// If the first cert was a leaf, at least one CA must follow it.
+	if firstIsLeaf && !foundCAAfterLeaf {
+		errs = append(errs, field.Invalid(
+			fldPath,
+			"",
+			"public certificate chain must include at least one CA certificate after the leaf certificate",
+		))
+	}
+
+	if len(bytes.TrimSpace(rest)) > 0 {
+		errs = append(errs, field.Invalid(fldPath, "", "contains trailing non-PEM data"))
+	}
+
+	return errs
 }

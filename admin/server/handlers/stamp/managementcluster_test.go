@@ -82,6 +82,7 @@ func newManagementCluster(t *testing.T, stampIdentifier string) *fleetapi.Manage
 			MaestroRESTAPIURL:                                    "https://maestro.example.com",
 			MaestroGRPCTarget:                                    "maestro.example.com:8090",
 			KubeApplierCosmosContainerName:                       "kube-applier",
+			KubeApplierCosmosContainerMaxScale:                   19000,
 		},
 	}
 }

@@ -143,7 +143,9 @@ type ClusterServiceProviderProperties struct {
 	// to communicate with the Managed Identities Resource Provider (MI RP).
 	// Written by: Frontend PUT Cluster (Create)
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
-	// Written by: BackfillClusterUID
+	// ClusterUID is a stable identifier generated on CREATE
+	// It is immutable; UPDATE leaves it alone.
+	// Written by: Frontend PUT Cluster (Create) via admission.MutateCluster
 	ClusterUID string `json:"clusterUID,omitempty"`
 	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
 	// associated with this cluster. It is set when the billing document is created
@@ -165,10 +167,6 @@ type ClusterServiceProviderProperties struct {
 	// The timestamp is in UTC.
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
-
-	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
-	// Written by: Frontend DELETE Cluster
-	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 
 	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.

@@ -33,6 +33,5 @@ request(s) that correspond to the failures seen in the test. Determine which res
 those relate to; trace the requests (along with asynchronous requests) to confirm
 the client interaction.
 
-**Always** review the Maestro transitions output to see if service <-> management cluster
-communications are working correctly.
-
+Review the backend resource-controller conditions and HyperShift state to assess
+service-to-management-cluster reconciliation.

@@ -57,8 +57,7 @@
         "serviceProviderProperties": {
           "activeOperationId": "66c481f6-0ee9-4fcb-9b23-78489a50e220",
           "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591/node_pools/npupgrade-4-20",
-          "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
-          "usesNewNodePoolDeletionApproach": false
+          "deletionTimestamp": "2026-06-11T00:01:37.0000000Z"
         },
         "status": {},
         "systemData": {
@@ -97,8 +96,7 @@
     "serviceProviderProperties": {
       "activeOperationId": "66c481f6-0ee9-4fcb-9b23-78489a50e220",
       "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591/node_pools/npupgrade-4-20",
-      "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
-      "usesNewNodePoolDeletionApproach": false
+      "deletionTimestamp": "2026-06-11T00:01:37.0000000Z"
     },
     "status": {},
     "systemData": {

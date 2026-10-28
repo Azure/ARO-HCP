@@ -20,6 +20,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -74,4 +75,8 @@ func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Replace(ctx co
 
 func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string) error {
 	return v.inner.Delete(ctx, resourceID)
+}
+
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) DeleteWithETag(ctx context.Context, resourceID string, expectedETag azcore.ETag) error {
+	return v.inner.DeleteWithETag(ctx, resourceID, expectedETag)
 }

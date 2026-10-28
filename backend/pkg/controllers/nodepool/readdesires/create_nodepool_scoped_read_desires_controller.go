@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -68,6 +69,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -80,14 +82,20 @@ func NewCreateNodePoolScopedReadDesiresController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
-		nil, // do not fire on ReadDesires this controller itself creates
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyNodePool)
+
+	return controller
 }
 
 func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
@@ -199,7 +207,7 @@ func buildNodePoolReadDesire(
 // backend uses for the NodePool mirror. Lowercase form of the existing
 // MaestroBundleInternalName so the downstream ManagementClusterContent
 // document path stays stable.
-var readDesireNameReadonlyNodePool = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+const readDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
 // nodePoolTarget builds the ResourceReference that points at the
 // nodepool's NodePool object in the management cluster. The naming rules

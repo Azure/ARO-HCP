@@ -21,20 +21,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/maestro"
 )
 
-type MaestroConsumerClient interface {
-	GetConsumer(ctx context.Context, consumerName string) (*maestroopenapi.Consumer, error)
-	CreateConsumer(ctx context.Context, consumer maestroopenapi.Consumer) (*maestroopenapi.Consumer, error)
-}
+type MaestroConsumerClient = maestro.ConsumerClient
 
 // MaestroConsumerClientFactory creates a MaestroConsumerClient for a given
 // Maestro REST API URL. Each management cluster may point to a different
 // Maestro instance, so the controller creates a client per reconcile using
 // the URL from ManagementCluster.Status.MaestroRESTAPIURL.
-type MaestroConsumerClientFactory interface {
-	NewMaestroConsumerClient(maestroURL string) MaestroConsumerClient
-}
+type MaestroConsumerClientFactory = maestro.ConsumerClientFactory
 
 type maestroConsumerClient struct {
 	api *maestroopenapi.DefaultAPIService

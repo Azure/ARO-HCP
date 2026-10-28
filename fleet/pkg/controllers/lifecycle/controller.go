@@ -31,12 +31,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ManagementClusterLifecycleControllerName = "ManagementClusterLifecycleController"
+
 type lifecycleSyncer struct {
 	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
 func NewManagementClusterLifecycleController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
@@ -45,12 +48,15 @@ func NewManagementClusterLifecycleController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"ManagementClusterLifecycleController",
+		ManagementClusterLifecycleControllerName,
+		stampInformer,
+		fleetcontrollers.DefaultInformerResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

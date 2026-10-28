@@ -77,10 +77,6 @@ There's a multi-layered build and deploy system supporting multiple target envir
   - cloud: "dev"; environment: "pers" (`DEPLOY_ENV=pers`)
   - Local development using `make` and properly-configured `az` command
   - Changes must be manually applied by the user by running proper `make` commands
-- **CSPR environment** (Clusters Service PR check)
-  - cloud: "dev"; environment: "cspr" (`DEPLOY_ENV=cspr`)
-  - Uses Prow for CI/CD (jobs defined in [openshift/release](https://github.com/openshift/release/tree/master/ci-operator/jobs/Azure/ARO-HCP))
-  - Changes get automatically applied after a PR merge
   - Note: The integrated/shared dev environment (`DEPLOY_ENV=dev`) has been decommissioned. Only global infrastructure (shared ACRs, DNS zones) is still deployed to the dev environment via the `global-pipeline-postsubmit` Prow job.
 - **Production systems**
   - cloud: "public"; environments: "int", "stg", "prod"
@@ -257,10 +253,15 @@ Custom tools in `tooling/`:
 
 ## Cosmos Data Flow Documentation
 
-`docs/cosmos-data-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. Keep the reference and its Graphviz sources/PNGs in sync with the code.
+`docs/generated/service-provider-control-flow.md` documents every controller, endpoint writes, external resource effects, and cluster/node-pool/external-auth lifecycles. The ARO Ops bot keeps the reference and its Graphviz sources/PNGs in sync with the code.
 
 ### When to regenerate
-Regenerate `docs/cosmos-data-flow.md` (using [the generation prompt](docs/prompts/controller-data-flow.md)) whenever a change touches:
+Everything under `docs/generated/` is generated output, regenerated and committed
+separately by the ARO Ops bot on an automated hourly cadence. Do not regenerate
+these files inside feature PRs unless specifically requested, to avoid merge conflicts.
+
+The separate regeneration uses [the generation prompt](docs/prompts/controller-data-flow.md)
+to update `docs/generated/service-provider-control-flow.md` when source changes touch:
 - `frontend/pkg/frontend/` — any handler that writes to Cosmos
 - Controller implementations or startup registration in backend, fleet, kube-applier, mgmt-agent, sessiongate, or shared informer management — including controllers without Cosmos writes
 - Azure/Cluster Service/Kubernetes effects, reconciliation gates, or resource lifecycle dependencies

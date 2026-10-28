@@ -16,6 +16,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 
 - [What CI Validates](execution.md#what-ci-validates)
 - [Execution Modes](execution.md#execution-modes)
+- [CodeQL Analysis](execution.md#codeql-analysis)
 - [PR Validation In DEV](execution.md#pr-validation-in-dev)
 - [PR Validation In INT, STG, And PROD](execution.md#pr-validation-in-int-stg-and-prod)
 - [EV2 Gating Jobs](execution.md#ev2-gating-jobs)
@@ -240,6 +241,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Related Documentation
 
 - [Environments](../environments.md)
+- [Grafana Dashboards](../grafana-dashboards.md)
 - [Pipelines](../pipelines.md)
 - [EV2 Deployment](../ev2-deployment.md)
 - [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)

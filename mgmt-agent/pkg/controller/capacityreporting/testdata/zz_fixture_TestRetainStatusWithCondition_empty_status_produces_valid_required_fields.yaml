@@ -11,5 +11,3 @@ status:
     status: "False"
     type: ReportCurrent
   hostedControlPlanes: {}
-  requested: null
-  usage: null

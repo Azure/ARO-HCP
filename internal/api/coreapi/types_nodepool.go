@@ -125,9 +125,6 @@ type NodePoolServiceProviderProperties struct {
 	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// Written by: Frontend DELETE NodePool
-	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
-
 	// CreateOperationCompletionDeadline is the time by which the node pool creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.
@@ -188,6 +185,7 @@ type OSDiskProfile struct {
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
+// Min must be >= 1. Cluster Service rejects min_replica < 1.
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`

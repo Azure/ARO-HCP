@@ -113,7 +113,7 @@ func NewClusterDegradedAggregatorController(
 		applyDesireLister: applyDesireLister,
 		readDesireLister:  readDesireLister,
 	}
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
@@ -121,6 +121,17 @@ func NewClusterDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
+	// Aggregate all conditions; controller and desire names are not a fixed set.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterControllerResourceType, "*")
+	controllerInformer, _ := informers.Controllers()
+	if err := controller.QueueForChildInformers(0, controllerInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

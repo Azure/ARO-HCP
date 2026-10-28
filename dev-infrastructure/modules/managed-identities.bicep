@@ -53,3 +53,7 @@ func getManagedIdentityByName(managedIdentities array, identityName string) mana
 @export()
 func getManagementIdentityResourceGroup(managementResourceGroups string, stampIdentifier string) string =>
   split(filter(split(managementResourceGroups, ','), mapping => startsWith(mapping, '${stampIdentifier}='))[0], '=')[1]
+
+@export()
+func getManagementAksIdentityName(managementAksIdentityNames string, stampIdentifier string) string =>
+  split(filter(split(managementAksIdentityNames, ','), mapping => startsWith(mapping, '${stampIdentifier}='))[0], '=')[1]

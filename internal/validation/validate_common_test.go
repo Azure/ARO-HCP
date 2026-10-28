@@ -16,15 +16,96 @@ package validation
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestBuildValidationOptions(testContext *testing.T) {
+	tests := []struct {
+		name       string
+		features   []coreapi.Feature
+		apiVersion metadataapi.APIVersion
+		want       map[string]bool
+	}{
+		{name: "empty", want: map[string]bool{}},
+		{
+			name: "duplicate feature registered then unregistered",
+			features: []coreapi.Feature{
+				{Name: ptr.To("DuplicateFeature"), State: ptr.To("Registered")},
+				{Name: ptr.To("DUPLICATEFEATURE"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+			},
+			want: map[string]bool{"duplicatefeature": true, "unregisteredfeature": false},
+		},
+		{
+			name: "duplicate feature unregistered then registered",
+			features: []coreapi.Feature{
+				{Name: ptr.To("DuplicateFeature"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("DUPLICATEFEATURE"), State: ptr.To("Registered")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+			},
+			want: map[string]bool{"duplicatefeature": true, "unregisteredfeature": false},
+		},
+		{
+			name: "registered and unregistered features and API version",
+			features: []coreapi.Feature{
+				{Name: ptr.To("EnabledFeature"), State: ptr.To("Registered")},
+				{Name: ptr.To("ENABLEDFEATURE"), State: ptr.To("Registered")},
+				{Name: ptr.To("PendingFeature"), State: ptr.To("Pending")},
+				{Name: ptr.To("UnregisteredFeature"), State: ptr.To("Unregistered")},
+				{Name: ptr.To("MissingStateFeature")},
+				{Name: ptr.To("EmptyStateFeature"), State: ptr.To("")},
+				{State: ptr.To("Registered")},
+				{Name: ptr.To(""), State: ptr.To("Registered")},
+			},
+			apiVersion: metadataapi.APIVersionV20260630Preview,
+			want: map[string]bool{
+				"enabledfeature":      true,
+				"pendingfeature":      false,
+				"unregisteredfeature": false,
+				"missingstatefeature": false,
+				"emptystatefeature":   false,
+				metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true,
+			},
+		},
+	}
+	for _, test := range tests {
+		testContext.Run(test.name, func(testContext *testing.T) {
+			if got := BuildValidationOptions(test.features, test.apiVersion); !reflect.DeepEqual(got, test.want) {
+				testContext.Errorf("BuildValidationOptions() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateVersionProfileDisabledOption(testContext *testing.T) {
+	profile := &coreapi.VersionProfile{ID: "4.20", ChannelGroup: metadataapi.ChannelGroupNightly}
+	path := field.NewPath("version")
+	missing := validateVersionProfile(testContext.Context(), operation.Operation{Type: operation.Create}, path, profile, nil)
+	disabled := validateVersionProfile(testContext.Context(), operation.Operation{
+		Type:    operation.Create,
+		Options: map[string]bool{metadataapi.FeatureExperimentalReleaseFeatures: false},
+	}, path, profile, nil)
+	if len(missing) == 0 || !reflect.DeepEqual(missing, disabled) {
+		testContext.Errorf("missing and disabled experimental features must reject identically: missing=%v disabled=%v", missing, disabled)
+	}
+	enabled := validateVersionProfile(testContext.Context(), operation.Operation{
+		Type:    operation.Create,
+		Options: map[string]bool{metadataapi.FeatureExperimentalReleaseFeatures: true},
+	}, path, profile, nil)
+	if len(enabled) != 0 {
+		testContext.Errorf("enabled experimental features must allow the nightly channel group: %v", enabled)
+	}
+}
 
 func TestValidateSystemData(t *testing.T) {
 	ctx := context.Background()

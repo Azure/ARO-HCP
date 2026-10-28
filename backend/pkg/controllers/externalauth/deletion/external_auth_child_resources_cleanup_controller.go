@@ -57,23 +57,19 @@ func NewExternalAuthChildResourcesCleanupController(
 		resourcesDBClient:  resourcesDBClient,
 	}
 
-	return controllerutils.NewExternalAuthWatchingController(
+	controller := controllerutils.NewExternalAuthWatchingController(
 		ExternalAuthChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+
+	return controller
 }
 
 func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *coreapi.ExternalAuth) bool {
-	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
-	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach {
-		return false
-	}
-
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID == nil

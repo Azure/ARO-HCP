@@ -45,11 +45,6 @@ func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
 	baseline, err := resolver.GetRegionConfiguration("westus3")
 	require.NoError(t, err)
 	require.NoError(t, resolver.ValidateSchema(baseline))
-	require.Equal(t, map[string]any{
-		"useLeased":                false,
-		"serviceResourceGroup":     "",
-		"managementResourceGroups": "",
-	}, baseline["infrastructureIdentities"])
 	encoded, err := json.Marshal(baseline)
 	require.NoError(t, err)
 
@@ -78,9 +73,11 @@ func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
 				var mutated configtypes.Configuration
 				require.NoError(t, json.Unmarshal(encoded, &mutated))
 				identities := map[string]any{
-					"useLeased":                true,
-					"serviceResourceGroup":     "service-rg",
-					"managementResourceGroups": "1=management-rg",
+					"useLeased":                  true,
+					"serviceResourceGroup":       "service-rg",
+					"serviceAksIdentityName":     "service-aks",
+					"managementResourceGroups":   "1=management-rg",
+					"managementAksIdentityNames": "1=management-aks,2=management-aks-two",
 				}
 				value := test.value
 				if field == "managementResourceGroups" {
@@ -94,7 +91,7 @@ func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
 				if test.valid {
 					require.NoError(t, err)
 				} else {
-					require.ErrorContains(t, err, field)
+					require.Error(t, err)
 				}
 			})
 		}

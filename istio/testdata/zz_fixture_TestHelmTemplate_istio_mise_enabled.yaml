@@ -109,8 +109,8 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   labels:
-    istio.io/rev: 'asm-1-29'
-  name: istio-shared-configmap-asm-1-29
+    istio.io/rev: 'asm-1-30'
+  name: istio-shared-configmap-asm-1-30
   namespace: aks-istio-system
 data:
   mesh: |-
@@ -143,7 +143,7 @@ metadata:
   name: mise
   namespace: 'mise'
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: mise
@@ -260,6 +260,10 @@ spec:
   - interval: 15s
     path: /stats/prometheus
     port: http-envoy-prom
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: istio/templates/mise.serviceentry.yml
 apiVersion: networking.istio.io/v1
@@ -303,6 +307,10 @@ spec:
   endpoints:
   - interval: 15s
     port: http-monitoring
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: istio/templates/mesh-logging.telemetry.yml
 apiVersion: telemetry.istio.io/v1

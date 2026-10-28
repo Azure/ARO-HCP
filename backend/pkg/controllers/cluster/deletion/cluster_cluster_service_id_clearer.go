@@ -61,7 +61,7 @@ func NewClusterClusterServiceIDClearerController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterDeletionClusterServiceIDClearerControllerName,
 		resourcesDBClient,
 		informers,
@@ -69,6 +69,9 @@ func NewClusterClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether this controller has unfinished business for the
@@ -76,13 +79,6 @@ func NewClusterClusterServiceIDClearerController(
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
 func (c *clusterClusterServiceIDClearer) NeedsWork(cluster *coreapi.Cluster) bool {
-	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
-	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil && len(cluster.ServiceProviderProperties.ClusterServiceID.String()) > 0
@@ -117,11 +113,14 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	}
 
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
-	_, err = c.clusterServiceClient.GetClusterStatus(ctx, *csID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	_, err = c.clusterServiceClient.GetClusterStatus(csCtx, *csID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 		}
 		// 404 - cluster-service has finished deleting the Cluster, clear the CS ID.
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())

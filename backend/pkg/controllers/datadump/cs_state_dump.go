@@ -19,12 +19,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -44,6 +46,8 @@ type csStateDump struct {
 }
 
 const CSStateDumpControllerName = "CSStateDump"
+
+const csStateDumpTimeout = 2 * time.Minute
 
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
@@ -65,7 +69,7 @@ func NewCSStateDumpController(
 	// cluster and node pool state, so cluster-scoped ReadDesire and ApplyDesire updates
 	// must not requeue it. Those updates are management-cluster observations and apply
 	// status, not a change to the Cluster Service documents this controller dumps.
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CSStateDumpControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -73,6 +77,10 @@ func NewCSStateDumpController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -99,8 +107,11 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
 
+	readCtx, cancelRead := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+
 	// Fetch cluster state from cluster-service
-	csCluster, err := c.csClient.GetCluster(ctx, *csID)
+	csCluster, err := c.csClient.GetCluster(readCtx, *csID)
+	cancelRead()
 	if err != nil {
 		logger.Error(err, "failed to get cluster from cluster-service for CS state dump")
 		// Continue with what we have
@@ -120,11 +131,19 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		"csCluster", clusterData,
 	)
 
-	// Fetch and dump node pools
+	// Fetch and dump node pools. Cluster Service documents come from one List.
 	allNodePools, err := c.nodePoolLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Error(err, "failed to list node pools from informer cache for CS state dump")
 		// best effort, don't fail
+		return nil
+	}
+
+	listCtx, cancelList := context.WithTimeout(ctx, csStateDumpTimeout)
+	csNodePoolsByID, err := c.listNodePoolsByID(listCtx, *csID)
+	cancelList()
+	if err != nil {
+		logger.Error(err, "failed to list node pools from cluster-service for CS state dump")
 		return nil
 	}
 
@@ -135,23 +154,22 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 			continue
 		}
 
-		csNodePool, err := c.csClient.GetNodePool(ctx, *npCSID)
-		if err != nil {
-			logger.Error(err, "failed to get node pool from cluster-service for CS state dump",
+		csNodePool := csNodePoolsByID[npCSID.String()]
+		if csNodePool == nil {
+			logger.Error(fmt.Errorf("node pool %s was not returned by cluster-service", npCSID.String()),
+				"failed to get node pool from cluster-service for CS state dump",
 				"nodePoolClusterServiceID", npCSID.String(),
 			)
 			continue
 		}
 
 		var nodePoolData map[string]any
-		if csNodePool != nil {
-			nodePoolData, err = csObjectToMap(csNodePool)
-			if err != nil {
-				logger.Error(err, "failed to serialize cluster-service node pool to JSON",
-					"nodePoolClusterServiceID", npCSID.String(),
-				)
-				continue
-			}
+		nodePoolData, err = csObjectToMap(csNodePool)
+		if err != nil {
+			logger.Error(err, "failed to serialize cluster-service node pool to JSON",
+				"nodePoolClusterServiceID", npCSID.String(),
+			)
+			continue
 		}
 
 		logger.Info("cluster-service node pool state dump",
@@ -163,6 +181,30 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 
 	return nil
+}
+
+// listNodePoolsByID lists a cluster's node pools once and indexes them by Cluster Service href.
+func (c *csStateDump) listNodePoolsByID(ctx context.Context, csID ocm.InternalID) (map[string]*arohcpv1alpha1.NodePool, error) {
+	logger := utils.LoggerFromContext(ctx)
+	csNodePoolsByID := map[string]*arohcpv1alpha1.NodePool{}
+	nodePoolIter := c.csClient.ListNodePools(csID, "")
+	for csNodePool := range nodePoolIter.Items(ctx) {
+		if csNodePool == nil {
+			continue
+		}
+		href, ok := csNodePool.GetHREF()
+		if !ok || len(href) == 0 {
+			logger.Error(fmt.Errorf("node pool %s was returned without an href", csNodePool.ID()),
+				"cluster-service node pool list item is missing href",
+			)
+			continue
+		}
+		csNodePoolsByID[strings.ToLower(href)] = csNodePool
+	}
+	if err := nodePoolIter.GetError(); err != nil {
+		return nil, err
+	}
+	return csNodePoolsByID, nil
 }
 
 // csObjectToMap serializes a cluster-service object to JSON and then decodes it into a map[string]any

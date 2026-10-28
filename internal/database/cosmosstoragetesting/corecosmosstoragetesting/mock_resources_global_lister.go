@@ -72,6 +72,13 @@ func (g *mockResourcesGlobalListers) ServiceProviderNodePools() cosmosstorageuti
 	}
 }
 
+func (g *mockResourcesGlobalListers) ServiceProviderExternalAuths() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderExternalAuth] {
+	return &MockGlobalLister[coreapi.ServiceProviderExternalAuth, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderExternalAuth]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{coreapi.ServiceProviderExternalAuthResourceType},
+	}
+}
+
 func (g *mockResourcesGlobalListers) Controllers() cosmosstorageutils.GlobalLister[coreapi.Controller] {
 	return &MockGlobalLister[coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]]{
 		client: g.client,

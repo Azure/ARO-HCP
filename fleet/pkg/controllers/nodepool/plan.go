@@ -19,6 +19,8 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
 
@@ -27,10 +29,10 @@ import (
 // (quota limit minus live usage) minus the committed-but-not-running ceiling of
 // current pools. Same-family transitions converge iteratively: grow (step 4)
 // runs before shrink (step 5), and every reduction preserves the accepted
-// per-role transition floor.
+// transition floor of its role-zone bucket.
 //
 // Returns nil when converged or blocked. Returns waitAction when any pool is in progress.
-func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor compute.CapacityByRole, networkConfig compute.NetworkConfig) Action {
+func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs map[compute.VMFamily]int64, capacityFloor transitionFloor, networkConfig compute.NetworkConfig) Action {
 	if blocker := firstInProgressPool(current); blocker != nil {
 		return newWaitAction(blocker.Name, blocker.Spec.Size, blocker.ZoneString(), waitPollHint)
 	}
@@ -73,7 +75,7 @@ func findNextAction(desired []compute.Pool, current []PoolState, availableVCPUs 
 	}
 
 	// 5. Shrink undesired pools (identity-based, not headroom-gated).
-	//    Each reduction must preserve the per-role transition floor.
+	//    Each reduction must preserve the transition floor.
 	if action, ok := findShrinkAction(current, desiredByName, capacityFloor); ok {
 		return action
 	}
@@ -94,7 +96,7 @@ func findReconcileAction(desired []compute.Pool, currentByName map[string]PoolSt
 // findCorrectDesiredAction handles desired pools that exist but are
 // misconfigured: frozen pools that need unfreezing, pools with maxCount above
 // target, or pools whose count exceeds desired max and need draining.
-func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]PoolState, headroom map[compute.VMFamily]int64, current []PoolState, capacityFloor transitionFloor) (Action, bool) {
 	for _, pool := range desired {
 		cur, exists := currentByName[pool.Name]
 		if !exists {
@@ -108,7 +110,7 @@ func findCorrectDesiredAction(desired []compute.Pool, currentByName map[string]P
 					minCount := min(cur.MinCount, pool.MaxCount)
 					// Pools that never autoscaled have no observed floor. System
 					// pools require a positive minimum; user pools may keep zero.
-					if pool.Role == compute.PoolRoleSystem {
+					if pool.AgentPoolMode == armcontainerservice.AgentPoolModeSystem {
 						minCount = max(minCount, 1)
 					}
 					return newUnfreezeAction(pool.Name, pool.Spec.Size, pool.ZoneString(), cur.ETag, minCount, pool.MaxCount), true
@@ -218,7 +220,7 @@ func findGrowAction(desired []compute.Pool, currentByName map[string]PoolState, 
 	return nil, false
 }
 
-func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor compute.CapacityByRole) (Action, bool) {
+func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool, capacityFloor transitionFloor) (Action, bool) {
 	undesired := undesiredPools(current, desiredByName)
 	if len(undesired) == 0 {
 		return nil, false
@@ -237,7 +239,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 	// and drains the node on delete — but only while another system pool we
 	// intend to keep remains, since AKS forbids deleting the last system pool.
 	for _, cur := range undesired {
-		if cur.Role != compute.PoolRoleSystem {
+		if cur.AgentPoolMode != armcontainerservice.AgentPoolModeSystem {
 			continue
 		}
 		// Only delete when another system pool remains in the desired set; AKS
@@ -245,7 +247,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 		// never be the survivor matched here.
 		survivorRemains := false
 		for _, other := range current {
-			if other.Role != compute.PoolRoleSystem {
+			if other.AgentPoolMode != armcontainerservice.AgentPoolModeSystem {
 				continue
 			}
 			if _, desired := desiredByName[other.Name]; desired {
@@ -253,20 +255,25 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 				break
 			}
 		}
-		if !survivorRemains || !allowsCapacityReduction(current, cur, 0, capacityFloor) {
+		if !survivorRemains || !allowsPoolDeletion(current, cur, capacityFloor) {
 			continue
 		}
 		return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
 	}
 
-	// Squeeze unused ceiling without evicting nodes. This may dip below the
-	// new desired total but must preserve the accepted transition floor.
+	// Squeeze unused ceiling without evicting nodes, down to the lowest ceiling
+	// the accepted transition floor allows. This may dip below the new desired
+	// total. When the floor stops the squeeze short of the node count, the freed
+	// quota grows replacement capacity first, which lets the next squeeze go
+	// further.
 	for _, cur := range undesired {
-		if cur.AutoScalingEnabled && cur.MaxCount > cur.Count {
-			if !allowsCapacityReduction(current, cur, int64(cur.Count), capacityFloor) {
-				continue
+		if !cur.AutoScalingEnabled || cur.MaxCount <= cur.Count {
+			continue
+		}
+		for ceiling := cur.Count; ceiling < cur.MaxCount; ceiling++ {
+			if allowsCapacityReduction(current, cur, int64(ceiling), capacityFloor) {
+				return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, ceiling), ceiling), true
 			}
-			return newSetScalingBoundsAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag, min(cur.MinCount, cur.Count), cur.Count), true
 		}
 	}
 
@@ -289,7 +296,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 	for _, cur := range undesired {
 		// System pools cannot be drained below minCount 1 (AKS rejects count 0);
 		// they are removed by the direct-delete branch above, never here.
-		if cur.Role == compute.PoolRoleSystem {
+		if cur.AgentPoolMode == armcontainerservice.AgentPoolModeSystem {
 			continue
 		}
 		if !cur.AutoScalingEnabled && cur.Count > 0 {
@@ -302,7 +309,7 @@ func findShrinkAction(current []PoolState, desiredByName map[string]compute.Pool
 
 	// Delete: remove frozen pools with zero nodes.
 	for _, cur := range undesired {
-		if !cur.AutoScalingEnabled && cur.Count == 0 {
+		if !cur.AutoScalingEnabled && cur.Count == 0 && allowsPoolDeletion(current, cur, capacityFloor) {
 			return newDeleteAction(cur.Name, cur.Spec.Size, cur.ZoneString(), cur.ETag), true
 		}
 	}

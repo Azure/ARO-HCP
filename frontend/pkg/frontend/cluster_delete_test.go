@@ -44,11 +44,9 @@ func TestClusterDeleteRetryPreservesTeardown(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		timeout *time.Duration
-		legacy  bool
 	}{
 		{name: "default timeout"},
 		{name: "custom timeout", timeout: &customTimeout},
-		{name: "legacy deletion with existing timestamp", legacy: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -60,11 +58,6 @@ func TestClusterDeleteRetryPreservesTeardown(t *testing.T) {
 			cluster := coreapitesting.MinimumValidClusterTestCase()
 			cluster.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: cluster.ID, PartitionKey: cluster.ID.SubscriptionID}
 			cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout = tc.timeout
-			if tc.legacy {
-				timestamp := metav1.NewTime(clock.Now().Add(-25 * time.Hour))
-				cluster.ServiceProviderProperties.DeletionTimestamp = &timestamp
-				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateDeleting
-			}
 			clusters := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
 			cluster, err := clusters.Create(ctx, cluster, nil)
 			require.NoError(t, err)
@@ -171,12 +164,10 @@ func TestClusterDeleteRetryPreservesTeardown(t *testing.T) {
 			lateNodePool, err = nodePools.Get(ctx, lateNodePoolID.Name)
 			require.NoError(t, err)
 			require.NotNil(t, lateNodePool.ServiceProviderProperties.DeletionTimestamp, "retry must initialize children created after the parent failed")
-			require.True(t, lateNodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach)
 			require.NotEmpty(t, lateNodePool.ServiceProviderProperties.ActiveOperationID)
 			lateExternalAuth, err = externalAuths.Get(ctx, lateExternalAuthID.Name)
 			require.NoError(t, err)
 			require.NotNil(t, lateExternalAuth.ServiceProviderProperties.DeletionTimestamp)
-			require.True(t, lateExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach)
 			require.NotEmpty(t, lateExternalAuth.ServiceProviderProperties.ActiveOperationID)
 		})
 	}
@@ -262,61 +253,53 @@ func (i *failingChildIterator[T]) GetError() error {
 
 func TestClusterDeleteChildListFailure(t *testing.T) {
 	for _, kind := range []string{"node pool", "external auth"} {
-		for _, legacy := range []bool{false, true} {
-			name := kind + "/initial"
-			if legacy {
-				name = kind + "/legacy"
+		name := kind + "/initial"
+		t.Run(name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			cluster := coreapitesting.MinimumValidClusterTestCase()
+			cluster.SetResourceID(cluster.ID)
+			cluster.SetPartitionKey(cluster.ID.SubscriptionID)
+			clusters := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
+			cluster, err := clusters.Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			nodePoolID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/nodePools/worker")
+			require.NoError(t, err)
+			nodePool := coreapi.NewDefaultNodePool(nodePoolID, coreapitesting.TestLocation)
+			nodePool.SetResourceID(nodePool.ID)
+			nodePool.SetPartitionKey(cluster.ID.SubscriptionID)
+			nodePool, err = clusters.NodePools(cluster.ID.Name).Create(ctx, nodePool, nil)
+			require.NoError(t, err)
+			externalAuthID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/externalAuths/auth")
+			require.NoError(t, err)
+			externalAuth := coreapitesting.MinimumValidExternalAuthTestCase()
+			externalAuth.ID = externalAuthID
+			externalAuth.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: externalAuthID, PartitionKey: cluster.ID.SubscriptionID}
+			externalAuth, err = clusters.ExternalAuth(cluster.ID.Name).Create(ctx, externalAuth, nil)
+			require.NoError(t, err)
+			listFailure := errors.New("child listing failed after first item")
+			failingDB := &failingChildListDB{ResourcesDBClient: db, kind: kind, err: listFailure}
+			f := &Frontend{resourcesDBClient: failingDB, azureLocation: coreapitesting.TestLocation, clock: clocktesting.NewFakeClock(time.Now())}
+			ctx = utils.ContextWithResourceID(ctx, cluster.ID)
+			request := httptest.NewRequestWithContext(ctx, http.MethodDelete, cluster.ID.String(), nil)
+			require.ErrorIs(t, f.DeleteCluster(httptest.NewRecorder(), request), listFailure)
+			require.False(t, failingDB.executed, "partial child listing must never execute the transaction")
+			storedCluster, err := clusters.Get(ctx, cluster.ID.Name)
+			require.NoError(t, err)
+			require.Equal(t, cluster, storedCluster)
+			storedNodePool, err := clusters.NodePools(cluster.ID.Name).Get(ctx, nodePool.ID.Name)
+			require.NoError(t, err)
+			require.Equal(t, nodePool, storedNodePool)
+			storedExternalAuth, err := clusters.ExternalAuth(cluster.ID.Name).Get(ctx, externalAuth.ID.Name)
+			require.NoError(t, err)
+			require.Equal(t, externalAuth, storedExternalAuth)
+			operations, err := db.Operations(cluster.ID.SubscriptionID).List(ctx, nil)
+			require.NoError(t, err)
+			for _, operation := range operations.Items(ctx) {
+				t.Errorf("unexpected committed operation %s", operation.ResourceID)
 			}
-			t.Run(name, func(t *testing.T) {
-				ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-				ctx = ContextWithCorrelationData(ctx, &coreapi.CorrelationData{})
-				db := corecosmosstoragetesting.NewMockResourcesDBClient()
-				cluster := coreapitesting.MinimumValidClusterTestCase()
-				cluster.SetResourceID(cluster.ID)
-				cluster.SetPartitionKey(cluster.ID.SubscriptionID)
-				if legacy {
-					cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateDeleting
-				}
-				clusters := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
-				cluster, err := clusters.Create(ctx, cluster, nil)
-				require.NoError(t, err)
-				nodePoolID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/nodePools/worker")
-				require.NoError(t, err)
-				nodePool := coreapi.NewDefaultNodePool(nodePoolID, coreapitesting.TestLocation)
-				nodePool.SetResourceID(nodePool.ID)
-				nodePool.SetPartitionKey(cluster.ID.SubscriptionID)
-				nodePool, err = clusters.NodePools(cluster.ID.Name).Create(ctx, nodePool, nil)
-				require.NoError(t, err)
-				externalAuthID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/externalAuths/auth")
-				require.NoError(t, err)
-				externalAuth := coreapitesting.MinimumValidExternalAuthTestCase()
-				externalAuth.ID = externalAuthID
-				externalAuth.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: externalAuthID, PartitionKey: cluster.ID.SubscriptionID}
-				externalAuth, err = clusters.ExternalAuth(cluster.ID.Name).Create(ctx, externalAuth, nil)
-				require.NoError(t, err)
-				listFailure := errors.New("child listing failed after first item")
-				failingDB := &failingChildListDB{ResourcesDBClient: db, kind: kind, err: listFailure}
-				f := &Frontend{resourcesDBClient: failingDB, azureLocation: coreapitesting.TestLocation, clock: clocktesting.NewFakeClock(time.Now())}
-				ctx = utils.ContextWithResourceID(ctx, cluster.ID)
-				request := httptest.NewRequestWithContext(ctx, http.MethodDelete, cluster.ID.String(), nil)
-				require.ErrorIs(t, f.DeleteCluster(httptest.NewRecorder(), request), listFailure)
-				require.False(t, failingDB.executed, "partial child listing must never execute the transaction")
-				storedCluster, err := clusters.Get(ctx, cluster.ID.Name)
-				require.NoError(t, err)
-				require.Equal(t, cluster, storedCluster)
-				storedNodePool, err := clusters.NodePools(cluster.ID.Name).Get(ctx, nodePool.ID.Name)
-				require.NoError(t, err)
-				require.Equal(t, nodePool, storedNodePool)
-				storedExternalAuth, err := clusters.ExternalAuth(cluster.ID.Name).Get(ctx, externalAuth.ID.Name)
-				require.NoError(t, err)
-				require.Equal(t, externalAuth, storedExternalAuth)
-				operations, err := db.Operations(cluster.ID.SubscriptionID).List(ctx, nil)
-				require.NoError(t, err)
-				for _, operation := range operations.Items(ctx) {
-					t.Errorf("unexpected committed operation %s", operation.ResourceID)
-				}
-				require.NoError(t, operations.GetError())
-			})
-		}
+			require.NoError(t, operations.GetError())
+		})
 	}
 }

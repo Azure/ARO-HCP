@@ -21,11 +21,14 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -35,12 +38,6 @@ type subscriptionInventory struct {
 }
 
 type inventoryLoaderFunc func(ctx context.Context, subscriptionID string) (subscriptionInventory, error)
-
-type ValidateOptions struct {
-	IdentityPools []identityPool
-	LoadInventory inventoryLoaderFunc
-	Out           io.Writer
-}
 
 type identityReference struct {
 	ResourceGroup string
@@ -59,31 +56,32 @@ type validationResult struct {
 	UnexpectedIdentities     []identityReference
 }
 
-func (o *ValidateOptions) Run(ctx context.Context) error {
+func validatePools(ctx context.Context, pools []identityPool, loadInventory inventoryLoaderFunc, out io.Writer) error {
 	poolsBySubscription := map[string][]identityPool{}
 	subscriptionOrder := make([]string, 0)
-	for _, pool := range o.IdentityPools {
+	for _, pool := range pools {
 		if _, found := poolsBySubscription[pool.SubscriptionID]; !found {
 			subscriptionOrder = append(subscriptionOrder, pool.SubscriptionID)
 		}
 		poolsBySubscription[pool.SubscriptionID] = append(poolsBySubscription[pool.SubscriptionID], pool)
 	}
-
 	failedSubscriptions := 0
 	for _, subscriptionID := range subscriptionOrder {
-		pools := poolsBySubscription[subscriptionID]
-		inventory, err := o.LoadInventory(ctx, subscriptionID)
+		grouped := poolsBySubscription[subscriptionID]
+		inventory, err := loadInventory(ctx, subscriptionID)
 		if err != nil {
-			return fmt.Errorf("failed loading Azure identity-pool inventory for subscription %q: %w", pools[0].SubscriptionName, err)
+			return fmt.Errorf("failed loading Azure identity-pool inventory for subscription %q: %w", grouped[0].SubscriptionName, err)
 		}
-
-		result := compareIdentityPoolInventory(pools, inventory)
-		writeValidationResult(o.Out, result)
-		if !result.valid() {
-			failedSubscriptions++
+		result, err := compareIdentityPoolInventory(grouped, inventory)
+		if err != nil {
+			return fmt.Errorf("failed validating Azure identity-pool inventory for subscription %q: %w", grouped[0].SubscriptionName, err)
 		}
+		writeValidationResult(out, result)
+		if result.valid() {
+			continue
+		}
+		failedSubscriptions++
 	}
-
 	if failedSubscriptions > 0 {
 		return fmt.Errorf("identity pool validation failed for %d subscription(s)", failedSubscriptions)
 	}
@@ -95,7 +93,6 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 	if err != nil {
 		return subscriptionInventory{}, fmt.Errorf("failed creating resources client factory: %w", err)
 	}
-
 	resourceGroups := make([]string, 0)
 	resourceGroupsPager := resourcesFactory.NewResourceGroupsClient().NewListPager(nil)
 	for resourceGroupsPager.More() {
@@ -110,12 +107,10 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 			resourceGroups = append(resourceGroups, *resourceGroup.Name)
 		}
 	}
-
 	msiFactory, err := armmsi.NewClientFactory(subscriptionID, cred, nil)
 	if err != nil {
 		return subscriptionInventory{}, fmt.Errorf("failed creating managed identity client factory: %w", err)
 	}
-
 	identities := map[string][]string{}
 	identitiesPager := msiFactory.NewUserAssignedIdentitiesClient().NewListBySubscriptionPager(nil)
 	for identitiesPager.More() {
@@ -134,65 +129,78 @@ func loadSubscriptionInventory(ctx context.Context, subscriptionID string, cred 
 			identities[resourceID.ResourceGroupName] = append(identities[resourceID.ResourceGroupName], *identity.Name)
 		}
 	}
-
 	return subscriptionInventory{
 		ResourceGroups: resourceGroups,
 		Identities:     identities,
 	}, nil
 }
 
-// Compare the complete physical pool inventory with the resources present in Azure.
-func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInventory) validationResult {
+func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInventory) (validationResult, error) {
 	expectedResourceGroups := map[string]string{}
-	managedPrefixes := make([]string, 0)
+	prefixes := sets.New[string]()
 	for _, pool := range pools {
-		managedPrefixes = append(managedPrefixes, normalizeName(pool.IdentityContainerPrefix)+"-")
+		prefixes.Insert(strings.ToLower(pool.IdentityContainerPrefix) + "-")
 		for _, slot := range pool.Slots {
 			for _, resourceGroup := range slot.ProvisionedIdentityContainerNames() {
-				expectedResourceGroups[normalizeName(resourceGroup)] = resourceGroup
+				expectedResourceGroups[strings.ToLower(resourceGroup)] = resourceGroup
 			}
 		}
 	}
-
 	actualResourceGroups := map[string]string{}
+	identitiesByGroup := map[string][]string{}
+	for resourceGroup, names := range actual.Identities {
+		normalized := strings.ToLower(resourceGroup)
+		identitiesByGroup[normalized] = append(identitiesByGroup[normalized], names...)
+	}
 	for _, resourceGroup := range actual.ResourceGroups {
-		if hasAnyPrefix(resourceGroup, managedPrefixes) {
-			actualResourceGroups[normalizeName(resourceGroup)] = resourceGroup
+		if hasAnyPrefix(resourceGroup, prefixes) {
+			actualResourceGroups[strings.ToLower(resourceGroup)] = resourceGroup
 		}
 	}
-
 	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
-	expectedIdentities := map[identityReference]identityReference{}
-	actualIdentities := map[identityReference]identityReference{}
-	actualIdentitiesByResourceGroup := map[string][]string{}
-	for resourceGroup, identityNames := range actual.Identities {
-		normalizedResourceGroup := normalizeName(resourceGroup)
-		actualIdentitiesByResourceGroup[normalizedResourceGroup] = append(actualIdentitiesByResourceGroup[normalizedResourceGroup], identityNames...)
-	}
-	for _, resourceGroup := range expectedResourceGroups {
-		for _, identityName := range expectedIdentityNames {
-			reference := identityReference{ResourceGroup: resourceGroup, Name: identityName}
-			expectedIdentities[normalizeIdentityReference(reference)] = reference
+	missingIdentities := make([]identityReference, 0)
+	unexpectedIdentities := make([]identityReference, 0)
+	actualIdentities := 0
+	for normalized, resourceGroup := range expectedResourceGroups {
+		actualGroup, exists := actualResourceGroups[normalized]
+		if !exists {
+			continue
+		}
+		reported, err := azureutil.UniqueReportedNames(resourceGroup, identitiesByGroup[normalized])
+		if err != nil {
+			return validationResult{}, err
+		}
+		actualIdentities += len(reported)
+		missing, unexpected := azureutil.IdentityNameDiff(azureutil.NormalizedNameSet(expectedIdentityNames), reported)
+		for _, name := range missing {
+			missingIdentities = append(missingIdentities, identityReference{ResourceGroup: resourceGroup, Name: name})
+		}
+		for _, name := range unexpected {
+			unexpectedIdentities = append(unexpectedIdentities, identityReference{ResourceGroup: actualGroup, Name: name})
 		}
 	}
-	for normalizedResourceGroup, resourceGroup := range actualResourceGroups {
-		for _, identityName := range actualIdentitiesByResourceGroup[normalizedResourceGroup] {
-			reference := identityReference{ResourceGroup: resourceGroup, Name: identityName}
-			actualIdentities[normalizeIdentityReference(reference)] = reference
+	for normalized, resourceGroup := range actualResourceGroups {
+		if _, expected := expectedResourceGroups[normalized]; expected {
+			continue
+		}
+		for _, name := range identitiesByGroup[normalized] {
+			unexpectedIdentities = append(unexpectedIdentities, identityReference{ResourceGroup: resourceGroup, Name: name})
+			actualIdentities++
 		}
 	}
-
+	sortIdentityReferences(missingIdentities)
+	sortIdentityReferences(unexpectedIdentities)
 	return validationResult{
 		SubscriptionName:         pools[0].SubscriptionName,
 		ExpectedResourceGroups:   len(expectedResourceGroups),
 		ActualResourceGroups:     len(actualResourceGroups),
-		ExpectedIdentities:       len(expectedIdentities),
-		ActualIdentities:         len(actualIdentities),
+		ExpectedIdentities:       len(expectedResourceGroups) * len(expectedIdentityNames),
+		ActualIdentities:         actualIdentities,
 		MissingResourceGroups:    differenceNamedStrings(expectedResourceGroups, actualResourceGroups),
 		UnexpectedResourceGroups: differenceNamedStrings(actualResourceGroups, expectedResourceGroups),
-		MissingIdentities:        differenceIdentitiesForExistingGroups(expectedIdentities, actualIdentities, actualResourceGroups),
-		UnexpectedIdentities:     differenceIdentities(actualIdentities, expectedIdentities),
-	}
+		MissingIdentities:        missingIdentities,
+		UnexpectedIdentities:     unexpectedIdentities,
+	}, nil
 }
 
 func (r validationResult) valid() bool {
@@ -226,9 +234,9 @@ func writeValidationResult(out io.Writer, result validationResult) {
 	writeIdentityList(out, "unexpected identities", result.UnexpectedIdentities)
 	if result.valid() {
 		fmt.Fprintln(out, "  result: valid")
-	} else {
-		fmt.Fprintln(out, "  result: drift detected")
+		return
 	}
+	fmt.Fprintln(out, "  result: drift detected")
 }
 
 func writeStringList(out io.Writer, title string, values []string) {
@@ -251,9 +259,9 @@ func writeIdentityList(out io.Writer, title string, values []identityReference) 
 	}
 }
 
-func hasAnyPrefix(value string, prefixes []string) bool {
-	value = normalizeName(value)
-	for _, prefix := range prefixes {
+func hasAnyPrefix(value string, prefixes sets.Set[string]) bool {
+	value = strings.ToLower(value)
+	for _, prefix := range sets.List(prefixes) {
 		if strings.HasPrefix(value, prefix) {
 			return true
 		}
@@ -261,50 +269,15 @@ func hasAnyPrefix(value string, prefixes []string) bool {
 	return false
 }
 
-func normalizeName(value string) string {
-	return strings.ToLower(value)
-}
-
-func normalizeIdentityReference(value identityReference) identityReference {
-	return identityReference{
-		ResourceGroup: normalizeName(value.ResourceGroup),
-		Name:          normalizeName(value.Name),
-	}
-}
-
 func differenceNamedStrings(left, right map[string]string) []string {
 	result := make([]string, 0)
 	for normalized, value := range left {
-		if _, found := right[normalized]; !found {
-			result = append(result, value)
-		}
-	}
-	sort.Strings(result)
-	return result
-}
-
-func differenceIdentities(left, right map[identityReference]identityReference) []identityReference {
-	result := make([]identityReference, 0)
-	for normalized, value := range left {
-		if _, found := right[normalized]; !found {
-			result = append(result, value)
-		}
-	}
-	sortIdentityReferences(result)
-	return result
-}
-
-func differenceIdentitiesForExistingGroups(left, right map[identityReference]identityReference, existingGroups map[string]string) []identityReference {
-	result := make([]identityReference, 0)
-	for normalized, value := range left {
-		if _, found := existingGroups[normalized.ResourceGroup]; !found {
+		if _, found := right[normalized]; found {
 			continue
 		}
-		if _, found := right[normalized]; !found {
-			result = append(result, value)
-		}
+		result = append(result, value)
 	}
-	sortIdentityReferences(result)
+	sort.Strings(result)
 	return result
 }
 

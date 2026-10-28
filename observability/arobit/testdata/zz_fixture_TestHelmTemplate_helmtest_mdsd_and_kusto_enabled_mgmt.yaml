@@ -270,7 +270,7 @@ data:
         Match           kubernetes.var.log.containers.*
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Emitter_Name    re_emitted_namespace_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -278,9 +278,8 @@ data:
         # ocm.logs record as cluster_id, plus its resource group as resource_group,
         # read directly from the pod's namespace annotation
         # azure.microsoft.com/hcp-cluster-azure-resource-id (enriched by the kubernetes
-        # filter's Namespace_annotations On). This is the namespace-annotation
-        # alternative to resolving the ID from the ACM-managed /shoebox-config file
-        # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
+        # filter's Namespace_annotations On). Only mgmt clusters emit ocm.logs to the
+        # containerLogs Kusto table.
         # Fail-soft: records without the annotation are left unchanged. This runs before
         # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
@@ -302,7 +301,7 @@ data:
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Rule            $kubernetes['container_name'] ^swift-recorder$ kubernetes.swift-recorder.logs false
         Emitter_Name    re_emitted_container_name_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -332,7 +331,7 @@ data:
         Match           mgmt-agent.logs
         Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -355,7 +354,7 @@ data:
         Match           aro-hcp-backend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -366,7 +365,7 @@ data:
         Match           aro-hcp-frontend.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     [FILTER]
@@ -378,7 +377,7 @@ data:
         Match           fleet-controller.logs
         Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
         Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
   filter-shoebox.conf: |
     # Route control plane logs from OCM namespaces for Shoebox transformation
@@ -389,7 +388,7 @@ data:
         Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$ shoeboxlogs true
         Rule            $kubernetes['pod_name'] ^capi-provider.* shoeboxlogs true
         Emitter_Name    re_emitted_shoebox
-        Emitter_Mem_Buf_Limit  20M
+        Emitter_Mem_Buf_Limit  40M
         Emitter_Storage.type   filesystem
 
     # Transform to Shoebox format using Lua script
@@ -509,8 +508,8 @@ data:
     end
   set-cluster-id-from-annotation.lua: |
     -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
-    -- control-plane container logs. Unlike the ACM /shoebox-config file lookup,
-    -- this reads the resource ID directly from the pod's NAMESPACE annotation
+    -- control-plane container logs. It reads the resource ID directly from the
+    -- pod's NAMESPACE annotation
     -- "azure.microsoft.com/hcp-cluster-azure-resource-id", which the kubernetes
     -- filter enriches onto every record when "Namespace_annotations On" is set.
     -- It stamps two top-level fields:
@@ -1074,7 +1073,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: c24f04e6e8ec3aab98a4df734c904b4f4e0991ba84e7bf0cd753cedf884fdbcc
+        checksum/configmap: f470b296a648e59f096f3b2cff432806a1ec6cb0c5d3d7cad8ffcba5fce49b01
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -1153,9 +1152,6 @@ spec:
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-            - name: shoebox-mappings
-              mountPath: /shoebox-config
-              readOnly: true
         - name: watson-agent
           image: mcr.microsoft.com/azure-watson/agent/azlinux3@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
@@ -1165,7 +1161,7 @@ spec:
             - name: REPORT_QUEUE
               value: "/azure-watson/queue"
             - name: MDSD_ROLE_PREFIX
-              value: "/var/run/mdsd/asa/"
+              value: "/var/run/mdsd/"
             - name: WA_CORE_PATTERN
               value: "/azure-watson/cores/%e.%p.%h.%t"
             - name: AUTHENTICATION_ID
@@ -1413,10 +1409,6 @@ spec:
           hostPath:
             type: DirectoryOrCreate
             path: "/home/docker/azure-watson"
-        - name: shoebox-mappings
-          configMap:
-            name: namespace-resourceid-mapping
-            optional: true
         - name: geneva-certs-clusterlogs
           csi:
             driver: secrets-store.csi.k8s.io
@@ -1457,6 +1449,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'arobit'

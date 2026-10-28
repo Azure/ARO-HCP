@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,6 +95,145 @@ func popAllQueue(c *GenericWatchingController[string]) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+func TestInterestingResources(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
+	readID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID + "/readDesires/status"))
+	type interest struct {
+		resourceType azcorearm.ResourceType
+		name         string
+	}
+	tests := []struct {
+		name      string
+		interests []interest
+		resource  *azcorearm.ResourceID
+		maxDepth  int
+		want      bool
+	}{
+		{name: "no filter preserves child events", resource: readID, maxDepth: -1, want: true},
+		{name: "nil resource", interests: []interest{{clusterID.ResourceType, "*"}}, maxDepth: -1},
+		{name: "exact name", interests: []interest{{clusterID.ResourceType, "c1"}}, resource: clusterID, want: true},
+		{name: "different name", interests: []interest{{clusterID.ResourceType, "c2"}}, resource: clusterID},
+		{name: "wildcard name", interests: []interest{{clusterID.ResourceType, "*"}}, resource: clusterID, want: true},
+		{name: "wildcard does not match another type", interests: []interest{{clusterID.ResourceType, "*"}}, resource: npID, maxDepth: -1},
+		{name: "type and name are case insensitive", interests: []interest{{azcorearm.NewResourceType("MICROSOFT.REDHATOPENSHIFT", "HCPOPENSHIFTCLUSTERS/NODEPOOLS"), "NP1"}}, resource: npID, maxDepth: 1, want: true},
+		{name: "resource casing is ignored", interests: []interest{{npID.ResourceType, "np1"}}, resource: metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(testNodePoolARMID))), maxDepth: 1, want: true},
+		{name: "multiple names accumulate", interests: []interest{{clusterID.ResourceType, "c1"}, {clusterID.ResourceType, "c2"}}, resource: clusterID, want: true},
+		{name: "multiple types accumulate", interests: []interest{{clusterID.ResourceType, "c1"}, {npID.ResourceType, "np1"}}, resource: clusterID, want: true},
+		{name: "accepted child does not require parent registration", interests: []interest{{npID.ResourceType, "np1"}}, resource: npID, maxDepth: 1, want: true},
+		{name: "accepted grandchild skips unregistered ancestors", interests: []interest{{readID.ResourceType, "status"}}, resource: readID, maxDepth: 2, want: true},
+		{name: "accepted child still respects zero depth", interests: []interest{{npID.ResourceType, "*"}}, resource: npID},
+		{name: "accepted grandchild still respects depth limit", interests: []interest{{readID.ResourceType, "*"}}, resource: readID, maxDepth: 1},
+		{name: "accepted grandchild supports unlimited depth", interests: []interest{{readID.ResourceType, "*"}}, resource: readID, maxDepth: -1, want: true},
+		{name: "names are not globs", interests: []interest{{npID.ResourceType, "np*"}}, resource: npID, maxDepth: -1},
+		{name: "accepted resource without matching ancestor", interests: []interest{{azcorearm.SubscriptionResourceType, "*"}}, resource: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub1")), maxDepth: -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _, _ := newTestWatchingController()
+			t.Cleanup(c.queue.ShutDown)
+			for _, interest := range tt.interests {
+				c.AddInterestingResource(interest.resourceType, interest.name)
+			}
+			c.EnqueueResourceIDAddWithMaxDepth(tt.resource, true, tt.maxDepth)
+			keys := popAllQueue(c)
+			if tt.want {
+				require.Len(t, keys, 1, "accepted events must enqueue the owning cluster")
+				require.Equal(t, strings.ToLower(testClusterARMID), strings.ToLower(keys[0]))
+			} else {
+				require.Empty(t, keys, "uninteresting or out-of-scope events must not enqueue")
+			}
+		})
+	}
+}
+
+func TestInterestingResourcesInformerEvents(t *testing.T) {
+	for _, cooldownAllowed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cooldownAllowed=%t", cooldownAllowed), func(t *testing.T) {
+			c, clusterID, npID := newTestWatchingController()
+			t.Cleanup(c.queue.ShutDown)
+			if !cooldownAllowed {
+				c.syncer.(*stringSyncer).cooldown = neverAllowCooldown{}
+			}
+			c.AddInterestingResource(npID.ResourceType, "np1")
+			n := &capturingNotifier{}
+			require.NoError(t, c.QueueForInformersWithMaxDepth(time.Minute, 1, n))
+			for _, resource := range []*azcorearm.ResourceID{npID, clusterID} {
+				oldObj := &coreapi.CosmosMetadata{ResourceID: resource, CosmosETag: "old"}
+				newObj := &coreapi.CosmosMetadata{ResourceID: resource, CosmosETag: "new"}
+				for _, event := range []string{"add", "changed update", "resync"} {
+					switch event {
+					case "add":
+						n.addFunc(newObj)
+					case "changed update":
+						n.updateFunc(oldObj, newObj)
+					case "resync":
+						n.updateFunc(newObj, newObj)
+					}
+					keys := popAllQueue(c)
+					if resource == npID && (event != "resync" || cooldownAllowed) {
+						require.Equal(t, []string{clusterID.String()}, keys, "%s should enqueue accepted resource", event)
+					} else {
+						require.Empty(t, keys, "%s should respect filtering and resync cooldown", event)
+					}
+				}
+			}
+			// Explicit work scheduling is independent of informer filtering.
+			c.Enqueue(clusterID.String())
+			require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
+		})
+	}
+}
+
+func TestQueueForInformersDelete(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
+	cluster := &coreapi.CosmosMetadata{ResourceID: clusterID}
+	nodePool := &coreapi.CosmosMetadata{ResourceID: npID}
+	tests := []struct {
+		name     string
+		obj      any
+		interest *azcorearm.ResourceID
+		maxDepth int
+		want     bool
+	}{
+		{name: "normal delete bypasses cooldown", obj: cluster, want: true},
+		{name: "tombstone bypasses cooldown", obj: cache.DeletedFinalStateUnknown{Obj: cluster}, want: true},
+		{name: "accepted child maps to ancestor", obj: nodePool, interest: npID, maxDepth: 1, want: true},
+		{name: "accepted tombstone maps to ancestor", obj: cache.DeletedFinalStateUnknown{Obj: nodePool}, interest: npID, maxDepth: 1, want: true},
+		{name: "parent interest does not accept child", obj: nodePool, interest: clusterID, maxDepth: 1},
+		{name: "different name is rejected", obj: nodePool, interest: metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID + "/nodePools/np2")), maxDepth: 1},
+		{name: "accepted child respects depth limit", obj: nodePool, interest: npID},
+		{name: "unlimited depth", obj: nodePool, maxDepth: -1, want: true},
+		{name: "invalid object", obj: "not a Cosmos document"},
+		{name: "invalid tombstone", obj: cache.DeletedFinalStateUnknown{Obj: "not a Cosmos document"}},
+		{name: "nil object"},
+		{name: "nil metadata", obj: (*coreapi.CosmosMetadata)(nil)},
+		{name: "missing resource ID", obj: &coreapi.CosmosMetadata{}},
+		{name: "tombstone missing resource ID", obj: cache.DeletedFinalStateUnknown{Obj: &coreapi.CosmosMetadata{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _, _ := newTestWatchingController()
+			t.Cleanup(c.queue.ShutDown)
+			c.syncer.(*stringSyncer).cooldown = neverAllowCooldown{}
+			if tt.interest != nil {
+				c.AddInterestingResource(tt.interest.ResourceType, tt.interest.Name)
+			}
+			n := &capturingNotifier{}
+			require.NoError(t, c.QueueForInformersWithMaxDepth(time.Minute, tt.maxDepth, n))
+			require.NotNil(t, n.deleteFunc)
+			require.NotPanics(t, func() { n.deleteFunc(tt.obj) })
+			keys := popAllQueue(c)
+			if tt.want {
+				require.Equal(t, []string{clusterID.String()}, keys, "accepted deletes must enqueue despite cooldown")
+			} else {
+				require.Empty(t, keys, "invalid, uninteresting or out-of-scope deletes must not enqueue")
+			}
+		})
+	}
 }
 
 func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
@@ -227,6 +367,7 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 type capturingNotifier struct {
 	addFunc    func(any)
 	updateFunc func(any, any)
+	deleteFunc func(any)
 }
 
 func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
@@ -236,6 +377,7 @@ func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEve
 	}
 	n.addFunc = f.AddFunc
 	n.updateFunc = f.UpdateFunc
+	n.deleteFunc = f.DeleteFunc
 	return nil, nil
 }
 

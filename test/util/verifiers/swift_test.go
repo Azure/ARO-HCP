@@ -83,7 +83,7 @@ func TestCheckSwiftRouterRows(t *testing.T) {
 					"kas-service": 1, "kas-endpoint": 2, "worker-outbound": 2}}
 			var rows []swiftRouterRow
 			for _, uid := range []string{"router-a", "router-b", "router-c"} {
-				rows = append(rows, swiftRouterRow{Scope: "pers/westus3/mgmt-1/hcp", Desired: 3, Current: 3, UID: uid, SummaryUID: uid, Node: uid + "-node", SummaryNode: uid + "-node", Pass: uid + "-pass", At: now.Add(-time.Minute)})
+				rows = append(rows, swiftRouterRow{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "hcp", Scope: "pers/westus3/mgmt-1/hcp", Desired: 3, Current: 3, UID: uid, SummaryUID: uid, Node: uid + "-node", SummaryNode: uid + "-node", Pass: uid + "-pass", At: now.Add(-time.Minute)})
 			}
 			if tt.edit != nil {
 				rows = tt.edit(rows, &s)
@@ -124,6 +124,7 @@ func TestCheckSwiftRouterRowsRecordedSummary(t *testing.T) {
 	var rows []swiftRouterRow
 	for _, uid := range []string{"router-a", "router-b", "router-c"} {
 		rows = append(rows, swiftRouterRow{
+			Environment: "dev", Region: "westus3", Cluster: "pers-usw3stev-mgmt-1", Namespace: "ocm-arohcppers-2t9ld2sicdamq97in1jqjgiksi70grc4-a9v9q1b9t7s9x6w",
 			Scope:   "dev/westus3/pers-usw3stev-mgmt-1/ocm-arohcppers-2t9ld2sicdamq97in1jqjgiksi70grc4-a9v9q1b9t7s9x6w",
 			Desired: 3, Current: 3, UID: uid, SummaryUID: uid, Node: uid + "-node", SummaryNode: uid + "-node",
 			Pass: uid + "-pass", At: now.Add(-time.Minute), Summary: summary,
@@ -159,12 +160,17 @@ func TestSwiftRouterQuery(t *testing.T) {
 		`distinct environment, region, cluster, namespace`,
 		`where timestamp >= start and objectKind in ("Pod", "Deployment")`,
 		`where timestamp >= start and container_name == "swift-recorder"`,
-		`join kind=leftsemi hcp on environment, region, cluster, namespace`,
 		"SummaryUID", "| take 101",
 	} {
 		if !strings.Contains(query, expected) {
 			t.Errorf("query missing %q", expected)
 		}
+	}
+	if got := strings.Count(query, `lookup kind=inner hcp on environment, region, cluster, namespace`); got != 2 {
+		t.Errorf("inventory and summaries must broadcast the distinct HCP mapping with lookups, got %d lookups", got)
+	}
+	if strings.Contains(query, "join kind=leftsemi hcp") {
+		t.Error("HCP filtering must not buffer the large runtime tables in a regular semi-join")
 	}
 	for _, forbidden := range []string{"clustersServiceLogs", "object.spec.infraID", "contains", "has "} {
 		if strings.Contains(query, forbidden) {
@@ -173,5 +179,72 @@ func TestSwiftRouterQuery(t *testing.T) {
 	}
 	if strings.Contains(strings.Split(query, "let inventory")[0], "timestamp >= start") {
 		t.Fatal("unchanged mapping documents may predate test start")
+	}
+}
+
+func TestExtractHCPCoordinates(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		rows []swiftRouterRow
+		want *hcpCoordinates
+	}{
+		{name: "nil rows", rows: nil, want: nil},
+		{name: "empty rows", rows: []swiftRouterRow{}, want: nil},
+		{name: "empty environment", rows: []swiftRouterRow{{Region: "westus3", Cluster: "mgmt-1", Namespace: "ns"}}, want: nil},
+		{name: "empty namespace", rows: []swiftRouterRow{{Environment: "pers", Region: "westus3", Cluster: "mgmt-1"}}, want: nil},
+		{name: "valid coordinates", rows: []swiftRouterRow{
+			{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ocm-arohcppers-abc-def"},
+		}, want: &hcpCoordinates{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ocm-arohcppers-abc-def"}},
+		{name: "uniform coordinates", rows: []swiftRouterRow{
+			{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ns"},
+			{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ns"},
+		}, want: &hcpCoordinates{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ns"}},
+		{name: "mixed scopes", rows: []swiftRouterRow{
+			{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ns-a"},
+			{Environment: "pers", Region: "westus3", Cluster: "mgmt-1", Namespace: "ns-b"},
+		}, want: nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractHCPCoordinates(tt.rows)
+			if tt.want == nil {
+				if got != nil {
+					t.Fatalf("expected nil, got %+v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("expected non-nil coordinates")
+			}
+			if *got != *tt.want {
+				t.Fatalf("got %+v, want %+v", *got, *tt.want)
+			}
+		})
+	}
+}
+
+func TestSwiftRouterPollQuery(t *testing.T) {
+	coords := &hcpCoordinates{Environment: "cspr", Region: "eastus2", Cluster: "mgmt-1", Namespace: "ocm-test-ns"}
+	query := swiftRouterPollQuery(coords, time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)).String()
+	for _, expected := range []string{
+		`let env = "cspr"`, `let rgn = "eastus2"`, `let cl = "mgmt-1"`, `let ns = "ocm-test-ns"`,
+		`kubernetesResourceSnapshots`,
+		`environment == env and region == rgn and cluster == cl and namespace == ns`,
+		`objectKind in ("Pod", "Deployment")`,
+		`object.metadata.labels.app == "private-router"`,
+		`containerLogs`,
+		`container_name == "swift-recorder"`,
+		`log.controller_name == "swift-router-check"`,
+		`tostring(log.pod_namespace) == ns`,
+		`| take 101`,
+	} {
+		if !strings.Contains(query, expected) {
+			t.Errorf("poll query missing %q", expected)
+		}
+	}
+	if strings.Contains(query, "cosmosResourceSnapshots") {
+		t.Error("poll query must not scan cosmosResourceSnapshots")
+	}
+	if strings.Contains(query, "lookup") {
+		t.Error("poll query must not use lookup joins; coordinates are pre-resolved")
 	}
 }

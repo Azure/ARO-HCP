@@ -379,6 +379,60 @@ func TestComputeMaxCapacity(t *testing.T) {
 	}
 }
 
+func TestComputeMaxCapacityConfiguredSecondaryNICs(t *testing.T) {
+	tests := []struct {
+		name      string
+		tags      map[string]*string
+		wantNICs  int64
+		wantEntry bool
+	}{
+		{
+			name: "tag absent",
+		},
+		{
+			name:      "zero count",
+			tags:      map[string]*string{agentpoolspec.SwiftSecondaryNICCountTag: ptr.To("0")},
+			wantEntry: true,
+		},
+		{
+			name:      "positive count",
+			tags:      map[string]*string{agentpoolspec.SwiftSecondaryNICCountTag: ptr.To("2")},
+			wantNICs:  6,
+			wantEntry: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pools := []armcontainerservice.AgentPool{
+				{
+					Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
+						VMSize:            ptr.To("Standard_D16ds_v5"),
+						Count:             ptr.To(int32(0)),
+						EnableAutoScaling: ptr.To(true),
+						MaxCount:          ptr.To(int32(3)),
+						NodeLabels:        workerNodeLabels(),
+						Tags:              test.tags,
+					},
+				},
+			}
+			skuMetadata := map[string]*skucache.SKUMetadata{
+				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", VCPUs: 16, MemoryBytes: memoryBytes("128Gi"), SecondaryNICs: 7},
+			}
+			wantMax := corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("48"),
+				corev1.ResourceMemory: resource.MustParse("384Gi"),
+			}
+			if test.wantEntry {
+				wantMax[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(test.wantNICs, resource.DecimalSI)
+			}
+
+			actual := computeMaxCapacity(nil, pools, skuMetadata)
+			assertResourceListEqual(t, wantMax, actual, "configured secondary NIC ceiling")
+		})
+	}
+}
+
 func TestComputeMaxCapacityPreservesFractionalSKU(t *testing.T) {
 	server := armcomputefake.ResourceSKUsServer{
 		NewListPager: func(options *armcompute.ResourceSKUsClientListOptions) (response azfake.PagerResponder[armcompute.ResourceSKUsClientListResponse]) {

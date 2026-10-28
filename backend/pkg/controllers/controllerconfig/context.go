@@ -26,6 +26,7 @@ import (
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -38,18 +39,29 @@ import (
 )
 
 type ControllerContext struct {
-	AzureLocation                                       string
+	AzureLocation string
+	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
+	// Application (FPA) identity is registered. It is the tenantId used both to
+	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
+	// as the Secrets Store CSI Driver's authentication tenant when delivering TLS
+	// certificates from Key Vault onto a management cluster. It is never a customer's
+	// tenant, and permissions granted here are not scoped to any individual
+	// customer's HostedCluster or subscription.
+	ServiceTenantID                                     string
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
+	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
 	BackupConfig                                        *clusterbackups.BackupConfig
 	BillingDBClient                                     billingcosmosstorage.BillingDBClient
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	ClustersServiceClient                               ocm.ClusterServiceClientSpec
+	VersionProfileSource                                cincinnati.VersionProfileSource
 	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
 	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
 	HasRealFPA                                          bool
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string

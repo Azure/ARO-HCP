@@ -12,6 +12,4 @@ param armHelperPoolSize = {{ .ci.dev.mockIdentities.armHelperPool.size }}
 // them there in addition to the e2e subscriptions below.
 param grantHomeSubscription = true
 
-param e2eSubscriptionIds = [
-{{ range .ci.dev.e2eSubscriptions }}  '{{ .id }}'
-{{ end }}]
+param e2eSubscriptionIds = empty('{{ .ci.dev.e2eSubscriptions }}') ? [] : map(split('{{ .ci.dev.e2eSubscriptions }}', ','), pair => split(pair, '=')[0])

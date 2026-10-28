@@ -65,6 +65,8 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
 		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedControlPlaneExactVersion  string
+		expectedBackupScheduleOverride    coreapi.BackupScheduleState
 	}{
 		{
 			name:               "AFEC registered recognizes disable-swift without projecting a feature",
@@ -99,11 +101,12 @@ func TestMutateCluster(t *testing.T) {
 			expectZeroFeatures: true,
 		},
 		{
-			name:                             "AFEC registered with single-replica tag only",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			name:         "AFEC registered rejects single-replica create",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:                          "AFEC registered with size-override tag only",
@@ -113,12 +116,12 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
-			name:                             "AFEC registered with both tags",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
-			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+			name:         "AFEC registered rejects single-replica create with independent sizing",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:               "AFEC registered but no tags",
@@ -135,11 +138,12 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
-			name:                             "AFEC registered with case insensitive tag keys - single-replica",
-			subscription:                     afecRegistered,
-			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
-			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			name:         "AFEC registered rejects case insensitive single-replica tag keys",
+			subscription: afecRegistered,
+			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]", Message: "single-replica control planes cannot be enabled"},
+			},
 		},
 		{
 			name:               "AFEC registered but tag values are empty strings",
@@ -281,6 +285,82 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			// The exact-version tag is translated in the same pass as every other
+			// experimental tag, so it composes with them.
+			name:         "AFEC registered with exact-version tag alongside size-override",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterControlPlaneExactVersion: "4.17.3",
+				metadataapi.TagClusterSizeOverride:             string(coreapi.MinimalControlPlanePodSizing),
+			},
+			expectErrors:                     []utils.ExpectedError{},
+			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+			expectedControlPlaneExactVersion: "4.17.3",
+		},
+		{
+			name:                           "AFEC registered with backup-schedule-override tag",
+			subscription:                   afecRegistered,
+			tags:                           map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:                   []utils.ExpectedError{},
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:                           "AFEC registered with case insensitive backup-schedule-override tag key",
+			subscription:                   afecRegistered,
+			tags:                           map[string]string{"ARO-HCP.Experimental.Cluster.Backup-Schedule-Override": string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:                   []utils.ExpectedError{},
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:               "AFEC registered with empty backup-schedule-override tag",
+			subscription:       afecRegistered,
+			tags:               map[string]string{metadataapi.TagClusterBackupScheduleOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered but backup-schedule-override tag rejects Disabled",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateDisabled)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:         "AFEC registered but backup-schedule-override tag rejects true",
+			subscription: afecRegistered,
+			tags:         map[string]string{metadataapi.TagClusterBackupScheduleOverride: "true"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores backup-schedule-override tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered rejects the backup-schedule-override tag name without the suffix",
+			subscription: afecRegistered,
+			tags:         map[string]string{"aro-hcp.experimental.cluster.backup-schedule": string(coreapi.BackupScheduleStateEnabled)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
+		},
+		{
+			name:         "AFEC registered with backup-schedule-override alongside other experimental tags",
+			subscription: afecRegistered,
+			tags: map[string]string{
+				metadataapi.TagClusterSizeOverride:           string(coreapi.MinimalControlPlanePodSizing),
+				metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled),
+			},
+			expectErrors:                   []utils.ExpectedError{},
+			expectedControlPlanePodSizing:  coreapi.MinimalControlPlanePodSizing,
+			expectedBackupScheduleOverride: coreapi.BackupScheduleStateEnabled,
+		},
 	}
 
 	for _, tt := range tests {
@@ -317,9 +397,172 @@ func TestMutateCluster(t *testing.T) {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
 			}
+			gotExact := ""
+			if exact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+				gotExact = exact.String()
+			}
+			if gotExact != tt.expectedControlPlaneExactVersion {
+				t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectedControlPlaneExactVersion, gotExact)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride != tt.expectedBackupScheduleOverride {
+				t.Errorf("expected BackupScheduleOverride %q, got %q",
+					tt.expectedBackupScheduleOverride, cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride)
+			}
+		})
+	}
+}
+
+// TestMutateClusterBackupScheduleOverrideUpdate covers the UPDATE path, where the
+// mutator re-derives ExperimentalFeatures from the incoming tag map. Clearing the
+// tag retracts the override, which is how a cluster returns to the deployment-wide
+// backup schedule state.
+func TestMutateClusterBackupScheduleOverrideUpdate(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range []struct {
+		name     string
+		tags     map[string]string
+		expected coreapi.BackupScheduleState
+	}{
+		{
+			name:     "retained when the tag is still present",
+			tags:     map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+			expected: coreapi.BackupScheduleStateEnabled,
+		},
+		{
+			name:     "cleared when the tag value is emptied",
+			tags:     map[string]string{metadataapi.TagClusterBackupScheduleOverride: ""},
+			expected: "",
+		},
+		{
+			name:     "cleared when the tag is dropped from the map",
+			tags:     map[string]string{},
+			expected: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			oldCluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: map[string]string{metadataapi.TagClusterBackupScheduleOverride: string(coreapi.BackupScheduleStateEnabled)},
+				},
+			}
+			oldCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+
+			newCluster := &coreapi.Cluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			newCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
+				Subscription:    afecRegistered,
+				OriginalCluster: newCluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
+			utils.VerifyErrorsMatch(t, []utils.ExpectedError{}, errs)
+
+			if got := newCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride; got != tt.expected {
+				t.Errorf("expected BackupScheduleOverride %q, got %q", tt.expected, got)
+			}
 		})
 	}
 
+}
+
+func TestMutateClusterSingleReplicaTransitions(t *testing.T) {
+	registered := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{
+		RegisteredFeatures: &[]coreapi.Feature{{
+			Name: ptr.To(metadataapi.FeatureExperimentalReleaseFeatures), State: ptr.To("Registered"),
+		}},
+	}}
+	tests := []struct {
+		name         string
+		op           operation.Type
+		oldCluster   bool
+		oldReplica   bool
+		oldTag       bool
+		tagKey       string
+		tagValue     string
+		wantReplica  bool
+		errorMessage string
+	}{
+		{name: "create rejects opt-in", op: operation.Create, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "create cannot be grandfathered by an old object", op: operation.Create, oldCluster: true, oldReplica: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "update without old state rejects opt-in", op: operation.Update, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "update default availability rejects opt-in", op: operation.Update, oldCluster: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "old tag alone cannot grandfather update", op: operation.Update, oldCluster: true, oldTag: true, tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "persisted single replica retains setting", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true, tagValue: "SingleReplica", wantReplica: true},
+		{name: "persisted state without old tag grandfathers update", op: operation.Update, oldCluster: true, oldReplica: true, tagValue: "SingleReplica", wantReplica: true},
+		{name: "mixed case key cannot bypass rejection", op: operation.Update, oldCluster: true, tagKey: strings.ToUpper(metadataapi.TagClusterSingleReplica), tagValue: "SingleReplica", errorMessage: "single-replica control planes cannot be enabled"},
+		{name: "mixed case key retains persisted single replica", op: operation.Update, oldCluster: true, oldReplica: true, tagKey: strings.ToUpper(metadataapi.TagClusterSingleReplica), tagValue: "SingleReplica", wantReplica: true},
+		{name: "removing tag opts out", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true},
+		{name: "empty tag opts out", op: operation.Update, oldCluster: true, oldReplica: true, oldTag: true, tagKey: metadataapi.TagClusterSingleReplica},
+		{name: "default availability remains default", op: operation.Update, oldCluster: true},
+		{name: "create without opt-in remains default", op: operation.Create},
+		{name: "incorrect value case remains invalid", op: operation.Create, tagValue: "singlereplica", errorMessage: `must be "SingleReplica" or empty`},
+		{name: "persisted single replica cannot bypass invalid value", op: operation.Update, oldCluster: true, oldReplica: true, tagValue: "true", errorMessage: `must be "SingleReplica" or empty`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &coreapi.Cluster{}
+			cluster.Tags = map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)}
+			if tt.tagKey != "" || tt.tagValue != "" {
+				key := tt.tagKey
+				if key == "" {
+					key = metadataapi.TagClusterSingleReplica
+				}
+				cluster.Tags[key] = tt.tagValue
+			}
+			var oldCluster *coreapi.Cluster
+			if tt.oldCluster {
+				oldCluster = &coreapi.Cluster{}
+				if tt.oldReplica {
+					oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+				}
+				if tt.oldTag {
+					oldCluster.Tags = map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)}
+				}
+			}
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           clocktesting.NewFakeClock(time.Unix(1000, 0)),
+				Subscription:    registered,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(t.Context(), admissionContext, operation.Operation{Type: tt.op}, cluster, oldCluster)
+			var expectedErrors []utils.ExpectedError
+			if tt.errorMessage != "" {
+				expectedErrors = []utils.ExpectedError{{
+					FieldPath: "tags[" + metadataapi.TagClusterSingleReplica + "]",
+					Message:   tt.errorMessage,
+				}}
+			}
+			utils.VerifyErrorsMatch(t, expectedErrors, errs)
+			if tt.errorMessage != "" {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != (coreapi.ExperimentalFeatures{}) {
+					t.Fatal("rejected experimental tags must not be projected into features")
+				}
+				return
+			}
+			want := coreapi.ExperimentalFeatures{ControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing}
+			if tt.wantReplica {
+				want.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+			}
+			if got := cluster.ServiceProviderProperties.ExperimentalFeatures; got != want {
+				t.Errorf("experimental features = %+v, want %+v", got, want)
+			}
+		})
+	}
 }
 
 func TestMutateClusterZStreamUpdatePolicy(t *testing.T) {
@@ -448,22 +691,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			},
 		},
 		{
-			name:              "AFEC without exact-version tag relocates patch version.id",
-			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.17.3",
-			expectErrors:      []utils.ExpectedError{},
-			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			name:            "AFEC without exact-version tag does not pin from patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
 		},
 		{
-			name:              "tag value is authoritative over patch version.id",
+			name:              "tag pins the exact version and leaves a patch version.id untouched",
 			subscription:      afecRegistered,
 			tags:              map[string]string{exactTag: "4.17.3"},
 			versionID:         "4.17.9",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.17.3",
-			expectVersionID:   "4.17",
+			expectVersionID:   "4.17.9",
 		},
 		{
 			name:         "AFEC with present-but-empty exact-version tag is rejected",
@@ -484,19 +727,41 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID: "4.20.garbage",
 		},
 		{
-			name:              "AFEC with nightly version.id (no tag) is relocated and stripped to major.minor",
+			name:            "AFEC with nightly version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "5.0.0-0.nightly-multi-2026-07-09-124132",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "5.0.0-0.nightly-multi-2026-07-09-124132",
+		},
+		{
+			name:              "AFEC with nightly build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "5.0.0-0.nightly-multi-2026-07-09-124132",
+			tags:              map[string]string{exactTag: "5.0.0-0.nightly-multi-2026-07-09-124132"},
+			versionID:         "5.0",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "5.0.0-0.nightly-multi-2026-07-09-124132",
 			expectVersionID:   "5.0",
 		},
 		{
-			name:            "AFEC with neither tag nor patch version.id clears an existing exact pin",
+			name:            "AFEC without the exact-version tag clears an existing exact pin on UPDATE",
 			subscription:    afecRegistered,
 			op:              operation.Operation{Type: operation.Update},
 			tags:            map[string]string{},
+			versionID:       "4.17",
+			oldExactVersion: "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			// The pin is derived from tags on every pass, so an unrelated tag does
+			// not resurrect a pin whose tag is gone.
+			name:            "AFEC clears an existing exact pin on UPDATE even when other tags are present",
+			subscription:    afecRegistered,
+			op:              operation.Operation{Type: operation.Update},
+			tags:            map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			versionID:       "4.17",
 			oldExactVersion: "4.17.3",
 			expectErrors:    []utils.ExpectedError{},
@@ -513,13 +778,22 @@ func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
 			expectVersionID:   "4.20",
 		},
 		{
-			name:              "pre-release patch version.id (no tag) is relocated and stripped to major.minor",
+			name:              "pre-release build in the tag pins the exact version",
 			subscription:      afecRegistered,
-			tags:              map[string]string{},
-			versionID:         "4.20.0-rc.1",
+			tags:              map[string]string{exactTag: "4.20.0-rc.1"},
+			versionID:         "4.20",
 			expectErrors:      []utils.ExpectedError{},
 			expectExactString: "4.20.0-rc.1",
 			expectVersionID:   "4.20",
+		},
+		{
+			name:            "pre-release patch version.id (no tag) does not pin and is left untouched",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.20.0-rc.1",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.20.0-rc.1",
 		},
 	}
 
@@ -765,20 +1039,20 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
-	observedHostedClusterWithV5Mirror := func() *hsv1beta1.HostedCluster {
-		return &hsv1beta1.HostedCluster{
-			Spec: hsv1beta1.HostedClusterSpec{
-				ImageContentSources: []hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}},
-			},
-		}
-	}
-
 	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
+		}
+	}
+
+	serviceProviderClusterSpecWithDesiredControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterSpec {
+		return coreapi.ServiceProviderClusterSpec{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
+				DesiredVersion: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion))),
+			},
 		}
 	}
 
@@ -789,7 +1063,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 		return coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
-			ActualHostedCluster: observedHostedClusterWithV5Mirror(),
+			ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource{{Source: apihelpers.OcpV5ArtDevMirrorSource}}),
 		}
 	}
 
@@ -846,8 +1120,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		oldClusterVersionID          string
 		channelGroup                 string
 		etcd                         coreapi.EtcdProfile
-		options                      []string
+		options                      map[string]bool
+		serviceProviderClusterSpec   coreapi.ServiceProviderClusterSpec
 		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
+		oldClusterExactVersionPin    string // control-plane exact-version pin already on the cluster, if any
 		nodePools                    []*coreapi.NodePool
 		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
 		newClusterFromOld            func(*coreapi.Cluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
@@ -1190,7 +1466,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			oldClusterVersionID:          "4.22",
 			channelGroup:                 "nightly",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.0-0.nightly-multi-2026-06-29-132714"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1201,7 +1477,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 4.22",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.4"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1212,7 +1488,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 5.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.0.1"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1223,7 +1499,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked at 4.21",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.5"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1236,7 +1512,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed during upgrade with lowest >= 4.22.4",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.23.0", "4.22.4"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1247,7 +1523,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked during upgrade with lowest < 4.22.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22.0", "4.21.15"),
 			newClusterFromOld: func(c *coreapi.Cluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
@@ -1260,9 +1536,38 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "no error when kms key version unchanged on old cluster",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("same-version"),
-			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			options:                      map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
+		},
+		{
+			// The exact-version pin may move in either direction within its
+			// release line. version.id keeps its own no-downgrade rule, but
+			// which build of that line the control plane runs is the pin's
+			// business, so admission does not compare the pin against the
+			// versions the cluster already holds.
+			name:                         "lowering the exact-version pin below the desired and active control plane versions is admitted",
+			oldClusterVersionID:          "4.21",
+			oldClusterExactVersionPin:    "4.21.9",
+			serviceProviderClusterSpec:   serviceProviderClusterSpecWithDesiredControlPlaneVersion("4.21.9"),
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.9"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant("4.21.5")))
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Same for a first pin on a previously unpinned cluster, which
+			// static validation cannot see at all: it has no old pin to compare
+			// against.
+			name:                         "first exact-version pin below the desired and active control plane versions is admitted",
+			oldClusterVersionID:          "4.21",
+			serviceProviderClusterSpec:   serviceProviderClusterSpecWithDesiredControlPlaneVersion("4.21.9"),
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.9"),
+			newClusterFromOld: func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant("4.21.0")))
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -1272,6 +1577,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 
 			serviceProviderCluster := &coreapi.ServiceProviderCluster{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
+				Spec:           tt.serviceProviderClusterSpec,
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
@@ -1305,6 +1611,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 					// Unrelated to version skew, but admission rejects a cluster missing them.
 					Platform: coreapitesting.MinimumValidClusterTestCase().CustomerProperties.Platform,
 				},
+			}
+			if tt.oldClusterExactVersionPin != "" {
+				oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(metadataapi.Must(semver.ParseTolerant(tt.oldClusterExactVersionPin)))
 			}
 			newCluster := oldCluster.DeepCopy()
 			if tt.newClusterFromOld != nil {
@@ -1841,34 +2150,21 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 	// (field.NewPath("properties").Child("version")).
 	fldPath := field.NewPath("properties", "version")
 
-	// spcWithMirrors models a ServiceProviderCluster whose ActualHostedCluster has
-	// been mirrored by the backend, carrying the given image content sources.
+	// spcWithMirrors models a ServiceProviderCluster whose image content sources
+	// have been mirrored by the backend.
 	spcWithMirrors := func(sources ...string) *coreapi.ServiceProviderCluster {
-		hostedCluster := &hsv1beta1.HostedCluster{}
-		for _, source := range sources {
-			hostedCluster.Spec.ImageContentSources = append(hostedCluster.Spec.ImageContentSources,
-				hsv1beta1.ImageContentSource{Source: source})
+		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
+		for index, source := range sources {
+			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
 		}
 		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{ActualHostedCluster: hostedCluster},
+			Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: &imageContentSources},
 		}
 	}
 	// spcUnmirrored models a ServiceProviderCluster the backend has not yet
 	// observed a HostedCluster for. A v5 upgrade must fail closed until the
 	// required mirror is proven present.
 	spcUnmirrored := &coreapi.ServiceProviderCluster{}
-	spcWithImageContentSources := func(actualHostedCluster *hsv1beta1.HostedCluster, sources ...string) *coreapi.ServiceProviderCluster {
-		imageContentSources := make([]hsv1beta1.ImageContentSource, len(sources))
-		for index, source := range sources {
-			imageContentSources[index] = hsv1beta1.ImageContentSource{Source: source}
-		}
-		return &coreapi.ServiceProviderCluster{
-			Status: coreapi.ServiceProviderClusterStatus{
-				ImageContentSources: &imageContentSources,
-				ActualHostedCluster: actualHostedCluster,
-			},
-		}
-	}
 
 	const v4Mirror = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
 	missingMirror := []utils.ExpectedError{
@@ -1887,49 +2183,13 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 		expectErrors []utils.ExpectedError
 	}{
 		{
-			name:       "new field with v5 source passes without legacy mirror",
+			name:       "non-nil pointer to a nil slice reports missing not unavailable",
 			op:         operation.Operation{Type: operation.Update},
 			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
 			newVersion: &coreapi.VersionProfile{ID: "5.0"},
-			spc:        spcWithImageContentSources(nil, apihelpers.OcpV5ArtDevMirrorSource),
-		},
-		{
-			name:         "new field without v5 source is rejected without legacy mirror",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(nil, v4Mirror),
-			expectErrors: missingMirror,
-		},
-		{
-			name:       "new field takes precedence over legacy mirror missing v5 source",
-			op:         operation.Operation{Type: operation.Update},
-			oldVersion: &coreapi.VersionProfile{ID: "4.22"},
-			newVersion: &coreapi.VersionProfile{ID: "5.0"},
-			spc:        spcWithImageContentSources(spcWithMirrors(v4Mirror).Status.ActualHostedCluster, apihelpers.OcpV5ArtDevMirrorSource),
-		},
-		{
-			name:         "new field missing v5 source takes precedence over legacy mirror with v5 source",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster, v4Mirror),
-			expectErrors: missingMirror,
-		},
-		{
-			name:         "observed empty new field does not fall back to legacy v5 source",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(spcWithMirrors(apihelpers.OcpV5ArtDevMirrorSource).Status.ActualHostedCluster),
-			expectErrors: missingMirror,
-		},
-		{
-			name:         "observed empty new field without legacy mirror reports missing not unavailable",
-			op:           operation.Operation{Type: operation.Update},
-			oldVersion:   &coreapi.VersionProfile{ID: "4.22"},
-			newVersion:   &coreapi.VersionProfile{ID: "5.0"},
-			spc:          spcWithImageContentSources(nil),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{ImageContentSources: ptr.To([]hsv1beta1.ImageContentSource(nil))},
+			},
 			expectErrors: missingMirror,
 		},
 		{
@@ -1979,7 +2239,7 @@ func TestAdmitClusterV5DataPlaneMirror(t *testing.T) {
 			expectErrors: missingMirror,
 		},
 		{
-			// Fail closed: nil ActualHostedCluster means the required mirror has not
+			// Fail closed: nil ImageContentSources means the required mirror has not
 			// been proven present yet.
 			name:         "4->5 upgrade with an unmirrored hosted cluster is rejected until synced",
 			op:           operation.Operation{Type: operation.Update},

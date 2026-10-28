@@ -28,17 +28,20 @@ import (
 
 // ciJobOutcome is one row of the ciJobOutcomes table: a single CI job run.
 type ciJobOutcome struct {
-	BuildID       string    `json:"buildId"`
-	SvcCluster    string    `json:"svcCluster"`
-	MgmtCluster   string    `json:"mgmtCluster"`
-	JobName       string    `json:"jobName"`
-	ProwURL       string    `json:"prowUrl"`
-	Family        string    `json:"family"`
-	OverallResult string    `json:"overallResult"`
-	Failed        bool      `json:"failed"`
-	StartedAt     time.Time `json:"startedAt"`
-	FinishedAt    time.Time `json:"finishedAt"`
-	ADOBuildID    string    `json:"adoBuildId"`
+	BuildID       string        `json:"buildId"`
+	SvcCluster    string        `json:"svcCluster"`
+	MgmtCluster   string        `json:"mgmtCluster"`
+	JobName       string        `json:"jobName"`
+	ProwURL       string        `json:"prowUrl"`
+	Family        string        `json:"family"`
+	OverallResult string        `json:"overallResult"`
+	Failed        bool          `json:"failed"`
+	StartedAt     time.Time     `json:"startedAt"`
+	FinishedAt    time.Time     `json:"finishedAt"`
+	ADOBuildID    string        `json:"adoBuildId"`
+	RuntimeRegion string        `json:"runtimeRegion"`
+	LeasedSlot    string        `json:"leasedSlot"`
+	LeasedAssets  []leasedAsset `json:"leasedAssets"`
 }
 
 // ciTestName is one row of the ciTestNames table: a distinct test.
@@ -115,5 +118,8 @@ func outcomeForProw(info *snapshot.ProwJobInfo, completion prowCompletion, detai
 		SvcCluster:    detail.SvcCluster,
 		MgmtCluster:   detail.MgmtCluster,
 		ADOBuildID:    detail.ADOBuildID,
+		RuntimeRegion: detail.SlotState.RuntimeRegion,
+		LeasedSlot:    detail.SlotState.LeasedSlot,
+		LeasedAssets:  detail.SlotState.LeasedAssets,
 	}
 }

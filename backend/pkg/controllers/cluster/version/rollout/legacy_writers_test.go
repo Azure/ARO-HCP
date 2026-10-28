@@ -24,6 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -91,6 +92,7 @@ func TestLegacyRolloutWriters(t *testing.T) {
 				want.Spec.BestExactVersion = v("4.21.6")
 			case "status":
 				want.Status.ClusterCountByDesiredExactVersion = map[string]int64{"4.21.1": 1}
+				want.Status.ReferencingClusterCount = ptr.To(int64(1))
 				want.Status.MismatchedClusterCountByDesiredExactVersion = map[string]int64{"4.21.1": 1}
 			default:
 				for i := range want.Status.Conditions {

@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const MaestroRegistrationControllerName = "MaestroRegistrationController"
+
 type maestroRegistrationSyncer struct {
 	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	maestroConsumerClientFactory MaestroConsumerClientFactory
@@ -53,12 +55,15 @@ func NewMaestroRegistrationController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"MaestroRegistrationController",
+		MaestroRegistrationControllerName,
+		stampInformer,
+		fleetcontrollers.DefaultInformerResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer, stampInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

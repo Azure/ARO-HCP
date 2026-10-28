@@ -51,6 +51,10 @@ type NodePoolAdmissionContext struct {
 	Cluster                 *coreapi.Cluster
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 	ServiceProviderCluster  *coreapi.ServiceProviderCluster
+	// ClusterNodePools is every node pool for the parent cluster, including the one
+	// being updated. It is populated on UPDATE only and is used to enforce the
+	// cluster-wide minimum worker-node floor in admitReplicas.
+	ClusterNodePools []*coreapi.NodePool
 }
 
 // MutateNodePool applies admission-time mutations to a node pool (e.g. defaulting
@@ -200,23 +204,49 @@ func mutateNodePoolUpdateOperationCompletionDeadline(_ context.Context, admissio
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
 type NodePoolDeleteAdmissionContext struct {
 	// NodePools is a list of all node pools for the cluster, including the one being deleted.
+	// Node pools whose deletion has already been requested (ServiceProviderProperties.DeletionTimestamp
+	// set) are also here, since their Cosmos document is only removed once the underlying
+	// teardown completes.
 	NodePools []*coreapi.NodePool
 }
 
 // AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
-func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *coreapi.NodePool) field.ErrorList {
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, nodePoolBeingDeleted *coreapi.NodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
-	// if we are. This is because as of now (2026-05-29) it is not possible to delete the last node pool from the cluster
-	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
-	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
-	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
-	if len(admissionContext.NodePools) <= 1 {
-		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
-	}
+	errs = append(errs, admitAtLeastOneNodePoolRemains(ctx, admissionContext, nodePoolBeingDeleted)...)
 
 	return errs
+}
+
+// admitAtLeastOneNodePoolRemains is a *best-effort* check to see if we are the last node pool on the
+// cluster and prevent deletion if we are. This is because as of now (2026-05-29) it is not possible
+// to delete the last node pool from the cluster OCPBUGS-86702. This check won't fully prevent the
+// last node pool deletion in all cases as there are edge cases where race conditions can occur, but
+// it should be good enough to prevent the last node pool deletion in most cases.
+// admissionContext.NodePools includes node pools whose deletion has already been requested
+// (DeletionTimestamp set) but whose document has not yet been removed. Those must not count as
+// survivors, or the last active node pool could be deleted concurrently with others already tearing
+// down, leaving zero, which is what this check is trying to prevent.
+// TODO once OCPBUGS-86702 is fixed, we should remove this check.
+func admitAtLeastOneNodePoolRemains(_ context.Context, admissionContext *NodePoolDeleteAdmissionContext, nodePoolBeingDeleted *coreapi.NodePool) field.ErrorList {
+	// A retried DELETE call on a node pool whose deletion was already accepted skips this check
+	// rather than being re-evaluated by it: the deletion is already underway and will proceed
+	// regardless of this request's outcome, so the retry is accepted idempotently here.
+	if nodePoolBeingDeleted.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
+
+	for _, nodePool := range admissionContext.NodePools {
+		if strings.EqualFold(nodePool.ResourceID.String(), nodePoolBeingDeleted.ResourceID.String()) {
+			continue
+		}
+		if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+			// At least one of the other node pools is not being deleted, so we can allow the deletion.
+			return nil
+		}
+	}
+	return field.ErrorList{field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster.")}
 }
 
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
@@ -235,7 +265,7 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 
 	errs = append(errs, admitNodePoolVersion(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToNodePoolPropertiesVersion))...)
 	errs = append(errs, admitNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
-
+	errs = append(errs, admitReplicas(ctx, admissionContext, op, fldPath.Child("replicas"), newObj, oldObj)...)
 	return errs
 }
 
@@ -298,6 +328,66 @@ func admitNodePoolOSDiskEncryptionSet(ctx context.Context, admissionContext *Nod
 	return validation.DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, nil, clusterManagedResourceGroupName)
 }
 
+// admitReplicas reduces the chances (not guaranteed) that updates drive the cluster
+// to zero worker nodes. Zero nodes blocks cluster workloads like the ingress operator
+// (see https://redhat.atlassian.net/browse/OCPBUGS-85364). Fixed replicas=0 is forced
+// zero; autoscaling min=0 is not (autoscaler keeps pods schedulable).
+//
+// Rejects capacity-removing updates (fixed >0→0 or autoscaling max>0→0) only when no
+// other pool provides capacity. Label/version changes and pre-existing zero pools pass.
+//
+// Limitation: Cached state allows concurrent updates to race. Both pools providing
+// capacity can receive concurrent reduce-capacity updates, each see old state, both
+// pass, and leave the cluster at zero. The operation deadline only bounds stuck
+// updates; recovery requires a customer-issued corrective update.
+//
+//	Only runs on UPDATE; CREATE is additive.
+func admitReplicas(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	// Act only when this update takes a capacity-providing pool to a forced zero.
+	if canRunWorkerNodes(newObj) || !canRunWorkerNodes(oldObj) {
+		return nil
+	}
+
+	// The cluster is fine as long as any other node pool still provides capacity.
+	// The lister copy of the pool under update carries its stored (old) state, so
+	// skip it.
+	existingNodePoolID := admissionContext.OriginalNodePool.ID
+	for _, np := range admissionContext.ClusterNodePools {
+
+		if strings.EqualFold(np.ID.String(), existingNodePoolID.String()) {
+			continue
+		}
+		// Do not count a nodepool that is being deleted
+		if np.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
+		if canRunWorkerNodes(&np.Properties) {
+			return nil
+		}
+	}
+
+	return field.ErrorList{field.Forbidden(
+		fldPath,
+		"cannot scale this node pool down to zero replicas.",
+	)}
+}
+
+// canRunWorkerNodes reports whether a node pool can run at least one worker node,
+// now or via autoscaling. A fixed-size pool can when Replicas>0. An autoscaling
+// pool can when it is allowed to run nodes (Max>0) even if Min=0, because the
+// cluster autoscaler keeps nodes that running workloads need and can scale up from
+// zero; it is never a forced zero.
+func canRunWorkerNodes(np *coreapi.NodePoolProperties) bool {
+	if np.AutoScaling != nil {
+		return np.AutoScaling.Max > 0
+	}
+	return np.Replicas > 0
+}
+
 // validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.
 // It checks:
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
@@ -332,7 +422,8 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
-	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
+	experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)
+	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, experimentalFeaturesEnabled); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 

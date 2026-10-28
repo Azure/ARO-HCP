@@ -102,7 +102,7 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
 
 ### Adding a new Grafana dashboard
 
-See [docs/grafana-dashboards.md](../grafana-dashboards.md) for details on creating and editing Grafana dashboards.
+See [docs/grafana-dashboards.md](../grafana-dashboards.md) for details on modifying and creating PRs for Grafana dashboards.
 
 Note: For HCP metrics, use dashboard folder `observability/grafana-dashboards/kas-monitor/`.
 

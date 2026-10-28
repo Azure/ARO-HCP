@@ -236,11 +236,19 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		return nil, fmt.Errorf("cannot load service provider cluster %s for node pool admission: %v", clusterID, err)
 	}
 	var serviceProviderNodePool *coreapi.ServiceProviderNodePool
+	var nodePools []*coreapi.NodePool
 	if op.Type == operation.Update {
 		nodePoolID := originalNodePool.ID
 		serviceProviderNodePool, err = f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load service provider node pool %s for node pool admission: %v", nodePoolID, err)
+		}
+		// All node pools for the cluster (including the one being updated) are
+		// needed so admission can enforce the cluster-wide minimum worker-node
+		// floor (prevent downgrading the cluster to zero nodes).
+		nodePools, err = f.nodePoolLister.ListForCluster(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
+		if err != nil {
+			return nil, fmt.Errorf("cannot list node pools for cluster %s for node pool admission: %v", clusterID, err)
 		}
 	}
 
@@ -251,6 +259,7 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		Cluster:                 cluster,
 		ServiceProviderCluster:  serviceProviderCluster,
 		ServiceProviderNodePool: serviceProviderNodePool,
+		ClusterNodePools:        nodePools,
 	}, nil
 }
 
@@ -736,9 +745,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewNodePoolDeletionApproach = true
+
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -757,9 +764,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	}
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
-	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach = true
+
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {

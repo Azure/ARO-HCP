@@ -70,7 +70,7 @@ rgOrdered:
 	}
 }
 
-func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
+func TestRepositoryPolicyProtectsIdentityPools(t *testing.T) {
 	t.Parallel()
 
 	pol, err := Load("../../resourcegroups.policy.yaml")
@@ -94,7 +94,13 @@ func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
 			name:           "identity container older than 15 days is skipped case insensitively",
 			resourceGroup:  "ARO-HCP-MSI-Container-dev-shard0-00-00",
 			expectSelected: false,
-			expectRule:     "skip-identity-container-pools",
+			expectRule:     "skip-persistent-identity-pools",
+		},
+		{
+			name:           "infrastructure identity bundle older than 15 days is skipped",
+			resourceGroup:  "aro-hcp-dev-infrastructure-identities-00-mgmt-1",
+			expectSelected: false,
+			expectRule:     "skip-persistent-identity-pools",
 		},
 		{
 			name:           "unrelated persistent group older than 15 days is selected",
@@ -204,6 +210,45 @@ func TestPolicyValidate_RejectsInvalidRules(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.errContains) {
 				t.Fatalf("expected error to contain %q, got %q", tc.errContains, err.Error())
+			}
+		})
+	}
+}
+
+func TestLoad_RejectsUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	for name, doc := range map[string]string{
+		"top-level": `
+rgOrdered:
+  excludedResourceGroup: [keep]
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}}
+`,
+		"rule": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}, olderThen: 1h}
+`,
+		"match": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {nameRegx: "^x$"}}
+`,
+		"conditions": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}, conditions: {managedByAlve: true}}
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Load(writeTemp(t, doc)); err == nil || !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("error = %v, want unknown field", err)
 			}
 		})
 	}

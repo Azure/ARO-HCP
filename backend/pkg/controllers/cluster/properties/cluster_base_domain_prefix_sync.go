@@ -60,7 +60,7 @@ func NewClusterBaseDomainPrefixSyncController(
 		clusterServiceClient: clusterServiceClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterBaseDomainPrefixSyncControllerName,
 		resourcesDBClient,
 		informers,
@@ -68,6 +68,9 @@ func NewClusterBaseDomainPrefixSyncController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster) bool {
@@ -105,7 +108,10 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 		return nil
 	}
 
-	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csCluster, err := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}

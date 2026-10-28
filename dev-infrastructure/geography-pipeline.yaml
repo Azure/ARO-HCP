@@ -34,16 +34,18 @@ resourceGroups:
     environments:
     - prod
     regions:
-    - australiaeast
-    - brazilsouth
-    - canadacentral
-    - centralindia
-    - eastus2
     - eastus2euap
-    - westeurope
-    - switzerlandnorth
     - uksouth
+    - switzerlandnorth
+    - canadacentral
+    - australiaeast
+    - westeurope
+    - centralindia
+    - brazilsouth
+    - eastus2
     - japaneast
+    - swedencentral
+    - eastasia
   steps:
   - name: subscription-lookup
     action: ARM
@@ -60,7 +62,6 @@ resourceGroups:
     environments:
     - int
     regions:
-    - uksouth
     - westus3
   - clouds:
     - public
@@ -74,16 +75,18 @@ resourceGroups:
     environments:
     - prod
     regions:
-    - australiaeast
-    - brazilsouth
-    - canadacentral
-    - centralindia
-    - eastus2
     - eastus2euap
-    - westeurope
-    - switzerlandnorth
     - uksouth
+    - switzerlandnorth
+    - canadacentral
+    - australiaeast
+    - westeurope
+    - centralindia
+    - brazilsouth
+    - eastus2
     - japaneast
+    - swedencentral
+    - eastasia
   steps:
   - name: deploy
     action: ARM

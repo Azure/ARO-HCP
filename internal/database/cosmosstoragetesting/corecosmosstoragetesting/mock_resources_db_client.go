@@ -147,6 +147,12 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// ServiceProviderExternalAuths returns a CRUD interface for service provider external auth resources.
+func (m *MockResourcesDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderExternalAuth, *coreapi.ServiceProviderExternalAuth] {
+	externalAuthResourceID := metadataapi.Must(coreapihelpers.ToExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+	return newMockServiceProviderExternalAuthCRUD(m, externalAuthResourceID)
+}
+
 // ReadChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call (including fixture loads) records a snapshot
 // of the document; reads return everything past the position encoded in
@@ -251,6 +257,19 @@ func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMess
 	// Keep storage and feed snapshots in the same order under concurrent writes.
 	m.documents[strings.ToLower(cosmosID)] = bytes.Clone(data)
 	m.changeFeed.Record(data)
+}
+
+func (m *MockResourcesDBClient) MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cosmosID = strings.ToLower(cosmosID)
+	data, err := mutate(bytes.Clone(m.documents[cosmosID]))
+	if err != nil || data == nil {
+		return err
+	}
+	m.documents[cosmosID] = bytes.Clone(data)
+	m.changeFeed.Record(data)
+	return nil
 }
 
 // GetDocument retrieves a raw JSON document from the mock database.

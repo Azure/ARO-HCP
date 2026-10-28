@@ -1,0 +1,27 @@
+digraph externalauth_delete {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="External auth delete · controller flow", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  api [label="Frontend DELETE external auth\ndeletion timestamp + Delete Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  dispatch [label="ExternalAuthClusterServiceDelete\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
+  cs [label="Cluster Service external auth", fillcolor="#fff0da", color="#b27624"];
+  clear [label="ExternalAuthDeletionCluster\nServiceIDClearer\nboth timestamps + nonempty CS ID required", fillcolor="#e6f0fa", color="#35648a"];
+  cleanup [label="ExternalAuthChildResources\nCleanupController\nboth timestamps + nil CS ID required", fillcolor="#e6f0fa", color="#35648a"];
+  final [label="ExternalAuthDeletionController", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationExternalAuthDelete", fillcolor="#e6f0fa", color="#35648a"];
+  done [label="ARM Delete Operation Succeeded", fillcolor="#e4f2e5", color="#4c8053"];
+  failed [label="ARM Delete Operation Failed", fillcolor="#fbe8e5", color="#a64f43"];
+  api -> dispatch [label="deletion requested"];
+  dispatch -> cs [label="DELETE if ID present"];
+  dispatch -> clear [label="dispatch timestamp set after accepted DELETE,\ndefinitive 404, or parent-uninstalling response"];
+  dispatch -> cleanup [label="nil ID after 120s first-seen grace:\nstamp dispatch, skip external delete"];
+  cs -> clear [label="GET not found"];
+  clear -> cleanup [label="ClusterServiceID cleared"];
+  cleanup -> final [label="non-controller descendants removed\n(including provider singleton)"];
+  final -> op [label="external-auth document deleted"];
+  op -> done [label="absence observed"];
+  cs -> op [label="while resource + both timestamps + ID remain:\nobserve status (404 / Ready wait)", style=dashed, color="#857456"];
+  op -> failed [label="CS Error: InternalServerError"];
+  dispatch -> dispatch [label="missing ID / 404: wait for 120s grace", style=dashed, color="#857456", constraint=false];
+  clear -> clear [label="pending: observe again", style=dashed, color="#857456", constraint=false];
+}

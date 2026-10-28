@@ -70,13 +70,13 @@ panels:
       (
         sum by (name, cluster) (
           max without(prometheus_replica) (
-            rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
+            rate(workqueue_retries_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
           )
         )
         /
         sum by (name, cluster) (
           max without(prometheus_replica) (
-            rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
+            rate(workqueue_adds_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
           )
         )
       )
@@ -314,7 +314,7 @@ panels:
 - title: "CosmosDB Metrics"
   queries:
   - title: "RU Consumption vs Provisioned"
-    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). This is the hottest physical partition's worst single second, not container average: a single hot partition (e.g. one subscription) pins it at 100% even when total usage is low and no 429s are occurring. Split by PartitionKeyRangeId to find the hot partition; only actionable alongside the 'Cosmos DB Throttled Requests High' alert."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Maximum

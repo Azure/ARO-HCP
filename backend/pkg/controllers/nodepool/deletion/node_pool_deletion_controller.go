@@ -67,7 +67,7 @@ func NewNodePoolDeletionController(
 		kubeApplierDBClients:          kubeApplierDBClients,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
@@ -75,6 +75,14 @@ func NewNodePoolDeletionController(
 		time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -83,13 +91,6 @@ func NewNodePoolDeletionController(
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
 func (c *nodePoolDeletionController) NeedsWork(nodePool *coreapi.NodePool) bool {
-	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
-		return false
-	}
-
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil

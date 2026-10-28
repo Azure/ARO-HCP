@@ -21,12 +21,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const ReadDesireNameServingCA = "systemadmincredential-serving-ca"
+const ReadDesireNameServingCA = kubeapplierapi.ReadDesireNameServingCA
 
 // GetCachedServingCASecretForCluster reads the serving CA Secret mirror
 // from the per-cluster ReadDesire.

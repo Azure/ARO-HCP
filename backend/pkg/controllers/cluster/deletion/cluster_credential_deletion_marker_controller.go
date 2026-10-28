@@ -64,7 +64,7 @@ func NewClusterCredentialDeletionMarkerController(
 		resourcesDBClient:          resourcesDBClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterCredentialDeletionMarkerControllerControllerName,
 		resourcesDBClient,
 		informers,
@@ -72,13 +72,19 @@ func NewClusterCredentialDeletionMarkerController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(0, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 func (c *clusterCredentialDeletionMarkerController) NeedsWork(cluster *coreapi.Cluster) bool {
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil
 }
 

@@ -15,8 +15,7 @@ spec:
         sum by (cluster, policy, policy_binding) (
           increase(apiserver_validating_admission_policy_check_total{
             policy="image-registry-allowlist-policy",
-            enforcement_action="deny",
-            validation_result="denied"
+            enforcement_action="deny"
           }[15m])
         ) > 0
       for: 1m
@@ -24,23 +23,22 @@ spec:
         severity: warning
       annotations:
         summary: "Image registry policy on {{ $labels.cluster }} denied pod admission"
-        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running."
-        runbook_url: TBD
+        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md"
         correlationId: "ImageRegistryPolicyDenied/{{ $labels.cluster }}"
     - alert: ImageRegistryPolicyAuditViolation
       expr: |
         sum by (cluster, policy, policy_binding) (
           increase(apiserver_validating_admission_policy_check_total{
             policy="image-registry-allowlist-policy",
-            enforcement_action="audit",
-            validation_result="denied"
+            enforcement_action="audit"
           }[15m])
         ) > 0
       for: 5m
       labels:
-        severity: info
+        severity: warning
       annotations:
         summary: "Image registry policy on {{ $labels.cluster }} audit violation detected"
-        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details."
-        runbook_url: TBD
+        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md"
         correlationId: "ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}"

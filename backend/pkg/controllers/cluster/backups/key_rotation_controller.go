@@ -93,7 +93,7 @@ func NewKeyRotationBackupController(
 
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	applyDesireInformer, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &keyRotationBackupSyncer{
@@ -114,12 +114,14 @@ func NewKeyRotationBackupController(
 		5*time.Minute,
 		syncer,
 	)
+	// Backup desire names include runtime namespace/configuration or key fingerprints.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
-	if kubeApplierInformers != nil {
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err)
-		}
-	}
+	// NewClusterWatchingController already watches ApplyDesire changes with no
+	// resync. Resync cluster keys once, not once for every input.
 
 	return controller
 }
@@ -194,11 +196,16 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 	alreadyHandled := cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint
 
 	if !alreadyHandled {
-		// Same pause toggle the schedule controller uses: fleet-wide config
-		// switch OR the per-cluster admin API state. A backup already in flight
-		// (ApplyDesire exists) is never abandoned once pause takes effect.
-		backupsPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled ||
-			(c.backupConfig != nil && c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled)
+		// Use the same effective pause decision as the schedule controller.
+		// A backup already in flight (ApplyDesire exists) is never abandoned
+		// once pause takes effect.
+		backupsPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
+		if c.backupConfig != nil {
+			backupsPaused = c.backupConfig.SchedulePaused(
+				cachedServiceProviderCluster.Spec.BackupScheduleState,
+				cachedCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride,
+			)
+		}
 
 		inFlight := false
 		if backupsPaused {

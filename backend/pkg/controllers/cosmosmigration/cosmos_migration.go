@@ -23,6 +23,8 @@ import (
 
 	"github.com/go-logr/logr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -66,12 +68,31 @@ func NewCosmosMigrationController(
 		kubeApplierDBClients: kubeApplierDBClients,
 		cooldown:             controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
-	return controllerutils.NewSubscriptionWatchingController(
+	controller := controllerutils.NewSubscriptionWatchingController(
 		CosmosMigrationControllerName,
 		backendInformers,
 		resyncDuration,
 		syncer,
 	)
+	// Migration sweeps legacy documents with names chosen by their original writers.
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(coreapi.OperationStatusResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 func (c *cosmosMigrationController) CooldownChecker() controllerutil.CooldownChecker {

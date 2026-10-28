@@ -31,7 +31,7 @@ type traceStep struct {
 	HeadroomBefore map[compute.VMFamily]int64
 	HeadroomAfter  map[compute.VMFamily]int64
 	Capacity       compute.CapacityByRole
-	CapacityFloor  compute.CapacityByRole
+	ZoneCapacity   compute.CapacityByRoleZone
 }
 
 type trace struct {
@@ -41,6 +41,7 @@ type trace struct {
 	Steps           []traceStep
 	FullyAllocated  bool
 	InitialCapacity compute.CapacityByRole
+	ZoneFloor       compute.CapacityByRoleZone
 	RejectedPlan    error
 	Outcome         string
 	Reason          string
@@ -88,25 +89,38 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 			return tr, fmt.Errorf("negative observed count or bounds for pool %s", pool.Name)
 		}
 	}
-	desiredCapacity, err := compute.PoolCapacities(desired)
-	if err != nil {
-		return tr, fmt.Errorf("desired capacity: %w", err)
-	}
-	capacity, err := stateCapacity(initial)
+	pools := ceilingPools(initial)
+	capacity, err := compute.PoolCapacities(pools)
 	if err != nil {
 		return tr, fmt.Errorf("initial capacity: %w", err)
 	}
 	tr.InitialCapacity = capacity
+	zoneCapacity, initialZoneErr := compute.PoolZoneCapacities(pools)
 	state := clonePoolStates(initial)
 	runInitial := runningVCPU(initial)
+	// The floor is resolved once from the initial capacity and stays fixed for
+	// the whole projection: growth never raises it before convergence. An
+	// acting controller must keep the same floor across reconciles, i.e.
+	// persist the capacity baseline and advance it only after convergence;
+	// re-deriving it from a partially migrated state would raise it and strand
+	// the migration.
+	desiredZoneCapacity, desiredZoneErr := compute.PoolZoneCapacities(desired)
+	if desiredZoneErr != nil {
+		return tr, fmt.Errorf("desired role-zone capacity: %w", desiredZoneErr)
+	}
+	floorErr := initialZoneErr
+	var zoneFloor compute.CapacityByRoleZone
+	if floorErr == nil {
+		zoneFloor, floorErr = desiredZoneCapacity.ResolveEffectiveFloor(zoneCapacity, fullyAllocated)
+	}
+	if floorErr != nil {
+		// The planner's observed-operation wait takes precedence. No
+		// capacity-changing action can use this unaccepted fallback floor.
+		zoneFloor = maps.Clone(zoneCapacity)
+	}
+	tr.ZoneFloor = zoneFloor
+	capacityFloor := transitionFloor{zones: zoneFloor}
 	for {
-		// A partial allocation protects the live ceiling at every step, not t0.
-		capacityFloor, floorErr := desiredCapacity.ResolveEffectiveFloor(capacity, fullyAllocated)
-		if floorErr != nil {
-			// The planner's observed-operation wait takes precedence. No
-			// capacity-changing action can use this unaccepted fallback floor.
-			capacityFloor = maps.Clone(capacity)
-		}
 		live := liveBudget(familyBudgets, runInitial, runningVCPU(state))
 		action := findNextAction(desired, state, live, capacityFloor, compute.NetworkConfig{})
 		if _, waiting := action.(waitAction); floorErr != nil && !waiting {
@@ -129,7 +143,7 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 		before := computeFamilyHeadroom(live, state)
 		switch action.(type) {
 		case waitAction, reconcileAction:
-			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity), CapacityFloor: capacityFloor})
+			tr.Steps = append(tr.Steps, traceStep{Action: action, State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: maps.Clone(before), Capacity: maps.Clone(capacity), ZoneCapacity: maps.Clone(zoneCapacity)})
 			tr.Outcome = "waiting"
 			if action.kind() == actionWait {
 				tr.Reason = fmt.Sprintf("pool %s has an observed in-progress operation; a new observation is required", action.poolName())
@@ -142,25 +156,32 @@ func simulateAndTrace(desired []compute.Pool, initial []PoolState, familyBudgets
 		if err != nil {
 			return tr, err
 		}
-		capacity, err = stateCapacity(state)
+		pools = ceilingPools(state)
+		capacity, err = compute.PoolCapacities(pools)
 		if err != nil {
 			return tr, fmt.Errorf("projected capacity: %w", err)
 		}
+		zoneCapacity, err = compute.PoolZoneCapacities(pools)
+		if err != nil {
+			return tr, fmt.Errorf("projected role-zone capacity: %w", err)
+		}
 		after := computeFamilyHeadroom(liveBudget(familyBudgets, runInitial, runningVCPU(state)), state)
-		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity, CapacityFloor: capacityFloor})
-		if err := capacity.EnsureMeetsBaseline(capacityFloor); err != nil {
+		tr.Steps = append(tr.Steps, traceStep{Action: cloneAction(action), State: clonePoolStates(state), HeadroomBefore: before, HeadroomAfter: after, Capacity: capacity, ZoneCapacity: zoneCapacity})
+		if err := zoneCapacity.EnsureMeetsBaseline(zoneFloor); err != nil {
 			return tr, fmt.Errorf("projected %s on %s violates capacity floor: %w", action.kind(), action.poolName(), err)
 		}
 	}
 }
 
-func stateCapacity(state []PoolState) (compute.CapacityByRole, error) {
+// ceilingPools projects pool states to pools whose MaxCount is their capacity
+// ceiling: the autoscaler maximum, or the static count when autoscaling is off.
+func ceilingPools(state []PoolState) []compute.Pool {
 	pools := make([]compute.Pool, len(state))
 	for i, cur := range state {
 		pools[i] = cur.Pool
 		pools[i].MaxCount = int32(poolCeiling(cur))
 	}
-	return compute.PoolCapacities(pools)
+	return pools
 }
 
 // Pool metadata is copied only at ownership boundaries: inputs, action payloads,
@@ -289,8 +310,18 @@ func formatTrace(tr trace) string {
 	}
 	fmt.Fprintf(w, "\nfully allocated: %t\n", tr.FullyAllocated)
 	fmt.Fprintln(w, "\ninitial capacity:")
-	for _, role := range compute.CapacityRoles {
+	for _, role := range slices.Sorted(maps.Keys(tr.InitialCapacity)) {
 		fmt.Fprintf(w, "  %s:\t%s\n", role, formatCapacity(tr.InitialCapacity[role]))
+	}
+	if len(tr.ZoneFloor) > 0 {
+		fmt.Fprintln(w, "\nrole-zone floor:")
+		for _, key := range tr.ZoneFloor.Keys() {
+			label := string(key.Role)
+			if len(key.Zone) > 0 {
+				label = fmt.Sprintf("%s zone %s", key.Role, key.Zone)
+			}
+			fmt.Fprintf(w, "  %s:\t%s\n", label, formatCapacity(tr.ZoneFloor[key]))
+		}
 	}
 	if tr.RejectedPlan != nil {
 		fmt.Fprintf(w, "\nrejected desired plan: %v\n", tr.RejectedPlan)
@@ -299,17 +330,18 @@ func formatTrace(tr trace) string {
 	fmt.Fprintln(w, "\nactions:")
 	if len(tr.Steps) > 0 {
 		fmt.Fprintln(w, "  margins above floor after each action (c = vCPU, G = memory GiB, n = Swift NICs)")
-		fmt.Fprintln(w, "\n     #\taction\trole\tpool\tvm size\tchange\trole margin\tquota left")
+		fmt.Fprintln(w, "\n     #\taction\trole\tpool\tvm size\tzone\tchange\tmargin\tquota left")
 	}
 	prevState := tr.Initial
 	for i, step := range tr.Steps {
-		// Role isn't carried on the Action; look up the acted-on pool in the
-		// post-action state (create), falling back to the pre-action state
-		// (delete removes it from the post state).
-		role := roleOf(step.Action.poolName(), step.State, prevState)
-		line := fmt.Sprintf("  %4d\t%s\t%s\t%s\t%s\t%s\t%s\t",
-			i+1, step.Action.kind(), role, step.Action.poolName(), strings.TrimPrefix(step.Action.vmSize(), "Standard_"),
-			actionDetail(step.Action), formatMargin(step.Capacity[role], step.CapacityFloor[role]))
+		// Role and zone bucket aren't carried on the Action; look up the
+		// acted-on pool in the post-action state (create), falling back to the
+		// pre-action state (delete removes it from the post state).
+		pool, _ := stateOf(step.Action.poolName(), step.State, prevState)
+		key := pool.RoleZoneKey()
+		line := fmt.Sprintf("  %4d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t",
+			i+1, step.Action.kind(), pool.Role, step.Action.poolName(), strings.TrimPrefix(step.Action.vmSize(), "Standard_"),
+			step.Action.zone(), actionDetail(step.Action), formatMargin(step.ZoneCapacity[key], tr.ZoneFloor[key]))
 		// Always emit the quota cell, even when empty: tabwriter aligns a
 		// column only across consecutive lines that all have it.
 		fmt.Fprintln(w, line+formatQuotaLeft(step.HeadroomBefore, step.HeadroomAfter, families))
@@ -362,17 +394,17 @@ func shortFamily(family compute.VMFamily) string {
 	return name
 }
 
-// roleOf returns the role of the named pool, searching the given states in
+// stateOf returns the named pool's state, searching the given states in
 // order (first match wins).
-func roleOf(name string, states ...[]PoolState) compute.PoolRole {
+func stateOf(name string, states ...[]PoolState) (PoolState, bool) {
 	for _, state := range states {
 		for _, p := range state {
 			if p.Name == name {
-				return p.Role
+				return p, true
 			}
 		}
 	}
-	return ""
+	return PoolState{}, false
 }
 
 func sortedFamilies(budgets map[compute.VMFamily]int64) []compute.VMFamily {

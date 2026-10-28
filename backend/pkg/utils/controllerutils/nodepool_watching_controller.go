@@ -68,7 +68,7 @@ func NewNodePoolWatchingController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
-) Controller {
+) WatchingController {
 	controller := &nodePoolWatchingController{
 		name:              name,
 		resourcesDBClient: resourcesDBClient,
@@ -80,14 +80,20 @@ func NewNodePoolWatchingController(
 	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
 	controller.nodePoolLister = nodePoolLister
 
-	err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderNodePoolInformer)
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
+	err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer)
+	if err != nil {
+		panic(err)
+	}
+	err = nodePoolController.QueueForInformers(0, serviceProviderNodePoolInformer)
 	if err != nil {
 		panic(err) // coding error
 	}
 
 	managementClusterContentInformer, _ := informers.ManagementClusterContents()
 	// Limit the max depth of ManagementClusterContent to 1 to only consider the nodepool-scoped ManagementClusterContents
-	err = nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
+	err = nodePoolController.QueueForInformersWithMaxDepth(0, 1, managementClusterContentInformer)
 	if err != nil {
 		panic(err) // coding error
 	}
@@ -102,11 +108,11 @@ func NewNodePoolWatchingController(
 		// ApplyDesire Degraded status into the node pool condition; Delete
 		// desires are still not wired in.
 		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
-		if err := nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
+		if err := nodePoolController.QueueForInformersWithMaxDepth(0, 1, readDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 		applyDesireInformer, _ := kubeApplierInformers.ApplyDesires()
-		if err := nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, applyDesireInformer); err != nil {
+		if err := nodePoolController.QueueForInformersWithMaxDepth(0, 1, applyDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

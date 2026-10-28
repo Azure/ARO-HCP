@@ -33,16 +33,13 @@ const (
 	deploymentStackNamePrefix = "aro-hcp-slot-msi-pool"
 )
 
-type ApplyOptions struct {
-	Template        map[string]interface{}
-	IdentityPools   []identityPool
-	AzureCredential azcore.TokenCredential
+type poolClients struct {
+	stacks *armdeploymentstacks.Client
 }
 
-func (o *ApplyOptions) Run(ctx context.Context) error {
+func applyPools(ctx context.Context, credential azcore.TokenCredential, pools []identityPool, template map[string]interface{}, newClients func(string, azcore.TokenCredential) (poolClients, error)) error {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	for _, pool := range o.IdentityPools {
+	for _, pool := range pools {
 		logger.Info(
 			"applying identity pool",
 			"environment", pool.Environment,
@@ -52,24 +49,20 @@ func (o *ApplyOptions) Run(ctx context.Context) error {
 			"provisioningRegion", pool.ProvisioningRegion,
 			"slotCount", len(pool.Slots),
 		)
-
-		stackClient, err := armdeploymentstacks.NewClient(pool.SubscriptionID, o.AzureCredential, nil)
+		clients, err := newClients(pool.SubscriptionID, credential)
 		if err != nil {
 			return fmt.Errorf("failed creating deployment stack client for %q: %w", pool.SubscriptionName, err)
 		}
-
 		for _, slot := range pool.Slots {
-			if err := o.applySlot(ctx, logger, stackClient, pool, slot); err != nil {
+			if err := applySlot(ctx, logger, clients.stacks, template, pool, slot); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
-// Apply the complete physical identity inventory, including containers reserved from runtime leasing.
-func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackClient *armdeploymentstacks.Client, pool identityPool, slot slots.ExpandedSlot) error {
+func applySlot(ctx context.Context, logger logr.Logger, stackClient *armdeploymentstacks.Client, template map[string]interface{}, pool identityPool, slot slots.ExpandedSlot) error {
 	parameters := map[string]*armdeploymentstacks.DeploymentParameter{
 		"poolSize": {
 			Value: slot.EffectiveIdentityContainerProvisioningCount(),
@@ -78,12 +71,11 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 			Value: slot.IdentityContainerPrefix,
 		},
 	}
-
 	stackName := fmt.Sprintf("%s-%s", deploymentStackNamePrefix, slot.ResourceName)
 	stack := armdeploymentstacks.DeploymentStack{
 		Location: to.Ptr(pool.ProvisioningRegion),
 		Properties: &armdeploymentstacks.DeploymentStackProperties{
-			Template:   o.Template,
+			Template:   template,
 			Parameters: parameters,
 			DenySettings: &armdeploymentstacks.DenySettings{
 				Mode:               to.Ptr(armdeploymentstacks.DenySettingsModeNone),
@@ -98,7 +90,6 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 			},
 		},
 	}
-
 	logger.Info(
 		"applying deployment stack",
 		"subscriptionID", pool.SubscriptionID,
@@ -109,21 +100,13 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 		"identityContainerCount", slot.IdentityContainerCount,
 		"identityContainerProvisioningCount", slot.EffectiveIdentityContainerProvisioningCount(),
 	)
-
-	poller, err := stackClient.BeginCreateOrUpdateAtSubscription(
-		ctx,
-		stackName,
-		stack,
-		nil,
-	)
+	poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, stackName, stack, nil)
 	if err != nil {
 		return fmt.Errorf("failed starting deployment stack apply for slot %q: %w", slot.ResourceName, err)
 	}
-
 	_, err = poller.PollUntilDone(ctx, &azruntime.PollUntilDoneOptions{Frequency: 10 * time.Second})
 	if err != nil {
 		return fmt.Errorf("failed waiting for deployment stack apply for slot %q: %w", slot.ResourceName, err)
 	}
-
 	return nil
 }

@@ -212,7 +212,10 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := existingNodePool.ServiceProviderProperties.ClusterServiceID
-	existingCSNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePoolCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	existingCSNodePool, err := c.clusterServiceClient.GetNodePool(csCtx, *nodePoolCSID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err))
 	}
