@@ -47,7 +47,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 
 | Step type | Purpose |
 |-----------|---------|
-| `load` / `loadCosmos` | Load raw JSON documents directly into cosmos |
+| `load` / `loadCosmos` | Load raw documents through the shared Resources/Fleet document-type allowlist in both mock and emulator tests; missing/unknown types are errors. Billing and per-management-cluster kube-applier documents are not yet supported. |
 | `loadClusterService` | Load mock cluster service state (files suffixed `-cluster.json`, `-nodepool.json`, `-externalauth.json`, `-autoscaler.json`, `-hypershiftdetails.json`, `-provisionshard.json`) |
 | `kubernetesLoad` | Create Kubernetes resources via fake clientsets |
 | `kubernetesApply` | Update existing K8s resources from JSON/YAML files. Can be partial files. |
@@ -90,7 +90,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 
 | Step type | Purpose |
 |-----------|---------|
-| `cosmosCompare` | Assert entire cosmos state matches expected JSON documents |
+| `cosmosCompare` | Find every expected JSON document in the combined Resources and Fleet inventory |
 | `kubernetesCompare` | Assert K8s resource state matches expected JSON files (uses `ResourceInstanceEquals`) |
 | `completeOperation` | Mark an async operation as succeeded |
 | `setClusterServiceID` | Stamp a Cluster Service internal ID onto a cluster/node pool/external auth doc. Clusters get a random CS HREF (matching mock `PostCluster` behavior) unless `cluster-service-id.json` is provided. Node pools and external auths derive from the parent cluster's stored CS ID. **Node pool create:** add an explicit `setClusterServiceID-cluster` step (or `loadCosmos` with a pre-stamped cluster) before the first node pool `httpCreate`/`httpReplace`, since node pool creation requires the parent cluster to have a `clusterServiceID`. External auth creation does not require a parent Cluster Service ID. **Cluster update:** when a cluster `httpReplace`/`httpPatch` should call the Cluster Service mock (`GetCluster`/`UpdateCluster`), add `setClusterServiceID-cluster` (with fixed `cluster-service-id.json`) immediately followed by `loadClusterService-cluster` before the update step. See [Cluster Service ID patterns](#cluster-service-id-patterns) below. |
@@ -199,6 +199,12 @@ Place these immediately before the cluster update step. Complete any in-flight c
 **Error-path updates** that fail validation before CS (e.g. `update-to-illegal-value`, `update-reject-cluster-version-skew-patch`) may still include the stamp/load steps for consistency, but the mock is not consulted when validation rejects the request first.
 
 ## Running Tests
+
+Storage cleanup saves fixture documents beneath `cosmos-content/Resources/` and
+`cosmos-content/Fleet/` according to their physical container. The existing
+Resources-relative layout is unchanged; identical IDs in separate containers
+do not overwrite each other's artifacts. Billing and kube-applier containers
+are not included in this fixture enumeration.
 
 ```bash
 go test ./test-integration/frontend/...
