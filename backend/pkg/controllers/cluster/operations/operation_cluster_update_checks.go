@@ -153,6 +153,10 @@ func (c *clusterUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx co
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
+	// Deletion may have cleared the ID since SynchronizeOperation read the cluster.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil, utils.TrackError(fmt.Errorf("cluster service ID is no longer available"))
+	}
 	existingCSClusterStatus, clusterServiceID := input.ClusterServiceCluster.Status(), *cluster.ServiceProviderProperties.ClusterServiceID
 	logger := utils.LoggerFromContext(ctx)
 

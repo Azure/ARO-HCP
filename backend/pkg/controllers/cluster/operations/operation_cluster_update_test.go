@@ -51,6 +51,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	csCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+	check := &clusterUpdateClusterServiceStatusCheck{
+		clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{ClusterServiceCluster: csCluster})
+	require.ErrorContains(t, err, "cluster service ID is no longer available")
+	assert.Nil(t, state)
+}
+
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 	for _, tc := range []struct {
 		name, desired, pin, exact string
