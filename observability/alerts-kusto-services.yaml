@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
+  - alerts/podReadinessWidespread-prometheusRule.yaml
   - ../frontend/alerts/frontend-path-latency-prometheusRule.yaml
   - alerts/serviceMemoryResources-prometheusRule.yaml
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b

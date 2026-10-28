@@ -1,0 +1,91 @@
+# promtool unit tests for podReadinessWidespread-prometheusRule.yaml
+# Run with: promtool test rules podReadinessWidespread-prometheusRule_test.yaml
+#
+# In promtool, time() at eval_time Nm = N * 60 seconds (promtool starts at
+# Unix epoch 0), so a namespace with kube_namespace_created = 0 becomes mature
+# (older than 1800s) from eval_time 30m onward.
+rule_files:
+- podReadinessWidespread-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- name: Not-ready pods across three mature namespaces alert
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_pod_status_phase{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_pod_status_phase{namespace="other",pod="pod-3",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="other",pod="pod-3",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-a",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-b",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  - series: 'kube_namespace_created{namespace="other",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  alert_rule_test:
+  - eval_time: 34m
+    alertname: KubePodNotReadyWidespread
+    exp_alerts: []
+  - eval_time: 36m
+    alertname: KubePodNotReadyWidespread
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-1
+        component: kubernetes-infrastructure
+        severity: warning
+      exp_annotations:
+        description: Pods have been in a non-ready state across 3 mature namespaces on cluster mgmt-1 for longer than 5 minutes, which indicates an environment-wide disruption rather than a fault in a single workload.
+        summary: Pods not ready across multiple mature namespaces at once.
+- name: Not-ready pods across only two mature namespaces do not alert
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_pod_status_phase{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-a",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-b",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  alert_rule_test:
+  - eval_time: 36m
+    alertname: KubePodNotReadyWidespread
+    exp_alerts: []
+- name: Not-ready pods in young namespaces do not count toward the breadth signal
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-a",pod="pod-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_pod_status_phase{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-b",pod="pod-2",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  - series: 'kube_pod_status_phase{namespace="ocm-c",pod="pod-3",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-c",pod="pod-3",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  # All three namespaces created 1800s after epoch: still younger than 1800s
+  # at every evaluation in this test, mimicking bootstrapping control planes.
+  - series: 'kube_namespace_created{namespace="ocm-a",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "1800+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-b",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "1800+0x44"
+  - series: 'kube_namespace_created{namespace="ocm-c",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "1800+0x44"
+  alert_rule_test:
+  - eval_time: 36m
+    alertname: KubePodNotReadyWidespread
+    exp_alerts: []

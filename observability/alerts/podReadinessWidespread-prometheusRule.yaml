@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: pod-readiness-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: pod-readiness
+    labels:
+      component: kubernetes-infrastructure
+    rules:
+    # Environment-wide disruption signature: pods not-ready across several
+    # mature (older than 30 minutes) namespaces at once. Bootstrap-related
+    # not-ready pods live in young namespaces and are excluded by the maturity
+    # filter, so this rule keys on breadth of impact rather than namespace age.
+    # It complements KubePodNotReady, whose 30-minute age gate for ocm-*
+    # namespaces masks exactly the environment-wide events this rule detects.
+    - alert: KubePodNotReadyWidespread
+      annotations:
+        description: Pods have been in a non-ready state across {{ $value }} mature namespaces on cluster {{ $labels.cluster }} for longer than 5 minutes, which indicates an environment-wide disruption rather than a fault in a single workload.
+        summary: Pods not ready across multiple mature namespaces at once.
+      expr: |
+        count by (cluster) (
+          sum by (namespace, cluster) (
+            (
+              max by(namespace, pod, cluster) (
+                kube_pod_status_phase{job="kube-state-metrics", prometheus="prometheus/prometheus", phase=~"Pending|Unknown|Failed", namespace!~"klusterlet-.*"}
+              ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) (
+                1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{prometheus="prometheus/prometheus", owner_kind!="Job"})
+              )
+            ) > 0
+            unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
+            and on(namespace, cluster) (
+              max without (prometheus_replica) (
+                kube_namespace_created{job="kube-state-metrics"}
+              ) < time() - 1800
+            )
+          )
+        ) >= 3
+      for: 5m
+      labels:
+        severity: warning
