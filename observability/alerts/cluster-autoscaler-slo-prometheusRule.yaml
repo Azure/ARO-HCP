@@ -56,22 +56,26 @@ spec:
         description: "The cluster autoscaler for hosted cluster {{ $labels.namespace }} has reported cluster_safe_to_autoscale=0 for over 15 minutes. While unsafe, the autoscaler makes no scaling decisions. This is usually caused by unready, unregistered, or long-unregistered nodes and requires SRE investigation of node health."
         correlationId: 'UserJourneyClusterAutoscalerSafetyDisabled/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
-    # All cluster autoscaler metrics across the fleet have been absent for
-    # 5 minutes (recording rule window) sustained for 5 minutes. This
-    # indicates a total loss of autoscaler telemetry — e.g. PrometheusAgent
-    # or remote-write pipeline failure — rather than individual pods being
-    # down. Per-hosted-cluster absence detection is a follow-up.
+    # This hosted cluster's autoscaler metrics have been missing for the whole
+    # recording-rule window ([1m]), sustained for 15 minutes. The expression is
+    # per-hosted-cluster — its labels carry cluster + namespace — so it isolates
+    # the affected autoscaler instead of reporting a fleet-wide outage. It only
+    # fires when an autoscaler is expected: the recording rule requires the
+    # cluster-autoscaler Deployment to still desire more than zero replicas, so
+    # hosted clusters that never enabled autoscaling (HyperShift scales that
+    # Deployment to zero) never alert. Typical causes: the autoscaler pod is down
+    # or crash-looping, or its scrape target disappeared.
     - alert: UserJourneyClusterAutoscalerMetricsAbsent
       expr: |
         health:cluster_autoscaler:metrics_availability == 0
-      for: 5m
+      for: 15m
       labels:
         severity: "3"
         slo: cluster-autoscaler-health
       annotations:
-        summary: "Fleet-wide cluster autoscaler metrics absent"
-        description: "No cluster autoscaler metrics have been received from any hosted cluster for over 5 minutes (sustained for 5 minutes). This indicates a total loss of autoscaler telemetry — likely a PrometheusAgent or remote-write pipeline failure rather than individual autoscaler pods being down. Investigate the monitoring pipeline on the affected management cluster(s)."
-        correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent'
+        summary: "{{ $labels.namespace }}: cluster autoscaler metrics absent"
+        description: "No cluster autoscaler metrics have been received from hosted cluster {{ $labels.namespace }} for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster."
+        correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
     # The autoscaler is logging internal errors (cloud provider errors, API
     # errors, etc.) at a sustained rate — the scaling controller is malfunctioning.
@@ -88,11 +92,11 @@ spec:
         correlationId: 'UserJourneyClusterAutoscalerErrors/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-autoscaler"
   # ========================================
-  # Cluster Autoscaler Alerts — Scaling Blocked
+  # Cluster Autoscaler Alerts — Scaling Failures
   # ========================================
   # The autoscaler is running but cannot carry out a scale-up: attempts fail, or
   # there is headroom below the customer's max yet pending pods are not getting
-  # nodes. Both mean the scaling operation itself is impaired (infra/quota, not a
+  # nodes. The alert means the scaling operation itself is impaired (infra/quota, not a
   # customer ceiling), so they are SRE-actionable.
   - name: arohcp_cluster_autoscaler_scaling_alerts
     labels:

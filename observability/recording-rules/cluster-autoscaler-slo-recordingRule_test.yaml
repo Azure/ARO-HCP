@@ -72,13 +72,19 @@ tests:
     - labels: 'errors:cluster_autoscaler:errors:rate15m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 0
 # ========================================
-# metrics_availability: 1 while telemetry flows, 0 once it stops but the
-# control plane is still up. Both control planes stay up the whole time
-# (kas:apiserver_request_total:rate5m keeps flowing -> the KAS gate stays
-# present). mgmt-1 keeps emitting autoscaler metrics; mgmt-2's autoscaler
-# stops after minute 9. Within 5m of stopping mgmt-2 still reads 1 (fresh
-# samples in the 5m window); by 20m it reads 0 because KAS is present but the
-# autoscaler is silent.
+# metrics_availability: 1 while telemetry flows, 0 once it stops while an
+# autoscaler is still expected, and no series at all when no autoscaler is
+# expected. "Expected" is signalled by the cluster-autoscaler Deployment's
+# desired replicas (kube_deployment_spec_replicas), not by a control-plane
+# liveness proxy.
+#   mgmt-1: autoscaler keeps emitting                       -> 1
+#   mgmt-2: autoscaler stops after minute 9 but the
+#           Deployment still desires 1 replica (pod down)    -> 1 then 0
+#   mgmt-3: autoscaler and Deployment both disappear after
+#           minute 9 (hosted cluster deleted)                -> 1 then absent
+#   mgmt-4: no NodePool enables autoscaling, so the
+#           Deployment desires 0 replicas and no autoscaler
+#           metrics have ever existed                        -> always absent
 # ========================================
 - interval: 1m
   input_series:
@@ -86,19 +92,23 @@ tests:
     values: "0+60x30"
   - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
     values: "0+60x9"
-  # KAS gate: both control planes stay up and scraped for the whole test.
-  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+  # An autoscaler is expected: the Deployment still desires one replica.
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
     values: "1x30"
-  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-2", namespace="ocm-dev-abc-cluster22-01"}'
     values: "1x30"
-  # mgmt-3: both the autoscaler AND the control plane (KAS gate) go silent after
-  # minute 9 — a deleted/offline control plane. The KAS gate must suppress any
-  # output (neither 1 nor 0) so a gone cluster is not flagged as an autoscaler
-  # failure; i.e. mgmt-3 must be absent from the 20m result below.
+  # mgmt-3: the whole hosted cluster is deleted after minute 9, so the Deployment
+  # disappears too. With no autoscaler expected any more the rule must emit
+  # nothing (neither 1 nor 0) rather than flag a gone cluster as a failure.
   - series: 'cluster_autoscaler_last_activity{activity="main", cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
     values: "0+60x9"
-  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-3", namespace="ocm-dev-abc-cluster23-01"}'
     values: "1x9"
+  # mgmt-4: autoscaling is not enabled (no NodePool has spec.autoScaling), so
+  # HyperShift scales the Deployment to zero and no autoscaler metrics ever
+  # exist. The rule must stay silent instead of reporting 0.
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-4", namespace="ocm-dev-abc-cluster24-01"}'
+    values: "0x30"
   promql_expr_test:
   - expr: health:cluster_autoscaler:metrics_availability
     eval_time: 5m
@@ -170,8 +180,9 @@ tests:
 # ========================================
 # metrics_availability recovery: a cluster goes silent then resumes. It must
 # transition 1 -> 0 -> 1 and NOT stay stuck at 0 after the autoscaler returns.
-# Autoscaler: up 0-9m, silent 10-19m, up again from 20m. KAS stays up the whole
-# time so the gap reads 0 (firing) rather than absent.
+# The autoscaler emits 0-9m, is silent 10-19m, and emits again from 20m while
+# the Deployment keeps desiring one replica, so the gap reads 0 (firing) rather
+# than absent.
 # ========================================
 - interval: 1m
   input_series:
@@ -179,7 +190,7 @@ tests:
     # value is irrelevant here (metrics_availability only checks presence):
     # up 0-9m, silent 10-19m, up again from 20m.
     values: "1x9 _x10 1x11"
-  - series: 'kas:apiserver_request_total:rate5m{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
+  - series: 'kube_deployment_spec_replicas{deployment="cluster-autoscaler", cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
     values: "1x31"
   promql_expr_test:
   # healthy -> 1
@@ -188,7 +199,7 @@ tests:
     exp_samples:
     - labels: 'health:cluster_autoscaler:metrics_availability{cluster="mgmt-1", namespace="ocm-dev-abc-cluster21-01"}'
       value: 1
-  # firing (autoscaler silent, KAS up) -> 0
+  # firing (autoscaler silent while still expected) -> 0
   - expr: health:cluster_autoscaler:metrics_availability
     eval_time: 15m
     exp_samples:

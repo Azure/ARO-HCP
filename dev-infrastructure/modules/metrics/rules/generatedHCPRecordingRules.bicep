@@ -356,7 +356,7 @@ resource arohcpClusterAutoscalerRecordingRules 'Microsoft.AlertsManagement/prome
       }
       {
         record: 'health:cluster_autoscaler:metrics_availability'
-        expression: '(max by (cluster, namespace, region) (present_over_time(cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"}[1m]))) or on (cluster, namespace) ((present_over_time(kas:apiserver_request_total:rate5m{namespace=~"ocm-.*"}[1m]) unless on (cluster, namespace) max by (cluster, namespace, region) (present_over_time(cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"}[1m]))) * 0)'
+        expression: 'max by (cluster, namespace, region) (present_over_time(cluster_autoscaler_last_activity{activity="main",namespace=~"ocm-.*"}[1m])) or on (cluster, namespace) ((max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="cluster-autoscaler",namespace=~"ocm-.*"}) > 0) * 0)'
       }
     ]
   }

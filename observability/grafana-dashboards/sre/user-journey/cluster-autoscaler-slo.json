@@ -320,7 +320,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Per-cluster autoscaler telemetry availability: 1 = metrics flowing for this hosted cluster, 0 = this cluster's autoscaler metrics stopped recently (pod down or telemetry path broken). Gap = no autoscaler expected or silent for over an hour.",
+      "description": "Per-cluster autoscaler telemetry availability: 1 = metrics flowing for this hosted cluster, 0 = an autoscaler is expected here (its Deployment still desires a replica) but its metrics stopped (pod down or scrape target broken). Gap = no autoscaler expected, i.e. autoscaling was never enabled for this cluster.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },

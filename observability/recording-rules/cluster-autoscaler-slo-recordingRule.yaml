@@ -130,41 +130,37 @@ spec:
             rate(cluster_autoscaler_scaled_down_nodes_total{namespace=~"ocm-.*"}[15m])
           )
         )
-    # Per-cluster telemetry availability: 1 = autoscaler emitted metrics for
-    # this hosted cluster within the last 1m; 0 = this cluster emitted metrics
-    # at some point but is currently silent (autoscaler pod down, or this
-    # cluster's scrape/remote-write path broken).
+    # Per-cluster autoscaler telemetry availability, keyed on (cluster, namespace):
+    #   1   = the autoscaler emitted metrics for this hosted cluster within 1m.
+    #   0   = an autoscaler is expected here (its Deployment still desires more
+    #         than zero replicas) but no metrics arrived for the whole 1m window.
+    #   gap = no autoscaler is expected: HyperShift sets the Deployment's
+    #         replicas to 0 when no NodePool enables autoscaling, so the absence
+    #         of series is normal and must not page.
     #
-    # Why not absent_over_time(): it is the right tool for fleet-wide silence
-    # (see fleet_metrics_absent below) but its output is label-less — a
-    # missing series has no cluster/namespace to attribute the absence to —
-    # so it can never be bifurcated per hosted cluster. The label-preserving
-    # equivalent is count_over_time: "any samples in the window, per group".
+    # Why not absent_over_time(): its output is label-less — a missing series has
+    # no cluster/namespace to attribute the absence to — so it can never be
+    # bifurcated per hosted cluster. present_over_time keeps the labels and
+    # answers "any samples in the window, per group".
     #
-    # Memory/latch: the second branch joins the rule's OWN previous output.
-    # Once a hosted cluster has produced a sample, the recorded series keeps
-    # it alive (as 0 while silent) indefinitely — the per-cluster analogue of
-    # absent_over_time firing forever. Without it, a cluster silent for longer
-    # than the window would vanish from the panel entirely. The first branch
-    # bootstraps the series from fresh raw data; the latch only forgets if
-    # rule evaluation itself stops for longer than [1d].
-    # Branch B gates on kas:apiserver_request_total:rate5m (already aggregated to
-    # one series per (cluster, namespace)) rather than raw apiserver_request_total
-    # (thousands of series per control plane) to keep this rule cheap to evaluate.
+    # Why the Deployment's desired replicas rather than a control-plane liveness
+    # proxy: it is the only signal that says whether an autoscaler is supposed to
+    # exist here. It is read from the Deployment object, so it stays above zero
+    # while the pod is down or crash-looping — exactly when this metric should
+    # read 0 — and is 0 when the customer has not enabled autoscaling, which is
+    # when this metric should not exist at all. kube_deployment_spec_replicas
+    # comes from kube-state-metrics, which is scraped and remote-written to the
+    # same HCP Azure Monitor Workspace as the autoscaler metrics.
     - record: health:cluster_autoscaler:metrics_availability
       expr: |
-        (
-          max by (cluster, namespace) (
-            present_over_time(cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}[1m])
-          )
+        max by (cluster, namespace) (
+          present_over_time(cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}[1m])
         )
         or on (cluster, namespace)
         (
           (
-            present_over_time(kas:apiserver_request_total:rate5m{namespace=~"ocm-.*"}[1m])
-            unless on (cluster, namespace)
             max by (cluster, namespace) (
-              present_over_time(cluster_autoscaler_last_activity{activity="main", namespace=~"ocm-.*"}[1m])
-            )
+              kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="cluster-autoscaler"}
+            ) > 0
           ) * 0
         )

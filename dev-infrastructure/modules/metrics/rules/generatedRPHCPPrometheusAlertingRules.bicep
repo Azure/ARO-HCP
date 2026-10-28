@@ -216,15 +216,15 @@ resource arohcpClusterAutoscalerHealthAlerts 'Microsoft.AlertsManagement/prometh
           slo: 'cluster-autoscaler-health'
         }
         annotations: {
-          correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent'
-          description: 'No cluster autoscaler metrics have been received from any hosted cluster for over 5 minutes (sustained for 5 minutes). This indicates a total loss of autoscaler telemetry — likely a PrometheusAgent or remote-write pipeline failure rather than individual autoscaler pods being down. Investigate the monitoring pipeline on the affected management cluster(s).'
-          info: 'No cluster autoscaler metrics have been received from any hosted cluster for over 5 minutes (sustained for 5 minutes). This indicates a total loss of autoscaler telemetry — likely a PrometheusAgent or remote-write pipeline failure rather than individual autoscaler pods being down. Investigate the monitoring pipeline on the affected management cluster(s).'
+          correlationId: 'UserJourneyClusterAutoscalerMetricsAbsent/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'No cluster autoscaler metrics have been received from hosted cluster {{ $labels.namespace }} for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster.'
+          info: 'No cluster autoscaler metrics have been received from hosted cluster {{ $labels.namespace }} for over 15 minutes. The autoscaler pod may be down, or its telemetry may not be reaching the HCP Azure Monitor Workspace. Investigate the cluster-autoscaler Deployment in that namespace and the scrape/remote-write path from its management cluster.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-autoscaler'
-          summary: 'Fleet-wide cluster autoscaler metrics absent'
-          title: 'Fleet-wide cluster autoscaler metrics absent'
+          summary: '{{ $labels.namespace }}: cluster autoscaler metrics absent'
+          title: '{{ $labels.namespace }}: cluster autoscaler metrics absent'
         }
         expression: 'health:cluster_autoscaler:metrics_availability == 0'
-        for: 'PT5M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
