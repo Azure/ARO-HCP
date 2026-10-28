@@ -72,6 +72,8 @@ type Writer struct {
 	jobDetail          func(context.Context, *http.Client, string) (runDetail, error)
 	e2eRows            func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
 	observabilityRows  func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
+	rpProvisionRows    func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
+	rpUpgradeRows      func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error)
 }
 
 func NewWriter(cfg *config.Config, logger *slog.Logger) *Writer {
@@ -91,7 +93,7 @@ func NewWriter(cfg *config.Config, logger *slog.Logger) *Writer {
 		names:   newNameSet(cfg.CIJobOutcomes.GetCacheSize(), cfg.CIJobOutcomes.GetCacheTTL()),
 		metrics: newWriterMetrics(), lastRepair: map[string]time.Time{}, now: time.Now,
 		completion: fetchProwCompletion, jobDetail: fetchJobOutcomeDetail,
-		e2eRows: fetchE2ERows, observabilityRows: fetchObservabilityRows,
+		e2eRows: fetchE2ERows, observabilityRows: fetchObservabilityRows, rpProvisionRows: fetchRPProvisionRows, rpUpgradeRows: fetchRPUpgradeRows,
 	}
 	w.gcs = &GCSClient{Client: w.client, Bucket: cfg.CIJobOutcomes.GCSBucket, JobFilter: cfg.CIJobOutcomes.JobFilter}
 	w.initialize = w.initializeKusto
@@ -406,6 +408,8 @@ func (w *Writer) reconcile(ctx context.Context, uri JobURI) (time.Duration, erro
 	}{
 		{testsBatch, namesBatch, w.e2eRows},
 		{observabilityTestsBatch, observabilityNamesBatch, w.observabilityRows},
+		{rpProvisionTestsBatch, rpProvisionNamesBatch, w.rpProvisionRows},
+		{rpUpgradeTestsBatch, rpUpgradeNamesBatch, w.rpUpgradeRows},
 	} {
 		if !missing[source.tests] && !missing[source.names] {
 			continue
