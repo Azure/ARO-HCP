@@ -5635,6 +5635,32 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hypershift-cpo-monitor-rules
+  alert: hypershiftCPODown
+  occurrence: 1
+  input: max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
+  plan:
+    expression: max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
+    conditions:
+      - expression: max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0
+        path: root/and:left
+        queries:
+          - expression: max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"})
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+      - expression: max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
@@ -7098,6 +7124,66 @@
         thresholds:
           - operator: '>'
             value: 0.15
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorIdle
+  occurrence: 1
+  input: hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0
+  plan:
+    expression: hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0
+    conditions:
+      - expression: hypershift:operator:reconcile:rate5m == 0
+        path: root/and:left
+        queries:
+          - expression: hypershift:operator:reconcile:rate5m
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorPodsDown
+  occurrence: 1
+  input: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2
+  plan:
+    expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2
+    conditions:
+      - expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2
+        path: root
+        queries:
+          - expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorPodsUnavailable
+  occurrence: 1
+  input: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1
+  plan:
+    expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1
+    conditions:
+      - expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1
+        path: root
+        queries:
+          - expression: max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 1
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: rp-user-journey-cluster-upgrade-monitor-rules
@@ -9884,6 +9970,104 @@
         thresholds:
           - operator: '>'
             value: 10800
+        unsupported: ""
+- source: observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorIdle
+  occurrence: 1
+  input: |
+    hypershift:operator:reconcile:rate5m == 0
+    and on (cluster)
+    sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0
+  plan:
+    expression: hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0
+    conditions:
+      - expression: hypershift:operator:reconcile:rate5m == 0
+        path: root/and:left
+        queries:
+          - expression: hypershift:operator:reconcile:rate5m
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorPodsDown
+  occurrence: 1
+  input: |
+    max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
+    - max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
+    >= 2
+  plan:
+    expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2
+    conditions:
+      - expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2
+        path: root
+        queries:
+          - expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
+  group: hypershift-operator-monitor-rules
+  alert: hypershiftOperatorPodsUnavailable
+  occurrence: 1
+  input: |
+    max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
+    - max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
+    >= 1
+  plan:
+    expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1
+    conditions:
+      - expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1
+        path: root
+        queries:
+          - expression: max by (cluster) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 1
+        unsupported: ""
+- source: observability/alerts/hypershiftUserJourney-prometheusRule.yaml
+  group: hypershift-cpo-monitor-rules
+  alert: hypershiftCPODown
+  occurrence: 1
+  input: |
+    max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0
+    and on (cluster, namespace)
+    max by (cluster, namespace) (kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}) == 0
+  plan:
+    expression: max by (cluster, namespace) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
+    conditions:
+      - expression: max by (cluster, namespace) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0
+        path: root/and:left
+        queries:
+          - expression: max by (cluster, namespace) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"})
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+      - expression: max by (cluster, namespace) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
+        path: root/and:right
+        queries:
+          - expression: max by (cluster, namespace) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"})
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
         unsupported: ""
 - source: observability/alerts/imageRegistryPolicy-prometheusRule.yaml
   group: image-registry-policy

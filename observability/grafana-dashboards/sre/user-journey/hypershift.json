@@ -109,7 +109,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / sum(max by (cluster, platform) (hypershift_hostedclusters)), 1)[30d:1m]))",
+          "expr": "100 * (1 - avg_over_time(clamp_max(sum(max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions)) / (sum(max by (cluster, platform) (hypershift_hostedclusters)) > 0), 1)[30d:1m]))",
           "legendFormat": "Healthy",
           "refId": "A",
           "instant": true
@@ -1753,12 +1753,9 @@
     "list": [
       {
         "allowCustomValue": false,
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
+        "current": {},
         "hide": 0,
-        "includeAll": true,
+        "includeAll": false,
         "label": "SVC Datasource",
         "name": "datasource",
         "options": [],
@@ -1770,12 +1767,9 @@
       },
       {
         "allowCustomValue": false,
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
+        "current": {},
         "hide": 0,
-        "includeAll": true,
+        "includeAll": false,
         "label": "HCP Datasource",
         "name": "hcp_datasource",
         "options": [],
