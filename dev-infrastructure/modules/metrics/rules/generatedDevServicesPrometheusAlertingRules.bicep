@@ -2172,13 +2172,13 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyDenied/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
           title: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2196,19 +2196,19 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         enabled: true
         labels: {
           component: 'image-registry-policy'
-          severity: 'info'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
           title: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

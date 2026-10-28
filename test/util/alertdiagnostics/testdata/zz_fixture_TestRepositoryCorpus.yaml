@@ -1841,14 +1841,14 @@
   group: image-registry-policy
   alert: ImageRegistryPolicyAuditViolation
   occurrence: 1
-  input: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+  input: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0
   plan:
-    expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+    expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0
     conditions:
-      - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+      - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0
         path: root
         queries:
-          - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m]))
+          - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -1858,14 +1858,14 @@
   group: image-registry-policy
   alert: ImageRegistryPolicyDenied
   occurrence: 1
-  input: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+  input: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0
   plan:
-    expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+    expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0
     conditions:
-      - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+      - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0
         path: root
         queries:
-          - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m]))
+          - expression: sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -9893,17 +9893,16 @@
     sum by (cluster, policy, policy_binding) (
       increase(apiserver_validating_admission_policy_check_total{
         policy="image-registry-allowlist-policy",
-        enforcement_action="audit",
-        validation_result="denied"
+        enforcement_action="audit"
       }[15m])
     ) > 0
   plan:
-    expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+    expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0
     conditions:
-      - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+      - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0
         path: root
         queries:
-          - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m]))
+          - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
@@ -9917,17 +9916,16 @@
     sum by (cluster, policy, policy_binding) (
       increase(apiserver_validating_admission_policy_check_total{
         policy="image-registry-allowlist-policy",
-        enforcement_action="deny",
-        validation_result="denied"
+        enforcement_action="deny"
       }[15m])
     ) > 0
   plan:
-    expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+    expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0
     conditions:
-      - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0
+      - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0
         path: root
         queries:
-          - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m]))
+          - expression: sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m]))
             role: signal
         thresholds:
           - operator: '>'
