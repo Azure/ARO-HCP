@@ -40,6 +40,7 @@ const fleetContainer = "Fleet"
 // patterns and credential scoping.
 type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
+	DNSClaims(parentZone string) cosmosstorageutils.ResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim]
 	Stamps() StampsCRUD
 	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
 	ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
@@ -63,6 +64,7 @@ type ManagementClustersCRUD interface {
 
 // FleetGlobalListers provides cross-partition listers for fleet resource types.
 type FleetGlobalListers interface {
+	DNSClaims() cosmosstorageutils.GlobalLister[fleetapi.DNSClaim]
 	Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp]
 	ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster]
 	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
@@ -113,6 +115,16 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
 	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
 		c.container, nil, fleetapi.HCPResourceRequirementsResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+}
+
+func (c *cosmosFleetDBClient) DNSClaims(parentZone string) cosmosstorageutils.ResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim] {
+	id, err := fleetapihelpers.DNSClaimResourceID("placeholder." + parentZone)
+	if err != nil {
+		panic(err)
+	}
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.DNSClaim, *fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](
+		c.container, id.Parent, fleetapi.DNSClaimResourceType,
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
@@ -187,6 +199,12 @@ type cosmosFleetGlobalListers struct {
 }
 
 var _ FleetGlobalListers = &cosmosFleetGlobalListers{}
+
+func (g *cosmosFleetGlobalListers) DNSClaims() cosmosstorageutils.GlobalLister[fleetapi.DNSClaim] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]]{
+		ContainerClient: g.container, ResourceTypes: []azcorearm.ResourceType{fleetapi.DNSClaimResourceType},
+	}
+}
 
 func (g *cosmosFleetGlobalListers) Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp] {
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]]{

@@ -25,6 +25,8 @@ digraph cluster_delete {
   failed [label="ARM Delete Operation Failed\ndeadline: InternalServerError + diagnostics\nCS Error: converted code / message", fillcolor="#fbe4e4", color="#9b4d4d"];
   schedules [label="BackupSchedule + kube-applier\nDelete-type desires remove Schedules", fillcolor="#e6f0fa", color="#35648a"];
   backups [label="BackupCleanup (mgmt-agent)\nALL: recognized terminal Backup, HC absent,\nno active transfers/restores, no opt-outs\nLive reads + pure plan + non-forced SSA", fillcolor="#e6f0fa", color="#35648a"];
+  claims [label="DNSClaimCleanup\nclaim events + hourly resync\nlive-confirm owner incarnation gone\nrecord claim DeletionTimestamp; hold 7 days\nlive-recheck before ETag-guarded delete", fillcolor="#e6f0fa", color="#35648a"];
+  final -> claims [label="owner removed\nclaims cleaned asynchronously", style=dashed];
   velero [label="Velero (external)\nprocess DeleteBackupRequest\ndelete Backup and associated backup data", fillcolor="#fff0da", color="#b27624"];
   retirement [label="RepositoryCleanup: retirement\nDefault repository finalizer before deletion\nALL: HC absent, no matching/unscoped\nBackups or Schedules, no active consumers,\nno storage aliases or opt-outs", fillcolor="#e6f0fa", color="#35648a"];
   handoff [label="RepositoryCleanup: durable handoff\nDelete repository; SSA immutable cleanup CR\nDefault finalizer; no ownerReference\nLive-verify intent, release repository finalizer\nHandoff only, not held for storage cleanup", fillcolor="#e6f0fa", color="#35648a"];
