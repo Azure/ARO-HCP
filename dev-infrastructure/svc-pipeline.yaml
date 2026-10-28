@@ -1056,3 +1056,9 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "RegistryErrorResponse"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+      honorRetryBudgetWhenFailingFast: true
