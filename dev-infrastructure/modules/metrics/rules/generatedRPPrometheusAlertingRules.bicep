@@ -1355,7 +1355,7 @@ Management Cluster: {{ $labels.cluster }}
           info: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
           summary: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
           title: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
         }
@@ -1389,7 +1389,7 @@ Management Cluster: {{ $labels.cluster }}
           info: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
           summary: '{{ $labels.cluster }}: hypershift-operator pods down'
           title: '{{ $labels.cluster }}: hypershift-operator pods down'
         }
@@ -1423,7 +1423,7 @@ Management Cluster: {{ $labels.cluster }}
           info: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
 Management Cluster: {{ $labels.cluster }}
 '''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
           summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
           title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
         }

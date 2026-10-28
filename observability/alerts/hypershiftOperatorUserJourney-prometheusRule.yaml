@@ -52,7 +52,7 @@ spec:
         description: |
           {{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
           Management Cluster: {{ $labels.cluster }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorPodsUnavailable/{{ $labels.cluster }}"
     - alert: hypershiftOperatorPodsDown
       expr: |
@@ -69,7 +69,7 @@ spec:
         description: |
           {{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
           Management Cluster: {{ $labels.cluster }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorPodsDown/{{ $labels.cluster }}"
     # Zero reconciles for 30m: a live operator always requeues, so a flat zero
     # means it is wedged. Gated on HostedClusters being present: an empty MC
@@ -91,5 +91,5 @@ spec:
         description: |
           hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
           Management Cluster: {{ $labels.cluster }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorIdle/{{ $labels.cluster }}"

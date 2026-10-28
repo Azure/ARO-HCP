@@ -52,7 +52,7 @@ tests:
         description: |
           1 hypershift-operator pod(s) have been unavailable for 15 minutes.
           Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorPodsUnavailable/mc1"
   - eval_time: 20m
     alertname: hypershiftOperatorPodsDown
@@ -81,7 +81,7 @@ tests:
         description: |
           2 hypershift-operator pods have been unavailable for 5 minutes.
           Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorPodsDown/mc1"
   - eval_time: 20m
     alertname: hypershiftOperatorPodsUnavailable
@@ -97,7 +97,7 @@ tests:
         description: |
           2 hypershift-operator pod(s) have been unavailable for 15 minutes.
           Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorPodsUnavailable/mc1"
   # With no operator reconciling there is no reconcile series, so Idle stays quiet and does not duplicate the pod alerts.
   - eval_time: 60m
@@ -148,7 +148,7 @@ tests:
         description: |
           hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
           Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftOperatorIdle/mc1"
 - interval: 1m
   name: "HyperShift Operator idle without HostedClusters fires no alert"

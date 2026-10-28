@@ -51,5 +51,5 @@ spec:
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: {{ $labels.cluster }}
           Namespace: {{ $labels.namespace }}
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
         correlationId: "hypershiftCPODown/{{ $labels.cluster }}/{{ $labels.namespace }}"

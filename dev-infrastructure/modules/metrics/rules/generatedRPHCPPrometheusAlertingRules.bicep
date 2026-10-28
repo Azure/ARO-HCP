@@ -168,7 +168,7 @@ Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
-          runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
           summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
           title: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
         }

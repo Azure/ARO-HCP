@@ -5,6 +5,9 @@ down or wedged. They complement the backend operation (LRO) alerts: they fire
 before customer operations start failing, and they still fire when no customer
 is making changes, so there is no LRO traffic to fail.
 
+Until a dedicated runbook exists, the alerts link here for context:
+<https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md>
+
 Rules: [`observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml`](../../observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml) (HyperShift Operator) and [`observability/alerts/hypershiftUserJourney-prometheusRule.yaml`](../../observability/alerts/hypershiftUserJourney-prometheusRule.yaml) (CPO).
 Dashboard: **HyperShift User Journey SLO** (`observability/grafana-dashboards/sre/user-journey/hypershift.json`).
 
