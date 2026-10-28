@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/flowcontrol"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -98,6 +99,64 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	}
 
 	return errors.Join(verifyErr, lastErr)
+}
+
+// readyRESTConfig returns a copy of adminRESTConfig with a per-request timeout and rate limiting disabled.
+//
+//	The gates make one request per poll interval, and a token-bucket limiter would also
+//
+// refuse a token once the poll deadline's timestamp has passed,
+func readyRESTConfig(adminRESTConfig *rest.Config) *rest.Config {
+	config := rest.CopyConfig(adminRESTConfig)
+	config.Timeout = 10 * time.Second
+	config.RateLimiter = flowcontrol.NewFakeAlwaysRateLimiter()
+	return config
+}
+
+// waitForClusterOperatorCondition polls until the named ClusterOperator reports the given condition
+// with status True.
+// The returned timeout error names the condition and the last observed reason/message.
+func waitForClusterOperatorCondition(
+	ctx context.Context,
+	adminRESTConfig *rest.Config,
+	operatorName string,
+	conditionType configv1.ClusterStatusConditionType,
+	timeout time.Duration,
+	interval time.Duration,
+) error {
+	if adminRESTConfig == nil {
+		return fmt.Errorf("%s %s readiness wait: admin REST config is nil", operatorName, conditionType)
+	}
+	if interval <= 0 {
+		return fmt.Errorf("%s %s readiness wait: interval must be > 0, got %s", operatorName, conditionType, interval)
+	}
+	configClient, err := configv1client.NewForConfig(readyRESTConfig(adminRESTConfig))
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	name := fmt.Sprintf("VerifyClusterOperatorCondition(operator=%s, condition=%s)", operatorName, conditionType)
+	return pollUntilReady(ctx, name, timeout, interval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		operator, err := configClient.ClusterOperators().Get(ctx, operatorName, metav1.GetOptions{})
+		if err != nil {
+			// A request failing while the poll's context has ended is an
+			// interruption whose error may not wrap the context error; report the
+			// context error so pollUntilReady keeps the last real observation.
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("failed to get ClusterOperator %q: %w", operatorName, err)
+		}
+		condition := getClusterOperatorCondition(operator.Status.Conditions, conditionType)
+		switch {
+		case condition == nil:
+			return fmt.Errorf("ClusterOperator %q has no %s condition", operatorName, conditionType)
+		case condition.Status != configv1.ConditionTrue:
+			return fmt.Errorf("ClusterOperator %q %s=%s reason=%s message=%q",
+				operatorName, conditionType, condition.Status, condition.Reason, condition.Message)
+		}
+		return nil
+	})
 }
 
 func getClusterOperatorCondition(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) *configv1.ClusterOperatorStatusCondition {

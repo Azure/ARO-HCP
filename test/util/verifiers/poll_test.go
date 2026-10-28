@@ -306,3 +306,29 @@ func TestPollUntilReady_IndependentContextErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestPollUntilReady_CancellationBetweenPollsKeepsCallerError(t *testing.T) {
+	// The caller's context can end between polls: after a failing check records
+	// an observation while the context is live, but before the next check runs.
+	// The hour-long interval keeps the wait from ticking again, so the parent's
+	// deadline ends it without a check observing the cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	observation := errors.New("pod is not ready")
+	calls := 0
+	err := pollUntilReady(ctx, "test-verifier", time.Second, time.Hour, nil, 0, nil, func(context.Context) error {
+		calls++
+		if calls > 1 {
+			t.Error("check must not run again once the context ends between polls")
+		}
+		return observation
+	})
+	if err == nil {
+		t.Fatal("expected error when the caller's context ends between polls, got nil")
+	}
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, observation)
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("expected 'cancelled' in error, got: %s", err.Error())
+	}
+}
