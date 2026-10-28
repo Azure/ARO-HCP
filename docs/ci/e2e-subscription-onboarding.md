@@ -90,7 +90,6 @@ A brand-new subscription typically has no Azure resource providers registered be
    - To scope to a single subscription or asset kind:
      - `make -C test apply-pool-assets ENVIRONMENT=dev SUBSCRIPTION="<subscription display name>"`
      - `make -C test apply-pool-assets ENVIRONMENT=dev ASSET=e2e_identities`
-   - The `go run` invocation also works: `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
    - Validate that the deployment stacks and identity-container resource groups match the catalog:
      - `make -C test validate-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs`)
 
