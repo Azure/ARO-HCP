@@ -130,7 +130,11 @@ func (c *dnsAllocationController) SyncOnce(ctx context.Context, key controllerut
 	if managementCluster.Status.PublicDNSZoneResourceID == nil {
 		return utils.TrackError(fmt.Errorf("selected management cluster has no public DNS zone"))
 	}
-	return c.allocate(ctx, cluster, serviceProviderCluster, managementCluster.Status.PublicDNSZoneResourceID.Name)
+	err = c.allocate(ctx, cluster, serviceProviderCluster, managementCluster.Status.PublicDNSZoneResourceID.Name)
+	if cosmosstorageutils.IsConflictError(err) || cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	return utils.TrackError(err)
 }
 
 func (c *dnsAllocationController) needsWork(cluster *coreapi.Cluster) bool {

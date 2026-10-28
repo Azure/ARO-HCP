@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -34,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -71,6 +74,7 @@ func TestBackfillSyncOnce(t *testing.T) {
 	noPrefix := cluster.DeepCopy()
 	noPrefix.CustomerProperties.DNS.BaseDomainPrefix = ""
 	failure := errors.New("injected failure")
+	preconditionFailed := corecosmosstoragetesting.NewPreconditionFailedError()
 	tests := []struct {
 		name                        string
 		cluster                     *coreapi.Cluster
@@ -91,6 +95,9 @@ func TestBackfillSyncOnce(t *testing.T) {
 		{name: "retiring reservation", cluster: established, hosted: hosted, claim: retiring, wantErr: "unavailable"},
 		{name: "claim read failure", cluster: established, hosted: hosted, claimErr: failure, wantErr: failure.Error()},
 		{name: "HostedCluster read failure", cluster: established, readErr: failure, wantErr: failure.Error()},
+		{name: "replace precondition failed", cluster: cluster, hosted: hosted, writeErr: preconditionFailed, wantCluster: established},
+		{name: "create precondition failed", cluster: established, hosted: hosted, writeErr: preconditionFailed, wantClaim: testClaim()},
+		{name: "claim already created", cluster: established, hosted: hosted, writeErr: &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "Conflict"}, wantClaim: testClaim()},
 		{name: "replace failure", cluster: cluster, hosted: hosted, writeErr: failure, wantCluster: established, wantErr: failure.Error()},
 		{name: "create failure", cluster: established, hosted: hosted, writeErr: failure, wantClaim: testClaim(), wantErr: failure.Error()},
 		{name: "no HostedCluster", cluster: cluster},

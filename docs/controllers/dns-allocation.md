@@ -44,9 +44,10 @@ ETag. Cluster deletion does not wait
 for claim release, and there is no release acknowledgement on the cluster.
 
 Controllers call listers and clients directly from context-based reconciliation
-methods. Each reconciliation performs at most one persistence operation. Allocation
-and backfill return write errors for retry. Cleanup treats stale-write conflicts
-as benign and relies on claim events or periodic resync to reconsider them.
+methods. Each reconciliation performs at most one persistence operation. Controllers
+treat stale-write precondition failures and concurrent claim creation conflicts as
+benign, relying on claim events or periodic resync to reconsider them. Other write
+errors are returned for retry.
 
 ## Ownership and storage
 

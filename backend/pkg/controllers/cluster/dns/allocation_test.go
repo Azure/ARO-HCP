@@ -111,9 +111,13 @@ func TestAllocationSyncOnce(t *testing.T) {
 		{name: "committed with different intent", cluster: testCluster("other.example.com", "cluster"), provider: testProvider(domain), skipCS: true},
 		{name: "committed with conflicting claim", cluster: testCluster(domain, "cluster"), provider: testProvider(domain), claim: other, skipCS: true},
 		{name: "claim read failure", cluster: testCluster("", "cluster"), provider: testProvider(domain), claimErr: failure, wantErr: failure.Error()},
-		{name: "provider replacement fails", cluster: testCluster("", "cluster"), provider: testProvider(""), writeErr: conflict, wantProvider: testProvider("<generated>"), wantErr: conflict.Error()},
-		{name: "claim create fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), writeErr: &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "Conflict"}, wantClaim: testClaim(), wantErr: "Conflict"},
-		{name: "commit fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), claim: testClaim(), writeErr: conflict, wantCluster: testCluster(domain, "cluster"), wantErr: conflict.Error()},
+		{name: "provider replacement precondition failed", cluster: testCluster("", "cluster"), provider: testProvider(""), writeErr: conflict, wantProvider: testProvider("<generated>")},
+		{name: "claim already created", cluster: testCluster("", "cluster"), provider: testProvider(domain), writeErr: &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "Conflict"}, wantClaim: testClaim()},
+		{name: "commit precondition failed", cluster: testCluster("", "cluster"), provider: testProvider(domain), claim: testClaim(), writeErr: conflict, wantCluster: testCluster(domain, "cluster")},
+		{name: "claim create precondition failed", cluster: testCluster("", "cluster"), provider: testProvider(domain), writeErr: conflict, wantClaim: testClaim()},
+		{name: "provider replacement fails", cluster: testCluster("", "cluster"), provider: testProvider(""), writeErr: failure, wantProvider: testProvider("<generated>"), wantErr: failure.Error()},
+		{name: "claim create fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), writeErr: failure, wantClaim: testClaim(), wantErr: failure.Error()},
+		{name: "commit fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), claim: testClaim(), writeErr: failure, wantCluster: testCluster(domain, "cluster"), wantErr: failure.Error()},
 		{name: "CS lookup fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), csErr: failure, wantErr: failure.Error()},
 		{name: "missing cluster", skipCS: true},
 		{name: "deleting", cluster: deleting, skipCS: true},
@@ -202,5 +206,39 @@ func TestAllocationSyncOnce(t *testing.T) {
 			compare(t, beforeProvider, tt.provider)
 			compare(t, beforeClaim, tt.claim)
 		})
+	}
+}
+
+func TestAllocateReturnsWriteErrors(t *testing.T) {
+	const domain = "bcdf2.example.com"
+	for _, writeErr := range []error{
+		corecosmosstoragetesting.NewPreconditionFailedError(),
+		&azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "Conflict"},
+	} {
+		for _, tc := range []struct {
+			name          string
+			desiredDomain string
+			claim         *fleetapi.DNSClaim
+		}{
+			{name: "persist intent"},
+			{name: "create claim", desiredDomain: domain},
+			{name: "commit domain", desiredDomain: domain, claim: testClaim()},
+		} {
+			t.Run(tc.name+"/"+writeErr.Error(), func(t *testing.T) {
+				resources := newRecordingResources()
+				resources.providers.writeErr = writeErr
+				resources.clusters.writeErr = writeErr
+				fleet := &recordingFleet{}
+				fleet.claims.writeErr = writeErr
+				controller := &dnsAllocationController{
+					resourcesDBClient: resources,
+					fleetDBClient:     fleet,
+					dnsClaimLister:    claimLister(t, tc.claim, nil),
+					clock:             clocktesting.NewFakePassiveClock(testNow),
+				}
+				err := controller.allocate(testContext(t), testCluster("", "cluster"), testProvider(tc.desiredDomain), "example.com")
+				require.ErrorIs(t, err, writeErr, "allocate must preserve write errors for its caller")
+			})
+		}
 	}
 }

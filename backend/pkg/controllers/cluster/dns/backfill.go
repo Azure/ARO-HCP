@@ -150,6 +150,9 @@ func (c *backfillController) SyncOnce(ctx context.Context, key controllerutils.H
 		replacement.ServiceProviderProperties.DNS.BaseDomain = domain
 		logger.Info("Backfilling observed legacy DNS domain", "baseDomain", domain)
 		_, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
 		return utils.TrackError(err)
 	}
 	claim, err := c.dnsClaimLister.Get(ctx, domain)
@@ -179,6 +182,9 @@ func (c *backfillController) SyncOnce(ctx context.Context, key controllerutils.H
 		ClusterResourceID: cluster.ID,
 		CreatedAt:         metav1.NewTime(c.clock.Now()),
 	}, nil)
+	if cosmosstorageutils.IsConflictError(err) || cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	return utils.TrackError(err)
 }
 
