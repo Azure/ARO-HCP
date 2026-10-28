@@ -285,6 +285,12 @@ func TestClusterCreatePacerProceedsAfterMaxWait(t *testing.T) {
 	if elapsed < maxClusterCreatePacingWait {
 		t.Errorf("saturated window gave up after only %v, want at least %v", elapsed, maxClusterCreatePacingWait)
 	}
+	// The wait ends at the bound, never a poll interval past it: a sleep
+	// crossing the deadline would let a caller context expiring inside that
+	// overrun abort a creation that should have proceeded unpaced.
+	if elapsed > maxClusterCreatePacingWait {
+		t.Errorf("saturated window waited %v, want at most %v (the poll sleep must be capped by the remaining budget)", elapsed, maxClusterCreatePacingWait)
+	}
 	// The second start was never recorded: it proceeded without admission.
 	if got := len(pacer.recordedStarts(t)); got != 1 {
 		t.Errorf("recorded %d starts, want 1 (the unpaced start must not be recorded)", got)
@@ -315,11 +321,54 @@ func TestClusterCreatePacerDoesNotCommitAdmissionPastDeadline(t *testing.T) {
 	if elapsed < maxClusterCreatePacingWait {
 		t.Errorf("second pace gave up after only %v, want at least %v", elapsed, maxClusterCreatePacingWait)
 	}
+	// ...exactly to the bound: the final poll sleep is capped by the remaining
+	// budget, so the wait cannot end a poll interval past it.
+	if elapsed > maxClusterCreatePacingWait {
+		t.Errorf("second pace waited %v, want at most %v (the poll sleep must be capped by the remaining budget)", elapsed, maxClusterCreatePacingWait)
+	}
 	// ...without committing the admission: the state keeps exactly the first
 	// start. A deadline check placed after tryRecordStart would instead have
 	// recorded this start ~10s past the deadline and returned paced success.
 	if got := len(pacer.recordedStarts(t)); got != 1 {
 		t.Errorf("recorded %d starts, want 1 (an admission past the pacing deadline must not be recorded)", got)
+	}
+}
+
+// TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced checks the
+// consequence of capping the poll sleep by the remaining pacing budget: a
+// caller whose context outlives the pacing bound — but not by a full poll
+// interval — must proceed unpaced when the bound hits. With an uncapped
+// sleep, the final poll crosses both the pacing deadline and the caller's
+// expiry, and the creation aborts instead of proceeding unpaced.
+func TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced(t *testing.T) {
+	clock := newFakePacerClock()
+	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: 24 * time.Hour}, clock)
+	// The caller's context expires 5s after the pacing bound. The sleep
+	// below reports that expiry for any sleep that would end past it — the
+	// way sleepContext returns the context error when a real deadline hits
+	// mid-sleep.
+	callerExpiry := clock.Now().Add(maxClusterCreatePacingWait + 5*time.Second)
+	pacer.sleep = func(ctx context.Context, d time.Duration) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if clock.Now().Add(d).After(callerExpiry) {
+			return context.DeadlineExceeded
+		}
+		clock.Advance(d)
+		return nil
+	}
+
+	if err := pacer.pace(t.Context(), logr.Discard(), "cluster-a"); err != nil {
+		t.Fatalf("first pace unexpected error: %v", err)
+	}
+	// The saturated window holds cluster-b past the pacing bound; the caller
+	// context outlives the bound but not the bound plus a poll interval.
+	if err := pacer.pace(t.Context(), logr.Discard(), "cluster-b"); err != nil {
+		t.Fatalf("pace past the bound = %v, want nil (proceed unpaced while the caller context is still live)", err)
+	}
+	if got := len(pacer.recordedStarts(t)); got != 1 {
+		t.Errorf("recorded %d starts, want 1 (the unpaced start must not be recorded)", got)
 	}
 }
 
@@ -778,6 +827,68 @@ func TestPaceClusterCreateOnceRemovesFailedAdmission(t *testing.T) {
 	}
 	if admits != 2 {
 		t.Errorf("admission ran %d times, want 2 (a failed admission must not memoize)", admits)
+	}
+}
+
+// TestPaceClusterCreateOnceRetryAfterObservedFailureRepaces checks the
+// removal/close ordering in the failed-admission path: the doomed memo entry
+// is removed before done closes, so a follower that observes a failed
+// admission and immediately retries runs a fresh admission. Closing done
+// before the removal would let that retry re-store the doomed entry and
+// return the stale failure without attempting admission again.
+func TestPaceClusterCreateOnceRetryAfterObservedFailureRepaces(t *testing.T) {
+	t.Cleanup(func() { pacedClusterCreates.Delete("cluster-observed-retry") })
+
+	admitStarted := make(chan struct{}, 1)
+	release := make(chan struct{})
+	leaderDone := make(chan error, 1)
+	go func() {
+		leaderDone <- paceClusterCreateOnce(t.Context(), "cluster-observed-retry", func(context.Context) error {
+			admitStarted <- struct{}{}
+			<-release
+			return context.Canceled
+		})
+	}()
+	<-admitStarted // the leader's admission is in flight; its entry is memoized
+
+	followerFirst := make(chan error, 1)
+	followerRetry := make(chan error, 1)
+	go func() {
+		// While the leader's admission is blocked, this pace finds the memo
+		// entry and parks on its done channel.
+		first := paceClusterCreateOnce(t.Context(), "cluster-observed-retry", func(context.Context) error {
+			return nil
+		})
+		followerFirst <- first
+		// The immediate retry after the first result: when the follower
+		// observed the leader's failure it must re-pace fresh — the doomed
+		// entry was removed before the failure became observable — and when
+		// the follower instead raced past the removal and re-paced on its
+		// first call, the successful admission memoizes and the retry is a
+		// no-op. Either way the retry must not return a stale failure.
+		followerRetry <- paceClusterCreateOnce(t.Context(), "cluster-observed-retry", func(context.Context) error {
+			return nil
+		})
+	}()
+
+	// While the admission is blocked, the follower can neither return nor run
+	// its own admission: give it time to park on the in-flight call.
+	select {
+	case err := <-followerFirst:
+		t.Fatalf("follower returned %v while the admission was still in flight", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	if err := <-leaderDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("leader = %v, want context.Canceled", err)
+	}
+	first := <-followerFirst
+	if first != nil && !errors.Is(first, context.Canceled) {
+		t.Fatalf("follower's first pace = %v, want the leader's cancellation or a fresh admission", first)
+	}
+	if retry := <-followerRetry; retry != nil {
+		t.Errorf("retry after the follower's first result = %v, want nil (a retry after an observed failure must re-pace, not return the stale memoized failure)", retry)
 	}
 }
 

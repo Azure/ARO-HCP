@@ -238,12 +238,15 @@ func paceClusterCreateOnce(ctx context.Context, key string, admit func(context.C
 		}
 	}
 	call.err = admit(ctx)
-	close(call.done)
 	if call.err != nil {
 		// A failed admission must not memoize: drop it so the next pace for
-		// this key re-runs. CompareAndDelete leaves any newer call alone.
+		// this key re-runs. CompareAndDelete leaves any newer call alone. The
+		// entry is removed before done closes, so a caller that observed the
+		// failure and retried cannot re-store this doomed entry and receive
+		// the stale error without a fresh admission attempt.
 		pacedClusterCreates.CompareAndDelete(key, call)
 	}
+	close(call.done)
 	return call.err
 }
 
@@ -303,7 +306,9 @@ func PaceHCPClusterCreateStart(ctx context.Context, logger logr.Logger, resource
 // admission attempt, so a start is never recorded past it: capacity that
 // frees exactly past the deadline fails open here instead of being committed
 // by tryRecordStart and returned as a paced success that silently exceeded
-// the bound.
+// the bound. The bound also caps every poll sleep, so the wait ends at the
+// deadline, never a poll interval past it — only a cancellation arriving
+// while the wait is still inside its budget can abort the creation.
 func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clusterName string) error {
 	start := p.now()
 	deadline := start.Add(maxClusterCreatePacingWait)
@@ -338,8 +343,20 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 			return nil
 		}
 		waited = true
-		if err := p.sleep(ctx, min(retryAfter, clusterCreatePacingPollInterval)); err != nil {
-			return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
+		// Cap the sleep by the remaining pacing budget as well as the poll
+		// interval: an uncapped sleep can carry the wait past the fail-open
+		// deadline by up to a poll interval, and a caller context expiring
+		// inside that overrun aborts a creation that the bound should have
+		// proceeded unpaced instead.
+		if remaining := deadline.Sub(p.now()); remaining > 0 {
+			if err := p.sleep(ctx, min(retryAfter, clusterCreatePacingPollInterval, remaining)); err != nil {
+				return fmt.Errorf("aborted while waiting for cluster-creation pacing (cluster %s): %w", clusterName, err)
+			}
+		} else {
+			// No budget left to sleep within: fail open here rather than
+			// looping through another admission attempt at the deadline.
+			logger.Info(fmt.Sprintf("WARN: cluster-creation pacing wait exceeded %s for cluster %s, proceeding unpaced", maxClusterCreatePacingWait, clusterName))
+			return nil
 		}
 	}
 }
