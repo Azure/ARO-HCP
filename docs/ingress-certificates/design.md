@@ -13,7 +13,7 @@ Let an ARO HCP customer:
    router serves the customer's certificate on `*.apps.<cluster-domain>`.
 4. Get rotations performed in Key Vault propagated into the cluster Secret —
    and from there into the running router — automatically, with no SRE
-   action and no cluster restart.
+   action or manual router intervention.
 
 ## Scope and non-goals
 
@@ -25,9 +25,9 @@ This document is about the **workload cluster's** ingress (`openshift-ingress`
   [ingress-egress.md](../ingress-egress.md)).
 - The HCP control plane TLS (kube-apiserver, etcd, etc.) — those are managed
   by HyperShift and are out of scope here.
-- Issuing the certificate itself (we assume the customer's CA workflow is
-  already producing a cert into AKV; this design only covers the
-  Key-Vault-to-cluster sync).
+- Prescribing a CA workflow for every customer. The sync mechanism consumes a
+  certificate in AKV. The current e2e test also exercises issuance through
+  Key Vault's DigiCert integration, as described below.
 
 ## Background: why the obvious choice (Secrets Store CSI Driver) is the wrong shape
 
@@ -58,8 +58,8 @@ load-bearing complexity for no benefit.
 ## Chosen mechanism: External Secrets Operator (ESO)
 
 [External Secrets Operator](https://external-secrets.io/) is a CNCF project
-with a first-class Azure Key Vault provider. We will require the customer to
-install ESO in the workload cluster (via Helm or OperatorHub) and configure:
+with an Azure Key Vault provider. This workflow uses a customer-installed ESO
+in the workload cluster, configured with:
 
 - One `ClusterSecretStore` (or namespaced `SecretStore`) pointing at the
   customer's AKV, authenticating via Azure **Workload Identity** (federated
@@ -72,8 +72,15 @@ The customer then patches `IngressController/default` in
 `openshift-ingress-operator` with `spec.defaultCertificate.name` set to the
 Secret name. ESO refreshes on its configured `refreshInterval`; when a new
 certificate version appears in AKV the Secret is updated in place, the
-cluster-ingress-operator notices the resourceVersion change, and the router
-pods reload their serving cert without a restart.
+cluster-ingress-operator reconciles the referenced certificate into the router
+deployment. The test verifies the new certificate is served automatically; it
+does not assert that router pods never restart or roll out.
+
+The test downloads the pinned **v0.16.0** upstream release manifest and creates
+its resources through the Kubernetes dynamic client. It waits for the
+`default/external-secrets` controller deployment to have a ready replica. The
+separate `external-secrets` namespace contains the Azure-authentication
+ServiceAccount; it is not the controller's installation namespace in this test.
 
 ### Why ESO over the CSI driver (and the Arc Secret Store extension)
 
@@ -85,11 +92,10 @@ pods reload their serving cert without a restart.
 | Workload Identity auth | **Yes** | Yes | Yes |
 | Rotation propagation | Poll on `refreshInterval` (configurable, typ. 1h) | Poll, default 2 min | Poll, configurable |
 | Fits the OpenShift IngressController contract | **Yes** — Secret-by-reference matches what the operator already wants | Awkward — needs a sidecar to keep the Secret alive | Yes, but cluster must be Arc-enabled |
-| CNCF / vendor-neutral | **Yes** (CNCF graduated) | kubernetes-sigs + Azure provider | Microsoft-only |
 
-ESO wins because **it is the only option whose lifecycle model is "a Secret
-exists in the cluster because a declarative CR says so," which is exactly the
-model the OpenShift Ingress operator already assumes.**
+ESO provides a Secret independently of a mounting pod and does not require the
+workload cluster to be Arc-enabled. That matches the Secret reference used by
+the OpenShift ingress operator.
 
 We are not choosing the CSI driver despite it being the in-house standard for
 the management/service clusters: those clusters consume the secrets via pods
@@ -148,23 +154,59 @@ flowchart LR
   cluster's OIDC issuer URL. ARO HCP already publishes a public OIDC issuer
   per hosted cluster; this design reuses that.
 - Customer grants the UAMI **Key Vault Certificate User** and **Key Vault
-  Secrets User** RBAC roles on the AKV (scope at the vault, or per-cert via
-  ABAC if they want least privilege).
+  Secrets User** RBAC roles. The test assigns both at vault scope.
 - The ServiceAccount in the cluster is annotated with the UAMI's client ID
   and tenant ID; ESO's Azure provider picks these up and exchanges the
   projected SA token for a Microsoft Entra token via federation.
 
-No long-lived credentials are stored in the cluster.
+ESO's Key Vault access uses no long-lived credentials in the cluster. The test
+separately uses mounted DigiCert credentials to configure the vault's issuer and
+validate the apps domain in CertCentral. Those credentials are not put in the
+ESO ServiceAccount or the TLS Secret. The Azure test caller is granted **Key
+Vault Certificates Officer** at vault scope to configure the issuer and request
+certificate versions.
+
+### Issuance exercised by the test
+
+The test reuses the Key Vault created by the customer-infrastructure fixture,
+alongside its etcd encryption key. It configures an enabled issuer named
+`digicert`, with provider `DigiCert`, using the mounted account ID, API key, and
+organization ID. The organization must already be OV validated. See
+[DigiCert test setup](../../test/e2e/README.md#digicert-credentials-for-the-key-vault-ingress-certificate-test)
+for credentials and skip/failure behavior.
+
+Before issuing a certificate, the test registers or finds the cluster's apps
+domain in the same CertCentral organization. If current OV domain validation
+cannot be reused, it publishes a DNS TXT token at `apps` in the cluster's
+delegated Azure DNS zone, checks delegation and TXT visibility through the
+runner's configured resolver, and asks DigiCert to complete domain control
+validation. Only then does it request the certificate through Key Vault.
+
+[`CreateOrRotateDigiCertKVCert`](../../test/util/framework/keyvault_cert_helper.go)
+requests `OV-SSL` certificates with an exportable RSA-2048 key, PKCS#12 secret
+content, and SANs for both the apps base domain and its wildcard. The requested
+lifetime is six months, subject to the issuer's limits, with `AutoRenew` at 80%
+of the lifetime. Each call submits one issuance request and polls the Key Vault
+operation for up to 15 minutes. The second call explicitly creates a new version
+under the same name; the test does not wait for the lifetime trigger to fire.
+
+Both the TLS Secret and sample-application HTTPS checks validate against the
+embedded `DigiCert High Assurance EV Root CA`, independently of the runner's
+trust store. This tests delivery and rotation against the pinned chain; it does
+not establish public browser trust. The
+[test walkthrough](e2e-test-plan.md) details the assertions and timeouts.
 
 ### The `ExternalSecret`
 
-AKV stores a certificate as a single object whose `value` is a PFX (PKCS#12)
-blob. The associated Key Vault *secret* with the same name returns the same
-PFX. ESO's Azure KV provider can fetch the `tls`-typed secret and we use a
-template to produce PEM.
+The test's certificate policy uses an exportable key and
+`application/x-pkcs12` secret content. ESO fetches the certificate's associated
+Key Vault *secret*, which contains the base64-encoded PFX (PKCS#12) bundle, and
+templates it into a PEM certificate chain and private key.
 
-Approximate shape (final field names verified against the ESO version we ship
-in the test):
+The manifests below use the same fields as the test. The example uses a one-hour
+refresh interval; the test sets it to 30 seconds. `${KV_NAME}` and `${CERT_NAME}`
+are placeholders. The referenced ServiceAccount must already exist with the
+UAMI client-ID and tenant-ID annotations described above.
 
 ```yaml
 apiVersion: external-secrets.io/v1
@@ -230,21 +272,26 @@ needed.
    (same name, new content, bumped `resourceVersion`).
 4. The cluster-ingress-operator watches `IngressController.spec.defaultCertificate`
    and the referenced Secret; on change it reconciles the router config and
-   the haproxy router reloads with the new cert.
-5. No restart, no SRE involvement.
+   the router deployment adopts the new cert.
+5. The sample application serves the new certificate without another
+   `IngressController` patch or manual router action.
 
 `refreshInterval` is a trade-off between rotation latency and AKV API
-pressure. We will recommend **1 hour** as default; the test uses **30 seconds**
-to keep the test runtime bounded.
+pressure. The design example uses **1 hour**; the test uses **30 seconds**.
+Authentication and initial sync have independent ten-minute readiness budgets
+because ESO's error backoff is separate from its refresh interval. After each
+issuance, the test allows five minutes for the Secret to match, followed by a
+ten-minute HTTPS verification budget (after route DNS resolution).
 
 ### Failure modes worth calling out
 
 - **AKV becomes unreachable / RBAC revoked.** ESO surfaces the failure on the
   `ExternalSecret` status; the existing Secret is **not** deleted. The router
-  keeps serving the previous cert. We will document this and add an alert
-  recommendation.
+  keeps serving the previous cert. This is a follow-up negative-test scenario,
+  not a behavior verified by the current e2e test.
 - **Template fails (e.g. wrong PFX password assumed).** Same as above — no
-  destructive update; status carries the error.
+  destructive update; status carries the error. This also remains a follow-up
+  negative-test scenario.
 - **Cert rotated in AKV but new key is invalid for the existing routes (e.g.
   CN/SAN no longer covers the apps domain).** Not detectable by ESO; the
   router will reload with a cert that doesn't match. Out of scope here, but
@@ -260,17 +307,15 @@ to keep the test runtime bounded.
   [e2e-test-plan.md](e2e-test-plan.md)) and any sample customer manifests we
   choose to publish under `docs/` or `demo/`.
 
-## Open questions
+## Current choices and follow-ups
 
-1. **Do we want ESO preinstalled by ARO HCP, or is it the customer's job?**
-   Recommendation: customer's job, but we publish a known-good manifest and
-   test it. Preinstalling pulls ESO into the supported-software surface and
-   we don't need that.
-2. **Bicep helper module for customers?** Probably yes — a small reusable
-   module that takes a vault name + cert name + cluster OIDC issuer URL and
-   provisions UAMI + federated credential + role assignments. Out of scope
-   for the first cut.
-3. **Should we ship a CRD-level conformance test that the
-   ServiceAccount → UAMI federation works before applying the
-   `ExternalSecret`?** The e2e test will do this implicitly; whether to
-   expose it as a customer-facing diagnostic is a follow-up.
+1. **ESO installation.** The test installs ESO into its own workload cluster.
+   This workflow does not add ESO to the platform's preinstalled components.
+2. **Reusable customer infrastructure.** A Bicep module accepting a vault name,
+   certificate name, and cluster OIDC issuer URL could provision the UAMI,
+   federated credential, and role assignments. This remains a follow-up.
+3. **Federation diagnostics.** The test explicitly waits for
+   `ClusterSecretStore` readiness before creating the `ExternalSecret`, then
+   waits for the latter's readiness before checking certificate contents.
+   Conditions and Warning events expose authentication and synchronization
+   failures. A standalone customer diagnostic remains a follow-up.
