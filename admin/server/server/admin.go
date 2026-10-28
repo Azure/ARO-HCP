@@ -163,6 +163,10 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewManagementClusterSchedulingPolicyPutHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/stuckclustercleanups",
+		errorutils.ReportError(stamphandlers.NewStuckClusterCleanupCreateHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/stuckclustercleanups/{name}",
+		errorutils.ReportError(stamphandlers.NewStuckClusterCleanupGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("GET /admin/v1/hcpresourcerequirements/{name}",
 		errorutils.ReportError(hcpresourcerequirementshandlers.NewHCPResourceRequirementsGetHandler(fleetDBClient).ServeHTTP))
 

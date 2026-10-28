@@ -50,6 +50,7 @@ func newFleetInformersWithSyncState(synced bool) *fleetInformers {
 		managementClusterSchedulingInformer: informer,
 		controlPlaneVersionRolloutInformer:  informer,
 		hcpResourceRequirementsInformer:     informer,
+		stuckClusterCleanupInformer:         informer,
 	}
 }
 
@@ -69,6 +70,9 @@ func TestFleetInformersHasSynced(t *testing.T) {
 		}},
 		{"HCPResourceRequirements", func(informers *fleetInformers) {
 			informers.hcpResourceRequirementsInformer = unsyncedInformer
+		}},
+		{"StuckClusterCleanups", func(informers *fleetInformers) {
+			informers.stuckClusterCleanupInformer = unsyncedInformer
 		}},
 	}
 

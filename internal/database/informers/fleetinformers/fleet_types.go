@@ -36,6 +36,7 @@ type FleetInformers interface {
 	ManagementClusterSchedulings() (cache.SharedIndexInformer, fleetlisters.ManagementClusterSchedulingLister)
 	ControlPlaneVersionRollouts() (cache.SharedIndexInformer, fleetlisters.ControlPlaneVersionRolloutLister)
 	HCPResourceRequirements() (cache.SharedIndexInformer, fleetlisters.HCPResourceRequirementsLister)
+	StuckClusterCleanups() (cache.SharedIndexInformer, fleetlisters.StuckClusterCleanupLister)
 	HasSynced() bool
 	RunWithContext(ctx context.Context)
 }
@@ -51,6 +52,8 @@ type fleetInformers struct {
 	controlPlaneVersionRolloutLister    fleetlisters.ControlPlaneVersionRolloutLister
 	hcpResourceRequirementsInformer     cache.SharedIndexInformer
 	hcpResourceRequirementsLister       fleetlisters.HCPResourceRequirementsLister
+	stuckClusterCleanupInformer         cache.SharedIndexInformer
+	stuckClusterCleanupLister           fleetlisters.StuckClusterCleanupLister
 }
 
 func (f *fleetInformers) Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister) {
@@ -73,12 +76,17 @@ func (f *fleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, f
 	return f.hcpResourceRequirementsInformer, f.hcpResourceRequirementsLister
 }
 
+func (f *fleetInformers) StuckClusterCleanups() (cache.SharedIndexInformer, fleetlisters.StuckClusterCleanupLister) {
+	return f.stuckClusterCleanupInformer, f.stuckClusterCleanupLister
+}
+
 func (f *fleetInformers) HasSynced() bool {
 	return f.stampInformer.HasSynced() &&
 		f.managementClusterInformer.HasSynced() &&
 		f.managementClusterSchedulingInformer.HasSynced() &&
 		f.controlPlaneVersionRolloutInformer.HasSynced() &&
-		f.hcpResourceRequirementsInformer.HasSynced()
+		f.hcpResourceRequirementsInformer.HasSynced() &&
+		f.stuckClusterCleanupInformer.HasSynced()
 }
 
 // NewFleetInformers creates FleetInformers with default relist durations.
@@ -94,6 +102,8 @@ func NewFleetInformers(ctx context.Context, globalListers fleetcosmosstorage.Fle
 	ret.controlPlaneVersionRolloutLister = fleetlisters.NewControlPlaneVersionRolloutLister(ret.controlPlaneVersionRolloutInformer.GetIndexer())
 	ret.hcpResourceRequirementsInformer = NewHCPResourceRequirementsInformer(globalListers.HCPResourceRequirements(), fleetDBClient)
 	ret.hcpResourceRequirementsLister = fleetlisters.NewHCPResourceRequirementsLister(ret.hcpResourceRequirementsInformer.GetIndexer())
+	ret.stuckClusterCleanupInformer = NewStuckClusterCleanupInformer(globalListers.StuckClusterCleanups(), fleetDBClient)
+	ret.stuckClusterCleanupLister = fleetlisters.NewStuckClusterCleanupLister(ret.stuckClusterCleanupInformer.GetIndexer())
 
 	return ret
 }
@@ -139,6 +149,13 @@ func (f *fleetInformers) RunWithContext(ctx context.Context) {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		f.hcpResourceRequirementsInformer.RunWithContext(ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		f.stuckClusterCleanupInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()

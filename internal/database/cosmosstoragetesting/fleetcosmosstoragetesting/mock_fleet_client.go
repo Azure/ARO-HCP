@@ -83,6 +83,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addHCPResourceRequirements(ctx, r)
 	case *fleetapi.ControlPlaneVersionRollout:
 		return m.addControlPlaneVersionRollout(ctx, r)
+	case *fleetapi.StuckClusterCleanup:
+		return m.addStuckClusterCleanup(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -115,6 +117,16 @@ func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, 
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier).Scheduling()
 	_, err := crud.Create(ctx, scheduling, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addStuckClusterCleanup(ctx context.Context, cleanup *fleetapi.StuckClusterCleanup) error {
+	stampIdentifier := cleanup.PartitionKey
+	if len(stampIdentifier) == 0 {
+		return fmt.Errorf("stuck cluster cleanup has empty partition key")
+	}
+	crud := m.Stamps().ManagementClusters(stampIdentifier).StuckClusterCleanups()
+	_, err := crud.Create(ctx, cleanup, nil)
 	return err
 }
 
@@ -332,6 +344,20 @@ func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRU
 	)
 }
 
+func (m *mockManagementClustersCRUD) StuckClusterCleanups() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup] {
+	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	inner := newMockFleetResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterStuckClusterCleanupResourceType,
+	)
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateStuckClusterCleanupCreate,
+		validation.ValidateStuckClusterCleanupUpdate,
+	)
+}
+
 // --- FleetGlobalListers ---
 
 type mockFleetGlobalListers struct {
@@ -372,5 +398,12 @@ func (g *mockFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.Gl
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
 		g.client,
 		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) StuckClusterCleanups() cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterStuckClusterCleanupResourceType},
 	)
 }

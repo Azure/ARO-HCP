@@ -181,3 +181,36 @@ var _ runtime.Object = &ControlPlaneVersionRolloutList{}
 func (l *ControlPlaneVersionRolloutList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &StuckClusterCleanup{}
+	_ metav1.ObjectMetaAccessor = &StuckClusterCleanup{}
+)
+
+func (o *StuckClusterCleanup) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *StuckClusterCleanup) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// StuckClusterCleanupList is a list of StuckClusterCleanup resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type StuckClusterCleanupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []StuckClusterCleanup `json:"items"`
+}
+
+var _ runtime.Object = &StuckClusterCleanupList{}
+
+func (l *StuckClusterCleanupList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
