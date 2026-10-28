@@ -577,6 +577,63 @@ func TestClusterCreatePacerLockStateFlockContention(t *testing.T) {
 	})
 }
 
+// TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget checks that the
+// lock-retry sleep is capped by the pacing budget left: with 100ms of the
+// budget remaining, an uncapped 250ms retry would carry the wait past the
+// pacing deadline, and a caller cancellation arriving just after the bound
+// would land inside that sleep — aborting a creation that should have
+// proceeded unpaced. A capped sleep ends at the deadline, before the
+// cancellation, so the retry loop fails open with errPacingLockUnavailable
+// instead of surfacing the caller's cancellation.
+func TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget(t *testing.T) {
+	clock := newFakePacerClock()
+	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: time.Hour}, clock)
+
+	// Hold the in-process mutex for the whole test so lockState must retry.
+	clusterCreatePacingMu.Lock()
+	defer clusterCreatePacingMu.Unlock()
+
+	// Only 100ms of the pacing budget remains — less than one retry interval.
+	deadline := clock.Now().Add(100 * time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// The retry sleep models the caller's cancellation arriving 50ms after
+	// the pacing deadline: a sleep that would end past the deadline meets the
+	// already-cancelled context mid-flight, the way sleepContext returns the
+	// context error when a real deadline hits before the timer. A sleep
+	// capped to the remaining budget ends at the deadline and never sees it.
+	var slept time.Duration
+	pacer.sleep = func(ctx context.Context, d time.Duration) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		slept = d
+		if clock.Now().Add(d).After(deadline) {
+			cancel()
+			return context.Canceled
+		}
+		clock.Advance(d)
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		release, err := pacer.lockState(ctx, deadline)
+		if err == nil {
+			release()
+		}
+		done <- err
+	}()
+
+	if err := <-done; !errors.Is(err, errPacingLockUnavailable) {
+		t.Errorf("lockState with the budget nearly exhausted = %v, want errPacingLockUnavailable (fail open, not the caller cancellation)", err)
+	}
+	if slept > 100*time.Millisecond {
+		t.Errorf("lock retry slept %v, want at most the 100ms remaining budget", slept)
+	}
+}
+
 // TestPaceHCPClusterCreateStartPacesOncePerCluster checks the per-process memo:
 // the FromParam → AndWait call chain passes through both hooks, so a second
 // pace of the same cluster must be a no-op even when the window is saturated,

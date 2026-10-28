@@ -366,9 +366,12 @@ func (p *clusterCreatePacer) pace(ctx context.Context, logger logr.Logger, clust
 // are non-blocking and retried on clusterCreatePacingLockRetryInterval, so a
 // stalled lock holder (a wedged spec subprocess holding the flock, or a wedged
 // goroutine holding the mutex) can neither stall a creation past the pacing
-// deadline nor swallow its cancellation. It returns a release callback when
-// both locks are held; when the context is cancelled first it returns
-// ctx.Err(), and when the deadline passes first it returns
+// deadline nor swallow its cancellation. The retry sleep is capped by the
+// remaining budget, so the wait cannot cross the deadline inside a sleep —
+// where a caller cancellation arriving just past the bound would otherwise
+// abort a creation that should have proceeded unpaced. It returns a release
+// callback when both locks are held; when the context is cancelled first it
+// returns ctx.Err(), and when the deadline passes first it returns
 // errPacingLockUnavailable.
 func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) (func(), error) {
 	lockFile, err := os.OpenFile(p.lockPath, os.O_RDWR|os.O_CREATE, 0666)
@@ -408,9 +411,20 @@ func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) 
 			}
 		}
 
-		if err := p.sleep(ctx, clusterCreatePacingLockRetryInterval); err != nil {
+		// Cap the retry sleep by the remaining pacing budget: an uncapped
+		// sleep can carry the wait past the deadline, and a caller
+		// cancellation arriving just past the bound would then land inside
+		// the sleep and abort a creation that should have proceeded unpaced.
+		// With no budget left to sleep within, fail open the same way the
+		// deadline check above does.
+		if remaining := deadline.Sub(p.now()); remaining > 0 {
+			if err := p.sleep(ctx, min(clusterCreatePacingLockRetryInterval, remaining)); err != nil {
+				_ = lockFile.Close()
+				return nil, err
+			}
+		} else {
 			_ = lockFile.Close()
-			return nil, err
+			return nil, errPacingLockUnavailable
 		}
 	}
 }
