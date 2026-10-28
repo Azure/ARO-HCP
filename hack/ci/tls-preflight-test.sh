@@ -100,6 +100,13 @@ check "$got" "panic" "classifier: real AROSLSRE-2481 panic output is detected"
 got=$(classify_result 0 "$DATA/http-success.txt")
 check "$got" "pass" "classifier: TLS 1.3 server response passes"
 
+first_pull=$(mktemp)
+trap 'rm -f "$first_pull"' EXIT
+printf 'Trying to pull candidate image...\n' >"$first_pull"
+cat "$DATA/http-success.txt" >>"$first_pull"
+got=$(classify_result 0 "$first_pull")
+check "$got" "pass" "classifier: successful first pull with TLS 1.3 response passes"
+
 got=$(classify_result 0 "$DATA/connection-refused.txt")
 check "$got" "inconclusive" "classifier: exit 0 without server response cannot pass"
 

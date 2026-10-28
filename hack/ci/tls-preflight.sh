@@ -136,7 +136,7 @@ classify_result() {
     return
   fi
   if [[ "$rc" -eq 125 || "$rc" -eq 126 || "$rc" -eq 127 ]] \
-    || grep -aq '^Trying to pull \|Unable to find image\|Error response from daemon' "$output_file"; then
+    || { [[ "$rc" -ne 0 ]] && grep -aq '^Trying to pull \|Unable to find image\|Error response from daemon' "$output_file"; }; then
     echo runtime-error
     return
   fi
