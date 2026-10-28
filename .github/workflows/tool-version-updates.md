@@ -44,15 +44,16 @@ steps:
       set -euo pipefail
       version="$(GOWORK=off go -C .bingo list -m -modfile=bingo.mod -f '{{.Version}}' github.com/bwplotka/bingo)"
       GOWORK=off go install "github.com/bwplotka/bingo@$version"
-  - name: Read open pull requests
+  - name: Read agent-owned open tool-update candidates
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     run: |
       set -euo pipefail
       printf '%s\n' tool-version-open-prs.json >> "$(git rev-parse --git-path info/exclude)"
-      gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
-        --jq '.[] | {number, title, body, author: .user.login, base: .base.ref, head: .head.ref, labels: [.labels[].name]}' \
+      gh api --paginate \
+        "repos/$REPO/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100" \
+        --jq '.[] | if .user.login != "aro-hcp-robot[bot]" or .state != "open" or (.labels | type) != "array" then error("Invalid owned PR metadata") else select(.pull_request != null) | {number, title, body, author: .user.login, labels: [.labels[].name]} end' \
         | jq -s '.' > tool-version-open-prs.json
 
 safe-outputs:
@@ -98,23 +99,33 @@ safe-outputs:
 # Agentic CI and development tool updates
 
 Keep the existing pinned CI and development tools current. Use one upstream
-family per PR and no more than one open `agentic-tool-upgrade` PR. Bingo's
-shared generated helpers and the CI image's shared version file must not grow
-competing update branches. PRs are ready for the repository's existing CI/Tide
+family per PR and no more than one open agent-owned tool-update PR targeting
+`main`. Serialize these proposals so shared generated helpers and CI image pins
+do not grow competing agent branches. PRs are ready for the repository's existing CI/Tide
 auto-merge path; do not request reviewers, add approvals, bypass checks, or
 change merge policy.
 
-Immediately before publication, the trusted guard derives changed paths from
-the proposal's patch and bundle artifacts and rechecks every open PR targeting
-`main`, regardless of author or labels. It defers overlapping proposals, including
-shared Bingo helpers and the CI image version/Dockerfile pair, and fails closed
-when an artifact or PR file inventory is incomplete.
+Immediately before publication, the trusted guard rechecks open PRs targeting
+`main`, filtered at the API to `aro-hcp-robot[bot]`. Only that owner's tool-update
+PRs participate: identify them by `agentic-tool-upgrade`, or by the tool-update
+title and `<!-- agentic-tool-family: ... -->` body marker when the label is absent.
+An existing owned tool-update PR defers every new family until it closes.
+Other workflows and Dependabot PRs do not block solely because they share the
+owner. Fail closed when API pagination or ownership metadata is incomplete.
+Do not scan PR file inventories, patches, bundles or file trees for coordination.
+Human and unrelated PR conflicts are left to normal development; they must not
+block this daily automation.
 
 ## Inspect every pin before selecting work
 
-1. Read `tool-version-open-prs.json`. If an open PR by `aro-hcp-robot[bot]` on
-   `main` has `agentic-tool-upgrade`, emit `noop` identifying that PR and stop.
-   Waiting for CI or an existing PR is not missing data and does not need an issue.
+1. Read `tool-version-open-prs.json`, containing only open PR candidates by
+   `aro-hcp-robot[bot]`. Validate the owner and apply the same label or
+   title-and-family-marker ownership rule as the publication guard. Fetch only
+   matching tool-update PR metadata with the read-only GitHub tools to confirm
+   the PR is still open and targets `main`. If one exists, emit `noop`
+   identifying it and stop, regardless of family. Ignore unrelated bot PRs;
+   do not fetch human PRs or any PR filenames. Waiting for CI or an existing
+   owned tool-update PR is not missing data and does not need an issue.
 2. Inspect both tools in `dev-infrastructure/openshift-ci/versions.mk` and every
    `.bingo/*.mod` tool pin. `.bingo/go.mod` is only Bingo's fake root, not a tool.
    Use `bingo list` and the module files; do not maintain a second hardcoded list.
@@ -127,11 +138,6 @@ when an artifact or PR file inventory is incomplete.
    `k8s.io/code-generator` tools belong to one version-coherent update. The Bingo
    updater itself is a separate family. Prefer the oldest pinned release among
    eligible families so frequently released tools do not starve other tools.
-5. Inspect actual changed files of relevant open bot and human PRs using the
-   read-only GitHub tools. Do not take over, replace, or compete with existing
-   updates. Shared Bingo helper changes overlap other Bingo updates; CI image
-   version changes overlap other changes to the same version/Dockerfile pair.
-   Defer an overlapping family and continue inspecting independent families.
 
 Try no more than two eligible candidate families in one run, prioritizing the
 oldest pinned release. For each family, create a temporary detached worktree at
