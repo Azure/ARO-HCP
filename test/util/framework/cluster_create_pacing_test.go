@@ -172,11 +172,10 @@ func TestClusterCreatePacerWaitsWhenWindowFull(t *testing.T) {
 	}
 }
 
-// TestClusterCreatePacerKeepsFractionalSecondStarts checks that a start at a
-// fractional second is recorded with sub-second precision. A truncated (pure
-// RFC3339) timestamp would always fall back to the start of the second, so a
-// window shorter than one second would admit a second start immediately even
-// though the real start has not aged out of the window yet.
+// TestClusterCreatePacerKeepsFractionalSecondStarts checks that a fractional-
+// second start is recorded with sub-second precision: a truncated timestamp
+// would fall back to the second boundary and admit a second start immediately
+// even though it has not aged out of a sub-second window.
 func TestClusterCreatePacerKeepsFractionalSecondStarts(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: 500 * time.Millisecond}, clock)
@@ -298,11 +297,10 @@ func TestClusterCreatePacerProceedsAfterMaxWait(t *testing.T) {
 }
 
 // TestClusterCreatePacerDoesNotCommitAdmissionPastDeadline checks the ordering
-// of the fail-open bound: window capacity that frees *past*
-// maxClusterCreatePacingWait must not be committed. Checking the deadline only
-// after tryRecordStart returns would let a start whose wait already exceeded
-// the bound be recorded anyway and returned as a paced success, silently
-// violating the 30-minute safety valve documented in the README.
+// of the fail-open bound: capacity that frees *past* maxClusterCreatePacingWait
+// must not be committed. Checking the deadline only after tryRecordStart returns
+// would record a start whose wait already exceeded the bound and return it as a
+// paced success, silently violating the safety valve.
 func TestClusterCreatePacerDoesNotCommitAdmissionPastDeadline(t *testing.T) {
 	clock := newFakePacerClock()
 	// With max=1 and a window 10s longer than the pacing wait, the seeded
@@ -335,18 +333,16 @@ func TestClusterCreatePacerDoesNotCommitAdmissionPastDeadline(t *testing.T) {
 }
 
 // TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced checks the
-// consequence of capping the poll sleep by the remaining pacing budget: a
-// caller whose context outlives the pacing bound — but not by a full poll
-// interval — must proceed unpaced when the bound hits. With an uncapped
-// sleep, the final poll crosses both the pacing deadline and the caller's
-// expiry, and the creation aborts instead of proceeding unpaced.
+// consequence of capping the poll sleep by the remaining budget: a caller whose
+// context outlives the pacing bound — but not by a full poll interval — must
+// proceed unpaced when the bound hits, not abort inside an uncapped sleep that
+// crossed the deadline.
 func TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: 24 * time.Hour}, clock)
-	// The caller's context expires 5s after the pacing bound. The sleep
-	// below reports that expiry for any sleep that would end past it — the
-	// way sleepContext returns the context error when a real deadline hits
-	// mid-sleep.
+	// The caller's context expires 5s after the pacing bound. The sleep below
+	// reports that expiry for any sleep ending past it, the way sleepContext
+	// returns the context error when a real deadline hits mid-sleep.
 	callerExpiry := clock.Now().Add(maxClusterCreatePacingWait + 5*time.Second)
 	pacer.sleep = func(ctx context.Context, d time.Duration) error {
 		if err := ctx.Err(); err != nil {
@@ -373,10 +369,10 @@ func TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced(t *testing.
 }
 
 // TestClusterCreatePacerSmoothsRefillAfterBurst checks the refill semantics
-// with a backlog larger than the window (max > 1): the sliding window alone
-// would admit the next max waiting starts together once the initial burst
-// ages out, re-forming a synchronized batch; the persisted next-admission
-// timestamp must instead refill the freed capacity one start per window/max.
+// with a backlog larger than the window (max > 1): the window alone would admit
+// the next max waiting starts together once the burst ages out, re-forming a
+// synchronized batch; the persisted next-admission timestamp must instead
+// refill the freed capacity one start per window/max.
 func TestClusterCreatePacerSmoothsRefillAfterBurst(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 3, window: 90 * time.Second}, clock)
@@ -420,9 +416,8 @@ func TestClusterCreatePacerSmoothsRefillAfterBurst(t *testing.T) {
 
 // gatedPacerSleep replaces a test pacer's sleep so a test can observe and
 // control the lock retry loop: every sleep signals entry, then blocks until
-// released (advancing the fake clock) or the context ends. Holding a pacer
-// lock while a waiter is inside gatedPacerSleep exercises lockState under real
-// contention without real-time sleeps.
+// released (advancing the fake clock) or the context ends — real contention
+// without real-time sleeps.
 type gatedPacerSleep struct {
 	entered chan struct{}
 	release chan struct{}
@@ -449,9 +444,8 @@ func (g *gatedPacerSleep) sleep(ctx context.Context, d time.Duration) error {
 }
 
 // startLockStateWaiter runs pacer.lockState in the background with a gated
-// sleep and returns once the waiter is provably inside the lock retry loop
-// (its first sleep), along with the channel carrying its result and the gate
-// controlling its retry sleeps.
+// sleep and returns once the waiter is provably inside the lock retry loop,
+// along with the channel carrying its result and the gate.
 func startLockStateWaiter(pacer *clusterCreatePacer, clock *fakePacerClock, ctx context.Context, deadline time.Time) (<-chan error, *gatedPacerSleep) {
 	g := newGatedPacerSleep(clock)
 	pacer.sleep = g.sleep
@@ -468,11 +462,10 @@ func startLockStateWaiter(pacer *clusterCreatePacer, clock *fakePacerClock, ctx 
 }
 
 // TestClusterCreatePacerLockStateMutexContention checks the in-process half of
-// the pacer locking under contention: while another goroutine holds the state
-// mutex, a waiting admission returns the caller's cancellation rather than
-// blocking indefinitely, fails open with errPacingLockUnavailable once the
-// pacing deadline passes, and a subsequent admission acquires the released
-// mutex and records normally.
+// the pacer locking: while another goroutine holds the state mutex, a waiting
+// admission returns the caller's cancellation rather than blocking
+// indefinitely, fails open with errPacingLockUnavailable once the pacing
+// deadline passes, and a subsequent admission records normally.
 func TestClusterCreatePacerLockStateMutexContention(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: time.Hour}, clock)
@@ -516,13 +509,11 @@ func TestClusterCreatePacerLockStateMutexContention(t *testing.T) {
 	})
 }
 
-// TestClusterCreatePacerLockStateFlockContention checks the cross-process half
-// of the pacer locking under contention: while another file descriptor holds
-// the state flock — the situation a stalled spec subprocess creates — a
-// waiting admission returns the caller's cancellation rather than blocking
-// indefinitely, fails open with errPacingLockUnavailable once the pacing
-// deadline passes, and a subsequent admission acquires the released flock and
-// records normally.
+// TestClusterCreatePacerLockStateFlockContention checks the cross-process half:
+// while another file descriptor holds the state flock — the situation a
+// stalled spec subprocess creates — the same guarantees as under mutex
+// contention hold: no indefinite blocking, errPacingLockUnavailable past the
+// deadline, normal recording afterwards.
 func TestClusterCreatePacerLockStateFlockContention(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: time.Hour}, clock)
@@ -578,13 +569,12 @@ func TestClusterCreatePacerLockStateFlockContention(t *testing.T) {
 }
 
 // TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget checks that the
-// lock-retry sleep is capped by the pacing budget left: with 100ms of the
-// budget remaining, an uncapped 250ms retry would carry the wait past the
-// pacing deadline, and a caller cancellation arriving just after the bound
-// would land inside that sleep — aborting a creation that should have
-// proceeded unpaced. A capped sleep ends at the deadline, before the
-// cancellation, so the retry loop fails open with errPacingLockUnavailable
-// instead of surfacing the caller's cancellation.
+// lock-retry sleep is capped by the budget left: with 100ms remaining, an
+// uncapped 250ms retry would cross the pacing deadline, and a caller
+// cancellation arriving just after the bound would land inside that sleep —
+// aborting a creation that should have proceeded unpaced. The capped sleep
+// ends at the deadline, before the cancellation, so lockState fails open with
+// errPacingLockUnavailable instead of surfacing the cancellation.
 func TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget(t *testing.T) {
 	clock := newFakePacerClock()
 	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: time.Hour}, clock)
@@ -598,11 +588,11 @@ func TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	// The retry sleep models the caller's cancellation arriving 50ms after
+	// The retry sleep models the caller's cancellation arriving just after
 	// the pacing deadline: a sleep that would end past the deadline meets the
-	// already-cancelled context mid-flight, the way sleepContext returns the
-	// context error when a real deadline hits before the timer. A sleep
-	// capped to the remaining budget ends at the deadline and never sees it.
+	// already-cancelled context mid-flight, the way sleepContext would return
+	// the context error on a real deadline. A sleep capped to the remaining
+	// budget ends at the deadline and never sees it.
 	var slept time.Duration
 	pacer.sleep = func(ctx context.Context, d time.Duration) error {
 		if err := ctx.Err(); err != nil {
@@ -636,9 +626,9 @@ func TestClusterCreatePacerLockRetrySleepCappedByRemainingBudget(t *testing.T) {
 
 // TestPaceHCPClusterCreateStartPacesOncePerCluster checks the per-process memo:
 // the FromParam → AndWait call chain passes through both hooks, so a second
-// pace of the same cluster must be a no-op even when the window is saturated,
-// while a different cluster — a different name, or the same name in another
-// resource group — still waits.
+// pace of the same cluster is a no-op even when the window is saturated, while
+// a different cluster — a different name, or the same name in another resource
+// group — still waits.
 func TestPaceHCPClusterCreateStartPacesOncePerCluster(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ARTIFACT_DIR", dir)
@@ -754,10 +744,9 @@ func TestPaceHCPClusterCreateStartEnvHandling(t *testing.T) {
 // TestPaceHCPClusterCreateStartSaturatedStateBlocksUntilDeadline checks that a
 // saturated shared state file actually blocks admission. A pre-cancelled
 // context cannot prove that — lockState returns before ever reading the state —
-// so instead a live context bounded by a short deadline must expire *inside*
-// the admission wait, proving the state was read and found full; the same
-// short deadline over an empty state must admit immediately, proving the
-// deadline alone does not fail the pace.
+// so a live context bounded by a short deadline must expire *inside* the
+// admission wait; the same deadline over an empty state must admit immediately,
+// proving the deadline alone does not fail the pace.
 func TestPaceHCPClusterCreateStartSaturatedStateBlocksUntilDeadline(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ARTIFACT_DIR", dir)
@@ -890,9 +879,8 @@ func TestPaceClusterCreateOnceRemovesFailedAdmission(t *testing.T) {
 // TestPaceClusterCreateOnceRetryAfterObservedFailureRepaces checks the
 // removal/close ordering in the failed-admission path: the doomed memo entry
 // is removed before done closes, so a follower that observes a failed
-// admission and immediately retries runs a fresh admission. Closing done
-// before the removal would let that retry re-store the doomed entry and
-// return the stale failure without attempting admission again.
+// admission and immediately retries runs a fresh admission rather than
+// re-storing the entry and returning the stale failure.
 func TestPaceClusterCreateOnceRetryAfterObservedFailureRepaces(t *testing.T) {
 	t.Cleanup(func() { pacedClusterCreates.Delete("cluster-observed-retry") })
 
@@ -918,11 +906,11 @@ func TestPaceClusterCreateOnceRetryAfterObservedFailureRepaces(t *testing.T) {
 		})
 		followerFirst <- first
 		// The immediate retry after the first result: when the follower
-		// observed the leader's failure it must re-pace fresh — the doomed
-		// entry was removed before the failure became observable — and when
-		// the follower instead raced past the removal and re-paced on its
-		// first call, the successful admission memoizes and the retry is a
-		// no-op. Either way the retry must not return a stale failure.
+		// observed the leader's failure it must re-pace fresh (the doomed
+		// entry was removed before the failure became observable), and when
+		// it raced past the removal and re-paced on its first call, the
+		// successful admission memoizes and the retry is a no-op. Either way
+		// the retry must not return a stale failure.
 		followerRetry <- paceClusterCreateOnce(t.Context(), "cluster-observed-retry", func(context.Context) error {
 			return nil
 		})
