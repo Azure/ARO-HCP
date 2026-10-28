@@ -40,7 +40,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -963,12 +963,12 @@ func TestSDKScopesAndDeletePolicy(t *testing.T) {
 		t.Run(scope, func(t *testing.T) {
 			desire := newDesire()
 			desire.Spec.TargetResourceID, _ = azcorearm.ParseResourceID(scope + "/providers/Microsoft.Resources/deploymentStacks/stack")
-			desire.Spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete), ResourceGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach), ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete)}
+			desire.Spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete), ResourceGroups: ptr.To(armdeploymentstacks.UnmanageActionResourceGroupModeDetach), ManagementGroups: ptr.To(armdeploymentstacks.UnmanageActionManagementGroupModeDelete)}
 			desire.Spec.Stack.Properties.BypassStackOutOfSyncError = ptr.To(true)
 			calls := 0
 			client := sdkClient(t, desire.Spec.TargetResourceID.SubscriptionID, func(request *http.Request) (*http.Response, error) {
 				calls++
-				if request.URL.Path != desire.Spec.TargetResourceID.String() || request.URL.Query().Get("api-version") != "2024-03-01" || request.Header.Get("Authorization") != "Bearer test-token" {
+				if request.URL.Path != desire.Spec.TargetResourceID.String() || request.URL.Query().Get("api-version") != "2025-07-01" || request.Header.Get("Authorization") != "Bearer test-token" {
 					t.Fatalf("bad route/auth: %s", request.URL)
 				}
 				switch calls {

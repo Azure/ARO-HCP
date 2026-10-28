@@ -27,7 +27,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -246,9 +246,9 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 		Stack: &armdeploymentstacks.DeploymentStack{
 			Properties: &armdeploymentstacks.DeploymentStackProperties{
 				ActionOnUnmanage: &armdeploymentstacks.ActionOnUnmanage{
-					Resources:        ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete),
-					ResourceGroups:   ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
-					ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
+					Resources:        ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete),
+					ResourceGroups:   ptr.To(armdeploymentstacks.UnmanageActionResourceGroupModeDetach),
+					ManagementGroups: ptr.To(armdeploymentstacks.UnmanageActionManagementGroupModeDetach),
 				},
 				DenySettings: &armdeploymentstacks.DenySettings{Mode: ptr.To(armdeploymentstacks.DenySettingsModeNone)},
 				Template: map[string]any{

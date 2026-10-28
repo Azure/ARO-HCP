@@ -29,7 +29,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -126,9 +126,9 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	properties := desire.Spec.Stack.Properties
 	require.NotNil(t, properties)
 	require.Equal(t, &armdeploymentstacks.ActionOnUnmanage{
-		Resources:        ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete),
-		ResourceGroups:   ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
-		ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDetach),
+		Resources:        ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete),
+		ResourceGroups:   ptr.To(armdeploymentstacks.UnmanageActionResourceGroupModeDetach),
+		ManagementGroups: ptr.To(armdeploymentstacks.UnmanageActionManagementGroupModeDetach),
 	}, properties.ActionOnUnmanage)
 	require.Equal(t, &armdeploymentstacks.DenySettings{Mode: ptr.To(armdeploymentstacks.DenySettingsModeNone)}, properties.DenySettings)
 	template := decodeTemplate(t, desire.Spec.Stack)

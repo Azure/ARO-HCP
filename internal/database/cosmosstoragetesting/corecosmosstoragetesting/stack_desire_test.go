@@ -25,7 +25,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -63,7 +63,7 @@ func TestStackDesireStorage(t *testing.T) {
 	_, err = crud.Replace(ctx, before, nil)
 	require.True(t, cosmosstorageutils.IsPreconditionFailedError(err), "stale writers must not overwrite the outcome")
 	updated.Spec.Action = coreapi.StackDesireActionDelete
-	updated.Spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnumDelete)}
+	updated.Spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete)}
 	updated.Spec.Stack.Properties.BypassStackOutOfSyncError = ptr.To(true)
 	_, err = crud.Replace(ctx, updated, nil)
 	require.NoError(t, err, "switching action must preserve target identity")
