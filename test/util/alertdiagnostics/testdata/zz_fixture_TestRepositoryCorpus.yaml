@@ -6142,14 +6142,21 @@
   group: arohcp_backup_slo_metrics_absent_alerts
   alert: userJourneyBackupMetricsAbsent
   occurrence: 1
-  input: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+  input: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
   plan:
-    expression: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
     conditions:
       - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
-        path: root/unless:left
+        path: root/unless:left/and:left
         queries:
           - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -8594,16 +8601,27 @@
   alert: userJourneyBackupMetricsAbsent
   occurrence: 1
   input: |
-    group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+    (
+      group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+      and on (cluster)
+      group by (cluster) (up{job="prometheus/prometheus", namespace="prometheus"} == 1)
+    )
     unless on (cluster)
     group by (cluster) (up{namespace="velero", pod=~"velero-.+"} == 1)
   plan:
-    expression: group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1)
     conditions:
       - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
-        path: root/unless:left
+        path: root/unless:left/and:left
         queries:
           - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
