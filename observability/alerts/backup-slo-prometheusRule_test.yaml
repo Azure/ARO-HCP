@@ -1022,7 +1022,6 @@ tests:
         summary: "no successful Velero server metrics scrape for 15m on int-eastus-mgmt-server-missing"
         description: "Management cluster int-eastus-mgmt-server-missing is in the underlay-cluster inventory but has had no successful Velero server metrics scrape for 15m. Check Velero, its PodMonitor, and the management-cluster metrics pipeline. A healthy empty cluster with up=1 is not a failure merely because it has no backup attempts."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
-
 # ========================================
 # Overload (ARO-29950): Queue & Accumulation alerts modeled on ROSA-HCP's
 # OADP observability doc (threshold/duration values match that doc).
@@ -1666,7 +1665,6 @@ tests:
         description: "Management cluster overload-mc has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
         correlationId: "userJourneyBackupQueueBacklog/overload-mc"
-
 # ========================================
 # DeletionQueueBacklog: identical enqueued-detection formula as
 # QueueBacklog above, against veleroDeleteBackupRequest_info/_phase
@@ -2298,7 +2296,6 @@ tests:
         description: "Management cluster del-overload-mc has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
         correlationId: "userJourneyBackupDeletionQueueBacklog/del-overload-mc"
-
 # ========================================
 # NonTerminalBacklog: same combined boundary+breach trick as QueueBacklog -
 # 100 Backup CRs already stuck in Finalizing (a genuinely in-flight,
@@ -2762,7 +2759,6 @@ tests:
         description: "Management cluster stuck-mc has more than 100 Backup CRs stuck in a non-terminal, non-queued, non-failed phase - e.g. Finalizing, WaitingForPluginOperations, or Deleting - sustained for 1h. Terminal phases (Failed/PartiallyFailed/FailedValidation) are excluded here since they just await TTL cleanup and are already covered by userJourneyBackupErrors at the time of failure; this alert indicates a systemic issue requiring manual CR triage/purge rather than a transient blip - check `kubectl get backups -A` phase distribution on the management cluster."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
         correlationId: "userJourneyBackupNonTerminalBacklog/stuck-mc"
-
 # ========================================
 # NonTerminalBacklog TTL/duplication regression: 101 Backup CRs sitting in
 # Failed (terminal, TTL-bound - 30/90 days per Velero's default backup TTL
@@ -3187,7 +3183,6 @@ tests:
   - eval_time: 150m
     alertname: userJourneyBackupNonTerminalBacklog
     exp_alerts: []
-
 # ========================================
 # Formula unit checks at small scale (promql_expr_test, not alert_rule_test
 # - these assert the computed VALUE directly, independent of the 300/100
