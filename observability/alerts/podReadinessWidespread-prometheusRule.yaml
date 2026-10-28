@@ -15,11 +15,14 @@ spec:
       component: kubernetes-infrastructure
     rules:
     # Environment-wide disruption signature: pods not-ready across several
-    # mature (older than 30 minutes) namespaces at once. Bootstrap-related
-    # not-ready pods live in young namespaces and are excluded by the maturity
-    # filter, so this rule keys on breadth of impact rather than namespace age.
-    # It complements KubePodNotReady, whose 30-minute age gate for ocm-*
-    # namespaces masks exactly the environment-wide events this rule detects.
+    # mature (older than 30 minutes) namespaces at once. Firing data
+    # (Oct 14-27; see ARO-30374 threshold analysis) shows every
+    # high-concurrency CI event is a CPO-operand bootstrap batch in young
+    # namespaces, so an age-independent breadth rule cannot separate bootstrap
+    # from real disruptions at any threshold. This rule therefore covers
+    # disruptions affecting mature namespaces only; young namespaces remain
+    # covered by KubePodNotReady itself, which fires there once not-ready
+    # state persists past the 30-minute age gate plus its 5-minute for.
     - alert: KubePodNotReadyWidespread
       annotations:
         description: Pods have been in a non-ready state across {{ $value }} mature namespaces on cluster {{ $labels.cluster }} for longer than 5 minutes, which indicates an environment-wide disruption rather than a fault in a single workload.
