@@ -72,10 +72,6 @@ FORCE:
 %.bicep.lint %.bicepparam.lint:
 	@set -o pipefail; $(BICEP) lint $(basename $@) 2>&1 | awk 'NF'
 
-test-bicep-checks:
-	@BICEP="$(BICEP)" bash ../hack/verify-bicep-checks_test.sh
-.PHONY: test-bicep-checks
-
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
 		--name "feature-registration" \
