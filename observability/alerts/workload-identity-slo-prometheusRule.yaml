@@ -28,9 +28,9 @@ spec:
       component: slo
     rules:
     # ----------------------------------------
-    # Critical: 7 days or less left (Sev 3)
+    # 7 days or less left (Sev 4 until orphan cleanup, ARO-30512)
     # ----------------------------------------
-    - alert: userJourneyWorkloadIdentityCredentialExpiry7d
+    - alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
       expr: |
         (
           workload_identity:credential_refresher_expiry_le7d:increase1h
@@ -39,9 +39,27 @@ spec:
         ) > 0
       for: 15m
       labels:
-        severity: "3"
+        severity: "4"
         slo: workload-identity-credential-expiry
       annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+    # Refresher stalled: no new observations for 1h (Sev 4)
+    - alert: userJourneyWorkloadIdentityRefresherStalled
+      expr: |
+        workload_identity:credential_refresher_expiry_observations:increase1h == 0
+        or
+        (
+          max by (cluster) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[7d]))
+          unless on (cluster)
+          workload_identity:credential_refresher_expiry_observations:increase1h
+        )
+      for: 1h
+      labels:
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      annotations:
+        summary: "Credential refresher is not observing any MSI credentials"
+        description: "The credential refresher on this services cluster has stopped observing MSI credentials, so they are not being checked or renewed."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"

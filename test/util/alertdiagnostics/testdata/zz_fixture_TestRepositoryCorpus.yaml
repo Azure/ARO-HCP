@@ -7126,6 +7126,47 @@
             value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityRefresherStalled
+  occurrence: 1
+  input: workload_identity:credential_refresher_expiry_observations:increase1h == 0 or (max by (cluster, region) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w])) unless on (cluster) workload_identity:credential_refresher_expiry_observations:increase1h)
+  plan:
+    expression: workload_identity:credential_refresher_expiry_observations:increase1h == 0 or (max by (cluster, region) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w])) unless on (cluster) workload_identity:credential_refresher_expiry_observations:increase1h)
+    conditions:
+      - expression: workload_identity:credential_refresher_expiry_observations:increase1h == 0
+        path: root/or:left
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_observations:increase1h
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: (max by (cluster, region) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w]))) unless on (cluster) (workload_identity:credential_refresher_expiry_observations:increase1h)
+        path: root/or:right/unless:left
+        queries:
+          - expression: (max by (cluster, region) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w]))) unless on (cluster) (workload_identity:credential_refresher_expiry_observations:increase1h)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
+  occurrence: 1
+  input: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: hypershift-operator-monitor-rules
   alert: hypershiftOperatorIdle
   occurrence: 1
@@ -12579,6 +12620,59 @@
         thresholds:
           - operator: '>'
             value: 1800
+        unsupported: ""
+- source: observability/alerts/workload-identity-slo-prometheusRule.yaml
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityRefresherStalled
+  occurrence: 1
+  input: |
+    workload_identity:credential_refresher_expiry_observations:increase1h == 0
+    or
+    (
+      max by (cluster) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[7d]))
+      unless on (cluster)
+      workload_identity:credential_refresher_expiry_observations:increase1h
+    )
+  plan:
+    expression: workload_identity:credential_refresher_expiry_observations:increase1h == 0 or (max by (cluster) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w])) unless on (cluster) workload_identity:credential_refresher_expiry_observations:increase1h)
+    conditions:
+      - expression: workload_identity:credential_refresher_expiry_observations:increase1h == 0
+        path: root/or:left
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_observations:increase1h
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+      - expression: (max by (cluster) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w]))) unless on (cluster) (workload_identity:credential_refresher_expiry_observations:increase1h)
+        path: root/or:right/unless:left
+        queries:
+          - expression: (max by (cluster) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w]))) unless on (cluster) (workload_identity:credential_refresher_expiry_observations:increase1h)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/workload-identity-slo-prometheusRule.yaml
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
+  occurrence: 1
+  input: |
+    (
+      workload_identity:credential_refresher_expiry_le7d:increase1h
+      -
+      workload_identity:credential_refresher_expiry_le0d:increase1h
+    ) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: e2e-expired-resource-group-alerts
