@@ -1413,6 +1413,18 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 	}{
 		{name: "not yet synced"},
 		{
+			name: "initial sync not yet attempted",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "NoUpdatesAttemptedYet"}},
+			},
+		},
+		{
+			name: "failed initial Secret apply",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ControllerPatchError"}},
+			},
+		},
+		{
 			name: "legacy condition without sync timestamp",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				Conditions: []metav1.Condition{{Type: "SecretCreated", Status: metav1.ConditionTrue}},
@@ -1451,11 +1463,12 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "failed rotation after a successful first sync",
+			name: "later update failure does not undo a successful first sync",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
 				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ProviderError"}},
 			},
+			succeeded: true,
 		},
 		{
 			name: "unknown sync condition after a successful first sync",
@@ -1465,11 +1478,26 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "missing condition status after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated"}},
+			},
+		},
+		{
+			name: "invalid condition status after a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: "Invalid"}},
+			},
+		},
+		{
 			name: "failed condition with success reason",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,
 				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "SecretUpToDate"}},
 			},
+			succeeded: true,
 		},
 		{
 			name: "successful condition with unexpected reason",
@@ -1477,6 +1505,7 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 				LastSuccessfulSyncTime: &syncedAt,
 				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SyncStarting"}},
 			},
+			succeeded: true,
 		},
 		{
 			name: "successful condition without reason",
@@ -1484,6 +1513,7 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 				LastSuccessfulSyncTime: &syncedAt,
 				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue}},
 			},
+			succeeded: true,
 		},
 		{
 			name: "success reason used as condition type",

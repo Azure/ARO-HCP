@@ -482,30 +482,51 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
-// the ingress wildcard certificate's SecretSync reports a successful, up-to-date sync.
+// the ingress wildcard certificate's SecretSync has synced at least once and reports
+// a known SecretUpdated status (True or False). Later failures do not undo this
+// creation milestone; this is not a current provider-health check.
 //
 // With secrets-store-sync-controller v0.0.6, SecretCreated is no longer written;
 // successful creates and updates use SecretUpdated=True with reason SecretUpToDate.
-// Upstream: https://github.com/kubernetes-sigs/secrets-store-sync-controller
+// Conditions: https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.6/pkg/controller/conditions.go#L29-L82
 //
-// Illustrative successful SecretSync.Status (not an observed v0.0.6 object):
+// During initial ingress certificate synchronization with v0.0.6, the following
+// SecretSync.Status transitions were observed:
+//
+// After creation, the status field was absent.
+//
+// Initial condition (lastSuccessfulSyncTime and syncHash absent):
 //
 //	{
 //		"conditions": [
 //			{
-//				"lastTransitionTime": "2025-01-15T10:30:00Z",
+//				"lastTransitionTime": "2026-10-28T12:16:35Z",
+//				"message": "",
+//				"reason": "NoUpdatesAttemptedYet",
+//				"status": "Unknown",
+//				"type": "SecretUpdated"
+//			}
+//		]
+//	}
+//
+// After the first successful sync:
+//
+//	{
+//		"conditions": [
+//			{
+//				"lastTransitionTime": "2026-10-28T12:16:35Z",
 //				"message": "Secret contains last observed values.",
 //				"reason": "SecretUpToDate",
 //				"status": "True",
 //				"type": "SecretUpdated"
 //			}
 //		],
-//		"lastSuccessfulSyncTime": "2025-01-15T10:30:00Z",
-//		"syncHash": "v1:<computed-state-hash>"
+//		"lastSuccessfulSyncTime": "2026-10-28T12:16:35Z",
+//		"syncHash": "v1:15c9e563cc7c9af7056cf1484de26b53213a33d0fa295b0441ef34ae35da06cc"
 //	}
 //
-// Upstream success path that sets the timestamp, hash, and condition:
-// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/e6d4e5fbb10a0b57e5f43adc1de1a9c14d77e03a/pkg/controller/secretsync_controller.go#L374-L389
+// Upstream failure handling, unchanged-hash return, and successful status update:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.6/pkg/controller/secretsync_controller.go#L350-L389
 func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -521,13 +542,15 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
 	}
 
-	// Require the condition alongside the timestamp so a past success cannot
-	// hide a later reported failure.
+	// A later failure does not invalidate the initial sync. In v0.0.6,
+	// unchanged-data recovery can leave SecretUpdated=False after a prior failure.
 	updatedCondition := meta.FindStatusCondition(secretSync.Status.Conditions, "SecretUpdated")
 	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() &&
 		updatedCondition != nil &&
-		updatedCondition.Status == metav1.ConditionTrue &&
-		updatedCondition.Reason == "SecretUpToDate" {
+		(updatedCondition.Status == metav1.ConditionTrue || updatedCondition.Status == metav1.ConditionFalse) {
+		if updatedCondition.Status == metav1.ConditionFalse {
+			logger.Info("ingress SecretSync previously synced; latest update condition is false", "secretSync.Status.Conditions", secretSync.Status.Conditions)
+		}
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	// Don't expose the SecretSync's own condition details on the operation; just log
