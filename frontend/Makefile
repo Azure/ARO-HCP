@@ -1,3 +1,4 @@
+# Temporary CI-only change to validate the Go vendoring migration.
 FRONTEND_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 -include ../setup-env.mk
