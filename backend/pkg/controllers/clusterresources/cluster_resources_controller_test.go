@@ -189,14 +189,16 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 	serviceProviderCluster := newSPC(testManagementClusterResourceID)
 	csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
 	resources := buildClusterResources(map[string]string{
-		"hosted":       `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
-		"managed":      `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
-		"config":       `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
-		"sync":         `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-		"provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-		"kas":          `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
-		"kas-provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
-		"signing":      `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+		"ingress-sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
+		"ingress-provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
+		"hosted":           `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+		"managed":          `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+		"config":           `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+		"sync":             `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+		"provider":         `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+		"kas":              `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+		"kas-provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+		"signing":          `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
 	})
 	csClient.EXPECT().GetClusterResources(gomock.Cond[context.Context](func(ctx context.Context) bool {
 		deadline, ok := ctx.Deadline()
@@ -988,9 +990,9 @@ func TestClassifyClusterResource(t *testing.T) {
 			wantDesire: "DefaultIngressWildcardCertSecretSync",
 		},
 		{
-			name:       "SecretSync kube-apiserver",
-			resource:   `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
-			wantDesire: "KubeAPIServerServingCertSecretSync",
+			name:     "SecretSync kube-apiserver",
+			resource: `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
+			wantErr:  true,
 		},
 		{
 			name:       "SecretProviderClass bound-sa-signing-key",
@@ -1008,9 +1010,9 @@ func TestClassifyClusterResource(t *testing.T) {
 			wantDesire: "DefaultIngressWildcardCertSecretProviderClass",
 		},
 		{
-			name:       "SecretProviderClass kube-apiserver",
-			resource:   `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
-			wantDesire: "KubeAPIServerServingCertSecretProviderClass",
+			name:     "SecretProviderClass kube-apiserver",
+			resource: `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
+			wantErr:  true,
 		},
 		{
 			name:     "unrecognized kind errors",
@@ -1253,4 +1255,28 @@ func TestEnsureHostedClusterAutoscaling(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found, "expected spec.autoscaling.kubeClientBurst to be present")
 	assert.Equal(t, int64(defaultKubeClientBurst), burst, "kubeClientBurst should be pinned to fleet default")
+}
+
+func TestManagedByK8sResources(t *testing.T) {
+	for _, resource := range []struct {
+		group, kind string
+	}{
+		{group: "secret-sync.x-k8s.io", kind: "SecretSync"},
+		{group: "secrets-store.csi.x-k8s.io", kind: "SecretProviderClass"},
+	} {
+		for _, name := range []string{"kube-apiserver-tls-cert", controllerutils.ServiceProviderDefaultIngressWildcardServingCertName} {
+			t.Run(resource.kind+"/"+name, func(t *testing.T) {
+				require.True(t, managedByK8sResources(resource.group, resource.kind, name), "migrated object must be skipped before classification")
+				obj := &unstructured.Unstructured{}
+				obj.SetAPIVersion(resource.group + "/v1")
+				obj.SetKind(resource.kind)
+				obj.SetName(name)
+				_, err := classifyClusterResource(obj)
+				require.Error(t, err, "migrated object must not be classified by ClusterResources")
+				require.False(t, managedByK8sResources("other.example.com", resource.kind, name), "group must match")
+				require.False(t, managedByK8sResources(resource.group, "OtherKind", name), "kind must match")
+				require.False(t, managedByK8sResources(resource.group, resource.kind, name+"-unexpected"), "name must match exactly")
+			})
+		}
+	}
 }

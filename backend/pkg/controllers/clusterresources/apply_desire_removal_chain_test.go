@@ -46,7 +46,7 @@ import (
 )
 
 // classifiableResources is one kube object per desire name classifyClusterResource
-// can recognize (including names handed off to dedicated controllers). It is the input to the coverage test below, which is the only
+// can recognize. It is the input to the coverage test below, which is the only
 // thing keeping the destruct chain's claim sets honest: a new resource type
 // added to classifyClusterResource but not assigned to a step would otherwise
 // only surface as a log line on a cluster that is already deleting.
@@ -66,10 +66,8 @@ var classifiableResources = []string{
 	`{"apiVersion":"multitenancy.acn.azure.com/v1alpha1","kind":"PodNetworkInstance","metadata":{"name":"pni-abc123","namespace":"ocm-env-abc-cp"}}`,
 	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"bound-sa-signing-key","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-cert","namespace":"ocm-env-abc"}}`,
-	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"bound-sa-signing-key","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-cert","namespace":"ocm-env-abc"}}`,
-	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
 }
 
 // TestApplyDesireDestructChainCoversEveryDesireName pins the invariant the
@@ -109,9 +107,6 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 
 		result, err := classifyClusterResource(&obj)
 		require.NoError(t, err, "fixture should classify: %s", resource)
-		if managedByKubeAPIServerServingCertificate(result.desireName) {
-			continue
-		}
 		classified[strings.ToLower(result.desireName)] = result.desireName
 	}
 	claimed := claimedDesireNames()
