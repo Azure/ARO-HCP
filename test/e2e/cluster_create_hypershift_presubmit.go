@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -110,6 +111,27 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
+
+			// The cluster starts with authentication type None, so the console operator
+			// has no OAuth client and never becomes available, which keeps the version
+			// rollout from completing. Configure Console login through the RP as the
+			// OCP version install test does.
+			By("configuring an ephemeral Dex provider for Console login")
+			consoleFixture, err := tc.SetupConsoleFixture20240610(ctx, *resourceGroup.Name, clusterName, adminRESTConfig, 15*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "failed to set up Console login fixture for cluster %q", clusterName)
+
+			By("verifying Console login and access to a namespaced marker")
+			err = verifiers.VerifyConsoleLogin(consoleFixture, 15*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to verify Console login for cluster %q", clusterName)
+
+			// The cluster and node pool operations succeed once the control plane and
+			// nodes are ready, before the operators that run on the nodes have rolled
+			// out. Wait for the version rollout to complete, as the HyperShift e2e v2
+			// framework does, so a control plane operator change that stops the cluster
+			// from converging fails this test.
+			By("waiting for the cluster version rollout to complete")
+			err = verifiers.VerifyClusterVersionRolloutCompleted(45*time.Minute).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "cluster %q should complete its version rollout", clusterName)
 
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
