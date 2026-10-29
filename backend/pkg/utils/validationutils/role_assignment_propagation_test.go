@@ -113,34 +113,70 @@ func newTestRoleAssignment(id string, scope string, principalID string, createdO
 }
 
 func TestRoleGrantCoversMissingActions(t *testing.T) {
-	missing := []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: azurecheckaccessv2client.NotAllowed}}
-	permission := func(actions []string, exclusions ...string) *armauthorization.Permission {
+	const (
+		controlPlaneAction = "Microsoft.Network/networkSecurityGroups/write"
+		dataAction         = "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"
+	)
+	decisions := func(action string, isDataAction bool) []*checkaccessv2AuthorizationDecisionData {
+		return []*checkaccessv2AuthorizationDecisionData{{ActionID: action, IsDataAction: isDataAction, AccessDecision: azurecheckaccessv2client.NotAllowed}}
+	}
+	type permissionSpec struct {
+		actions        []string
+		dataActions    []string
+		notActions     []string
+		notDataActions []string
+	}
+	permission := func(spec permissionSpec) *armauthorization.Permission {
 		result := &armauthorization.Permission{}
-		for _, action := range actions {
+		for _, action := range spec.actions {
 			result.Actions = append(result.Actions, ptr.To(action))
 		}
-		for _, excluded := range exclusions {
+		for _, action := range spec.dataActions {
+			result.DataActions = append(result.DataActions, ptr.To(action))
+		}
+		for _, excluded := range spec.notActions {
 			result.NotActions = append(result.NotActions, ptr.To(excluded))
+		}
+		for _, excluded := range spec.notDataActions {
+			result.NotDataActions = append(result.NotDataActions, ptr.To(excluded))
 		}
 		return result
 	}
+	controlPlaneMissing := decisions(controlPlaneAction, false)
+	dataMissing := decisions(dataAction, true)
 	for _, tc := range []struct {
 		name        string
+		missing     []*checkaccessv2AuthorizationDecisionData
 		permissions []*armauthorization.Permission
 		want        bool
 	}{
-		{name: "unrelated reader role", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/networkSecurityGroups/read"})}, want: false},
-		{name: "direct write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/networkSecurityGroups/write"})}, want: true},
-		{name: "wildcard write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"})}, want: true},
-		{name: "internal wildcard grant", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*/write"})}, want: true},
-		{name: "excluded write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"}, "Microsoft.Network/networkSecurityGroups/write")}, want: false},
-		{name: "internal wildcard exclusion", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*"}, "Microsoft.Network/*/write")}, want: false},
-		{name: "read-only wildcard does not grant write", permissions: []*armauthorization.Permission{permission([]string{"Microsoft.Network/*/read"})}, want: false},
-		{name: "data grant does not cover control-plane action", permissions: []*armauthorization.Permission{{DataActions: []*string{ptr.To("Microsoft.Network/networkSecurityGroups/write")}}}, want: false},
+		{name: "unrelated reader role", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/networkSecurityGroups/read"}})}, want: false},
+		{name: "direct write", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{controlPlaneAction}})}, want: true},
+		{name: "wildcard write", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/*"}})}, want: true},
+		{name: "internal wildcard grant", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/*/write"}})}, want: true},
+		{name: "excluded write", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/*"}, notActions: []string{controlPlaneAction}})}, want: false},
+		{name: "internal wildcard exclusion", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/*"}, notActions: []string{"Microsoft.Network/*/write"}})}, want: false},
+		{name: "read-only wildcard does not grant write", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Network/*/read"}})}, want: false},
+		{name: "data grant does not cover control-plane action", missing: controlPlaneMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{controlPlaneAction}})}, want: false},
+		{name: "actions grant does not cover data action", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{actions: []string{"Microsoft.Storage/*"}})}, want: false},
+		{name: "direct data action", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{dataAction}})}, want: true},
+		{name: "wildcard data action", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{"Microsoft.Storage/*"}})}, want: true},
+		{name: "internal wildcard data action", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{"Microsoft.Storage/*/read"}})}, want: true},
+		{name: "excluded data action", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{"Microsoft.Storage/*"}, notDataActions: []string{dataAction}})}, want: false},
+		{name: "wildcard data action exclusion", missing: dataMissing, permissions: []*armauthorization.Permission{permission(permissionSpec{dataActions: []string{"Microsoft.Storage/*"}, notDataActions: []string{"Microsoft.Storage/*/read"}})}, want: false},
+		{
+			name:    "data exclusion in a later permission does not block an earlier grant",
+			missing: dataMissing,
+			permissions: []*armauthorization.Permission{
+				permission(permissionSpec{dataActions: []string{dataAction}}),
+				permission(permissionSpec{notDataActions: []string{dataAction}}),
+			},
+			want: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			role := armauthorization.RoleDefinition{Properties: &armauthorization.RoleDefinitionProperties{Permissions: tc.permissions}}
-			assert.Equal(t, tc.want, roleGrantsAllMissingActions(role, missing))
+			assert.Equal(t, tc.want, roleGrantsAllMissingActions(role, tc.missing))
 		})
 	}
 }
