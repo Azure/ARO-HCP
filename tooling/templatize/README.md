@@ -32,3 +32,24 @@ To inspect the actual config variables available during templating with the `gen
 
 - Retrieve values from a single configuration file according to the cloud, environment, and region.
 - Replace `region`, `regionStamp` and `cxStamp` values.
+
+## Pipeline validation
+
+From the repository root, validate each topology against its matching configuration:
+
+```sh
+make validate-config-pipelines
+make validate-config-pipelines-dev-ci
+```
+
+Helm validation checks distinct placeholder names across values and namespace files
+against the 64-parameter deployment limit, minus the
+[reserved parameters defined in ARO-Tools](https://github.com/Azure/ARO-Tools/blob/main/pipelines/types/ev2_parameters.go).
+
+Values and namespace templates are always validated with the resolved configuration.
+`--skip-helm-param-budget-validation` skips only the budget check. The dev-CI
+Makefile target uses this flag for direct deployments, while the main-topology
+target enforces the budget.
+
+Both targets use `--dev-mode` to validate one region. This controls regional
+coverage independently of budget enforcement.

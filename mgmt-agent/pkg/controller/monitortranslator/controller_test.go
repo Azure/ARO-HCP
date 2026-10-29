@@ -180,7 +180,7 @@ func TestTranslateIncludeLabelIdempotent(t *testing.T) {
 				"endpoints": []any{
 					map[string]any{
 						"port": "metrics",
-						"metricRelabelings": []any{
+						"relabelings": []any{
 							map[string]any{
 								"targetLabel": "microsoft_metrics_include_label",
 								"replacement": "hcp",
@@ -199,9 +199,9 @@ func TestTranslateIncludeLabelIdempotent(t *testing.T) {
 	if err != nil || len(endpoints) != 1 {
 		t.Fatalf("unexpected endpoints %v (err %v)", endpoints, err)
 	}
-	relabelings, _, err := unstructured.NestedSlice(endpoints[0].(map[string]any), "metricRelabelings")
+	relabelings, _, err := unstructured.NestedSlice(endpoints[0].(map[string]any), "relabelings")
 	if err != nil {
-		t.Fatalf("failed to read metricRelabelings: %v", err)
+		t.Fatalf("failed to read relabelings: %v", err)
 	}
 	count := 0
 	for _, rc := range relabelings {

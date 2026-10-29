@@ -9,6 +9,7 @@
   message: string,
   log: dynamic
 )
+with (docstring = "Azure CNI plugin logs tailed from /var/log/azure-vnet.log on service and management cluster nodes, forwarded by arobit")
 
 .create-or-alter table azureVnetLogs ingestion json mapping 'ingestionMapping'
 ```

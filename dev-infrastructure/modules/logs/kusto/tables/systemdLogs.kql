@@ -9,6 +9,7 @@
   message: string,
   tag: string
 )
+with (docstring = "Systemd journal entries from service and management cluster nodes, forwarded by arobit")
 
 .create-or-alter table systemdLogs ingestion json mapping 'ingestionMapping'
 ```

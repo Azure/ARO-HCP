@@ -183,7 +183,10 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get service provider cluster: %w", err))
 	}
 
-	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
@@ -229,7 +232,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		"clusterServiceClusterPayload", clusterPayload,
 	)
 
-	_, err = c.clusterServiceClient.UpdateCluster(ctx, *clusterCSID, csClusterBuilder)
+	_, err = c.clusterServiceClient.UpdateCluster(csCtx, *clusterCSID, csClusterBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		// XXX Matching an error message is brittle, but Clusters Service
@@ -250,7 +253,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 			)
 			return nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	logger.Info("dispatched cluster update to Cluster Service", "clusterServiceID", clusterCSID.String())

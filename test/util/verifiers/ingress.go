@@ -15,8 +15,12 @@
 package verifiers
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -70,19 +74,23 @@ func VerifyIngressControllerScope(expectedScope operatorv1.LoadBalancerScope) Ho
 	return verifyIngressControllerScope{expectedScope: expectedScope}
 }
 
-type verifyHyperShiftIngressCertificate struct {
+type verifyDefaultIngressServingCertificateSecretWiring struct {
 	timeout time.Duration
 }
 
-func VerifyHyperShiftIngressCertificate(timeout time.Duration) HostedClusterVerifier {
-	return verifyHyperShiftIngressCertificate{timeout: timeout}
+// VerifyDefaultIngressServingCertificateSecretWiring returns a verifier that checks the
+// openshift-ingress/default-ingress-cert Secret exists with non-empty TLS data and
+// is referenced by IngressController/default's defaultCertificate. Its certificate
+// must be valid PEM without the internal fallback leaf identity.
+func VerifyDefaultIngressServingCertificateSecretWiring(timeout time.Duration) HostedClusterVerifier {
+	return verifyDefaultIngressServingCertificateSecretWiring{timeout: timeout}
 }
 
-func (verifier verifyHyperShiftIngressCertificate) Name() string {
-	return "VerifyHyperShiftIngressCertificate"
+func (verifier verifyDefaultIngressServingCertificateSecretWiring) Name() string {
+	return "VerifyDefaultIngressServingCertificateSecretWiring"
 }
 
-func (verifier verifyHyperShiftIngressCertificate) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+func (verifier verifyDefaultIngressServingCertificateSecretWiring) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return err
@@ -93,18 +101,18 @@ func (verifier verifyHyperShiftIngressCertificate) Verify(ctx context.Context, a
 	}
 	return pollUntilReady(ctx, verifier.Name(), verifier.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil,
 		func(ctx context.Context) error {
-			return verifyHyperShiftIngressCertificateWiring(ctx, kubeClient, operatorClient)
+			return checkDefaultIngressServingCertificateSecretWiring(ctx, kubeClient, operatorClient)
 		})
 }
 
-func verifyHyperShiftIngressCertificateWiring(ctx context.Context, kubeClient kubernetes.Interface, operatorClient operatorclient.Interface) error {
+func checkDefaultIngressServingCertificateSecretWiring(ctx context.Context, kubeClient kubernetes.Interface, operatorClient operatorclient.Interface) error {
 	const secretName = "default-ingress-cert"
 	secret, err := kubeClient.CoreV1().Secrets("openshift-ingress").Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("getting HyperShift ingress secret openshift-ingress/%s: %w", secretName, err)
+		return fmt.Errorf("getting default ingress serving certificate secret openshift-ingress/%s: %w", secretName, err)
 	}
 	if len(secret.Data[corev1.TLSCertKey]) == 0 || len(secret.Data[corev1.TLSPrivateKeyKey]) == 0 {
-		return fmt.Errorf("HyperShift ingress secret openshift-ingress/%s must contain non-empty tls.crt and tls.key data", secretName)
+		return fmt.Errorf("default ingress serving certificate secret openshift-ingress/%s must contain non-empty tls.crt and tls.key data", secretName)
 	}
 	controller, err := operatorClient.OperatorV1().IngressControllers("openshift-ingress-operator").Get(ctx, "default", metav1.GetOptions{})
 	if err != nil {
@@ -112,6 +120,42 @@ func verifyHyperShiftIngressCertificateWiring(ctx context.Context, kubeClient ku
 	}
 	if controller.Spec.DefaultCertificate == nil || controller.Spec.DefaultCertificate.Name != secretName {
 		return fmt.Errorf("IngressController/default references %v, expected secret %q", controller.Spec.DefaultCertificate, secretName)
+	}
+	if err := verifyIngressSecretCertificate(secret); err != nil {
+		return fmt.Errorf("default ingress serving certificate secret openshift-ingress/%s: %w", secretName, err)
+	}
+	return nil
+}
+
+func verifyIngressSecretCertificate(secret *corev1.Secret) error {
+	certificateBegin := []byte("-----BEGIN CERTIFICATE-----")
+	remaining := bytes.TrimSpace(secret.Data[corev1.TLSCertKey])
+	if len(remaining) == 0 {
+		return fmt.Errorf("tls.crt is missing or empty")
+	}
+	for index := 0; len(remaining) > 0; index++ {
+		if !bytes.HasPrefix(remaining, certificateBegin) {
+			return fmt.Errorf("tls.crt certificate %d is not certificate PEM", index+1)
+		}
+		encoded := remaining
+		if nextBlock := bytes.Index(remaining[len(certificateBegin):], []byte("\n-----BEGIN ")); nextBlock >= 0 {
+			encoded = remaining[:len(certificateBegin)+nextBlock+1]
+		}
+		block, rest := pem.Decode(encoded)
+		if block == nil || block.Type != "CERTIFICATE" {
+			return fmt.Errorf("tls.crt certificate %d has invalid certificate PEM", index+1)
+		}
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("tls.crt certificate %d is not a valid X.509 certificate", index+1)
+		}
+		if index == 0 && certificate.Subject.CommonName == "openshift-ingress" &&
+			slices.Contains(certificate.Subject.Organization, "openshift") &&
+			certificate.Issuer.CommonName == "root-ca" &&
+			slices.Contains(certificate.Issuer.OrganizationalUnit, "openshift") {
+			return fmt.Errorf("tls.crt leaf has the internal fallback identity (subject CN=openshift-ingress, O=openshift; issuer CN=root-ca, OU=openshift), expected the delivered ingress certificate")
+		}
+		remaining = bytes.TrimSpace(remaining[len(encoded)-len(rest):])
 	}
 	return nil
 }

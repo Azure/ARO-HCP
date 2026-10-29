@@ -9,8 +9,9 @@ set -euo pipefail
 #
 # Required environment variables:
 #   ENV_NAME            - Environment label used in log output only (e.g. "stg")
-#   SUBSCRIPTION_IDS    - Space-separated subscription IDs to reconcile
-#   PROVIDER_NAMESPACES - Space-separated provider namespaces to register
+#   SUBSCRIPTIONS       - Comma-separated subscriptions to reconcile, each either
+#                         "<id>" or "<id>=<display name>" (the name is ignored)
+#   PROVIDER_NAMESPACES - Comma-separated provider namespaces to register
 #
 # Optional:
 #   POLL_TIMEOUT_SECONDS  - Shared wait budget for all pending registrations
@@ -36,8 +37,15 @@ set -euo pipefail
 # grows with it, at roughly two az calls per subscription/provider pair.
 
 : "${ENV_NAME:?ENV_NAME is required}"
-: "${SUBSCRIPTION_IDS:?SUBSCRIPTION_IDS is required}"
+: "${SUBSCRIPTIONS:?SUBSCRIPTIONS is required}"
 : "${PROVIDER_NAMESPACES:?PROVIDER_NAMESPACES is required}"
+
+# Split the comma-separated inputs; empty entries (e.g. from concatenated lists
+# where one side is empty) are dropped.
+SUBSCRIPTION_IDS="$(tr ',' '\n' <<< "${SUBSCRIPTIONS}" | cut -d= -f1 | grep -v '^$' || true)"
+PROVIDER_NAMESPACES="$(tr ',' '\n' <<< "${PROVIDER_NAMESPACES}" | grep -v '^$' || true)"
+: "${SUBSCRIPTION_IDS:?SUBSCRIPTIONS contains no subscription IDs}"
+: "${PROVIDER_NAMESPACES:?PROVIDER_NAMESPACES contains no namespaces}"
 
 POLL_TIMEOUT_SECONDS="${POLL_TIMEOUT_SECONDS:-600}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-10}"

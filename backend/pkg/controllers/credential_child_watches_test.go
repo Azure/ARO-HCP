@@ -84,6 +84,22 @@ func (childExistingCluster) Get(context.Context, string, string, string) (*corea
 	return &coreapi.Cluster{}, nil
 }
 
+type childExistingRequest struct {
+	corelisters.SystemAdminCredentialRequestLister
+}
+
+func (childExistingRequest) Get(context.Context, string, string, string, string) (*coreapi.SystemAdminCredentialRequest, error) {
+	return &coreapi.SystemAdminCredentialRequest{}, nil
+}
+
+type childExistingRevocation struct {
+	corelisters.SystemAdminCredentialRevocationLister
+}
+
+func (childExistingRevocation) Get(context.Context, string, string, string, string) (*coreapi.SystemAdminCredentialRevocation, error) {
+	return &coreapi.SystemAdminCredentialRevocation{}, nil
+}
+
 func (c childObservedExternalAuth) Get(_ context.Context, _, _, _, name string) (*coreapi.ExternalAuth, error) {
 	c.observed <- name
 	return nil, cosmosstorageutils.NewNotFoundError()
@@ -122,7 +138,10 @@ func TestCredentialAndExternalAuthChildWatches(t *testing.T) {
 					sources[name] = &interestInformer{}
 				}
 				observed := make(chan string, 10)
-				backend := &interestBackendInformers{sources: sources, clusters: childExistingCluster{}, externalAuths: childObservedExternalAuth{observed: observed}}
+				backend := &interestBackendInformers{
+					sources: sources, clusters: childExistingCluster{}, externalAuths: childObservedExternalAuth{observed: observed},
+					requests: childExistingRequest{}, revocations: childExistingRevocation{},
+				}
 				union := unioninformers.NewUnionKubeApplierInformers()
 				mc := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/s1/managementClusters/default"))
 				require.NoError(t, union.Add(mc, &interestDesireInformers{sources: sources}))

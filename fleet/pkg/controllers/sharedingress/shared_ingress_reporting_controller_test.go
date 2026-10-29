@@ -71,6 +71,7 @@ func testManagementCluster(existingIPs []string, conditions ...metav1.Condition)
 			MaestroRESTAPIURL:                                    "http://maestro:8000",
 			MaestroGRPCTarget:                                    "maestro:8090",
 			KubeApplierCosmosContainerName:                       "kube-applier-test",
+			KubeApplierCosmosContainerMaxScale:                   19000,
 			SharedIngressIPAddresses:                             existingIPs,
 			Conditions:                                           conditions,
 		},

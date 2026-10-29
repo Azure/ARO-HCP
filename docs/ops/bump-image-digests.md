@@ -19,7 +19,7 @@ Each service component defines its image digest in the [configuration](../config
 | Prometheus Server (SVC)       | `svc.prometheus.prometheusSpec.image.digest`      |
 | Prometheus Server (MGMT)      | `mgmt.prometheus.prometheusSpec.image.digest`     |
 | Maestro Agent Sidecar (nginx) | `maestro.agent.sidecar.image.digest`              |
-| Mise                          | `mise.image.digest`                               |
+| Mise                          | `mise.imageV2.digest`                             |
 
 > **Note**: Frontend, backend, mgmt-agent, kube-applier, admin-api, sessiongate, and Fleet have no baseline digest pins. Their digests must be supplied by deployment overrides, such as CI-built images, sdp-pipelines promotions or local builds. The optional-digest schema permits unresolved baseline configuration; it does not make a digest optional when deploying an image.
 
@@ -31,7 +31,7 @@ Image digests for Red Hat environments are defined in [config/config.yaml](../..
 2. Run `make -C config materialize`.
 3. Open a pull request with the change.
 
-Once merged, a Prow job will propagate the updated configuration to the CSPR environment.
+Once merged, a Prow job will build and promote the updated images.
 
 > [!NOTE]
 > Personal DEV environments are not updated automatically. Developers must manually apply the changes by running:

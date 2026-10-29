@@ -15,6 +15,7 @@
 package fleetcosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -72,6 +74,9 @@ func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*M
 
 func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
+	case *fleetapi.DNSClaim:
+		_, err := m.DNSClaims(r.ResourceID.Parent.Name).Create(ctx, r, nil)
+		return err
 	case *fleetapi.Stamp:
 		return m.addStamp(ctx, r)
 	case *fleetapi.ManagementCluster:
@@ -147,6 +152,19 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
 	m.changeFeed.Record(data)
+}
+
+func (m *MockFleetDBClient) MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cosmosID = strings.ToLower(cosmosID)
+	data, err := mutate(bytes.Clone(m.documents[cosmosID]))
+	if err != nil || data == nil {
+		return err
+	}
+	m.documents[cosmosID] = bytes.Clone(data)
+	m.changeFeed.Record(data)
+	return nil
 }
 
 func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
@@ -231,6 +249,11 @@ func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer coreap
 }
 
 // --- FleetDBClient implementation ---
+
+func (m *MockFleetDBClient) DNSClaims(parentZone string) cosmosstorageutils.ResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim] {
+	id := metadataapi.Must(fleetapihelpers.DNSClaimResourceID("placeholder." + parentZone))
+	return newMockFleetResourceCRUD[fleetapi.DNSClaim, *fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](m, id.Parent, fleetapi.DNSClaimResourceType)
+}
 
 func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 	inner := newMockFleetResourceCRUD[fleetapi.Stamp, *fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](
@@ -325,6 +348,10 @@ type mockFleetGlobalListers struct {
 }
 
 var _ fleetcosmosstorage.FleetGlobalListers = &mockFleetGlobalListers{}
+
+func (g *mockFleetGlobalListers) DNSClaims() cosmosstorageutils.GlobalLister[fleetapi.DNSClaim] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](g.client, []azcorearm.ResourceType{fleetapi.DNSClaimResourceType})
+}
 
 func (g *mockFleetGlobalListers) Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp] {
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](

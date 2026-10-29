@@ -1,0 +1,338 @@
+rule_files:
+- certificate-rotation-prometheusRule.yaml
+- certificate-rotation-slo-recordingRule.yaml
+evaluation_interval: 1m
+# Run alerts first to exercise reading the preceding minute's recorded samples.
+group_eval_order:
+- arohcp_certificate_rotation_alerts
+- arohcp_certificate_rotation_slo_recording_rules
+tests:
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0"}'
+    values: "-40000000+0x240"
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
+    values: "-40000000+0x240"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0"}'
+    values: "20000000+0x240"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
+    values: "20000000+0x240"
+  - series: 'keyvault_certificate_enabled{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0"}'
+    values: "1+0x240"
+  - series: 'keyvault_certificate_enabled{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
+    values: "1+0x240"
+  alert_rule_test:
+  - eval_time: 0h
+    alertname: userJourneyCertificateRotationFailure
+  - eval_time: 59m
+    alertname: userJourneyCertificateRotationFailure
+  - eval_time: 60m
+    alertname: userJourneyCertificateRotationFailure
+  - eval_time: 61m
+    alertname: userJourneyCertificateRotationFailure
+    exp_alerts:
+    - exp_labels:
+        certificate_name: frontend
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        key_vault: service-kv
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "westus3/service-kv: Certificate frontend rotation is overdue"
+        description: "Certificate 'frontend' in Key Vault 'service-kv' (westus3) exceeded the rotation safety threshold. Current lifetime: 66.67%. Safety threshold: 65%. Expected rotation: 50%."
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="sessiongate", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "0+0x180"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="sessiongate", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "21600+0x180"
+  - series: 'keyvault_certificate_enabled{certificate_name="sessiongate", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "1+0x180"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyCertificateRotationFailure
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-0"}'
+    values: "1+0x180"
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr", prometheus_replica="agent-1"}'
+    values: "1+0x180"
+  alert_rule_test:
+  - eval_time: 1h
+    alertname: userJourneyCertificateCollectionStale
+  - eval_time: 2h
+    alertname: userJourneyCertificateCollectionStale
+  # The heartbeat becomes stale at 61m; alerts observe it at 62m.
+  - eval_time: 121m
+    alertname: userJourneyCertificateCollectionStale
+  - eval_time: 122m
+    alertname: userJourneyCertificateCollectionStale
+    exp_alerts:
+    - exp_labels:
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        key_vault: service-kv
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "westus3/service-kv: Certificate collection is stale"
+        description: "Certificate metadata collection for Key Vault 'service-kv' (westus3) has not completed successfully within the last hour."
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="aro-hcp-exporter", deployment="aro-hcp-exporter", cluster="cspr-westus3-svc-1", environment="cspr", region="westus3", job="kube-state-metrics"}'
+    values: "1+0x180"
+  alert_rule_test:
+  - eval_time: 0h
+    alertname: userJourneyCertificateExporterUnavailable
+  - eval_time: 59m
+    alertname: userJourneyCertificateExporterUnavailable
+  - eval_time: 1h
+    alertname: userJourneyCertificateExporterUnavailable
+    exp_alerts:
+    - exp_labels:
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "Certificate exporter target is unavailable"
+        description: "The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated."
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="aro-hcp-exporter", deployment="aro-hcp-exporter", cluster="healthy-svc-1", environment="cspr", region="westus3", job="kube-state-metrics"}'
+    values: "1+0x180"
+  - series: 'up{namespace="aro-hcp-exporter", cluster="healthy-svc-1", environment="cspr", region="westus3", instance="10.0.0.1:8080"}'
+    values: "1+0x180"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyCertificateExporterUnavailable
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "7200+0x180"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "7200+0x180"
+  - series: 'keyvault_certificate_enabled{certificate_name="admin-api", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "1+0x180"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyCertificateRotationFailure
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="disabled", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "-40000000+0x180"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="disabled", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "20000000+0x180"
+  - series: 'keyvault_certificate_enabled{certificate_name="disabled", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "0+0x180"
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: userJourneyCertificateRotationFailure
+  - eval_time: 0h
+    alertname: userJourneyCertificateDisabled
+  - eval_time: 59m
+    alertname: userJourneyCertificateDisabled
+  - eval_time: 60m
+    alertname: userJourneyCertificateDisabled
+  - eval_time: 61m
+    alertname: userJourneyCertificateDisabled
+    exp_alerts:
+    - exp_labels:
+        certificate_name: disabled
+        cluster: cspr-westus3-svc-1
+        component: certificate-rotation
+        environment: cspr
+        key_vault: service-kv
+        region: westus3
+        severity: "3"
+      exp_annotations:
+        summary: "westus3/service-kv: Certificate disabled is disabled"
+        description: "Certificate 'disabled' in Key Vault 'service-kv' (westus3) has remained disabled for at least one hour."
+        runbook_url: "https://aka.ms/arohcp-runbook-cert-rotation"
+# A brief recovery resets the pending timer; a later recovery resolves a firing alert.
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_enabled{certificate_name="recovery", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    # Disabled at 0m, enabled at 30m, disabled at 31m, enabled at 101m.
+    values: "0+0x29 1 0+0x69 1+0x5"
+  promql_expr_test:
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 1m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 30m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 31m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 32m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="firing"}) or vector(0)
+    eval_time: 61m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 91m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="firing"}) or vector(0)
+    eval_time: 91m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="firing"}) or vector(0)
+    eval_time: 92m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="firing"}) or vector(0)
+    eval_time: 101m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="firing"}) or vector(0)
+    eval_time: 102m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateDisabled", alertstate="pending"}) or vector(0)
+    eval_time: 102m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+# Replacement certificate timestamps clear an overdue rotation alert.
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_not_before_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    # Rotation occurs at 70m (4200 seconds).
+    values: "-40000000+0x69 4200+0x60"
+  - series: 'keyvault_certificate_not_after_timestamp_seconds{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "20000000+0x69 60004200+0x60"
+  - series: 'keyvault_certificate_enabled{certificate_name="frontend", key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "1+0x130"
+  promql_expr_test:
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="pending"}) or vector(0)
+    eval_time: 60m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="firing"}) or vector(0)
+    eval_time: 61m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="firing"}) or vector(0)
+    eval_time: 70m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="firing"}) or vector(0)
+    eval_time: 71m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="pending"}) or vector(0)
+    eval_time: 71m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateRotationFailure", alertstate="firing"}) or vector(0)
+    eval_time: 130m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+# Collection fails long enough to fire, then resumes at 130m.
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "1+0x129 7800+60x60"
+  promql_expr_test:
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 61m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 62m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 121m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 122m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 130m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 131m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 131m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 190m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+# A collector with no successful collection recovers before the pending hour ends.
+- interval: 1m
+  input_series:
+  - series: 'keyvault_certificate_collector_last_success_timestamp_seconds{key_vault="service-kv", region="westus3", cluster="cspr-westus3-svc-1", environment="cspr"}'
+    values: "0+0x29 1800+60x90"
+  promql_expr_test:
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 1m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 30m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="pending"}) or vector(0)
+    eval_time: 31m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 61m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+  - expr: count(ALERTS{alertname="userJourneyCertificateCollectionStale", alertstate="firing"}) or vector(0)
+    eval_time: 120m
+    exp_samples:
+    - labels: '{}'
+      value: 0

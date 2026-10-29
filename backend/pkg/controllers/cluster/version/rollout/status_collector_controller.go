@@ -21,11 +21,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -73,11 +73,6 @@ func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient
 		panic(err) // coding error
 	}
 	return controller
-}
-
-// CooldownChecker returns nil: the resync interval drives periodic recomputation.
-func (c *statusCollectorSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return nil
 }
 
 // rolloutCounts holds the aggregated per-exact-version cluster counts. Every map
@@ -147,15 +142,27 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	clusters, err := c.clusterLister.List(ctx)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list Clusters: %w", err))
+	}
+	serviceProviderClusters, err := c.serviceProviderClusterLister.List(ctx)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ServiceProviderClusters: %w", err))
+	}
+	refs, err := collectRolloutReferences(clusters, serviceProviderClusters)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
-	counts := computeRolloutStatusCounts(serviceProviderClusters, c.config, c.clock.Now())
-	logger.Info("Computed rollout status", "clusterCount", len(serviceProviderClusters), "desired", counts.Desired, "mismatched", counts.Mismatched, "failed", counts.Failed, "achieved", counts.Achieved, "successful", counts.Successful)
+	matchedServiceProviderClusters, err := filterServiceProviderClustersForChannel(ctx, clusters, serviceProviderClusters, key.YStreamChannel)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	counts := computeRolloutStatusCounts(matchedServiceProviderClusters, c.config, c.clock.Now())
+	logger.Info("Computed rollout status", "clusterCount", len(matchedServiceProviderClusters), "desired", counts.Desired, "mismatched", counts.Mismatched, "failed", counts.Failed, "achieved", counts.Achieved, "successful", counts.Successful)
 
 	replacement := rollout.DeepCopy()
+	replacement.Status.ReferencingClusterCount = ptr.To(refs[rollout.Spec.Version])
 	replacement.Status.ClusterCountByDesiredExactVersion = nilIfEmpty(counts.Desired)
 	replacement.Status.MismatchedClusterCountByDesiredExactVersion = nilIfEmpty(counts.Mismatched)
 	replacement.Status.FailedClusterCountByDesiredExactVersion = nilIfEmpty(counts.Failed)

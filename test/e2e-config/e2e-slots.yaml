@@ -1,8 +1,17 @@
 version: 2
+asset_pools:
+- name: dev-infrastructure-identities
+  kind: infrastructure_identities
+  provisioning: managed
+  boskos_resource_type: aro-hcp-dev-infrastructure-identities
+  resource_name_prefix: aro-hcp-dev-infrastructure-identities
+  infrastructure_identities:
+    provisioning_region: westus3
 environments:
   dev:
     deployment_environment:
       name: ci01
+      infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
     pools:
     # Jobs select the runtime region from these weighted pools. Existing jobs
     # with an explicit location override remain pinned during rollout.
@@ -26,6 +35,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard0
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard1
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
@@ -42,6 +54,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard1
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard2
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 02"
@@ -58,6 +73,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard2
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: shard3
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Dev - 03"
@@ -74,6 +92,9 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev-shard3
           resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: hypershift
       subscriptions:
         e2e: "Hypershift Managed Azure"
@@ -83,7 +104,7 @@ environments:
       - centralus
       - canadacentral
       resource_type: aro-hcp-dev-hypershift-westus3-slot
-      slot_count: 1
+      slot_count: 2
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -91,6 +112,45 @@ environments:
           provisioning_region: westus3
           resource_group_prefix: aro-hcp-msi-container-dev
           resource_group_count: 20
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+  # dev-xs is a separate environment for smaller workloads such as upgrade/
+  # in-place tests and CAPZ on-demand testing. It uses deploy_env ci02 so
+  # these jobs and e2e-parallel jobs (ci00/ci01) never compete for the same
+  # Boskos pools. ci02 maps to a dedicated templatize environment with
+  # cluster sizing tuned for fewer concurrent HCPs.
+  dev-xs:
+    deployment_environment:
+      name: ci02
+      infrastructure_subscription: "ARO HCP E2E Infrastructure (EA Subscription)"
+    pools:
+    # Dedicated subscription for upgrade and CAPZ on-demand testing.
+    # 30 slots support peak concurrent PR activity + merge pool.
+    # Each slot supports up to 6 concurrent HCPs (matching ci02 MGMT sizing).
+    # After the 6th spec is merged, no additional specs can be added without
+    # first increasing identity_container_count here (and resyncing the boskos
+    # config) — otherwise excess specs block waiting for a free identity
+    # container and the suite eventually times out.
+    - name: shard4
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 04"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard4-slot
+      slot_count: 30
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard4
+          resource_group_count: 6
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
   int:
     deployment_environment:
       name: int
@@ -179,6 +239,54 @@ environments:
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard2
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard2-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard3
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard3-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard4
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard4-slot
+      slot_count: 3
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          resource_group_prefix: aro-hcp-msi-container-prod
+          resource_group_count: 25
+    - name: shard5
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard5-slot
       slot_count: 3
       slot_assets:
         e2e_identities:

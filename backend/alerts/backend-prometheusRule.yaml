@@ -14,11 +14,16 @@ spec:
     labels:
       component: backend
     rules:
+    # Cosmos migration has an expected initial backlog that drains once, so queue
+    # depth is not actionable. A permanently stuck migration will be caught when
+    # verifying migration completion before proceeding to the next step.
+    # Match both cosmos_migration and the current CosmosMigration controller name,
+    # including lowercase metric labels.
     - alert: BackendControllerQueueDepthHigh
       expr: |
         max by (name, cluster) (
           max without(prometheus_replica) (
-            workqueue_depth{namespace="aro-hcp"}
+            workqueue_depth{namespace="aro-hcp",name!~"(?i:cosmos_?migration)"}
           )
         ) > 10
         unless on (name, cluster) (

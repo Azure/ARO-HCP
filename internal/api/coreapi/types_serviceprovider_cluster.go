@@ -76,6 +76,12 @@ type ServiceProviderCluster struct {
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
 type ServiceProviderClusterSpec struct {
+	// DesiredDNSBaseDomain is the allocation candidate whose Fleet claim must be
+	// owned before publishing Cluster.ServiceProviderProperties.DNS.BaseDomain.
+	// It remains set after publication to record the controller's naming intent.
+	// Written by: ClusterDNSAllocation
+	DesiredDNSBaseDomain string `json:"desiredDNSBaseDomain,omitempty"`
+
 	// ControlPlaneVersion contains the desired control plane version information.
 	// Example JSON structure:
 	// {
@@ -89,7 +95,7 @@ type ServiceProviderClusterSpec struct {
 	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
-	// Written by: IngressCertificate
+	// Written by: IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
@@ -249,6 +255,21 @@ type ServiceProviderClusterStatus struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
+
+	// ValidationProbeTimes records, per validation (keyed by the validation's
+	// condition Type), the start time of its controller's last conclusive
+	// Failed run. Unlike the Validations conditions' LastTransitionTime, which
+	// only advances when the outcome changes, these timestamps keep advancing
+	// while the validation keeps failing (rewritten at most once per
+	// validationutils.ValidationProbeRewriteInterval); Unknown runs leave
+	// them untouched. They let the operation controllers
+	// distinguish a failure that was recently re-confirmed from one that
+	// simply has not been re-checked lately (a stalled validation controller
+	// or inconclusive checks) before failing a create or update
+	// operation terminally. Entries are removed when their validation passes
+	// or is skipped.
+	// Written by: ClusterValidation* controllers (one entry per validation)
+	ValidationProbeTimes map[string]metav1.Time `json:"validationProbeTimes,omitempty"`
 
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.

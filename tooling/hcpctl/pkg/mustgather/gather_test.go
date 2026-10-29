@@ -290,7 +290,7 @@ func TestGatherer_GatherLogs_CustomQueryWindows(t *testing.T) {
 						row := makeTestRow(t, []struct {
 							name string
 							typ  types.Column
-						}{{"source", types.String}, {"rows", types.Long}}, value.Values{value.NewString("maestro"), value.NewLong(1599)})
+						}{{"source", types.String}, {"rows", types.Long}}, value.Values{value.NewString("hypershift"), value.NewLong(1599)})
 						row.QueryName = q.GetName()
 						row.QueryType = q.GetQueryType()
 						args.Get(2).(chan<- kusto.TaggedRow) <- row
@@ -303,7 +303,7 @@ func TestGatherer_GatherLogs_CustomQueryWindows(t *testing.T) {
 				require.Len(t, output, 1)
 				assert.Equal(t, "detailedInfraOrchestrationLogs", output[0].QueryName)
 				assert.Equal(t, kusto.QueryTypeCustomLogs, output[0].QueryType)
-				assert.Equal(t, "maestro", output[0].Log["source"])
+				assert.Equal(t, "hypershift", output[0].Log["source"])
 				assert.Equal(t, "1599", output[0].Log["rows"])
 			} else {
 				assert.Empty(t, output)

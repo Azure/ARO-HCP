@@ -230,6 +230,10 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 		}
 	}
 
+	withBackupScheduleOverride := func(c *coreapi.Cluster) {
+		c.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+	}
+
 	completedRotationHCWithVersion := func(t *testing.T, version string) *kubeapplierapi.ReadDesire {
 		t.Helper()
 		hc := &hyperv1beta1.HostedCluster{}
@@ -955,6 +959,59 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "rotation should be durably recorded as handled even though it was skipped")
+			},
+		},
+		{
+			name:             "creates backup when override lifts the deployment-wide pause",
+			clusterOpts:      []func(*coreapi.Cluster){withKMS, withBackupScheduleOverride},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			backupConfig: &BackupConfig{
+				BackupCadenceProfile: BackupCadenceProduction,
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+			},
+			syncCount: 2,
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				ad, err := applyDesireCRUD.Get(ctx, expectedDesireName)
+				require.NoError(t, err, "override should allow the post-rotation backup to start")
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, ad.Spec.Type)
+				assert.Equal(t, expectedBackupName, ad.Spec.TargetItem.Name)
+
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = readDesireCRUD.Get(ctx, expectedDesireName)
+				assert.NoError(t, err, "post-rotation backup ReadDesire should exist")
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Empty(t, spc.Status.KeyRotationBackupFingerprint, "rotation must not be recorded as skipped or complete before the backup completes")
+			},
+		},
+		{
+			name:             "admin API pause outranks override with deployment disabled",
+			clusterOpts:      []func(*coreapi.Cluster){withKMS, withBackupScheduleOverride},
+			hasPlacement:     true,
+			seedHCReadDesire: completedRotationHC,
+			seedServiceProviderCluster: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
+			},
+			backupConfig: &BackupConfig{
+				BackupCadenceProfile: BackupCadenceProduction,
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+			},
+			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = applyDesireCRUD.Get(ctx, expectedDesireName)
+				assert.True(t, cosmosstorageutils.IsNotFoundError(err), "override must not bypass the admin API pause")
+
+				spc, err := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, expectedFingerprint, spc.Status.KeyRotationBackupFingerprint, "admin-paused rotation should still be recorded as skipped")
 			},
 		},
 		{

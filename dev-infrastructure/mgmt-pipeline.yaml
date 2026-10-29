@@ -127,8 +127,7 @@ resourceGroups:
     - resourceGroup: management
       step: subscription-output
   # Create/tag the Swift VNet as the identity selected by swift-vnet-permissions.
-  # The same identity receives VNet RBAC and performs the write inside the container group.
-  # shellIdentity remains the global deployment identity that launches the container.
+  # The same identity launches the container group and performs the VNet write inside it.
   # Create, wait, log and cleanup all happen in this single Shell step ahead of infra,
   # since infra creates the node/pod subnets that live in this VNet.
   - name: swift-vnet
@@ -137,9 +136,9 @@ resourceGroups:
     workingDir: ./scripts
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+        resourceGroup: management
+        step: swift-vnet-permissions
+        name: swiftVnetMSIId
     variables:
     - name: VNET_NAME
       value: aks-net
@@ -570,6 +569,7 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      - "ConcurrentFederatedIdentityCredentialsWritesForSingleManagedIdentity"
       # Retry transient RBAC propagation failures in post-cluster wiring.
       - "ForbiddenByRbac"
       maximumRetryCount: 3
@@ -734,22 +734,6 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster-output
-  # TRANSIENT: remove after rollout to all environments (AROSLSRE-2290)
-  # Cleans up orphaned tracing pods (jaeger, otel-collector, lgtm) left behind
-  # after PR #7072 removed the observability/tracing pipeline.
-  - name: cleanup-observability-tracing
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./cleanup-observability-tracing.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: management
-      step: cluster-output
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -804,7 +788,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -860,6 +844,21 @@ resourceGroups:
       - '"DetailStatus": "Waiting to run"'
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: storageclass-namespace
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./wait-default-sc-namespace.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -875,9 +874,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
-      step: upgrade-aks-cluster
-    - resourceGroup: management
-      step: image-registry-policy
+      step: storageclass-namespace
     identityFrom:
       resourceGroup: global
       step: output
@@ -974,7 +971,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -984,6 +981,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
+    # ama-metrics-settings-configmap previously belonged to the arohcp-monitor
+    # (prometheus) release; wait for that upgrade to release ownership before
+    # service-lifecycle recreates it, or Helm ownership validation fails.
+    - resourceGroup: management
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output

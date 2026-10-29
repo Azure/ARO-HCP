@@ -91,10 +91,22 @@ type ClusterAdmissionNodePool struct {
 func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
+	errs = append(errs, mutateClusterDNS(ctx, admissionContext, op, field.NewPath("customerProperties", "dns"), &newObj.CustomerProperties.DNS)...)
+
 	// ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
 	return errs
+}
+
+// mutateClusterDNS defaults the vanity prefix only on CREATE. Legacy clusters
+// with an omitted prefix must retain CS naming until backend prefix backfill.
+func mutateClusterDNS(_ context.Context, _ *ClusterAdmissionContext, op operation.Operation, _ *field.Path, profile *coreapi.CustomerDNSProfile) field.ErrorList {
+	if op.Type == operation.Create && len(profile.BaseDomainPrefix) == 0 {
+		// The prefix is scoped beneath an exclusive DNS slug; it need not be unique.
+		profile.BaseDomainPrefix = "cluster"
+	}
+	return nil
 }
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
@@ -124,15 +136,15 @@ func toSPExperimentalFeatures(oldObj *coreapi.ClusterServiceProviderProperties) 
 	return &oldObj.ExperimentalFeatures
 }
 
-// mutateClusterExperimentalFeatures translates the experimental tag set from
-// the original (pre-mutation) cluster into ExperimentalFeatures on the
-// cluster's service provider properties. Tags are *read from*
-// admissionContext.OriginalCluster — never from the cluster being mutated —
-// because earlier admission steps may have overwritten the cluster's tag map.
-// Without AFEC registration ExperimentalFeatures is zeroed and tags are
-// ignored; with AFEC registered, unrecognized experimental tags and invalid
-// values are rejected.
-func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *coreapi.ExperimentalFeatures) field.ErrorList {
+// Translates the experimental tag set from the original (pre-mutation) cluster
+// into ExperimentalFeatures on the cluster's service provider properties.
+// Tags are read from admissionContext.OriginalCluster, never from the cluster
+// being mutated, because earlier steps may have overwritten its tag map.
+// Without AFEC registration ExperimentalFeatures is zeroed and tags are ignored;
+// with AFEC registered, unrecognized experimental tags and invalid values are
+// rejected. Single-replica availability is retained only for updates to
+// persisted single-replica clusters.
+func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj, oldObj *coreapi.ExperimentalFeatures) field.ErrorList {
 	subscription := admissionContext.Subscription
 	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
 		*newObj = coreapi.ExperimentalFeatures{}
@@ -149,7 +161,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterZStreamUpdatePolicy, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxUpdateDuration, metadataapi.TagClusterMaxDeletionDuration, metadataapi.TagClusterDisableSwift, metadataapi.TagClusterBackupScheduleOverride)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -172,7 +184,11 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
 	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {
 	case coreapi.SingleReplicaControlPlane:
-		experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+		if op.Type == operation.Update && oldObj != nil && oldObj.ControlPlaneAvailability == coreapi.SingleReplicaControlPlane {
+			experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+		} else {
+			errs = append(errs, field.Forbidden(tagsPath.Key(metadataapi.TagClusterSingleReplica), "single-replica control planes cannot be enabled"))
+		}
 	case coreapi.DefaultControlPlaneAvailability:
 		// absent or empty
 	default:
@@ -231,6 +247,22 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		default:
 			experimentalFeatures.ControlPlaneExactVersion = &parsed
 		}
+	}
+
+	// Only "Enabled" is accepted. The tag lifts a deployment-wide backup schedule
+	// pause for this cluster; pausing a single cluster is the admin API's job, and
+	// that pause outranks this override, so there is no "Disabled" value here.
+	backupScheduleOverrideValue := lookupTag(tags, metadataapi.TagClusterBackupScheduleOverride)
+	switch coreapi.BackupScheduleState(backupScheduleOverrideValue) {
+	case coreapi.BackupScheduleStateEnabled:
+		experimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+	case "":
+		// absent or empty
+	default:
+		errs = append(errs, field.Invalid(
+			tagsPath.Key(metadataapi.TagClusterBackupScheduleOverride), backupScheduleOverrideValue,
+			fmt.Sprintf("must be %q or empty", coreapi.BackupScheduleStateEnabled),
+		))
 	}
 
 	// disable-swift is validated against networking in validation.ValidateCluster;

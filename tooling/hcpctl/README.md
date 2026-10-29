@@ -94,6 +94,39 @@ The CLI's session persistence is disabled; hcpctl saves `conversation.json` and
 snapshots, with per-model tokens/cost where available; API request counts, cache
 TTLs, and service tiers are not available at the in-process provider's granularity.
 
+### Snapshot Analysis Reasoning Effort
+
+`--effort` (named after the equivalent Claude Code and Copilot CLI flag) sets
+the model's reasoning effort for every provider. When omitted, the model/backend default applies. Accepted values depend on the
+provider and are validated before the analysis starts:
+
+| Provider | Values | Forwarded as |
+| --- | --- | --- |
+| `copilot` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Copilot SDK `SessionConfig.ReasoningEffort` |
+| `claude-code` | `low`, `medium`, `high`, `xhigh`, `max` | Claude Code CLI `--effort` |
+| `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Messages API `output_config.effort` |
+
+Whether a level has an effect depends on the model; choose a model that
+supports reasoning effort. The Copilot runtime accepts any level without
+checking model support.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --model gpt-6-luna --effort high \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --maestro /path/to/maestro --clusters-service /path/to/clusters-service
+```
+
+Go callers set the same option on the provider configuration
+(`agent.AgentConfig`, `agent.ClaudeCodeConfig`, or `agent.ClaudeConfig`); invalid
+values are rejected by the provider constructors:
+
+```go
+client, err := agent.NewCopilotClient(&agent.AgentConfig{
+	Model:           "gpt-6-luna",
+	ReasoningEffort: agent.ReasoningEffortHigh,
+})
+```
+
 ### List Service Clusters
 
 ```bash
@@ -194,10 +227,10 @@ hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $su
 
 The base backend, frontend, kube-applier, and fleet log queries always use the ARM subscription and resource group scope. They do not filter on Clusters Service IDs, including when `--cluster-id` or `--cluster-name` is specified. The `--cluster-id` flag takes a Clusters Service ID, not an ARM resource ID.
 
-The `detailedInfraOrchestrationLogs` custom query includes Maestro, Hypershift,
+The `detailedInfraOrchestrationLogs` custom query includes Hypershift
 and ACM agent logs, identified by a `source` field. Must-gather executes this
 query in five-minute output windows to reduce the risk of exceeding Kusto's
-result-size limit, while discovering cluster and Maestro bundle IDs over the
+result-size limit, while discovering cluster IDs over the
 entire requested interval. The windows feed the same JSONL file and do not
 truncate the requested interval. An unusually large individual window can still
 exceed the service limit; such failures remain errors, not successful partial
@@ -217,8 +250,8 @@ queries, err := factory.Build(*definition, data)
 Only the orchestration child's final output changes: it returns `rows`,
 `estimatedBytes`, `firstSeen`, and `lastSeen` grouped by `source`, using exactly
 the same discovery and filters as log collection. An empty arm has no summary
-row, so consumers must compare against all three expected source names
-(`maestro`, `hypershift`, `acm-agent`). Byte estimates are not exact wire sizes.
+row, so consumers must compare against both expected source names
+(`hypershift`, `acm-agent`). Byte estimates are not exact wire sizes.
 This is a library rendering option, not a CLI flag. The E2E presence verifier
 sets `GathererOptions.SummarizeOrchestrationLogs` to execute one full-range
 summary instead of downloading the orchestration payloads. It requires a positive

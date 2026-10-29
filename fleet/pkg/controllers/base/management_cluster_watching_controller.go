@@ -34,7 +34,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -77,9 +79,10 @@ type ManagementClusterSyncer interface {
 }
 
 type managementClusterWatchingController struct {
-	name          string
-	syncer        ManagementClusterSyncer
-	fleetDBClient fleetcosmosstorage.FleetDBClient
+	name                    string
+	syncer                  ManagementClusterSyncer
+	fleetDBClient           fleetcosmosstorage.FleetDBClient
+	managementClusterLister fleetlisters.ManagementClusterLister
 }
 
 // NewManagementClusterWatchingController creates a controller that watches
@@ -93,14 +96,17 @@ func NewManagementClusterWatchingController(
 	syncer ManagementClusterSyncer,
 ) WatchingController {
 	mcSyncer := &managementClusterWatchingController{
-		name:          name,
-		syncer:        syncer,
-		fleetDBClient: fleetDBClient,
+		name:                    name,
+		syncer:                  syncer,
+		fleetDBClient:           fleetDBClient,
+		managementClusterLister: fleetlisters.NewManagementClusterLister(managementClusterInformer.GetIndexer()),
 	}
 	mcController := controllerutils.NewGenericWatchingController(
 		name, fleetapi.ManagementClusterResourceType, mcSyncer, ReconcileTotal,
 	)
 
+	// Resync only management clusters so each key is resynced once per interval,
+	// not once for every input. All other watches must use 0 (no resync).
 	if err := mcController.QueueForInformers(resyncDuration, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
@@ -109,6 +115,15 @@ func NewManagementClusterWatchingController(
 }
 
 func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key ManagementClusterKey) error {
+	// Controller status belongs to an existing parent resource.
+	_, err := c.managementClusterLister.Get(ctx, key.StampIdentifier)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	controllerCRUD := c.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Controllers()
 
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(

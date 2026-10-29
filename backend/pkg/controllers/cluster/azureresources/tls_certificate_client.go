@@ -16,6 +16,7 @@ package azureresources
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -81,8 +82,22 @@ func observeTLSCertificate(ctx context.Context, client tlsCertificatesClient, na
 	case "inProgress":
 		return false, nil
 	case "failed", "cancelled":
-		return false, utils.TrackError(fmt.Errorf("certificate %q operation %s", name, *operation.Status))
+		return false, utils.TrackError(fmt.Errorf("certificate %q operation %s: %s", name, *operation.Status, formatCertificateOperation(operation.CertificateOperation)))
 	default:
-		return false, utils.TrackError(fmt.Errorf("certificate %q has unknown operation status %q", name, *operation.Status))
+		return false, utils.TrackError(fmt.Errorf("certificate %q has unknown operation status %q: %s", name, *operation.Status, formatCertificateOperation(operation.CertificateOperation)))
 	}
+}
+
+func formatCertificateOperation(operation azcertificates.CertificateOperation) string {
+	// Omit certificate request bytes from diagnostics without mutating the response.
+	operation.CSR = nil
+	details, err := json.Marshal(operation)
+	if err != nil {
+		return fmt.Sprintf("unable to serialize certificate operation: %v", err)
+	}
+	if operation.Error != nil {
+		// JSON includes only ErrorInfo.Code; Error() also exposes the service's message and inner error.
+		return fmt.Sprintf("%s, error details: %q", details, operation.Error.Error())
+	}
+	return string(details)
 }

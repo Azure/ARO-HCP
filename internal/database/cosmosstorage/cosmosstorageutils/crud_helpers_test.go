@@ -16,15 +16,131 @@ package cosmosstorageutils
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
+
+func TestRolloutConditionalSoftDelete(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		expectedETag  azcore.ETag
+		unconditional bool
+		missing       bool
+		deleted       bool
+		updateOnRead  bool
+		wantConflict  bool
+		wantWrite     bool
+	}{
+		{name: "matching version", expectedETag: "A", wantWrite: true},
+		{name: "stale version", expectedETag: "stale", wantConflict: true},
+		{name: "empty etag is not unconditional", wantConflict: true},
+		{name: "update after read", expectedETag: "A", updateOnRead: true, wantConflict: true, wantWrite: true},
+		{name: "missing is idempotent", expectedETag: "stale", missing: true},
+		{name: "deleted is idempotent", expectedETag: "stale", deleted: true},
+		{name: "ordinary delete", unconditional: true, wantWrite: true},
+		{name: "ordinary delete guards read write race", unconditional: true, updateOnRead: true, wantConflict: true, wantWrite: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := GenericDocument[map[string]interface{}]{Content: map[string]interface{}{
+				"cosmosMetadata": map[string]interface{}{"instanceVersion": float64(3)},
+				"status":         map[string]interface{}{"referencingClusterCount": float64(0)},
+			}}
+			doc.CosmosETag = "A"
+			if tc.deleted {
+				require.NoError(t, SetSoftDeleteFields(&doc, time.Now()))
+			}
+			stored, err := json.Marshal(doc)
+			require.NoError(t, err)
+			original := string(stored)
+			writes := 0
+			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+			require.NoError(t, err)
+			client, err := azcosmos.NewClientWithKey("https://cosmos.test", credential, &azcosmos.ClientOptions{ClientOptions: azcore.ClientOptions{
+				Retry: policy.RetryOptions{MaxRetries: -1},
+				Transport: layerTestTransport(func(req *http.Request) (*http.Response, error) {
+					respond := func(status int, body string, etag azcore.ETag) (*http.Response, error) {
+						return &http.Response{StatusCode: status, Request: req, Header: http.Header{"Etag": []string{string(etag)}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+					}
+					if req.URL.Path == "" || req.URL.Path == "/" {
+						return respond(http.StatusOK, `{"id":"test"}`, "")
+					}
+					require.Equal(t, `["microsoft.redhatopenshift"]`, req.Header.Get("x-ms-documentdb-partitionkey"))
+					switch req.Method {
+					case http.MethodGet:
+						if tc.missing {
+							return respond(http.StatusNotFound, `{"code":"NotFound"}`, "")
+						}
+						response, etag := string(stored), doc.CosmosETag
+						if tc.updateOnRead {
+							doc.CosmosETag = "B"
+							doc.Content["status"].(map[string]interface{})["referencingClusterCount"] = float64(1)
+							stored, err = json.Marshal(doc)
+							require.NoError(t, err)
+							original = string(stored)
+						}
+						return respond(http.StatusOK, response, etag)
+					case http.MethodPut:
+						writes++
+						require.Equal(t, "A", req.Header.Get("If-Match"), "replace must retain the evaluated ETag")
+						if req.Header.Get("If-Match") != string(doc.CosmosETag) {
+							return respond(http.StatusPreconditionFailed, `{"code":"PreconditionFailed"}`, "")
+						}
+						stored, err = io.ReadAll(req.Body)
+						require.NoError(t, err)
+						return respond(http.StatusOK, string(stored), "deleted")
+					default:
+						t.Fatalf("unexpected method %s", req.Method)
+						return nil, nil
+					}
+				}),
+			}})
+			require.NoError(t, err)
+			database, err := client.NewDatabase("test")
+			require.NoError(t, err)
+			container, err := database.NewContainer("Fleet")
+			require.NoError(t, err)
+			crud := NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+				container, nil, fleetapi.ControlPlaneVersionRolloutResourceType, ProviderNamespacePartitionKeyDeriver{}, FleetResourceIDBuilder{})
+			if tc.unconditional {
+				err = crud.Delete(t.Context(), "stable-4.19")
+			} else {
+				err = crud.DeleteWithETag(t.Context(), "stable-4.19", tc.expectedETag)
+			}
+			if tc.wantConflict {
+				require.True(t, IsPreconditionFailedError(err), "expected HTTP 412: %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantWrite, writes == 1)
+			if tc.wantWrite && !tc.wantConflict {
+				var deleted GenericDocument[map[string]interface{}]
+				require.NoError(t, json.Unmarshal(stored, &deleted))
+				require.NotNil(t, deleted.DeletionTimestamp)
+				require.WithinDuration(t, time.Now(), deleted.DeletionTimestamp.Time, time.Second)
+				require.EqualValues(t, SoftDeleteTTLSeconds, deleted.TimeToLive)
+				require.Equal(t, float64(4), deleted.Content["cosmosMetadata"].(map[string]interface{})["instanceVersion"])
+			} else {
+				require.Equal(t, original, string(stored), "conflicts and idempotent deletes must not modify storage")
+			}
+		})
+	}
+}
 
 func TestPrepareParentResourceID(t *testing.T) {
 	nestedResourceID, err := azcorearm.ParseResourceID("/subscriptions/SubscriptionID/resourceGroups/MyGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/MyCluster/nodePools/MyPool")

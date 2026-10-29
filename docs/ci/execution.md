@@ -22,6 +22,14 @@ The most common misunderstanding is to assume every E2E job validates the same t
 
 ## Execution Modes
 
+### CodeQL Analysis
+
+The [CodeQL workflow](../../.github/workflows/codeql-analysis.yml) runs in GitHub Actions and manually builds the Go workspace under the CodeQL extractor. Seven Go shards use separate analysis categories: shard 6 builds only `test/`, while shards 0 through 5 build the remaining modules. Workspace discovery follows `go.work`; the round-robin fallback excludes shard 6 to preserve test-module isolation.
+
+Each Go job adds a 10 GiB swapfile for transient memory spikes. The build step sets `GOMAXPROCS=2` to reduce runtime and package-build concurrency and `GOGC=50` to reduce extractor heap headroom. These controls preserve the selected packages and keep build failures visible; swap is additional headroom, not a replacement for reducing memory demand.
+
+When investigating memory pressure, distinguish the traced build from query analysis and record peak RAM, swap usage, source revision, and tool versions. Exit 143 indicates termination by SIGTERM, but does not alone prove an OOM kill.
+
 ### PR Validation In DEV
 
 DEV PR validation combines fast repository checks with an end-to-end path that can exercise unmerged service and infrastructure changes:

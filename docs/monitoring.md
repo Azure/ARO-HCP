@@ -43,6 +43,12 @@ Self-managed Prometheus implements namespace-based routing to two Azure Monitor 
 **Deployment:**
 The Prometheus stack is deployed via `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml` pipelines.
 
+### Agent placement
+
+The self-managed PrometheusAgent uses soft topology spread constraints to distribute agents across zones (or agent pools when zones are disabled) and replicas of each shard across nodes. The selectors use the Operator-generated pod labels `app.kubernetes.io/name=prometheus-agent` and `operator.prometheus.io/name=prometheus`. The hostname constraint also uses `additionalLabelSelectors: OnShard` so the Operator scopes spreading to each shard.
+
+These constraints are scheduling preferences, not guarantees. They do not prevent an individual agent from exceeding its memory limit. Investigate per-shard active series, resident memory, and node capacity separately when agents are OOM-killed or evicted.
+
 ## Application Metrics Collection
 
 Application metrics are collected through Kubernetes custom resources that define scraping targets for the self-managed Prometheus stack.

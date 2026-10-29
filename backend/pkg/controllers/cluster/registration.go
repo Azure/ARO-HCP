@@ -31,6 +31,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
@@ -957,6 +958,13 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 	}
 }
 
+func registerKubeAPIServerServingCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerServingCertificateController, true),
+	}
+}
+
 func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -986,6 +994,19 @@ func instantiateIngressTLSCertificateController(controllerContext controllerconf
 func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
 	return clusterk8sresources.NewIngressCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
+func instantiateKubeAPIServerServingCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewKubeAPIServerServingCertificateController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
@@ -1225,7 +1246,58 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 	), nil
 }
 
+func registerControlPlaneVersionCincinnatiSeedingController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionCincinnatiSeedingController, false),
+	}
+}
+
+func instantiateControlPlaneVersionCincinnatiSeedingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionCincinnatiSeedingController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+		controllerContext.VersionProfileSource,
+	), nil
+}
+
+func registerControlPlaneVersionRolloutRetirementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutRetirementController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutRetirementController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionRolloutRetirementController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+	), nil
+}
+
+func registerDNSClaimCleanupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 1, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSClaimCleanupController, false)}
+}
+
+func instantiateDNSClaimCleanupController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewCleanupController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.FleetInformers, ctx.BackendInformers, ctx.Clock), nil
+}
+
+func registerDNSAllocationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSAllocationController, false)}
+}
+func instantiateDNSAllocationController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewDNSAllocationController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.ClustersServiceClient, ctx.Clock), nil
+}
+func registerDNSBackfillController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSBackfillController, true)}
+}
+func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewBackfillController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.UnionKubeApplierInformers, ctx.Clock), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
+	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
+	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
@@ -1233,6 +1305,8 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
 	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
+	registry[strings.ToLower(rollout.CincinnatiSeedingControllerName)] = registerControlPlaneVersionCincinnatiSeedingController()
+	registry[strings.ToLower(rollout.RolloutRetirementControllerName)] = registerControlPlaneVersionRolloutRetirementController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialOperationRequestCredentialPollControllerName)] = registerAdminCredentialsOperationRequestCredentialPollController()
@@ -1286,6 +1360,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
 	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)] = registerKubeAPIServerServingCertificateController()
 	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
 	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()

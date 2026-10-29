@@ -39,7 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const IngressCertificateControllerName = "IngressCertificate"
+const IngressCertificateControllerName = "IngressServingCertificateK8sResources"
 
 type ingressCertificateSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient

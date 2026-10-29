@@ -46,6 +46,12 @@ import (
 )
 
 func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
+	writeContext := gomock.Cond[context.Context](func(ctx context.Context) bool {
+		deadline, ok := ctx.Deadline()
+		remaining := time.Until(deadline)
+		return ok && remaining > controllerutils.CSWriteTimeout-time.Second && remaining <= controllerutils.CSWriteTimeout
+	})
+
 	testClusterServiceID, _ := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id")
 
 	tests := []struct {
@@ -88,7 +94,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 				expectedBuilder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.20")
 				mc.EXPECT().
 					PostControlPlaneUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testClusterServiceID,
 						expectedBuilder,
 					).
@@ -110,7 +116,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 				expectedBuilder := arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.20")
 				mc.EXPECT().
 					PostControlPlaneUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testClusterServiceID,
 						expectedBuilder,
 					).
@@ -145,7 +151,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 				// Policy creation fails
 				mc.EXPECT().
 					PostControlPlaneUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testClusterServiceID,
 						arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.20"),
 					).

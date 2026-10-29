@@ -2926,6 +2926,52 @@ func TestValidateClusterUpdate(t *testing.T) {
 	}
 }
 
+func TestValidateClusterSingleReplicaAvailability(t *testing.T) {
+	tests := []struct {
+		name            string
+		op              operation.Type
+		oldAvailability coreapi.ControlPlaneAvailability
+		newAvailability coreapi.ControlPlaneAvailability
+		wantError       bool
+	}{
+		{name: "create rejects single replica", op: operation.Create, newAvailability: coreapi.SingleReplicaControlPlane, wantError: true},
+		{name: "create accepts default availability", op: operation.Create},
+		{name: "update retains single replica", op: operation.Update, oldAvailability: coreapi.SingleReplicaControlPlane, newAvailability: coreapi.SingleReplicaControlPlane},
+		{name: "update allows opt-out", op: operation.Update, oldAvailability: coreapi.SingleReplicaControlPlane},
+		{name: "update accepts default availability", op: operation.Update},
+		{name: "regular validation leaves new update opt-in to admission", op: operation.Update, newAvailability: coreapi.SingleReplicaControlPlane},
+	}
+	for _, tt := range tests {
+		for _, registered := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/AFEC=%t", tt.name, registered), func(t *testing.T) {
+				cluster := createValidCluster()
+				cluster.ServiceProviderProperties.ExperimentalFeatures = coreapi.ExperimentalFeatures{
+					ControlPlaneAvailability: tt.newAvailability,
+					ControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+				}
+				var oldCluster *coreapi.Cluster
+				if tt.op == operation.Update {
+					oldCluster = cluster.DeepCopy()
+					oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tt.oldAvailability
+				}
+				op := operation.Operation{Type: tt.op}
+				if registered {
+					op.Options = testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures)
+				}
+				errs := ValidateCluster(t.Context(), op, cluster, oldCluster, nil)
+				var expectedErrors []utils.ExpectedError
+				if tt.wantError {
+					expectedErrors = []utils.ExpectedError{{
+						FieldPath: "serviceProviderProperties.experimentalFeatures.singleReplica",
+						Message:   "single-replica control planes cannot be enabled",
+					}}
+				}
+				utils.VerifyErrorsMatch(t, expectedErrors, errs)
+			})
+		}
+	}
+}
+
 func makeUniqueCIDRs(n int) []string {
 	cidrs := make([]string, n)
 	for i := range cidrs {

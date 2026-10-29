@@ -58,8 +58,8 @@ resourceGroups:
     variables:
     - name: ENV_NAME
       value: dev-cost-management
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.dev.e2eSubscriptions }},{{ .ci.dev.infrastructureSubscriptionsCostTags }}'
     - name: PROVIDER_NAMESPACES
       value: Microsoft.CostManagement
   - name: cost-tag-inheritance
@@ -72,8 +72,8 @@ resourceGroups:
         step: global-identity
         name: globalMSIId
     variables:
-    - name: SUBSCRIPTION_IDS
-      value: '{{ range .ci.dev.e2eSubscriptions }}{{ .id }} {{ end }}{{ range .ci.dev.infrastructureSubscriptions }}{{ if index . "costTagInheritance" }}{{ .id }} {{ end }}{{ end }}'
+    - name: SUBSCRIPTIONS
+      value: '{{ .ci.dev.e2eSubscriptions }},{{ .ci.dev.infrastructureSubscriptionsCostTags }}'
     dependsOn:
     - resourceGroup: grants
       step: register-costmanagement
@@ -105,7 +105,17 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Failed to update one or more relationships in 'owners'"
-      maximumRetryCount: 3
+      # Newly created apps/SPs routinely fail their first deployment with a Graph
+      # "does not exist or one of its queried" (replication lag) error; the retry
+      # then updates the already-created objects. With large identity pools ARM
+      # collapses the nested failures into "The aggregated deployment error is too
+      # large", which hides that message from this matcher. Retrying is safe: the
+      # template is idempotent. The pool modules use @batchSize(25) and ARM skips
+      # later batches after a failed one, so creating a pool from scratch takes one
+      # attempt per batch: keep maximumRetryCount >= ceil(poolSize / 25) + 1.
+      - "aggregated deployment error is too large"
+      - "does not exist or one of its queried"
+      maximumRetryCount: 6
       durationBetweenRetries: 1m
   - name: pin-mock-certs
     action: Shell

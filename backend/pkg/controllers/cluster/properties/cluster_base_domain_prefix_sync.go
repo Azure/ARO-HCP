@@ -74,6 +74,9 @@ func NewClusterBaseDomainPrefixSyncController(
 }
 
 func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster) bool {
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return false
+	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
 		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false
@@ -108,7 +111,10 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 		return nil
 	}
 
-	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	csCluster, err := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}

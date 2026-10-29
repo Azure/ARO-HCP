@@ -56,10 +56,18 @@ func VerifySwiftRouterChecks(ctx context.Context, credential azcore.TokenCredent
 			ginkgo.GinkgoLogr.Error(err, "Close SWIFT Kusto client")
 		}
 	}()
+	// Cache the resolved HCP coordinates after the first query returns rows.
+	// Subsequent polls use a lightweight query that skips the expensive
+	// cosmosResourceSnapshots scans entirely.
+	var coords *hcpCoordinates
 	return pollUntilReady(ctx, "VerifySwiftRouterChecks "+resourceID, timeout, DefaultPollInterval, nil, 0, nil, func(ctx context.Context) error {
 		queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
-		dataset, err := client.IterativeQuery(queryCtx, settings[2], swiftRouterQuery(resourceID, start))
+		query := swiftRouterQuery(resourceID, start)
+		if coords != nil {
+			query = swiftRouterPollQuery(coords, start)
+		}
+		dataset, err := client.IterativeQuery(queryCtx, settings[2], query)
 		if err != nil {
 			return fmt.Errorf("query SWIFT checks in %s/%s: %w", endpoint, settings[2], err)
 		}
@@ -86,7 +94,11 @@ func VerifySwiftRouterChecks(ctx context.Context, credential azcore.TokenCredent
 				rows = append(rows, row)
 			}
 		}
-		return checkSwiftRouterRows(rows, start, time.Now(), workers)
+		checkErr := checkSwiftRouterRows(rows, start, time.Now(), workers)
+		if coords == nil {
+			coords = extractHCPCoordinates(rows)
+		}
+		return checkErr
 	})
 }
 
@@ -150,13 +162,86 @@ hcp
 | join kind=leftouter counts on environment, region, cluster, namespace
 | join kind=leftouter pods on environment, region, cluster, namespace
 | join kind=leftouter summaries on environment, region, cluster, namespace, UID
-| project Scope = strcat(environment, "/", region, "/", cluster, "/", namespace),
+| project Environment = environment, Region = region, Cluster = cluster, Namespace = namespace,
+    Scope = strcat(environment, "/", region, "/", cluster, "/", namespace),
     Desired = coalesce(Desired, 0), Current = coalesce(Current, 0), UID, Node, SummaryUID, SummaryNode, Pass, At, Summary
 | order by Scope asc, UID asc
 | take 101`)
 }
 
+// hcpCoordinates holds the resolved cluster coordinates from the first
+// successful query, so subsequent polls can skip cosmosResourceSnapshots.
+type hcpCoordinates struct {
+	Environment, Region, Cluster, Namespace string
+}
+
+// extractHCPCoordinates reads the resolved cluster coordinates directly from
+// the first result row. Returns nil if no rows or any coordinate is empty.
+func extractHCPCoordinates(rows []swiftRouterRow) *hcpCoordinates {
+	if len(rows) == 0 {
+		return nil
+	}
+	r := rows[0]
+	if r.Environment == "" || r.Region == "" || r.Cluster == "" || r.Namespace == "" {
+		return nil
+	}
+	// Only cache if all rows resolved to the same coordinates, otherwise
+	// the poll query could silently filter to one scope and hide ambiguity.
+	for _, row := range rows[1:] {
+		if row.Environment != r.Environment || row.Region != r.Region || row.Cluster != r.Cluster || row.Namespace != r.Namespace {
+			return nil
+		}
+	}
+	return &hcpCoordinates{
+		Environment: r.Environment,
+		Region:      r.Region,
+		Cluster:     r.Cluster,
+		Namespace:   r.Namespace,
+	}
+}
+
+// swiftRouterPollQuery builds a lightweight KQL query using pre-resolved HCP
+// coordinates. It queries only kubernetesResourceSnapshots and containerLogs
+// with exact equality filters, avoiding the two cosmosResourceSnapshots scans
+// and join chains that dominate the full query's cost.
+func swiftRouterPollQuery(coords *hcpCoordinates, start time.Time) *kql.Builder {
+	return kql.New("let env = ").AddString(coords.Environment).
+		AddLiteral("; let rgn = ").AddString(coords.Region).
+		AddLiteral("; let cl = ").AddString(coords.Cluster).
+		AddLiteral("; let ns = ").AddString(coords.Namespace).
+		AddLiteral("; let start = ").AddDateTime(start).AddLiteral(`;
+let scope = strcat(env, "/", rgn, "/", cl, "/", ns);
+let inventory = materialize(kubernetesResourceSnapshots
+| where timestamp >= start and environment == env and region == rgn and cluster == cl and namespace == ns
+| where objectKind in ("Pod", "Deployment")
+| summarize arg_max(timestamp, *) by objectKind, name
+| where event != "Delete" and isempty(object.metadata.deletionTimestamp));
+let pods = inventory
+| where objectKind == "Pod" and object.metadata.labels.app == "private-router" and object.status.phase == "Running"
+| project UID = uid, Node = tostring(object.spec.nodeName);
+let desired = toscalar(inventory
+| where objectKind == "Deployment" and name == "router"
+| project tolong(object.spec.replicas));
+let current = toscalar(pods | count);
+let summaries = containerLogs
+| where timestamp >= start and environment == env and region == rgn and cluster == cl
+| where container_name == "swift-recorder"
+| where log.controller_name == "swift-router-check" and log.field == "summary"
+| where tostring(log.pod_namespace) == ns
+| extend UID = tostring(log.pod_uid)
+| summarize arg_max(timestamp, *) by UID
+| project UID, SummaryUID = tostring(log.pod_uid),
+    SummaryNode = tostring(log.node_name), Pass = tostring(log.pass_id), At = timestamp, Summary = tostring(log.record);
+pods
+| join kind=leftouter summaries on UID
+| extend Scope = scope, Desired = coalesce(desired, tolong(0)), Current = coalesce(current, tolong(0))
+| project Scope, Desired, Current, UID, Node, SummaryUID, SummaryNode, Pass, At, Summary
+| order by Scope asc, UID asc
+| take 101`)
+}
+
 type swiftRouterRow struct {
+	Environment, Region, Cluster, Namespace                  string
 	Scope, UID, Node, SummaryUID, SummaryNode, Pass, Summary string
 	Desired, Current                                         int64
 	At                                                       time.Time

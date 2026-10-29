@@ -40,6 +40,7 @@ import (
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
@@ -67,6 +68,7 @@ type BackendOptions struct {
 	ServiceTenantID                    string
 	LeaderElectionLock                 resourcelock.Interface
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	VersionProfileSource               cincinnati.VersionProfileSource
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer
 	MetricsServerListenAddress         string
@@ -189,6 +191,9 @@ func (o *BackendOptions) validate() error {
 	}
 	if o.BackupConfig == nil {
 		return fmt.Errorf("backup config must be set")
+	}
+	if o.VersionProfileSource == nil {
+		return fmt.Errorf("version profile source must be set")
 	}
 	return nil
 }

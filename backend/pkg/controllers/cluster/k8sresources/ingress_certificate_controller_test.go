@@ -410,3 +410,34 @@ func TestIngressCertificatePersistsDesiredHostedCluster(test *testing.T) {
 		})
 	}
 }
+
+func TestIngressCertificateAdoptsDesiresAfterControllerRename(test *testing.T) {
+	fixture := newCertificateFixture(test)
+	ctx := test.Context()
+	require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+	applyCRUD, err := fixture.client.ApplyDesiresForCluster(fixture.key.SubscriptionID, fixture.key.ResourceGroupName, fixture.key.HCPClusterName)
+	require.NoError(test, err)
+	readCRUD, err := fixture.client.ReadDesiresForCluster(fixture.key.SubscriptionID, fixture.key.ResourceGroupName, fixture.key.HCPClusterName)
+	require.NoError(test, err)
+	for _, name := range []string{"IngressCertificateSecretProviderClass", "IngressCertificateSecretSync"} {
+		apply, err := applyCRUD.Get(ctx, name)
+		require.NoError(test, err, "persisted desire names must survive controller renames")
+		apply.Tags[kubeapplierapi.TagControllerName] = "IngressCertificate"
+		_, err = applyCRUD.Replace(ctx, apply, nil)
+		require.NoError(test, err)
+		read, err := readCRUD.Get(ctx, name)
+		require.NoError(test, err)
+		read.Tags[kubeapplierapi.TagControllerName] = "IngressCertificate"
+		_, err = readCRUD.Replace(ctx, read, nil)
+		require.NoError(test, err)
+	}
+	require.NoError(test, fixture.syncer.SyncOnce(ctx, fixture.key))
+	require.Len(test, fixture.applies(test), 2)
+	require.Len(test, fixture.reads(test), 2)
+	for _, desire := range fixture.applies(test) {
+		require.Equal(test, IngressCertificateControllerName, desire.Tags[kubeapplierapi.TagControllerName])
+	}
+	for _, desire := range fixture.reads(test) {
+		require.Equal(test, IngressCertificateControllerName, desire.Tags[kubeapplierapi.TagControllerName])
+	}
+}

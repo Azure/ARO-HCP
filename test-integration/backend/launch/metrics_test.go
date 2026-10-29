@@ -131,6 +131,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 				fleet:     fleetcosmosstoragetesting.NewMockFleetDBClient(),
 			},
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
+			VersionProfileSource:               emptyVersionProfileSource{},
 			MetricsRegisterer:                  registry,
 			MetricsGatherer:                    registry,
 			MetricsServerListenAddress:         metricsAddress,
@@ -179,6 +180,12 @@ func TestBackendExposesMetrics(t *testing.T) {
 				strings.Contains(body, operationMetricLine)
 		}, 10*time.Second, 100*time.Millisecond)
 	})
+}
+
+type emptyVersionProfileSource struct{}
+
+func (emptyVersionProfileSource) VersionProfiles(context.Context) ([]coreapi.VersionProfile, error) {
+	return nil, nil
 }
 
 func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState coreapi.ProvisioningState, createdAt *time.Time) *coreapi.Cluster {

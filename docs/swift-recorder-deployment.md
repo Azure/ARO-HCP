@@ -4,7 +4,7 @@ The recorder defaults to enabled in **every environment**, including public,
 shared, and personal environments, and always runs continuous router checks.
 `swiftRecorder.enabled` is the only deployment gate, independent of source
 registry; there is no separate router-check switch or startup-only deployment.
-Startup `captureMode` remains `slow` outside ephemeral `ci00`/`ci01`, which use
+Startup `captureMode` remains `slow` outside ephemeral `ci00`/`ci01`/`ci02`, which use
 `all`. Source-image selection and pins are unchanged. Defaults do not deploy
 anything live: deployments must supply repo-built images through overrides.
 
@@ -12,27 +12,11 @@ This guide owns images, permissions, and rollout. See the [README](../swift-reco
 for build/test commands and [log reference](../swift-recorder/LOG_RECORDS.md)
 for runtime behavior, emitted schemas, probe roles, TLS identities, and cadence.
 
-## CI Image Bootstrap
+## Images
 
-`mgmt-agent/Dockerfile` currently builds `/swift-recorder` alongside mgmt-agent.
-The DaemonSet explicitly executes `/swift-recorder controller`; mgmt-agent's
-entrypoint is unchanged. This supports release PR e2e builds before dedicated
-image onboarding in `openshift/release`.
-
-`useMgmtAgentImage` defaults to `false`; only `ci00` and `ci01` select the
-PR-built dual-binary image with `true`. These are ephemeral PR e2e shards whose
-management-cluster names derive from `BUILD_ID` in `tooling/templatize/settings.yaml`.
-The switch selects the **resolved** `mgmtAgent.image.registry`, `repository`, and
-`digest` for mirroring and Helm's destination service ACR image. Release overrides
-therefore work without sourcing `hack/ci/build-config-override.sh` or requiring
-`SWIFT_RECORDER_IMAGE`. Raw `{{ .mgmtAgent.image.* }}` config references do not
-work because config templating precedes environment-layer resolution; the switch
-is consumed later by values/pipeline templates. ACR resolution does not require
-a dedicated recorder repository while this switch is true.
-
-For a dedicated image, override `swiftRecorder.image` registry/repository/digest;
-in CI also set `swiftRecorder.useMgmtAgentImage: false`. This path is not restricted
-to the CI registry, and its repository remains `swift-recorder` for stage 2.
+`swift-recorder/Dockerfile` builds a dedicated `swift-recorder` image from
+repository-root context. The DaemonSet executes `/swift-recorder controller`.
+Override `swiftRecorder.image` registry/repository/digest per environment.
 An image override selects an image, not enablement. Baseline validation permits
 an empty digest until deployment supplies the override; Helm requires the
 effective selected digest.
@@ -44,27 +28,6 @@ The [pipeline](../swift-recorder/pipeline.yaml) retains explicit dependencies:
 are skipped; only the shared global identity lookup remains, and the chart
 renders no resources. In [topology](../topology.yaml), recorder diagnostics follow
 mgmt-agent and do not gate Fleet registration.
-
-## Stage 2: Dedicated Image Onboarding
-
-External build/promotion jobs require a separate `openshift/release` PR:
-
-1. Add a `swift-recorder` image using repository-root context and
-   `swift-recorder/Dockerfile`, matching mgmt-agent's builder inputs, arguments,
-   promotion, and tagging.
-2. Register it in ARO-HCP images-push so postsubmits publish to the service ACR
-   with the same commit tags as other services.
-3. Add the `SWIFT_RECORDER_IMAGE` dependency/environment mapping to provisioning
-   jobs needing a PR-built image. `hack/ci/build-config-override.sh` accepts this
-   optional digest reference without changing enablement.
-4. Verify digest resolution, controller/helper builds, and image/security scans
-   before pinning a real digest here.
-5. Switch CI to the dedicated image; remove `useMgmtAgentImage` from config,
-   schema, values/pipeline templates, and tests, then remove the extra recorder
-   build and binary from mgmt-agent's Dockerfile.
-6. Retain `slow` outside ephemeral CI; verify mirroring and security approval.
-   Run `make -C config materialize` and `make test-helm-fixtures` for the
-   integrating config/chart changes.
 
 Public INT, STG, and PROD additionally require an `sdp-pipelines` PR and EV2
 rollout; see <https://aka.ms/arohcp-pipelines>. Include service group
@@ -206,7 +169,7 @@ and explicitly enables that rollout. Keep resolved `environmentName: pers` and
 image/security prerequisites still apply and startup capture remains `slow`.
 For an existing dedicated image, overlay
 `clouds.dev.environments.pers.defaults.swiftRecorder.image` with its actual
-`registry`, `repository`, and `digest`, retaining `useMgmtAgentImage: false`.
+`registry`, `repository`, and `digest`.
 
 `record-override` and `record-latest-override` only select images. Root
 `build-services` / `record-services-override` include locally built recorder

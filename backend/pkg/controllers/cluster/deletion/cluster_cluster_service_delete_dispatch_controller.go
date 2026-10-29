@@ -164,6 +164,9 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 		_, err := clusterCRUD.Replace(ctx, replacement, nil)
 		return err
 	}
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	if csID == nil || len(csID.String()) == 0 {
 		elapsed := c.clock.Since(firstSeenClusterDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
@@ -174,7 +177,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 		}
 		logger.Info("giving up on cluster-service Cluster delete - ClusterServiceID never appeared",
 			"clusterDeletionTimestamp", clusterDeletionTimestamp, "clusterFirstSeenDeletionTimestamp", firstSeenClusterDeletionTimestamp)
-	} else if err := c.clusterServiceClient.DeleteCluster(ctx, *csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteCluster(csCtx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
 		switch {
@@ -187,7 +190,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 			}
 			logger.Info("cluster-service Cluster already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", ocm.StripVolatileErrorFields(err)))
 		}
 	} else {
 		logger.Info("requested cluster-service Cluster delete", "clusterServiceID", csID.String())

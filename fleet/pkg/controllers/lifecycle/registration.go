@@ -14,9 +14,10 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(ManagementClusterLifecycleControllerName)] = controllerconfig.ControllerRegistration{
 		Workers: 1,
 		Instantiate: func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			stampInformer, _ := ctx.FleetInformers.Stamps()
 			managementClusterInformer, managementClusterLister := ctx.FleetInformers.ManagementClusters()
 			return NewManagementClusterLifecycleController(
-				managementClusterInformer, ctx.FleetDBClient,
+				managementClusterInformer, stampInformer, ctx.FleetDBClient,
 				base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 			), nil
 		},

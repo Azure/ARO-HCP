@@ -96,7 +96,7 @@ func TestDesireUpdatesDoNotRefetchLiveClusterResources(t *testing.T) {
 		union := unioninformers.NewUnionKubeApplierInformers()
 		require.NoError(t, union.Add(testManagementClusterResourceID, desires))
 		client := &countingResourcesClient{}
-		controller := NewClusterResourcesController(corecosmosstoragetesting.NewMockResourcesDBClient(), nil, nil, backend, union, client)
+		controller := NewClusterResourcesController(corecosmosstoragetesting.NewMockResourcesDBClient(), nil, backend, union, client)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		go controller.Run(ctx, 1)
@@ -105,6 +105,10 @@ func TestDesireUpdatesDoNotRefetchLiveClusterResources(t *testing.T) {
 		}
 		synctest.Wait()
 		require.Equal(t, 1, client.calls)
+		// Expire the cache so an accidental desire-driven SyncOnce would
+		// increment the live GET count instead of being served from cache.
+		time.Sleep(resourcesCacheTTL)
+		synctest.Wait()
 		for i := 0; i < 5; i++ {
 			for kind, source := range map[string]*eventSource{"readDesires": &desires.read, "applyDesires": &desires.apply} {
 				id := metadataapi.Must(azcorearm.ParseResourceID(newCluster().ResourceID.String() + "/" + kind + "/test"))

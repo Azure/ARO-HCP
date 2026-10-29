@@ -116,6 +116,9 @@ var (
 	toManagementClusterStatusKubeApplierCosmosContainerName = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.KubeApplierCosmosContainerName
 	}
+	toManagementClusterStatusKubeApplierCosmosContainerMaxScale = func(oldObj *fleetapi.ManagementClusterStatus) *int32 {
+		return &oldObj.KubeApplierCosmosContainerMaxScale
+	}
 )
 
 func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleetapi.ManagementClusterStatus) field.ErrorList {
@@ -172,6 +175,15 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	// allow the value to go from empty to set, but never change once set.
 	if op.Type == operation.Update && len(oldObj.KubeApplierCosmosContainerName) != 0 {
 		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	}
+
+	// KubeApplierCosmosContainerMaxScale — required on create (must be
+	// positive). Existing records predating this field won't have it; an
+	// unrelated update that carries the value forward unchanged (including
+	// untouched legacy zero) is left alone, but a value actually being set or
+	// changed on update must still satisfy the minimum.
+	if op.Type == operation.Create || newObj.KubeApplierCosmosContainerMaxScale != oldObj.KubeApplierCosmosContainerMaxScale {
+		errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("kubeApplierCosmosContainerMaxScale"), &newObj.KubeApplierCosmosContainerMaxScale, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerMaxScale), 1)...)
 	}
 
 	return errs

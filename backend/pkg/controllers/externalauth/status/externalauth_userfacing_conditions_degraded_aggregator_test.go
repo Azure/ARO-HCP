@@ -73,7 +73,7 @@ var (
 		Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 		Status:  metav1.ConditionFalse,
 		Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-		Message: coreapi.ExternalAuthMessageAllOperational,
+		Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 	}
 	availableFalse = metav1.Condition{
 		Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
@@ -83,116 +83,110 @@ var (
 	}
 )
 
-func TestCollectAllowlisted(t *testing.T) {
-	tests := []struct {
-		name                                  string
-		serviceProviderExternalAuthConditions []metav1.Condition
-		expectCount                           int
-		expectType                            string
-		expectStatus                          metav1.ConditionStatus
-		expectReason                          string
-		expectMessage                         string
-	}{
-		{
-			name:                                  "no conditions -> zero results",
-			serviceProviderExternalAuthConditions: nil,
-			expectCount:                           0,
-		},
-		{
-			name: "OIDCClientsDegraded=False -> one result (kept with original status)",
-			serviceProviderExternalAuthConditions: []metav1.Condition{
-				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
-			},
-			expectCount:  1,
-			expectType:   coreapi.ExternalAuthOIDCClientsDegradedCondition,
-			expectStatus: metav1.ConditionFalse,
-			expectReason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-		},
-		{
-			name: "OIDCClientsDegraded=True -> one result",
-			serviceProviderExternalAuthConditions: []metav1.Condition{
-				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret},
-			},
-			expectCount:   1,
-			expectType:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
-			expectStatus:  metav1.ConditionTrue,
-			expectReason:  coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation,
-			expectMessage: "console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret,
-		},
-		{
-			name: "non-allowlisted condition is ignored -> zero results",
-			serviceProviderExternalAuthConditions: []metav1.Condition{
-				{Type: "InternalOnlyCondition", Status: metav1.ConditionTrue, Reason: "SomeReason", Message: "internal details"},
-			},
-			expectCount: 0,
-		},
-		{
-			name: "allowlisted plus non-allowlisted -> only allowlisted returned",
-			serviceProviderExternalAuthConditions: []metav1.Condition{
-				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation, Message: "console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret},
-				{Type: "InternalOnlyCondition", Status: metav1.ConditionTrue, Reason: "SomeReason", Message: "internal details"},
-			},
-			expectCount:   1,
-			expectType:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
-			expectStatus:  metav1.ConditionTrue,
-			expectReason:  coreapi.ExternalAuthOIDCClientsDegradedReasonDegradation,
-			expectMessage: "console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret,
-		},
+func TestCollectAllowlistedConditions(t *testing.T) {
+	pendingUnknown := metav1.Condition{
+		Status:  metav1.ConditionUnknown,
+		Reason:  coreapi.ExternalAuthUserFacingDegradedReasonEvaluationIncomplete,
+		Message: "Waiting for condition to be evaluated",
 	}
 
-	syncer := &externalAuthUserFacingConditionsDegradedAggregator{}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := syncer.collectAllowlisted(tc.serviceProviderExternalAuthConditions)
-			assert.Len(t, result, tc.expectCount, "result count")
-			if tc.expectCount > 0 {
-				assert.Equal(t, tc.expectType, result[0].Type, "condition type")
-				assert.Equal(t, tc.expectStatus, result[0].Status, "condition status")
-				assert.Equal(t, tc.expectReason, result[0].Reason, "condition reason")
-				if tc.expectMessage != "" {
-					assert.Equal(t, tc.expectMessage, result[0].Message, "condition message")
-				}
-			}
-		})
-	}
-}
-
-func TestHasAllowlistedCondition(t *testing.T) {
 	tests := []struct {
 		name       string
 		conditions []metav1.Condition
-		expect     bool
+		// expectReported maps condition Types to their expected Status for reported entries.
+		expectReported map[string]metav1.ConditionStatus
+		// expectPending lists Types expected to be pending Unknown (not yet evaluated).
+		expectPending []string
 	}{
 		{
-			name:       "nil -> false",
+			name:       "nil - all pending",
 			conditions: nil,
-			expect:     false,
+			expectPending: []string{
+				coreapi.ExternalAuthOIDCClientsDegradedCondition,
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition,
+			},
 		},
 		{
-			name:       "empty -> false",
+			name:       "empty - all pending",
 			conditions: []metav1.Condition{},
-			expect:     false,
+			expectPending: []string{
+				coreapi.ExternalAuthOIDCClientsDegradedCondition,
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition,
+			},
 		},
 		{
-			name: "only non-allowlisted -> false",
+			name: "only non-allowlisted - all pending",
 			conditions: []metav1.Condition{
 				{Type: "InternalOnly", Status: metav1.ConditionTrue},
 			},
-			expect: false,
+			expectPending: []string{
+				coreapi.ExternalAuthOIDCClientsDegradedCondition,
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition,
+			},
 		},
 		{
-			name: "has allowlisted -> true",
+			name: "one reported False, other pending",
 			conditions: []metav1.Condition{
 				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse},
 			},
-			expect: true,
+			expectReported: map[string]metav1.ConditionStatus{coreapi.ExternalAuthOIDCClientsDegradedCondition: metav1.ConditionFalse},
+			expectPending:  []string{coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition},
+		},
+		{
+			name: "one reported True, other pending",
+			conditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionTrue},
+			},
+			expectReported: map[string]metav1.ConditionStatus{coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition: metav1.ConditionTrue},
+			expectPending:  []string{coreapi.ExternalAuthOIDCClientsDegradedCondition},
+		},
+		{
+			name: "both present - no pending",
+			conditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse},
+				{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionTrue},
+			},
+			expectReported: map[string]metav1.ConditionStatus{
+				coreapi.ExternalAuthOIDCClientsDegradedCondition:            metav1.ConditionFalse,
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition: metav1.ConditionTrue,
+			},
+		},
+		{
+			name: "both present plus non-allowlisted - no pending, non-allowlisted excluded",
+			conditions: []metav1.Condition{
+				{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse},
+				{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionFalse},
+				{Type: "InternalOnly", Status: metav1.ConditionTrue},
+			},
+			expectReported: map[string]metav1.ConditionStatus{
+				coreapi.ExternalAuthOIDCClientsDegradedCondition:            metav1.ConditionFalse,
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition: metav1.ConditionFalse,
+			},
 		},
 	}
 
 	syncer := &externalAuthUserFacingConditionsDegradedAggregator{}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expect, syncer.hasAllowlistedCondition(tc.conditions))
+			result := syncer.collectAllowlistedConditions(tc.conditions)
+			assert.Len(t, result, len(allowedDegradedConditionTypes), "always returns one entry per allowlisted type")
+
+			byType := make(map[string]metav1.Condition, len(result))
+			for _, c := range result {
+				byType[c.Type] = c
+			}
+			for typ, wantStatus := range tc.expectReported {
+				got, ok := byType[typ]
+				require.True(t, ok, "expected reported condition %s", typ)
+				assert.Equal(t, wantStatus, got.Status, "status of %s", typ)
+			}
+			for _, typ := range tc.expectPending {
+				got, ok := byType[typ]
+				require.True(t, ok, "expected pending condition %s", typ)
+				assert.Equal(t, pendingUnknown.Status, got.Status, "pending %s status", typ)
+				assert.Equal(t, pendingUnknown.Reason, got.Reason, "pending %s reason", typ)
+				assert.Equal(t, pendingUnknown.Message, got.Message, "pending %s message", typ)
+			}
 		})
 	}
 }
@@ -216,7 +210,57 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 		expectMessage  string
 	}{
 		{
-			name:         "ServiceProviderExternalAuth OIDCClientsDegraded=True -> UserFacing Degraded=True",
+			name:         "both contributors False - UserFacing Degraded=False",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
+				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational},
+					{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCCACertificateDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCCACertificateValid},
+				}
+			}),
+			expectDegraded: ptr.To(metav1.ConditionFalse),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
+			expectMessage:  "All is well",
+		},
+		{
+			name:         "only OIDCClientsDegraded=False, CA absent - Unknown with pending CA message",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
+				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational},
+				}
+			}),
+			expectDegraded: ptr.To(metav1.ConditionUnknown),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReasonDegradedStateUnknown,
+			expectMessage:  coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition + ": Waiting for condition to be evaluated",
+		},
+		{
+			name:         "only CACertificateInvalid=False, OIDCClients absent - Unknown with pending OIDCClients message",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
+				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCCACertificateDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageOIDCCACertificateValid},
+				}
+			}),
+			expectDegraded: ptr.To(metav1.ConditionUnknown),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReasonDegradedStateUnknown,
+			expectMessage:  coreapi.ExternalAuthOIDCClientsDegradedCondition + ": Waiting for condition to be evaluated",
+		},
+		{
+			name:         "CACertificateInvalid=True, OIDCClients absent - True with both reported and pending messages",
+			externalAuth: newTestExternalAuthForAggregatorTests(),
+			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
+				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
+					{Type: coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition, Status: metav1.ConditionTrue, Reason: coreapi.ExternalAuthOIDCCACertificateDegradationReason, Message: "1 CA certificate(s) in the issuer bundle have expired: CN=test-ca (NotAfter 2026-01-01T00:00:00Z)"},
+				}
+			}),
+			expectDegraded: ptr.To(metav1.ConditionTrue),
+			expectReason:   coreapi.ExternalAuthUserFacingDegradedReason,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": Waiting for condition to be evaluated\n" +
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition + ": 1 CA certificate(s) in the issuer bundle have expired: CN=test-ca (NotAfter 2026-01-01T00:00:00Z)",
+		},
+		{
+			name:         "OIDCClientsDegraded=True, CA absent - True with both reported and pending messages",
 			externalAuth: newTestExternalAuthForAggregatorTests(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
 				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
@@ -225,27 +269,17 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 			}),
 			expectDegraded: ptr.To(metav1.ConditionTrue),
 			expectReason:   coreapi.ExternalAuthUserFacingDegradedReason,
-			expectMessage:  coreapi.ExternalAuthOIDCClientsDegradedCondition + ": console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": console/openshift-console: " + coreapi.ExternalAuthMessageAwaitingSecret + "\n" +
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition + ": Waiting for condition to be evaluated",
 		},
 		{
-			name:         "ServiceProviderExternalAuth OIDCClientsDegraded=False -> UserFacing Degraded=False",
-			externalAuth: newTestExternalAuthForAggregatorTests(),
-			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(func(serviceProviderExternalAuth *coreapi.ServiceProviderExternalAuth) {
-				serviceProviderExternalAuth.Status.Conditions = []metav1.Condition{
-					{Type: coreapi.ExternalAuthOIDCClientsDegradedCondition, Status: metav1.ConditionFalse, Reason: coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected, Message: coreapi.ExternalAuthMessageAllOperational},
-				}
-			}),
-			expectDegraded: ptr.To(metav1.ConditionFalse),
-			expectReason:   coreapi.ExternalAuthUserFacingDegradedReasonAsExpected,
-			expectMessage:  "All is well",
-		},
-		{
-			name:                        "ServiceProviderExternalAuth has no conditions -> UserFacing Degraded=Unknown",
+			name:                        "no conditions - Unknown with all pending messages",
 			externalAuth:                newTestExternalAuthForAggregatorTests(),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),
 			expectDegraded:              ptr.To(metav1.ConditionUnknown),
-			expectReason:                coreapi.ExternalAuthUserFacingDegradedReasonEvaluationIncomplete,
-			expectMessage:               "Waiting for conditions to be evaluated",
+			expectReason:                coreapi.ExternalAuthUserFacingDegradedReasonDegradedStateUnknown,
+			expectMessage: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": Waiting for condition to be evaluated\n" +
+				coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition + ": Waiting for condition to be evaluated",
 		},
 		{
 			name:                        "no-op when ServiceProviderExternalAuth not found",
@@ -257,7 +291,13 @@ func TestExternalAuthUserFacingDegradedAggregator_SyncOnce(t *testing.T) {
 			name: "no-op when UserFacingConditions already match",
 			externalAuth: newTestExternalAuthForAggregatorTests(func(ea *coreapi.ExternalAuth) {
 				ea.Status.UserFacingConditions = []metav1.Condition{
-					{Type: statusutils.DegradedConditionType, Status: metav1.ConditionUnknown, Reason: coreapi.ExternalAuthUserFacingDegradedReasonEvaluationIncomplete, Message: "Waiting for conditions to be evaluated"},
+					{
+						Type:   statusutils.DegradedConditionType,
+						Status: metav1.ConditionUnknown,
+						Reason: coreapi.ExternalAuthUserFacingDegradedReasonDegradedStateUnknown,
+						Message: coreapi.ExternalAuthOIDCClientsDegradedCondition + ": Waiting for condition to be evaluated\n" +
+							coreapi.ExternalAuthOIDCIssuerCACertificateInvalidCondition + ": Waiting for condition to be evaluated",
+					},
 				}
 			}),
 			serviceProviderExternalAuth: newTestServiceProviderExternalAuth(),

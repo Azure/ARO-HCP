@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .backend.image.repository }}:pull"
@@ -8,7 +9,6 @@ configMap:
   backendMiClientId: "__backendMsiClientId__"
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
-  kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
 deployment:

@@ -79,6 +79,8 @@ type interestBackendInformers struct {
 	clusters      corelisters.ClusterLister
 	nodePools     corelisters.NodePoolLister
 	externalAuths corelisters.ExternalAuthLister
+	requests      corelisters.SystemAdminCredentialRequestLister
+	revocations   corelisters.SystemAdminCredentialRevocationLister
 }
 
 func (i *interestBackendInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
@@ -106,10 +108,10 @@ func (i *interestBackendInformers) ServiceProviderExternalAuths() (cache.SharedI
 	return i.sources["spc"], nil
 }
 func (i *interestBackendInformers) SystemAdminCredentialRequests() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRequestLister) {
-	return i.sources["request"], nil
+	return i.sources["request"], i.requests
 }
 func (i *interestBackendInformers) SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister) {
-	return i.sources["revocation"], nil
+	return i.sources["revocation"], i.revocations
 }
 
 type interestDesireInformers struct {
@@ -301,7 +303,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "cluster resources observes node pools",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				return clusterresources.NewClusterResourcesController(db, nil, nil, inf, u, nil)
+				return clusterresources.NewClusterResourcesController(db, nil, inf, u, nil)
 			},
 			events: []event{{"nodepool", "/nodePools/np", true}},
 		},

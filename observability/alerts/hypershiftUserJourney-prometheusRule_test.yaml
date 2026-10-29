@@ -1,0 +1,42 @@
+rule_files:
+- hypershiftUserJourney-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  name: "Control Plane Operator down is scoped to the HCP namespace"
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-prefix-1", deployment="control-plane-operator", cluster="mc1"}'
+    values: "0+0x60"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-prefix-1", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x60"
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-prefix-2", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x60"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-prefix-2", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x60"
+  # Scaled to zero (for example, hibernating or deleting) must not fire.
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-prefix-3", deployment="control-plane-operator", cluster="mc1"}'
+    values: "0+0x60"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-prefix-3", deployment="control-plane-operator", cluster="mc1"}'
+    values: "0+0x60"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: hypershiftCPODown
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: hypershiftCPODown
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: control-plane-operator-availability
+        service: control-plane-operator
+        component: slo
+        cluster: mc1
+        namespace: ocm-prefix-1
+      exp_annotations:
+        summary: "mc1/ocm-prefix-1: control-plane-operator has no available pods"
+        description: |
+          control-plane-operator has had no available pods for 10 minutes.
+          Management Cluster: mc1
+          Namespace: ocm-prefix-1
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md
+        correlationId: "hypershiftCPODown/mc1/ocm-prefix-1"

@@ -17,7 +17,6 @@ package creation
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -148,9 +147,9 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	existingServiceProviderCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, cluster.ID)
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	ready, err := c.createPreconditionDesiredVersionResolved(ctx, existingServiceProviderCluster)
@@ -179,13 +178,21 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	tenantID := *subscription.Properties.TenantId
 	mrg := cluster.CustomerProperties.Platform.ManagedResourceGroup
 
-	csCluster, err := c.findAROHCPClusterByAzureInfo(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	csCluster, err := ocm.FindClusterByAzureInfo(csCtx, c.clustersServiceClient, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	if csCluster == nil {
-		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
+		// Adoption must remain possible before DNS allocation/backfill. This
+		// precondition gates only a new POST, unlike the prerequisites above.
+		if !c.createPreconditionDNSAllocated(ctx, cluster) {
+			return nil
+		}
+		csCluster, err = c.createClusterServiceCluster(csCtx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
 		}
@@ -197,9 +204,10 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	logger.Info("Storing ClusterServiceID on cluster document", "clusterServiceID", csInternalID.String())
-	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
-	cluster.ServiceProviderProperties.ClusterServiceID = &csInternalID
-	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
+	replacement := cluster.DeepCopy()
+	replacement.ServiceProviderProperties.PendingClusterServiceID = nil
+	replacement.ServiceProviderProperties.ClusterServiceID = &csInternalID
+	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -208,6 +216,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	return nil
+}
+
+func (c *clusterClusterServiceCreateSyncer) createPreconditionDNSAllocated(ctx context.Context, cluster *coreapi.Cluster) bool {
+	if len(cluster.ServiceProviderProperties.DNS.BaseDomain) == 0 || len(cluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
+		utils.LoggerFromContext(ctx).Info("Waiting for DNS allocation before creating cluster in CS")
+		return false
+	}
+	return true
 }
 
 // createPreconditionDesiredVersionResolved reports whether the fleet version
@@ -252,69 +268,6 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	return false, nil
 }
 
-// findAROHCPClusterByAzureInfo returns the Cluster Service cluster whose Azure
-// metadata matches the given subscription, resource group, ARM resource name,
-// tenant ID, and managed resource group name (MRG).
-// It returns (nil, nil) when no such cluster exists.
-// An error is returned if more than one cluster is returned matching the Azure metadata, as it should be unique.
-func (c *clusterClusterServiceCreateSyncer) findAROHCPClusterByAzureInfo(ctx context.Context, subscriptionID, resourceGroupName, resourceName, tenantID, managedResourceGroupName string) (*arohcpv1alpha1.Cluster, error) {
-	// Subscription ID, resource group, and cluster name are lowercased when building the Cluster Service
-	// cluster (see withImmutableAttributes in convert.go).
-	wantSub := strings.ToLower(subscriptionID)
-	wantRG := strings.ToLower(resourceGroupName)
-	wantName := strings.ToLower(resourceName)
-	// Tenant ID and managed resource group are not lowercased in the OCM CS
-	// builder (see withImmutableAttributes in convert.go), we keep the casing as it is.
-	wantTenant := tenantID
-	wantMRG := managedResourceGroupName
-	search := c.clustersServiceClusterByAzureInfoSearchString(wantSub, wantRG, wantName, wantTenant, wantMRG)
-	matches, err := c.csClustersMatchingClusterByAzureInfo(ctx, c.clustersServiceClient.ListClusters(search), wantSub, wantRG, wantName, wantTenant, wantMRG)
-	if err != nil {
-		return nil, err
-	}
-	if len(matches) > 1 {
-		return nil, fmt.Errorf(
-			"cluster service returned %d clusters for one Azure resource (expected exactly 1): "+
-				"subscription_id=%q resource_group=%q resource_name=%q tenant_id=%q managed_resource_group=%q",
-			len(matches), wantSub, wantRG, wantName, wantTenant, wantMRG,
-		)
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	return nil, nil
-}
-
-func (c *clusterClusterServiceCreateSyncer) clustersServiceClusterByAzureInfoSearchString(wantSub, wantRG, wantName, wantTenant, wantMRG string) string {
-	return fmt.Sprintf(
-		"azure.subscription_id = '%s' and azure.resource_group_name = '%s' and azure.resource_name = '%s' and "+
-			"azure.tenant_id = '%s' and azure.managed_resource_group_name = '%s'",
-		wantSub, wantRG, wantName, wantTenant, wantMRG,
-	)
-}
-
-func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo(ctx context.Context, it ocm.ClusterListIterator, wantSub, wantRG, wantName, wantTenant, wantMRG string) ([]*arohcpv1alpha1.Cluster, error) {
-	var res []*arohcpv1alpha1.Cluster
-	for csCluster := range it.Items(ctx) {
-		az := csCluster.Azure()
-		if az == nil {
-			continue
-		}
-		if az.SubscriptionID() != wantSub ||
-			az.ResourceGroupName() != wantRG ||
-			az.ResourceName() != wantName ||
-			az.TenantID() != wantTenant ||
-			az.ManagedResourceGroupName() != wantMRG {
-			continue
-		}
-		res = append(res, csCluster)
-	}
-	if err := it.GetError(); err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -335,7 +288,7 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", ocm.StripVolatileErrorFields(err)))
 	}
 
 	if result.ID() != clusterServiceUID {

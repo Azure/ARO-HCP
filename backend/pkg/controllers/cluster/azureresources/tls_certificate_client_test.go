@@ -16,6 +16,7 @@ package azureresources
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -36,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // expectedTLSCertificate builds the TLSCertificate value both the
@@ -54,6 +56,7 @@ func expectedTLSCertificate(name string, confirmed bool) *coreapi.TLSCertificate
 type fakeTLSCertificatesClient struct {
 	test            *testing.T
 	status          *string
+	operation       azcertificates.CertificateOperation
 	getError        error
 	getErrorsByName map[string]error
 	operationError  error
@@ -80,7 +83,9 @@ func (client *fakeTLSCertificatesClient) GetCertificateOperation(_ context.Conte
 	if name == client.completedName {
 		return azcertificates.GetCertificateOperationResponse{CertificateOperation: azcertificates.CertificateOperation{Status: ptr.To("completed")}}, nil
 	}
-	return azcertificates.GetCertificateOperationResponse{CertificateOperation: azcertificates.CertificateOperation{Status: client.status}}, client.operationError
+	operation := client.operation
+	operation.Status = client.status
+	return azcertificates.GetCertificateOperationResponse{CertificateOperation: operation}, client.operationError
 }
 
 // newTLSCertificateObservationFixture builds a tlsCertificateSyncer configured for
@@ -168,6 +173,48 @@ func TestTLSCertificatesOperationReadiness(test *testing.T) {
 			} else {
 				require.Equal(test, 1, client.operationCalls)
 			}
+		})
+	}
+}
+
+func TestTLSCertificatesOperationDiagnostics(test *testing.T) {
+	for _, status := range []string{"failed", "cancelled", "unexpected"} {
+		test.Run(status, func(test *testing.T) {
+			var operation azcertificates.CertificateOperation
+			require.NoError(test, json.Unmarshal([]byte(`{
+				"status_details":"Issuer rejected the request",
+				"request_id":"request-123",
+				"id":"https://example.vault.azure.net/certificates/certificate/pending",
+				"target":"https://example.vault.azure.net/certificates/certificate/version",
+				"cancellation_requested":true,
+				"preserveCertOrder":false,
+				"issuer":{"name":"Self","cty":"OV-SSL","cert_transparency":false},
+				"error":{"code":"IssuerError","message":"Issuer unavailable","innererror":{"code":"RetryLater"}}
+			}`), &operation))
+			operation.CSR = []byte("csr-must-not-be-logged")
+			client := &fakeTLSCertificatesClient{test: test, status: ptr.To(status), operation: operation}
+			ready, err := observeTLSCertificate(test.Context(), client, "certificate")
+			require.False(test, ready)
+			require.Error(test, err)
+			var tracked *utils.LineTrackingError
+			require.ErrorAs(test, err, &tracked)
+			for _, detail := range []string{
+				`certificate "certificate"`, status,
+				`"status_details":"Issuer rejected the request"`,
+				`"request_id":"request-123"`,
+				`"id":"https://example.vault.azure.net/certificates/certificate/pending"`,
+				`"target":"https://example.vault.azure.net/certificates/certificate/version"`,
+				`"cancellation_requested":true`, `"preserveCertOrder":false`,
+				`"name":"Self"`, `"cty":"OV-SSL"`, `"cert_transparency":false`,
+				"IssuerError", "Issuer unavailable", "RetryLater",
+			} {
+				require.ErrorContains(test, err, detail)
+			}
+			require.NotContains(test, err.Error(), "0x")
+			require.NotContains(test, err.Error(), `"csr"`)
+			require.NotContains(test, err.Error(), string(operation.CSR))
+			require.NotContains(test, err.Error(), base64.StdEncoding.EncodeToString(operation.CSR))
+			require.Equal(test, []byte("csr-must-not-be-logged"), client.operation.CSR)
 		})
 	}
 }

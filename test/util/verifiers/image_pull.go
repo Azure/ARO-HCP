@@ -42,9 +42,13 @@ func (v verifyImagePulled) Name() string {
 }
 
 func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+	err := pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
 		return v.checkOnce(ctx, adminRESTConfig)
 	})
+	if err != nil {
+		return fmt.Errorf("image pull not confirmed; cause undetermined (insufficient evidence)\npolling observation: %w", err)
+	}
+	return nil
 }
 
 func (v verifyImagePulled) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
@@ -134,6 +138,8 @@ func (v verifyImagePulled) imageRef() string {
 // Polls until the image appears or timeout expires.
 // This verifier returns stable, sorted error text so repeated polls with unchanged state
 // do not produce duplicate log lines.
+// A failure reports the unmet condition, not a root cause. Polling details remain
+// labeled observations and the underlying error remains available for unwrapping.
 //
 // Parameters:
 //   - namespace: the namespace to check for pods

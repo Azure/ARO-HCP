@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -108,12 +107,6 @@ func NewZStreamProgressiveDesiredVersionRolloutController(clock utilsclock.Passi
 		panic(err) // coding error
 	}
 	return controller
-}
-
-// CooldownChecker returns nil: SyncOnce checks a persisted assignment cooldown,
-// including for changed-resource notifications that bypass the queue cooldown.
-func (c *zStreamProgressiveDesiredVersionRolloutSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return nil
 }
 
 // eligibleClusters returns the clusters that may be advanced to best now: those
