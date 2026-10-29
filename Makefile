@@ -570,7 +570,11 @@ dev-ci-local-run:
 # definitions and role assignments (requires Owner / User Access Administrator
 # on the target subscriptions). Not part of the dev-ci postsubmit; run by an
 # OWNERS-group member. See docs/ci/dev-ci-topology.md.
+# The Shell steps of the privileged pipelines run the locally built
+# tooling/entra-app-credentials binary, so (re)build it first; the tool's own
+# Makefile only rebuilds when sources changed.
 dev-ci-privileged-local-run:
+	$(MAKE) -C tooling/entra-app-credentials
 	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Privileged" STEP_CACHE_DIR=""
 .PHONY: dev-ci-privileged-local-run
 
