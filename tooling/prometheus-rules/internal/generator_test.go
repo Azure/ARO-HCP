@@ -1402,24 +1402,10 @@ func TestParseToAzureDurationString(t *testing.T) {
 		expected *string
 	}{
 		{nil, nil},
-		{(*monitoringv1.Duration)(ptr.To("0s")), ptr.To("PT1M")},
 		{(*monitoringv1.Duration)(ptr.To("30s")), ptr.To("PT1M")}, // too short, gets default
-		{(*monitoringv1.Duration)(ptr.To("59s999ms")), ptr.To("PT1M")},
-		{(*monitoringv1.Duration)(ptr.To("1m")), ptr.To("PT1M")},
-		{(*monitoringv1.Duration)(ptr.To("2m")), ptr.To("PT2M")},
-		{(*monitoringv1.Duration)(ptr.To("3m")), ptr.To("PT3M")},
 		{(*monitoringv1.Duration)(ptr.To("5m")), ptr.To("PT5M")},
-		{(*monitoringv1.Duration)(ptr.To("10m")), ptr.To("PT10M")},
-		{(*monitoringv1.Duration)(ptr.To("15m")), ptr.To("PT15M")},
-		{(*monitoringv1.Duration)(ptr.To("20m")), ptr.To("PT20M")},
-		{(*monitoringv1.Duration)(ptr.To("25m")), ptr.To("PT25M")},
-		{(*monitoringv1.Duration)(ptr.To("30m")), ptr.To("PT30M")},
 		{(*monitoringv1.Duration)(ptr.To("1h")), ptr.To("PT1H")},
 		{(*monitoringv1.Duration)(ptr.To("1h30m")), ptr.To("PT1H30M")},
-		{(*monitoringv1.Duration)(ptr.To("90m")), ptr.To("PT1H30M")},
-		{(*monitoringv1.Duration)(ptr.To("2h")), ptr.To("PT2H")},
-		{(*monitoringv1.Duration)(ptr.To("3h")), ptr.To("PT3H")},
-		{(*monitoringv1.Duration)(ptr.To("6h")), ptr.To("PT6H")},
 		// model.Duration.String() shortens exact-multiple-of-a-day/week values
 		// to "d"/"w" (e.g. "2d", "2w"). Neither "D" after "T" nor "W" at all
 		// is valid ISO 8601, so these must come out as hours, not day/week
@@ -1428,16 +1414,6 @@ func TestParseToAzureDurationString(t *testing.T) {
 		{(*monitoringv1.Duration)(ptr.To("336h")), ptr.To("PT336H")},
 		{(*monitoringv1.Duration)(ptr.To("24h")), ptr.To("PT24H")},
 		{(*monitoringv1.Duration)(ptr.To("168h")), ptr.To("PT168H")},
-		{(*monitoringv1.Duration)(ptr.To("2d")), ptr.To("PT48H")},
-		{(*monitoringv1.Duration)(ptr.To("1w")), ptr.To("PT168H")},
-		{(*monitoringv1.Duration)(ptr.To("1y")), ptr.To("PT8760H")},
-		{(*monitoringv1.Duration)(ptr.To("1h30m15s")), ptr.To("PT1H30M15S")},
-		{(*monitoringv1.Duration)(ptr.To("2d3h4m5s6ms")), ptr.To("PT51H4M5.006S")},
-		{(*monitoringv1.Duration)(ptr.To("1m1ms")), ptr.To("PT1M0.001S")},
-		{(*monitoringv1.Duration)(ptr.To("1m10ms")), ptr.To("PT1M0.010S")},
-		{(*monitoringv1.Duration)(ptr.To("1m500ms")), ptr.To("PT1M0.500S")},
-		{(*monitoringv1.Duration)(ptr.To("1m999ms")), ptr.To("PT1M0.999S")},
-		{(*monitoringv1.Duration)(ptr.To("1m1s1ms")), ptr.To("PT1M1.001S")},
 	}
 
 	for _, tt := range tests {

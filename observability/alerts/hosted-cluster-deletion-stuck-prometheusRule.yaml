@@ -9,16 +9,16 @@ spec:
     labels:
       component: cluster-deletion
     rules:
-    - alert: HostedClusterDeletionStuck
+    - alert: userJourneyClusterDeletionStuck
       expr: |
-        max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
-          hostedClusterAPI_deleting{deletion_timestamp!=""}
-        ) == 1
-      for: 48h
+        time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+          hostedClusterAPI_deletion_timestamp_seconds > 0
+        ) > 172800
+      for: 15m
       labels:
         severity: "4"
       annotations:
-        summary: "HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})"
-        description: "Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded."
+        summary: "HostedCluster {{ $labels.namespace }}/{{ $labels.name }} deletion is older than 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})"
+        description: "Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has a deletion timestamp older than 48h, observed for 15m. Check deletion progress and telemetry before concluding deletion succeeded."
         runbook_url: https://aka.ms/cluster-deletion-tsg
-        correlationId: "HostedClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}/{{ $labels._id }}/{{ $labels.subscription_id }}/{{ $labels.resource_id }}"
+        correlationId: "userJourneyClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.subscription_id }}"

@@ -148,13 +148,13 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
-            - name: "deleting"
-              help: "HostedCluster deletion info. The deletion_timestamp label is non-empty only for clusters with an active deletion."
+            - name: "deletion_timestamp_seconds"
+              help: "HostedCluster deletion timestamp in Unix seconds, or zero when deletion has not been requested."
               each:
-                type: Info
-                info:
-                  labelsFromPath:
-                    deletion_timestamp: [metadata, deletionTimestamp]
+                type: Gauge
+                gauge:
+                  path: [metadata, deletionTimestamp]
+                  nilIsZero: true
           - groupVersionKind:
               group: velero.io
               kind: "Backup"

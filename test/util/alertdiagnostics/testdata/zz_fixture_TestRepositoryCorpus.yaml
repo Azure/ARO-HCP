@@ -5662,20 +5662,20 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-hosted-cluster-deletion-stuck
-  alert: HostedClusterDeletionStuck
+  alert: userJourneyClusterDeletionStuck
   occurrence: 1
-  input: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1
+  input: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
   plan:
-    expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1
+    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
     conditions:
-      - expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1
+      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
         path: root
         queries:
-          - expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""})
+          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
             role: signal
         thresholds:
-          - operator: ==
-            value: 1
+          - operator: '>'
+            value: 172800
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-userjourney-kas-availability-monitor-rules
@@ -9990,23 +9990,23 @@
         unsupported: ""
 - source: observability/alerts/hosted-cluster-deletion-stuck-prometheusRule.yaml
   group: rp-hosted-cluster-deletion-stuck
-  alert: HostedClusterDeletionStuck
+  alert: userJourneyClusterDeletionStuck
   occurrence: 1
   input: |
-    max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
-      hostedClusterAPI_deleting{deletion_timestamp!=""}
-    ) == 1
+    time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
+      hostedClusterAPI_deletion_timestamp_seconds > 0
+    ) > 172800
   plan:
-    expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1
+    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
     conditions:
-      - expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1
+      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
         path: root
         queries:
-          - expression: max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""})
+          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
             role: signal
         thresholds:
-          - operator: ==
-            value: 1
+          - operator: '>'
+            value: 172800
         unsupported: ""
 - source: observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
   group: hypershift-operator-monitor-rules

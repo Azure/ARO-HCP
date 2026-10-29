@@ -26,22 +26,22 @@ resource rpHostedClusterDeletionStuck 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'HostedClusterDeletionStuck'
+        alert: 'userJourneyClusterDeletionStuck'
         enabled: true
         labels: {
           component: 'cluster-deletion'
           severity: '4'
         }
         annotations: {
-          correlationId: 'HostedClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}/{{ $labels._id }}/{{ $labels.subscription_id }}/{{ $labels.resource_id }}'
-          description: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.'
-          info: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has been continuously observed with a non-empty deletion timestamp for 48h. This measures observation time, not timestamp age. Check deletion progress and telemetry before concluding deletion succeeded.'
+          correlationId: 'userJourneyClusterDeletionStuck/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
+          description: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has a deletion timestamp older than 48h, observed for 15m. Check deletion progress and telemetry before concluding deletion succeeded.'
+          info: 'Resource {{ $labels.resource_id }} (cluster ID {{ $labels._id }}, subscription {{ $labels.subscription_id }}) has a deletion timestamp older than 48h, observed for 15m. Check deletion progress and telemetry before concluding deletion succeeded.'
           runbook_url: 'https://aka.ms/cluster-deletion-tsg'
-          summary: 'HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
-          title: 'HostedCluster {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }} continuously observed deleting for 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
+          summary: 'HostedCluster {{ $labels.namespace }}/{{ $labels.name }} deletion is older than 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
+          title: 'HostedCluster {{ $labels.namespace }}/{{ $labels.name }} deletion is older than 48h ({{ $labels._id }}, {{ $labels.subscription_id }}, {{ $labels.resource_id }})'
         }
-        expression: 'max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deleting{deletion_timestamp!=""}) == 1'
-        for: 'PT48H'
+        expression: 'time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

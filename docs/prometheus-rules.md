@@ -73,8 +73,8 @@ tests:
 
 ## HostedCluster deletion
 
-For the dedicated severity 4 HostedCluster deletion alert and its continuous
-48-hour observation semantics, see [HostedCluster deletion observation alert](hosted-cluster-deletion-stuck.md).
+For the dedicated severity 4 HostedCluster deletion alert, which checks actual
+deletion age over 48 hours with a 15-minute pending period, see [HostedCluster deletion alert](hosted-cluster-deletion-stuck.md).
 
 ## Dev notifications
 
