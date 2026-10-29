@@ -1,7 +1,7 @@
 @description('Display name of the tenant-quota collector Entra application (config: opstool.tenantQuota.tenants.redHat0.applicationName)')
 param applicationName string
 
-@description('Comma-separated Entra object IDs added as owners of the application and service principal, so any OWNERS-group member can run the privileged pipeline. Existing owners are kept (append).')
+@description('Comma-separated Entra object IDs added as owners of the application and service principal, so any OWNERS-group member can run the privileged pipeline. The list is authoritative: owners not in it are removed (replace).')
 param ownerIds string = ''
 
 // Microsoft Graph app ID (constant across all tenants)
@@ -18,7 +18,7 @@ module collectorApp '../modules/entra/app.bicep' = {
     uniqueName: toLower(applicationName)
     manageSp: true
     ownerIds: ownerIds
-    ownerRelationshipSemantics: 'append'
+    ownerRelationshipSemantics: 'replace'
     requiredResourceAccess: [
       {
         resourceAppId: msGraphAppId
