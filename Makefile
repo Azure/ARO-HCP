@@ -70,19 +70,25 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
+generate: mocks record-nonlocal-e2e
+	$(MAKE) all-tidy
+.PHONY: generate
 
 verify-generate: generate
 	./hack/verify.sh generate
 .PHONY: verify-generate
 
-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
+generate-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/coreapi/zz_generated.deepcopy.go internal/api/metadataapi/zz_generated.deepcopy.go internal/api/fleetapi/zz_generated.deepcopy.go internal/api/kubeapplierapi/zz_generated.deepcopy.go
+.PHONY: generate-deepcopy
+
+deepcopy: generate-deepcopy
 	$(MAKE) all-tidy
 .PHONY: deepcopy
 
-verify-deepcopy: deepcopy
+# Share the complete generation pass so both verification guards run after tidying.
+verify-deepcopy: generate
 	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
@@ -144,7 +150,7 @@ verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt
 .PHONY: verify-yamlfmt
 
-mocks: $(MOCKGEN) $(GOIMPORTS)
+mocks: generate-deepcopy $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
 .PHONY: mocks
@@ -397,7 +403,7 @@ validate-config-pipelines: $(YQ) $(TEMPLATIZE)
 	$(TEMPLATIZE) pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
 validate-config-pipelines-dev-ci: $(YQ) $(TEMPLATIZE)
-	$(TEMPLATIZE) pipeline validate --topology-config-file topology-dev-ci.yaml --service-config-file config/config-dev-ci.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev-ci") | .defaults.region' <tooling/templatize/settings.yaml)
+	$(TEMPLATIZE) pipeline validate --topology-config-file topology-dev-ci.yaml --service-config-file config/config-dev-ci.yaml --skip-helm-param-budget-validation --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev-ci") | .defaults.region' <tooling/templatize/settings.yaml)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"

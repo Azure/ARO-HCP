@@ -48,52 +48,39 @@ func backupScheduleTarget(scheduleName string) kubeapplierapi.ResourceReference 
 	}
 }
 
-// buildApplyDesiresFromSchedules constructs the cluster-scoped backup-schedule
-// ApplyDesires for a set of Velero Schedules. Each desire carries the
-// scope-correct resource ID, the marshaled Schedule as server-side-apply
-// content, and the schedule tag so the stale-cleanup and deletion paths can find
-// it. The controller hands each result to the shared
-// kubeapplierhelpers.EnsureApplyDesire helper, which our API now takes an
-// ApplyDesire directly; construction lives here in the backups package rather
-// than in the shared helper.
-func buildApplyDesiresFromSchedules(
-	subscriptionID, resourceGroupName, clusterName string,
+func buildApplyDesireFromSchedule(
+	subscriptionID, resourceGroupName, clusterName, desireName string,
 	managementClusterResourceID *azcorearm.ResourceID,
-	schedules []*velerov1.Schedule,
-) ([]*kubeapplierapi.ApplyDesire, error) {
-	desires := make([]*kubeapplierapi.ApplyDesire, 0, len(schedules))
-	for _, schedule := range schedules {
-		desireName := backupApplyDesireName(schedule.Name)
-		resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
-			subscriptionID, resourceGroupName, clusterName, desireName,
-		)
-		resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID for schedule %s: %w", schedule.Name, err))
-		}
-
-		raw, err := json.Marshal(schedule)
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to marshal schedule %s: %w", schedule.Name, err))
-		}
-
-		desires = append(desires, &kubeapplierapi.ApplyDesire{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
-			Spec: kubeapplierapi.ApplyDesireSpec{
-				ManagementCluster: managementClusterResourceID,
-				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
-				TargetItem:        backupScheduleTarget(schedule.Name),
-				ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
-					KubeContent: &runtime.RawExtension{Raw: raw},
-				},
-			},
-			Tags: map[string]string{
-				backup.DesireTagKeySchedule:      "",
-				kubeapplierapi.TagControllerName: BackupScheduleControllerName,
-			},
-		})
+	schedule *velerov1.Schedule,
+) (*kubeapplierapi.ApplyDesire, error) {
+	resourceIDStr := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID for schedule %s: %w", schedule.Name, err))
 	}
-	return desires, nil
+
+	raw, err := json.Marshal(schedule)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to marshal schedule %s: %w", schedule.Name, err))
+	}
+
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: managementClusterResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem:        backupScheduleTarget(schedule.Name),
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: raw},
+			},
+		},
+		Tags: map[string]string{
+			backup.DesireTagKeySchedule:      "",
+			kubeapplierapi.TagControllerName: BackupScheduleControllerName,
+		},
+	}, nil
 }
 
 // buildReadDesireFromApplyDesire builds the cluster-scoped ReadDesire that

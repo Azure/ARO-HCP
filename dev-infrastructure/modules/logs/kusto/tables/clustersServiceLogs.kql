@@ -19,6 +19,7 @@
   cid: string,
   container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
 )
+with (docstring = "Logs from the Cluster Service (clusters-service) pods, forwarded by arobit")
 
 .create-or-alter table clustersServiceLogs ingestion json mapping 'ingestionMapping'
 ```

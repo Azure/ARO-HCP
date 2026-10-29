@@ -1323,6 +1323,121 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
   }
 }
 
+resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-monitor-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorPodsUnavailable'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '3'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorPodsUnavailable/{{ $labels.cluster }}'
+          description: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
+          title: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
+        }
+        expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorPodsDown'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '2'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorPodsDown/{{ $labels.cluster }}'
+          description: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator pods down'
+          title: '{{ $labels.cluster }}: hypershift-operator pods down'
+        }
+        expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorIdle'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '3'
+          slo: 'hypershift-operator-traffic'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorIdle/{{ $labels.cluster }}'
+          description: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+          title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+        }
+        expression: 'hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_backup_slo_availability_alerts'
   location: location

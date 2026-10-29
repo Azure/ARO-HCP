@@ -85,10 +85,13 @@ A brand-new subscription typically has no Azure resource providers registered be
    - `N` must match the intended shard number and should remain stable once jobs depend on that mapping.
 
 5. Provision the slot-backed identity containers in the new subscription.
-   - Run:
-     - `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
-   - The built `aro-hcp-tests` binary can be used instead of `go run` if preferred.
-   - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
+   - Run the apply via the Make target:
+     - `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for the ci02 pools)
+   - To scope to a single subscription or asset kind:
+     - `make -C test apply-pool-assets ENVIRONMENT=dev SUBSCRIPTION="<subscription display name>"`
+     - `make -C test apply-pool-assets ENVIRONMENT=dev ASSET=e2e_identities`
+   - Validate that the deployment stacks and identity-container resource groups match the catalog:
+     - `make -C test validate-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs`)
 
 6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
    - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks).
@@ -276,17 +279,19 @@ Region access is separate from quota. Once the flag is `Registered`, file the pe
 
 ### Step 2: CI Infrastructure Setup
 
-1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks). This is the only file to edit — the provider-registration pipeline reads the inventory directly and picks up the new entry by its `id`.
+1. Add the subscription to `config/config-dev-ci.yaml` under the appropriate `ci.<env>.e2eSubscriptions` section, by appending `<subscription-id>=<display name>` to the comma-separated `ci.<env>.e2eSubscriptions` string (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks). The provider-registration, CI bot RBAC, and quota-monitoring consumers read this inventory directly. Ensure `ci.<env>.regions` covers the pool's runtime regions. Also add the display name to the Red Hat subscription list in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual quota-collector Reader grant reconciliation includes it.
 
-2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription **and** registers all required resource providers (see `ci.e2eSubscriptionProviders` in `config/config-dev-ci.yaml`). Both run on demand via an OWNERS-group member; the RBAC grants require **Owner** on the target subscription, while provider registration needs only `*/register/action`.
+2. Run the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (`make dev-ci-privileged-local-run`). This grants the environment's CI bot (e.g. `OpenShift Release Bot - STG`) the required RBAC on the new subscription, registers the providers listed in `ci.e2eSubscriptionProviders`, and assigns the cleanup `createdAt` resource-group tag policy to managed DEV, STG and PROD subscriptions. Run it as an OWNERS-group member with **Owner** on the target subscriptions.
 
-3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list.
+3. Add the pool to `test/e2e-config/e2e-slots.yaml` under the environment's `pools` list. Follow the v2 catalog contract with a unique pool name, `resource_type`, and dedicated `slot_assets.e2e_identities.resource_group_prefix`. For a `runtime-selected` pool, `region` is the default and the job's location override selects the runtime region; the `regions` list is only valid for weighted pools.
 
-4. Sync the Boskos inventory and update CI job configs in `openshift/release` (slot catalog, cleanup jobs, `make update`).
+4. Sync the Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <release-checkout>`, update cleanup job subscription inventories in `openshift/release`, and run `make update` there. Validate the generated inventory with `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`.
 
-5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shard0-subscription-name` and `customer-shard0-subscription-id`.
+5. Update the Vault cluster profile secret (e.g. `kv/selfservice/hcm-aro/aro-hcp-<env>-rh`) with the new subscription's `customer-shardN-subscription-name` and `customer-shardN-subscription-id`, where `N` matches the new pool's shard number.
 
-6. Validate by running a rehearsal E2E job against the new subscription.
+6. Provision managed slot-backed identity containers with `make -C test apply-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities` and validate with `make -C test validate-pool-assets ENVIRONMENT=<env> POOL=<pool> ASSET=e2e_identities`. These targets regenerate the Bicep-derived artifacts before rebuilding the test binary. Confirm the deployment stacks and dedicated identity-container resource groups exist in the new subscription.
+
+7. Validate by running a rehearsal E2E job against the new subscription.
 
 ## See Also
 

@@ -1210,6 +1210,7 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 	makeDeletingNodePool := func(name string) *coreapi.NodePool {
 		nodePool := makeTestNodePool(name)
 		nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateDeleting
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
 		return nodePool
 	}
 
@@ -1226,13 +1227,25 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			expectErrors:         []utils.ExpectedError{},
 		},
 		{
-			name: "allows delete when the only other remaining node pool is being deleted",
+			name: "allows delete when another active node pool exists alongside one already being deleted",
+			existingNodePools: []*coreapi.NodePool{
+				makeTestNodePool("workers"),
+				makeTestNodePool("infra"),
+				makeDeletingNodePool("spot"),
+			},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "rejects delete when the only other remaining node pool is already being deleted",
 			existingNodePools: []*coreapi.NodePool{
 				makeDeletingNodePool("workers"),
 				makeTestNodePool("infra"),
 			},
 			nodePoolBeingDeleted: makeTestNodePool("infra"),
-			expectErrors:         []utils.ExpectedError{},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
+			},
 		},
 		{
 			name:                 "rejects delete of last node pool",
@@ -1241,6 +1254,29 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
 			},
+		},
+		{
+			// A retried DELETE call can observe the node pool it is deleting with its own
+			// DeletionTimestamp already set by the first request. The deletion was already
+			// accepted and is already underway, so the retry is accepted idempotently without
+			// re-running the last-node-pool count.
+			name: "allows retried delete of a node pool that already has its own DeletionTimestamp set",
+			existingNodePools: []*coreapi.NodePool{
+				makeDeletingNodePool("workers"),
+				makeTestNodePool("infra"),
+			},
+			nodePoolBeingDeleted: makeDeletingNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			// Even when it is the only node pool left, a retried delete of a node pool that
+			// already has its own DeletionTimestamp set is accepted idempotently: the deletion
+			// is already underway (e.g. via cluster cascade delete, which never runs this check)
+			// and will proceed regardless of this request's outcome.
+			name:                 "allows retried delete of the last node pool which already has its own DeletionTimestamp set",
+			existingNodePools:    []*coreapi.NodePool{makeDeletingNodePool("workers")},
+			nodePoolBeingDeleted: makeDeletingNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
 		},
 	}
 

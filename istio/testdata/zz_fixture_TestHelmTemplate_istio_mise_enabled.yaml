@@ -143,7 +143,7 @@ metadata:
   name: mise
   namespace: 'mise'
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: mise

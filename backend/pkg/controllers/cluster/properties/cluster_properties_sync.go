@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -40,7 +39,6 @@ import (
 // clusterPropertiesSyncer synchronizes ServiceProviderProperties from the observed
 // HostedCluster ReadDesire content to Cosmos DB, reconciling when values differ:
 //   - ServiceProviderProperties.Console.URL
-//   - ServiceProviderProperties.DNS.BaseDomain
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
@@ -96,6 +94,9 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	if len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
 		return nil
 	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
@@ -107,19 +108,6 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	replacement := existingCluster.DeepCopy()
 	replacement.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
-	kubeAPIServerDNSNamePrefix := fmt.Sprintf("api.%s.", replacement.CustomerProperties.DNS.BaseDomainPrefix)
-	// A mismatch should not happen in normal operation; error so any regression is visible.
-	if !strings.HasPrefix(hostedCluster.Spec.KubeAPIServerDNSName, kubeAPIServerDNSNamePrefix) {
-		return utils.TrackError(fmt.Errorf(
-			"failed to derive DNS base domain from kubeAPIServerDNSName %q: does not have expected prefix %q",
-			hostedCluster.Spec.KubeAPIServerDNSName,
-			kubeAPIServerDNSNamePrefix,
-		))
-	}
-	replacement.ServiceProviderProperties.DNS.BaseDomain = strings.TrimPrefix(
-		hostedCluster.Spec.KubeAPIServerDNSName,
-		kubeAPIServerDNSNamePrefix,
-	)
 	if hostedCluster.Status.ControlPlaneEndpoint.Port != 0 {
 		replacement.ServiceProviderProperties.API.URL = fmt.Sprintf("https://%s", net.JoinHostPort(hostedCluster.Spec.KubeAPIServerDNSName, strconv.Itoa(int(hostedCluster.Status.ControlPlaneEndpoint.Port))))
 	}

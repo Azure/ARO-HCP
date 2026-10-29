@@ -704,6 +704,24 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
   }
 }
 
+resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:operator:reconcile:rate5m'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
+      }
+    ]
+  }
+}
+
 resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_certificate_rotation_slo_recording_rules'
   location: location
