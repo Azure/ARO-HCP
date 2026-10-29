@@ -16,6 +16,7 @@ package deletion
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -27,16 +28,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -167,7 +174,8 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		resourceIDString string,
 	) {
 		t.Helper()
-		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NoError(t, err)
 		require.NotNil(t, client)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
@@ -189,7 +197,8 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
 	) {
 		t.Helper()
-		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NoError(t, err)
 		require.NotNil(t, client)
 		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
@@ -214,7 +223,8 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		resourceIDString string,
 	) {
 		t.Helper()
-		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NoError(t, err)
 		require.NotNil(t, client)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
@@ -250,9 +260,26 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		existingNodePool   *coreapi.NodePool
 		childResources     []any
 		kubeApplierDesires []any
+		clientError        error
 		wantErr            bool
 		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients)
 	}{
+		{
+			name:               "retains service-provider records and desires on client resolution error",
+			existingNodePool:   newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources:     []any{newTestSPCWithManagementCluster(managementClusterResourceID), newTestSPNP(t, nil)},
+			kubeApplierDesires: []any{newTestNodePoolScopedReadDesire("retained-read"), newTestNodePoolScopedApplyDesire("retained-apply")},
+			clientError:        fmt.Errorf("injected kube-applier initialization failure"),
+			wantErr:            true,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, clients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				_, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				_, err = db.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				assertNodePoolScopedKubeApplierResourceExists(t, ctx, clients, newTestNodePoolScopedReadDesire("retained-read").ResourceID.String())
+				assertNodePoolScopedKubeApplierResourceExists(t, ctx, clients, newTestNodePoolScopedApplyDesire("retained-apply").ResourceID.String())
+			},
+		},
 		{
 			name:             "when no DeletionTimestamp, no ClusterServiceDeletionTimestamp are set and ClusterServiceID is set performs a no-op",
 			existingNodePool: newTestNodePool(t, nil),
@@ -447,7 +474,9 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 
-				require.Nil(t, kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID))
+				missingClient, missingErr := kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID)
+				require.NoError(t, missingErr)
+				require.Nil(t, missingClient)
 			},
 		},
 		{
@@ -566,16 +595,85 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}
 
+			if tc.clientError != nil {
+				credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+				require.NoError(t, err)
+				lister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID},
+					Status:         fleetapi.ManagementClusterStatus{KubeApplierCosmosContainerName: "container"},
+				}}}
+				syncer.kubeApplierDBClients = kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+					return nil, tc.clientError
+				}, lister)
+			}
+
 			err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
-				require.Error(t, err)
-				return
+				assert.Error(t, err)
+				if tc.clientError != nil {
+					assert.ErrorIs(t, err, tc.clientError)
+				}
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient, mockKubeApplierDBClients)
 			}
+		})
+	}
+}
+
+func TestChildCleanupGateResolutionErrors(t *testing.T) {
+	mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+	type testCase struct {
+		name               string
+		managementClusters []*fleetapi.ManagementCluster
+		resolutionError    error
+		wantAllowed        bool
+	}
+	testCases := []testCase{
+		{
+			name:        "confirmed management-cluster absence",
+			wantAllowed: true,
+		},
+		{
+			name: "client-resolution failure",
+			managementClusters: []*fleetapi.ManagementCluster{{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mcID},
+				Status:         fleetapi.ManagementClusterStatus{KubeApplierCosmosContainerName: "container"},
+			}},
+			resolutionError: fmt.Errorf("budget resolution failed"),
+			wantAllowed:     false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := t.Context()
+			clusterID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+			spc := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(clusterID.String() + "/serviceProviderClusters/default")), PartitionKey: "sub"},
+				Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID},
+			}
+			resources := []any{spc}
+
+			spnp := &coreapi.ServiceProviderNodePool{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(clusterID.String() + "/nodePools/workers/serviceProviderNodePools/default")), PartitionKey: "sub"}}
+			resources = append(resources, spnp)
+
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+			lister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: testCase.managementClusters}
+			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+			require.NoError(t, err)
+			clients := kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+				return nil, testCase.resolutionError
+			}, lister)
+
+			syncer := &nodePoolChildResourcesCleanupController{resourcesDBClient: db, kubeApplierDBClients: clients}
+			allowed, err := syncer.extraDeleteGateShouldDeleteServiceProviderNodePool(ctx, spnp.ResourceID)
+
+			require.ErrorIs(t, err, testCase.resolutionError)
+			require.Equal(t, testCase.wantAllowed, allowed)
 		})
 	}
 }

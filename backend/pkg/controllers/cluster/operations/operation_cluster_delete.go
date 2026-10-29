@@ -366,7 +366,13 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		kaClient, err := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if err != nil {
+			return nil, fmt.Errorf("incomplete kube-applier resource count: %w", err)
+		}
+		if kaClient == nil {
+			return nil, fmt.Errorf("kube-applier inventory unavailable for management cluster %s", spc.Status.ManagementClusterResourceID)
+		}
 		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
 		if kaErr != nil {
 			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")

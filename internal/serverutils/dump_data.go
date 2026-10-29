@@ -162,7 +162,11 @@ func dumpKubeApplierData(
 		}
 		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
 
-		client := kubeApplierDBClients.For(ctx, mcResourceID)
+		client, err := kubeApplierDBClients.For(ctx, mcResourceID)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		if client == nil {
 			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
 			continue

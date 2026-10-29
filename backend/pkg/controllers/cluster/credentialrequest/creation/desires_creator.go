@@ -165,7 +165,10 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		logger.Info("kube-applier client not available for management cluster, waiting", "managementCluster", mcResourceID.String())
 		return nil

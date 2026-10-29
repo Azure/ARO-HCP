@@ -125,7 +125,10 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		logger.Info("waiting to tear down credential desires: no kube-applier client for management cluster",
 			"credential", key.CredentialName, "managementCluster", mcResourceID.String())

@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -28,13 +29,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -233,6 +238,33 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
+			}
+		})
+	}
+}
+
+type unavailableDeletionClients struct{ err error }
+
+func (clients unavailableDeletionClients) For(context.Context, *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return nil, clients.err
+}
+
+func TestDeletionDiagnosticsUnavailableClient(t *testing.T) {
+	cluster := operationtesting.NewClusterTestFixture().NewCluster(nil)
+	mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+	spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID}, Status: coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID}}
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{cluster, spc})
+	require.NoError(t, err)
+	injected := errors.New("client resolution failed")
+	for _, failure := range []error{nil, injected} {
+		controller := &operationClusterDelete{resourcesDBClient: db, kubeApplierDBClients: unavailableDeletionClients{err: failure}}
+		require.NotPanics(t, func() {
+			state, err := controller.remainingDescendantResources(t.Context(), cluster)
+			require.Nil(t, state)
+			if failure != nil {
+				require.ErrorIs(t, err, failure)
+			} else {
+				require.ErrorContains(t, err, "inventory unavailable")
 			}
 		})
 	}
