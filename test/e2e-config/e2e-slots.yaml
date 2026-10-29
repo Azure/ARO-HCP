@@ -95,6 +95,120 @@ environments:
         infrastructure_identities:
           allocation: leased
           asset_pool: dev-infrastructure-identities
+    - name: shard5
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 05 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard5-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard5
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+    - name: shard6
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 06 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard6-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard6
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+    - name: shard7
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 07 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard7-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard7
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+    - name: shard8
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 08 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard8-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard8
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+    - name: shard9
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 09 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard9-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard9
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
+    - name: shard10
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Dev - 10 (MCA Sponsorship)"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-shard10-slot
+      slot_count: 5
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-dev-shard10
+          resource_group_count: 58
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
     - name: hypershift
       subscriptions:
         e2e: "Hypershift Managed Azure"
