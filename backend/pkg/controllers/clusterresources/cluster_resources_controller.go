@@ -26,6 +26,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
@@ -287,6 +288,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
+		gvk := unstructuredObj.GroupVersionKind()
+		if managedByK8sResources(gvk.Group, gvk.Kind, unstructuredObj.GetName()) {
+			continue
+		}
+
 		gvr, err := restmapper.ResourceFor(unstructuredObj.GroupVersionKind())
 		if err != nil {
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to resolve resource %s: %w", resourceKey, err)))
@@ -296,12 +302,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		classified, err := classifyClusterResource(&unstructuredObj)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
-			continue
-		}
-
-		// The dedicated certificate controller owns these desires, including
-		// adoption of existing ClusterResources documents.
-		if managedByKubeAPIServerServingCertificate(classified.desireName) {
 			continue
 		}
 
@@ -531,6 +531,26 @@ type classifiedResource struct {
 	nodePoolName string
 }
 
+type groupKindName struct {
+	group string
+	kind  string
+	name  string
+}
+
+var k8sResourcesManagedResources = sets.New[groupKindName](
+	groupKindName{group: "secret-sync.x-k8s.io", kind: "SecretSync", name: "kube-apiserver-tls-cert"},
+	groupKindName{group: "secrets-store.csi.x-k8s.io", kind: "SecretProviderClass", name: "kube-apiserver-tls-cert"},
+	groupKindName{group: "secret-sync.x-k8s.io", kind: "SecretSync", name: controllerutils.ServiceProviderDefaultIngressWildcardServingCertName},
+	groupKindName{group: "secrets-store.csi.x-k8s.io", kind: "SecretProviderClass", name: controllerutils.ServiceProviderDefaultIngressWildcardServingCertName},
+)
+
+// managedByK8sResources identifies objects owned by dedicated Kubernetes resource
+// controllers. Match the group, kind, and name exactly so unexpected CS resources
+// still fail classification rather than being silently ignored.
+func managedByK8sResources(group, kind, name string) bool {
+	return k8sResourcesManagedResources.Has(groupKindName{group: group, kind: kind, name: name})
+}
+
 // classifyClusterResource maps a kube object from the Cluster Service
 // GetClusterResources response to an intent-based desire name. Every
 // recognized resource gets a stable, human-readable name; unrecognized
@@ -546,8 +566,8 @@ type classifiedResource struct {
 //	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
 //	multitenancy.acn.azure.com PodNetworkInstance      → PodNetworkInstance
-//	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretSync
-//	secrets-store.csi.x-k8s.io SecretProviderClass    → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretProviderClass
+//	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert}SecretSync
+//	secrets-store.csi.x-k8s.io SecretProviderClass    → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert}SecretProviderClass
 func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource, error) {
 	gvk := obj.GroupVersionKind()
 	name := obj.GetName()
@@ -599,20 +619,16 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		switch {
 		case strings.Contains(name, "signing-key"):
 			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretSync}, nil
-		case strings.Contains(name, "default-ingress"):
+		case strings.HasPrefix(name, "default-ingress"):
 			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretSync}, nil
-		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretSync}, nil
 		}
 
 	case "SecretProviderClass":
 		switch {
 		case strings.Contains(name, "signing-key"):
 			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretProviderClass}, nil
-		case strings.Contains(name, "default-ingress"):
+		case strings.HasPrefix(name, "default-ingress"):
 			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretProviderClass}, nil
-		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretProviderClass}, nil
 		}
 	}
 

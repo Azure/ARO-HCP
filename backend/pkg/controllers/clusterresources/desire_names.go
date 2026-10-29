@@ -25,8 +25,9 @@ import (
 // assigns them when building ApplyDesires from Cluster Service resources, and
 // the removal steps claim them when tearing down a cluster.
 //
-// Kube-apiserver certificate names are recognized only for handoff to their
-// dedicated controller; ClusterResources neither creates nor removes them.
+// Kube-apiserver certificate names are retained for existing desires awaiting
+// adoption by their dedicated controller. ClusterResources neither creates nor
+// removes them.
 //
 // This enumeration is closed: a new resource type cannot reach Cosmos without
 // being added to classifyClusterResource first, and adding it there without
