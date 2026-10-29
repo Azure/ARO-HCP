@@ -111,9 +111,14 @@ func setupCli() (*cobra.Command, error) {
 			panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 		}
 
+		// Count only the specs the upgrade/in-place suite actually schedules.
+		// ToBeFixed specs are quarantined out of that suite (see registerSuites),
+		// so counting them here would make the coordinator wait at the barrier for
+		// participants that never start — deadlocking the cohort until the
+		// settlement timeout. Keep this filter in sync with the suite qualifier.
 		upgradeInPlaceCount := 0
 		for _, spec := range specs {
-			if spec.Labels.Has(labels.UpgradeInPlace[0]) {
+			if spec.Labels.Has(labels.UpgradeInPlace[0]) && !spec.Labels.Has(labels.ToBeFixed[0]) {
 				upgradeInPlaceCount++
 			}
 		}

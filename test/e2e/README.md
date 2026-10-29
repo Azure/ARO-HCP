@@ -216,6 +216,18 @@ suite:
 ./test/aro-hcp-tests run-suite "stage/parallel/all"
 ```
 
+The `to-be-fixed/parallel` suite collects exactly the tests labeled
+`labels.ToBeFixed` — reproducers for known, unfixed bugs that are expected to
+fail. These tests are excluded from every other suite so their failures do not
+pollute normal CI. The suite is used to verify a fix has landed: each test flips
+from failing to passing once its bug is fixed, at which point the label is
+removed.
+
+```bash
+./test/aro-hcp-tests list tests --suite "to-be-fixed/parallel" --output names
+./test/aro-hcp-tests run-suite "to-be-fixed/parallel"
+```
+
 ### Test cases with per-run cluster
 > **Important**
 > - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.
