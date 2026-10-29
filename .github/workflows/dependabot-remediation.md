@@ -152,10 +152,14 @@ steps:
 #   DEPENDABOT_APP_PRIVATE_KEY = the App private-key PEM
 # fallback-as-issue:false prevents failed PR creations from becoming issues. No PAT.
 safe-outputs:
-  # gh-aw auto-enables a no-op report with report-as-issue: true, which posts a
-  # comment to a rolling "[aw] No-Op Runs" issue on every run that finds nothing to
-  # do. That is pure noise on a shared public repo, so turn the issue reporting off.
-  # Failure and report-incomplete notifications stay on: a failed run is real signal.
+  # Keep failure diagnostics in Actions logs and artifacts, not GitHub issues.
+  # External alerting can monitor failed runs without expanding the App's permissions.
+  report-failure-as-issue: false
+  report-failed-jobs: false
+  report-missing-tool:
+    create-issue: false
+  report-incomplete:
+    create-issue: false
   noop:
     report-as-issue: false
   github-app:
