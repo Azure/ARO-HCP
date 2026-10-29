@@ -238,6 +238,7 @@ Every test MUST include appropriate labels from these categories:
 - `labels.CoreInfraService`: Gates rollout of ARO-HCP components
 - `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
 - `labels.AllowRetry`: Marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue in an inline comment, and must be removed once the underlying issue is fixed.
+- `labels.ExpectFailure("ARO-123")`: Marks a test that reproduces a known unfixed bug or a work in progress feature (and is therefore expected to fail). Takes a mandatory JIRA tracking-issue ID and produces the label `ExpectFailure:ARO-123`, so the tracking ticket is captured in the label itself. Excluded from all other suites and collected exclusively by the `expect-failure` suite, so these expected failures do not pollute normal CI results. Suite filtering matches on the `ExpectFailure` label prefix, not the full value. Used to verify a fix: the test flips from failing to passing once the bug is fixed. Temporary by design: the label must be removed once the bug is fixed.
 
 ### Optional Environment Labels:
 - `labels.DevelopmentOnly`
