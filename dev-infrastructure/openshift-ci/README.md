@@ -47,12 +47,16 @@ including their host-platform build settings.
 Tool updates are serialized against existing agent-owned tool-update PRs.
 Human PRs and unrelated automation do not block daily updates. Published PRs
 use the existing CI/Tide auto-merge path.
+The read-only `python3 .github/scripts/tool_version_inventory.py` preflight is
+the authority for current/latest/status reporting; missing data is an error,
+and an outdated family deferred by single-flight or checks is never current.
 
 Checks use the proposed tool: bicep compiles the committed golden fixtures,
 promtool runs the Prometheus rule generator's consumer tests, and Bingo updates build their tools
 and run repository verification/lint. Dockerfile and `.bingo/` changes also
-select the existing Prow baseimage-generator build. Expected current, covered
-or compatibility-blocked states emit explicit no-ops without routine issues.
+select the existing Prow baseimage-generator build. Current and single-flight
+waiting states emit no-ops; missing data and blocked checks remain explicit
+incomplete reports rather than claims that versions are current.
 Real API, authentication and infrastructure failures remain failures.
 
 ### CI Build Flow
