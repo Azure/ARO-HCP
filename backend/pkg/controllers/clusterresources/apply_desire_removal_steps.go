@@ -18,6 +18,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
+
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 )
@@ -32,7 +34,6 @@ var (
 	_ applyDesireRemovalStep = hostedClusterRemovalStep{}
 	_ applyDesireRemovalStep = swiftPodNetworkInstanceRemovalStep{}
 	_ applyDesireRemovalStep = swiftPodNetworkRemovalStep{}
-	_ applyDesireRemovalStep = namespacesRemovalStep{}
 )
 
 // desireNameSet is a step's claim: the exact desire names it is responsible for.
@@ -116,13 +117,6 @@ var ingressManifestDesireNames = newDesireNameSet(
 	DesireNameDefaultIngressWildcardCertSecretSync,
 )
 
-// namespaceDesireNames are the two namespaces, whose
-// deletion cascades to everything in cascadeCoveredDesireNames.
-var namespaceDesireNames = newDesireNameSet(
-	DesireNameHostedClusterNamespace,
-	DesireNameControlPlaneNamespace,
-)
-
 // managedClusterRemovalStep deletes the cluster-scoped ManagedCluster and waits
 // for its cleanup before removing ingress manifests and the HostedCluster.
 type managedClusterRemovalStep struct{}
@@ -134,7 +128,7 @@ func (s managedClusterRemovalStep) remove(
 	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, managedClusterNames.selects)
+	return kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, managedClusterNames.selects)
 }
 
 // hostedClusterRemovalStep deletes the HostedCluster CR and waits for HyperShift
@@ -148,7 +142,7 @@ func (s hostedClusterRemovalStep) remove(
 	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, hostedClusterDesireNames.selects)
+	return kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, hostedClusterDesireNames.selects)
 }
 
 // swiftPodNetworkInstanceRemovalStep deletes the PodNetworkInstance and waits
@@ -163,7 +157,7 @@ func (s swiftPodNetworkInstanceRemovalStep) remove(
 	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, swiftPodNetworkInstanceDesireNames.selects)
+	return kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, swiftPodNetworkInstanceDesireNames.selects)
 }
 
 // swiftPodNetworkRemovalStep deletes the cluster-scoped PodNetwork. It runs
@@ -178,7 +172,7 @@ func (s swiftPodNetworkRemovalStep) remove(
 	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, swiftPodNetworkDesireNames.selects)
+	return kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, swiftPodNetworkDesireNames.selects)
 }
 
 // cascadeCoveredRemovalStep stops reconciling the desires HostedCluster teardown
@@ -188,7 +182,7 @@ func (s swiftPodNetworkRemovalStep) remove(
 // re-applying objects — the NodePool CR above all — that Cluster Service is
 // concurrently trying to delete. See applyDesireRemovalChain.
 //
-// It must in any case run before namespacesRemovalStep, since a desire left live
+// It must in any case run before namespace deletion, since a desire left live
 // while its namespace is Terminating makes the kube-applier retry an apply that
 // can never succeed.
 type cascadeCoveredRemovalStep struct{}
@@ -214,23 +208,7 @@ func (s ingressManifestRemovalStep) remove(
 	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
 	owned []*kubeapplierapi.ApplyDesire,
 ) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, ingressManifestDesireNames.selects)
-}
-
-// namespacesRemovalStep tears down the cluster's namespaces. It only runs once
-// previous steps have drained, so by the time a Namespace delete is issued the
-// HostedCluster has already been deleted and finalized on its own terms rather
-// than being garbage collected along with its namespace.
-type namespacesRemovalStep struct{}
-
-func (namespacesRemovalStep) name() string { return "namespaces" }
-
-func (s namespacesRemovalStep) remove(
-	ctx context.Context,
-	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
-	owned []*kubeapplierapi.ApplyDesire,
-) (bool, error) {
-	return ensureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, namespaceDesireNames.selects)
+	return kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, kubeApplierDBClient, s.name(), owned, ingressManifestDesireNames.selects)
 }
 
 // claimedDesireNames is every name some step in applyDesireRemovalChain claims.
@@ -244,7 +222,6 @@ func claimedDesireNames() desireNameSet {
 		hostedClusterDesireNames,
 		swiftPodNetworkInstanceDesireNames,
 		swiftPodNetworkDesireNames,
-		namespaceDesireNames,
 	} {
 		for name := range set {
 			claimed[name] = struct{}{}

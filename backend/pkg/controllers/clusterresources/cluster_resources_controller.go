@@ -288,8 +288,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		gvk := unstructuredObj.GroupVersionKind()
-		if managedByK8sResources(gvk.Group, gvk.Kind, unstructuredObj.GetName()) {
+		if managedByK8sResources(&unstructuredObj) {
 			continue
 		}
 
@@ -545,10 +544,11 @@ var k8sResourcesManagedResources = sets.New[groupKindName](
 )
 
 // managedByK8sResources identifies objects owned by dedicated Kubernetes resource
-// controllers. Match the group, kind, and name exactly so unexpected CS resources
-// still fail classification rather than being silently ignored.
-func managedByK8sResources(group, kind, name string) bool {
-	return k8sResourcesManagedResources.Has(groupKindName{group: group, kind: kind, name: name})
+// controllers. Certificate objects match their group, kind, and name exactly;
+// all Namespace objects belong to the namespace controller.
+func managedByK8sResources(obj *unstructured.Unstructured) bool {
+	gvk := obj.GroupVersionKind()
+	return gvk.Kind == "Namespace" || k8sResourcesManagedResources.Has(groupKindName{group: gvk.Group, kind: gvk.Kind, name: obj.GetName()})
 }
 
 // classifyClusterResource maps a kube object from the Cluster Service
@@ -561,7 +561,6 @@ func managedByK8sResources(group, kind, name string) bool {
 //
 //	hypershift.openshift.io    HostedCluster          → HostedCluster
 //	hypershift.openshift.io    NodePool               → NodePool                 (nodePoolName set, scoped under nodepool)
-//	core/v1                    Namespace              → HostedClusterNamespace | ControlPlaneNamespace
 //	core/v1                    ConfigMap              → DefaultIngressConfigMap | ExternalAuthCAConfigMap
 //	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
@@ -582,17 +581,6 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		clusterName, _, _ := unstructured.NestedString(obj.Object, "spec", "clusterName")
 		armName := strings.TrimPrefix(name, clusterName+"-")
 		return classifiedResource{desireName: DesireNameNodePool, nodePoolName: armName}, nil
-
-	case "Namespace":
-		// CS returns two Namespaces: the HostedCluster namespace
-		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c") and the
-		// ControlPlane namespace
-		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b").
-		// The ControlPlane namespace carries the "hypershift.openshift.io/cluster" label.
-		if _, ok := obj.GetLabels()["hypershift.openshift.io/cluster"]; ok {
-			return classifiedResource{desireName: DesireNameControlPlaneNamespace}, nil
-		}
-		return classifiedResource{desireName: DesireNameHostedClusterNamespace}, nil
 
 	case "ManagedCluster":
 		return classifiedResource{desireName: DesireNameManagedCluster}, nil
@@ -789,8 +777,6 @@ func shouldCreateReadDesireFor(DesireName string) bool {
 	switch lowerName {
 	case strings.ToLower(DesireNamePodNetworkInstance),
 		strings.ToLower(DesireNamePodNetwork),
-		strings.ToLower(DesireNameHostedClusterNamespace),
-		strings.ToLower(DesireNameControlPlaneNamespace),
 		strings.ToLower(DesireNameManagedCluster):
 		return true
 	default:
@@ -817,7 +803,7 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	}
 
 	for _, desire := range existing {
-		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+		if managedByDedicatedK8sResourcesDesire(desire.ResourceID.Name) {
 			continue
 		}
 		// Pre-existing ACM-path ingress certificate wiring desires are no longer reasserted (see processClusterResources), so don't reap them as stale; the full-cluster teardown chain removes them once the cluster is deleted.

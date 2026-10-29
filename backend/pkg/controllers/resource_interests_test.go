@@ -28,6 +28,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
 	clusterstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/status"
@@ -298,6 +299,27 @@ func TestControllerResourceInterests(t *testing.T) {
 				{"nodepool", "/nodePools/np", true}, {"externalauth", "/externalAuths/auth", true},
 				{"request", "/systemAdminCredentialRequests/cred", true}, {"revocation", "/systemAdminCredentialRevocations/revoke", true},
 				{"apply", "/applyDesires/legacy", true}, {"apply", "/nodePools/np/applyDesires/legacy", false},
+			},
+		},
+
+		{
+			name: "namespaces observe their provider, desires, and deletion prerequisites",
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clusterk8sresources.NewNamespaceController(db, nil, inf, union, "test")
+			},
+			events: []event{
+				{"spc", "/serviceProviderClusters/default", true},
+				{"spc", "/serviceProviderClusters/unrelated", false},
+				{"apply", "/applyDesires/ControlPlaneNamespace", true},
+				{"read", "/readDesires/ControlPlaneNamespace", true},
+				{"apply", "/applyDesires/HostedClusterNamespace", true},
+				{"read", "/readDesires/unrelated", false},
+				{"content", "/managementClusterContents/legacy", false},
+				{"apply", "/nodePools/np/applyDesires/ControlPlaneNamespace", false},
+				{"apply", "/nodePools/np/applyDesires/NodePool", false},
+				{"apply", "/applyDesires/HostedCluster", true},
+				{"apply", "/applyDesires/PodNetworkInstance", true},
+				{"apply", "/applyDesires/PodNetwork", true},
 			},
 		},
 		{

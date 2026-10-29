@@ -972,6 +972,23 @@ func registerIngressCertificateController() controllerconfig.ControllerRegistrat
 	}
 }
 
+func registerNamespaceController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateNamespaceController, true),
+	}
+}
+
+func instantiateNamespaceController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterk8sresources.NewNamespaceController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		controllerContext.MaestroSourceEnvironmentIdentifier,
+	), nil
+}
+
 func registerKubeAPIServerServingCertificateController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1373,6 +1390,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PlacementControllerName)] = registerPlacementController()
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
+	registry[strings.ToLower(clusterk8sresources.NamespaceControllerName)] = registerNamespaceController()
 	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
 	registry[strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)] = registerKubeAPIServerServingCertificateController()
 	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()

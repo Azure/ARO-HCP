@@ -189,16 +189,17 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 	serviceProviderCluster := newSPC(testManagementClusterResourceID)
 	csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(test))
 	resources := buildClusterResources(map[string]string{
-		"ingress-sync":     `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
-		"ingress-provider": `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
-		"hosted":           `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
-		"managed":          `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
-		"config":           `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
-		"sync":             `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-		"provider":         `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
-		"kas":              `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
-		"kas-provider":     `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
-		"signing":          `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
+		"controlplane-namespace": `{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"hc-cluster","labels":{"hypershift.openshift.io/cluster":"abc"}}}`,
+		"ingress-sync":           `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
+		"ingress-provider":       `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"service-provider-default-ingress-wildcard-serving-cert","namespace":"hc"}}`,
+		"hosted":                 `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"}}`,
+		"managed":                `{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"test-cluster"}}`,
+		"config":                 `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"open-cluster-management-policies"}}`,
+		"sync":                   `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+		"provider":               `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-tls-cert-test","namespace":"open-cluster-management-policies"}}`,
+		"kas":                    `{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+		"kas-provider":           `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-tls-cert","namespace":"hc"}}`,
+		"signing":                `{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"signing-key-test","namespace":"hc"}}`,
 	})
 	csClient.EXPECT().GetClusterResources(gomock.Cond[context.Context](func(ctx context.Context) bool {
 		deadline, ok := ctx.Deadline()
@@ -935,14 +936,14 @@ func TestClassifyClusterResource(t *testing.T) {
 			wantNodePool: "worker",
 		},
 		{
-			name:       "HostedCluster Namespace",
-			resource:   `{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c","labels":{"api.openshift.com/environment":"arohcppers","api.openshift.com/id":"2sdm6b8jke9sm3h8ukc8mbaahngnre5c","api.openshift.com/name":"cluster-hs-pre-rxhvsd"}}}`,
-			wantDesire: "HostedClusterNamespace",
+			name:     "HostedCluster Namespace",
+			resource: `{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c","labels":{"api.openshift.com/environment":"arohcppers","api.openshift.com/id":"2sdm6b8jke9sm3h8ukc8mbaahngnre5c","api.openshift.com/name":"cluster-hs-pre-rxhvsd"}}}`,
+			wantErr:  true,
 		},
 		{
-			name:       "ControlPlane Namespace",
-			resource:   `{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b","labels":{"app.kubernetes.io/managed-by":"aro-hcp-clusters-service","hypershift.openshift.io/cluster":"2sdm6b8jke9sm3h8ukc8mbaahngnre5c"}}}`,
-			wantDesire: "ControlPlaneNamespace",
+			name:     "ControlPlane Namespace",
+			resource: `{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b","labels":{"app.kubernetes.io/managed-by":"aro-hcp-clusters-service","hypershift.openshift.io/cluster":"2sdm6b8jke9sm3h8ukc8mbaahngnre5c"}}}`,
+			wantErr:  true,
 		},
 		{
 			name:       "ConfigMap → DefaultIngressConfigMap",
@@ -1266,17 +1267,34 @@ func TestManagedByK8sResources(t *testing.T) {
 	} {
 		for _, name := range []string{"kube-apiserver-tls-cert", controllerutils.ServiceProviderDefaultIngressWildcardServingCertName} {
 			t.Run(resource.kind+"/"+name, func(t *testing.T) {
-				require.True(t, managedByK8sResources(resource.group, resource.kind, name), "migrated object must be skipped before classification")
 				obj := &unstructured.Unstructured{}
 				obj.SetAPIVersion(resource.group + "/v1")
 				obj.SetKind(resource.kind)
 				obj.SetName(name)
+				require.True(t, managedByK8sResources(obj), "migrated object must be skipped before classification")
 				_, err := classifyClusterResource(obj)
 				require.Error(t, err, "migrated object must not be classified by ClusterResources")
-				require.False(t, managedByK8sResources("other.example.com", resource.kind, name), "group must match")
-				require.False(t, managedByK8sResources(resource.group, "OtherKind", name), "kind must match")
-				require.False(t, managedByK8sResources(resource.group, resource.kind, name+"-unexpected"), "name must match exactly")
+				obj.SetAPIVersion("other.example.com/v1")
+				require.False(t, managedByK8sResources(obj), "group must match")
+				obj.SetAPIVersion(resource.group + "/v1")
+				obj.SetKind("OtherKind")
+				require.False(t, managedByK8sResources(obj), "kind must match")
+				obj.SetKind(resource.kind)
+				obj.SetName(name + "-unexpected")
+				require.False(t, managedByK8sResources(obj), "name must match exactly")
 			})
 		}
+	}
+}
+
+func TestManagedByK8sResourcesNamespaces(t *testing.T) {
+	for _, name := range []string{"hosted-cluster", "control-plane", "other-namespace"} {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion("v1")
+		obj.SetKind("Namespace")
+		obj.SetName(name)
+		require.True(t, managedByK8sResources(obj), "every Namespace must be managed by k8sresources")
+		_, err := classifyClusterResource(obj)
+		require.Error(t, err, "Namespace must no longer be classifiable by ClusterResources")
 	}
 }
