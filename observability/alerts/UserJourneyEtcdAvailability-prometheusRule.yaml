@@ -38,7 +38,6 @@ spec:
     # resource_id and subscription_id labels. Alerts only fire for namespaces
     # both recording rules have data for.
     # ========================================
-
     # ----------------------------------------
     # userJourneyEtcdBackendCommitDurationHigh
     # ----------------------------------------

@@ -13,7 +13,6 @@ tests:
 # Medium (6h30m):  fires after 30m -> check at 61m
 # Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
 # ========================================
-
 # Scenario 1: High commit duration — all three tiers fire
 - interval: 1m
   input_series:
@@ -143,7 +142,6 @@ tests:
   # Gauge metric: value is 12.5% = 0.125
   # Single alert: for: 15m -> check at 20m
   # ========================================
-
   input_series:
   - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0"}'
     values: "8000000000+0x370"
@@ -208,7 +206,6 @@ tests:
   # Gauge metrics: db_size=7GB, quota=8GB -> ratio=87.5% throughout
   # Single alert: for: 15m -> check at 20m
   # ========================================
-
   input_series:
   - series: 'etcd_mvcc_db_total_size_in_bytes{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
     values: "7000000000+0x370"
@@ -272,7 +269,6 @@ tests:
   # Series: counter increments by 1/min -> at steady state increase([15m]) = 15
   # Single alert: for:5m — condition true early, sustained for 5m -> fires well before 15m, check at 15m
   # ========================================
-
   input_series:
   - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
     values: "0+1x370"
@@ -353,7 +349,6 @@ tests:
   # Gauge metric: 0 = no leader, 1 = has leader
   # Single alert: for: 5m -> check at 10m
   # ========================================
-
   input_series:
   - series: 'etcd_server_has_leader{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace"}'
     values: "0+0x370"
@@ -414,7 +409,6 @@ tests:
   # Medium (6h30m):  fires after 30m -> check at 61m
   # Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
   # ========================================
-
   input_series:
   - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",le="0.0001"}'
     values: "0+5x370"
@@ -544,7 +538,6 @@ tests:
   # Medium (6h30m):  fires after 30m -> check at 61m
   # Slow  (3d6h):    for: 3h, but checked at 365m so the 6h short window has enough samples
   # ========================================
-
   input_series:
   - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",le="0.001"}'
     values: "0+10x370"
@@ -663,7 +656,6 @@ tests:
   # Threshold: recording rule exists but etcd_server_has_leader is absent
   # Single alert: for: 15m -> check at 20m
   # ========================================
-
   input_series:
   - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster"}'
     values: "1+0x25"

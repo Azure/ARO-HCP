@@ -7,7 +7,6 @@ tests:
 # for each metric family. We only need to verify one window per metric
 # since the recording rules differ only in the rate window.
 # ========================================
-
 # Scenario 1: Backend commit bucket rates are recorded with per-pod dimensions
 - interval: 1m
   input_series:

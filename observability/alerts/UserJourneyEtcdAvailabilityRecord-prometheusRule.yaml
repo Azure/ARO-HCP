@@ -13,7 +13,6 @@ spec:
   # instead of recomputing expensive large-window rates (especially 6h
   # and 3d) at every alert evaluation.
   # ========================================
-
   # ----------------------------------------
   # etcd_disk_backend_commit_duration_seconds (per pod)
   # ----------------------------------------
@@ -55,7 +54,6 @@ spec:
             rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
           )
         )
-
   # ----------------------------------------
   # etcd_network_peer_round_trip_time_seconds (aggregate, no pod)
   # ----------------------------------------
@@ -97,7 +95,6 @@ spec:
             rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])
           )
         )
-
   # ----------------------------------------
   # etcd_disk_wal_fsync_duration_seconds (per pod)
   # ----------------------------------------
