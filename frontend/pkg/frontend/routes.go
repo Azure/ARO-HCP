@@ -53,19 +53,21 @@ const (
 	ActionRevokeCredentials      = "revokecredentials"
 
 	// User-visible display names for provider and resource types
-	ProviderDisplay                          = "Azure Red Hat OpenShift"
-	ClusterResourceTypeDisplaySingle         = "Hosted Control Plane (HCP) OpenShift Cluster"
-	ClusterResourceTypeDisplayPlural         = "Hosted Control Plane (HCP) OpenShift Clusters"
-	NodePoolResourceTypeDisplaySingle        = "Node Pool"
-	NodePoolResourceTypeDisplayPlural        = "Node Pools"
-	ExternalAuthResourceTypeDisplaySingle    = "External Authentication Configuration"
-	ExternalAuthResourceTypeDisplayPlural    = "External Authentication Configurations"
-	VersionResourceTypeDisplaySingle         = "OpenShift Container Platform Version"
-	VersionResourceTypeDisplayPlural         = "OpenShift Container Platform Versions"
-	OperationResultResourceTypeDisplaySingle = "Asynchronous Operation Result"
-	OperationResultResourceTypeDisplayPlural = "Asynchronous Operation Results"
-	OperationStatusResourceTypeDisplaySingle = "Asynchronous Operation Status"
-	OperationStatusResourceTypeDisplayPlural = "Asynchronous Operation Statuses"
+	ProviderDisplay                                  = "Azure Red Hat OpenShift"
+	ClusterResourceTypeDisplaySingle                 = "Hosted Control Plane (HCP) OpenShift Cluster"
+	ClusterResourceTypeDisplayPlural                 = "Hosted Control Plane (HCP) OpenShift Clusters"
+	NodePoolResourceTypeDisplaySingle                = "Node Pool"
+	NodePoolResourceTypeDisplayPlural                = "Node Pools"
+	ExternalAuthResourceTypeDisplaySingle            = "External Authentication Configuration"
+	ExternalAuthResourceTypeDisplayPlural            = "External Authentication Configurations"
+	VersionResourceTypeDisplaySingle                 = "OpenShift Container Platform Version"
+	VersionResourceTypeDisplayPlural                 = "OpenShift Container Platform Versions"
+	OperatorIdentityRoleSetResourceTypeDisplaySingle = "HCP Operator Identity Role Set"
+	OperatorIdentityRoleSetResourceTypeDisplayPlural = "HCP Operator Identity Role Sets"
+	OperationResultResourceTypeDisplaySingle         = "Asynchronous Operation Result"
+	OperationResultResourceTypeDisplayPlural         = "Asynchronous Operation Results"
+	OperationStatusResourceTypeDisplaySingle         = "Asynchronous Operation Status"
+	OperationStatusResourceTypeDisplayPlural         = "Asynchronous Operation Statuses"
 )
 
 // AvailableOperations defines the static response content for the resource provider's "operations" endpoint.
@@ -198,6 +200,15 @@ var AvailableOperations = []coreapi.NamespaceOperation{
 			Resource:    VersionResourceTypeDisplayPlural,
 			Operation:   "Read " + VersionResourceTypeDisplaySingle,
 			Description: "Read any " + VersionResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(coreapi.ProviderNamespace, "locations", coreapi.OperatorIdentityRoleSetResourceTypeName, coreapi.NamespaceOperationRead),
+		Display: coreapi.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    OperatorIdentityRoleSetResourceTypeDisplayPlural,
+			Operation:   "Read " + OperatorIdentityRoleSetResourceTypeDisplaySingle,
+			Description: "Read any " + OperatorIdentityRoleSetResourceTypeDisplayPlural,
 		},
 	},
 	{
