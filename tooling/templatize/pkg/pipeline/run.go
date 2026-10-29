@@ -55,6 +55,13 @@ var DefaultDeploymentTimeoutSeconds = 30 * 6
 // the step definition does not specify a type-specific override.
 const defaultStepContextTimeout = 30 * time.Minute
 
+// deployerOverhead is added to a step's declared timeout when computing the
+// per-attempt context budget: executors such as the Helm deployer apply the
+// declared timeout to the rollout wait itself, so the context needs slack for
+// the preprocessing (kubeconfig fetch, chart walking, values templating) that
+// runs before the wait begins.
+const deployerOverhead = 5 * time.Minute
+
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
 	return ret
@@ -710,7 +717,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						consumerCancel()
 						return
 					}
-					stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(stepDef)
+					stepTimeoutDuration, stepTimeoutErr := stepOuterTimeout(stepDef)
 					if stepTimeoutErr != nil {
 						errs <- fmt.Errorf("step %v: %w", step, stepTimeoutErr)
 						consumerCancel()
@@ -718,7 +725,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					}
 					stepTimeoutCause := errors.New("exceeded the single-step timeout for sanity")
 					if stepTimeoutDuration != defaultStepContextTimeout {
-						stepTimeoutCause = fmt.Errorf("exceeded the step timeout of %s", stepTimeoutDuration)
+						stepTimeoutCause = fmt.Errorf("exceeded the step timeout of %s (including retries)", stepTimeoutDuration)
 					}
 					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, stepTimeoutDuration, stepTimeoutCause)
 					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, stepCtx, options, state)
@@ -883,7 +890,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 		pipelineDirectory = filepath.Join(topoDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath))
 		for shouldExecuteStep(step, runCount) {
-			stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(step)
+			stepTimeoutDuration, stepTimeoutErr := stepAttemptTimeout(step)
 			if stepTimeoutErr != nil {
 				return nil, 0, fmt.Errorf("step %s: %w", step.StepName(), stepTimeoutErr)
 			}
@@ -931,23 +938,27 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	return details, runCount, nil
 }
 
-// stepContextTimeout returns the outer deadline for a step. Steps that carry their own timeout (Istio upgrades and
-// ARMStack deletes) get exactly that timeout, so a value above the default is not cut short.
-func stepContextTimeout(step types.Step) (time.Duration, error) {
+// declaredStepTimeout returns the timeout declared on the step definition for
+// step types whose executor enforces it (the Helm rollout wait, the Istio
+// upgrade operation, and the ARMStack delete). It returns 0 when the step type
+// has no enforced timeout or the timeout is unset.
+func declaredStepTimeout(step types.Step) (time.Duration, error) {
 	var timeout, kind string
 	switch s := step.(type) {
+	case *types.HelmStep:
+		timeout, kind = s.Timeout, "helm"
 	case *types.IstioUpgradeStep:
 		timeout, kind = s.Timeout, "istio upgrade"
 	case *types.ARMStackStep:
 		if !s.IsDelete() {
-			return defaultStepContextTimeout, nil
+			return 0, nil
 		}
 		timeout, kind = s.Timeout, "ARM stack delete"
 	default:
-		return defaultStepContextTimeout, nil
+		return 0, nil
 	}
 	if timeout == "" {
-		return defaultStepContextTimeout, nil
+		return 0, nil
 	}
 	d, err := time.ParseDuration(timeout)
 	if err != nil {
@@ -957,6 +968,50 @@ func stepContextTimeout(step types.Step) (time.Duration, error) {
 		return 0, fmt.Errorf("%s step timeout must be positive, got %q", kind, timeout)
 	}
 	return d, nil
+}
+
+// stepAttemptTimeout is the context budget for a single attempt of a step.
+// Steps that declare a timeout get that timeout plus deployer overhead;
+// everything else keeps the flat sanity timeout.
+func stepAttemptTimeout(step types.Step) (time.Duration, error) {
+	declared, err := declaredStepTimeout(step)
+	if err != nil {
+		return 0, err
+	}
+	if declared > 0 {
+		return declared + deployerOverhead, nil
+	}
+	return defaultStepContextTimeout, nil
+}
+
+// stepOuterTimeout is the context budget for an entire step execution,
+// including automated retries and the backoffs between them. Sizing the outer
+// budget for a single attempt would cancel a late retry mid-wait and prevent
+// later attempts from starting, defeating the configured retry count. Steps
+// without a declared timeout keep the flat sanity timeout: their executors
+// have no per-attempt deadline for the budget to account for.
+func stepOuterTimeout(step types.Step) (time.Duration, error) {
+	declared, err := declaredStepTimeout(step)
+	if err != nil {
+		return 0, err
+	}
+	if declared == 0 {
+		return defaultStepContextTimeout, nil
+	}
+	outer := declared + deployerOverhead
+	if retries := step.AutomatedRetries(); retries != nil && retries.MaximumRetryCount > 1 {
+		outer *= time.Duration(retries.MaximumRetryCount)
+		// Best-effort: an unparseable backoff duration surfaces as an error
+		// when the first retry is attempted, matching existing behavior.
+		if d, err := time.ParseDuration(retries.DurationBetweenRetries); err == nil && d > 0 {
+			outer += d * time.Duration(retries.MaximumRetryCount-1)
+		}
+	}
+	// Never shrink below the flat sanity timeout.
+	if outer < defaultStepContextTimeout {
+		outer = defaultStepContextTimeout
+	}
+	return outer, nil
 }
 
 func shouldExecuteStep(step types.Step, runCount int) bool {

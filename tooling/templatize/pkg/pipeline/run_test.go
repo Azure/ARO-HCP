@@ -1155,61 +1155,136 @@ func TestShouldExecuteStep(t *testing.T) {
 	}
 }
 
-func TestStepContextTimeout(t *testing.T) {
-	t.Run("helm with timeout still uses default outer", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.HelmStep{Timeout: "10m"})
+func TestStepAttemptTimeout(t *testing.T) {
+	t.Run("helm with timeout gets declared plus deployer overhead", func(t *testing.T) {
+		d, err := stepAttemptTimeout(&types.HelmStep{Timeout: "10m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 10*time.Minute+deployerOverhead, d)
+	})
+
+	t.Run("helm unset defaults to 30m", func(t *testing.T) {
+		d, err := stepAttemptTimeout(&types.HelmStep{})
 		assert.NoError(t, err)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
-	t.Run("shell uses default outer", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.ShellStep{Timeout: "10m"})
+	t.Run("shell has no enforced timeout, uses default", func(t *testing.T) {
+		d, err := stepAttemptTimeout(&types.ShellStep{Timeout: "10m"})
 		assert.NoError(t, err)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
 	t.Run("istio upgrade 60m", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "60m"})
+		d, err := stepAttemptTimeout(&types.IstioUpgradeStep{Timeout: "60m"})
 		assert.NoError(t, err)
-		assert.Equal(t, 60*time.Minute, d)
+		assert.Equal(t, 60*time.Minute+deployerOverhead, d)
 	})
 
 	t.Run("istio upgrade unset defaults to 30m", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.IstioUpgradeStep{})
+		d, err := stepAttemptTimeout(&types.IstioUpgradeStep{})
 		assert.NoError(t, err)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
-	t.Run("invalid istio duration", func(t *testing.T) {
-		_, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
+	t.Run("invalid duration", func(t *testing.T) {
+		_, err := stepAttemptTimeout(&types.HelmStep{Timeout: "not-a-duration"})
 		assert.Error(t, err)
+		_, err = stepAttemptTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
+		assert.Error(t, err)
+	})
+}
+
+func TestStepOuterTimeout(t *testing.T) {
+	t.Run("covers all attempts and backoffs", func(t *testing.T) {
+		step := &types.HelmStep{
+			Timeout: "15m",
+			StepMeta: types.StepMeta{
+				AutomatedRetry: &types.AutomatedRetry{
+					MaximumRetryCount:      3,
+					DurationBetweenRetries: "1m",
+				},
+			},
+		}
+		d, err := stepOuterTimeout(step)
+		assert.NoError(t, err)
+		assert.Equal(t, (15*time.Minute+deployerOverhead)*3+2*time.Minute, d)
+	})
+
+	t.Run("floors at default sanity timeout", func(t *testing.T) {
+		step := &types.HelmStep{
+			Timeout: "1m",
+			StepMeta: types.StepMeta{
+				AutomatedRetry: &types.AutomatedRetry{
+					MaximumRetryCount:      2,
+					DurationBetweenRetries: "1m",
+				},
+			},
+		}
+		d, err := stepOuterTimeout(step)
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("single attempt keeps attempt budget floored at default", func(t *testing.T) {
+		d, err := stepOuterTimeout(&types.HelmStep{Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 60*time.Minute+deployerOverhead, d)
+	})
+
+	t.Run("no declared timeout with retries still uses default", func(t *testing.T) {
+		step := &types.ShellStep{
+			StepMeta: types.StepMeta{
+				AutomatedRetry: &types.AutomatedRetry{
+					MaximumRetryCount:      3,
+					DurationBetweenRetries: "1m",
+				},
+			},
+		}
+		d, err := stepOuterTimeout(step)
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("unparseable backoff does not fail budget computation", func(t *testing.T) {
+		step := &types.HelmStep{
+			Timeout: "15m",
+			StepMeta: types.StepMeta{
+				AutomatedRetry: &types.AutomatedRetry{
+					MaximumRetryCount:      3,
+					DurationBetweenRetries: "not-a-duration",
+				},
+			},
+		}
+		d, err := stepOuterTimeout(step)
+		assert.NoError(t, err)
+		assert.Equal(t, (15*time.Minute+deployerOverhead)*3, d)
 	})
 
 	t.Run("arm stack delete 60m is not capped at the default", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "60m"})
+		d, err := stepOuterTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "60m"})
 		assert.NoError(t, err)
-		assert.Equal(t, 60*time.Minute, d)
+		assert.Equal(t, 60*time.Minute+deployerOverhead, d)
 	})
 
 	t.Run("arm stack delete unset defaults to 30m", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete})
+		d, err := stepOuterTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete})
 		assert.NoError(t, err)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
 	t.Run("arm stack create ignores timeout", func(t *testing.T) {
-		d, err := stepContextTimeout(&types.ARMStackStep{Timeout: "60m"})
+		d, err := stepOuterTimeout(&types.ARMStackStep{Timeout: "60m"})
 		assert.NoError(t, err)
 		assert.Equal(t, defaultStepContextTimeout, d)
 	})
 
 	t.Run("invalid arm stack delete duration", func(t *testing.T) {
-		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "soon"})
+		_, err := stepOuterTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "soon"})
 		assert.ErrorContains(t, err, "ARM stack delete step timeout")
 	})
 
 	t.Run("non-positive arm stack delete duration", func(t *testing.T) {
-		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "0s"})
+		_, err := stepOuterTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "0s"})
 		assert.ErrorContains(t, err, "must be positive")
 	})
 }
