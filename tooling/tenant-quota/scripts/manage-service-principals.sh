@@ -122,6 +122,10 @@ setup_redhat() {
         "ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
         "ARO HCP E2E Hosted Clusters - Prod - 00"
         "ARO HCP E2E Hosted Clusters - Prod - 01"
+        "ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)"
+        "ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)"
+        "ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)"
+        "ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"
