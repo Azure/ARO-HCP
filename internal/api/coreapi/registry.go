@@ -73,6 +73,7 @@ const (
 	VersionResourceTypeName                         = "hcpOpenShiftVersions"
 	NodePoolResourceTypeName                        = "nodePools"
 	ExternalAuthResourceTypeName                    = "externalAuths"
+	OperatorIdentityRoleSetResourceTypeName         = "hcpOperatorIdentityRoleSets"
 	OperationResultResourceTypeName                 = "hcpOperationResults"
 	OperationStatusResourceTypeName                 = "hcpOperationStatuses"
 	ControllerResourceTypeName                      = "hcpOpenShiftControllers"
