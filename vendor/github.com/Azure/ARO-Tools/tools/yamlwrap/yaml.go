@@ -39,6 +39,9 @@ var (
 	// Examples: {{ .value }}, {{.Values.name}}, {{ range .items }}
 	templatePattern = regexp.MustCompile(`{{[^}]+}}`)
 
+	// templateKeyPattern keeps Azure Pipelines expressions in the mapping key.
+	templateKeyPattern = regexp.MustCompile(`^(\s*(?:-\s+)?["']?\$\{\{[^}]+\}\}["']?:\s*)(.*)$`)
+
 	// yamlLinePattern matches YAML key-value pairs and array items
 	// Captures: prefix (key: or - or - key:) and the rest of the line
 	// Examples: "key: value", "- item", "- key: value"
@@ -131,6 +134,7 @@ func UnwrapFile(inputPath string, outputPath string) error {
 	return nil
 }
 
+// WrapYAML quotes template values while preserving YAML mapping keys.
 func WrapYAML(data []byte, validateResult bool) ([]byte, error) {
 	lines := strings.Split(string(data), "\n")
 
@@ -141,7 +145,10 @@ func WrapYAML(data []byte, validateResult bool) ([]byte, error) {
 		}
 
 		// Match YAML structure
-		match := yamlLinePattern.FindStringSubmatch(line)
+		match := templateKeyPattern.FindStringSubmatch(line)
+		if match == nil {
+			match = yamlLinePattern.FindStringSubmatch(line)
+		}
 		if match == nil {
 			continue
 		}
@@ -184,6 +191,7 @@ func WrapYAML(data []byte, validateResult bool) ([]byte, error) {
 	return result, nil
 }
 
+// UnwrapYAML restores template values while preserving YAML mapping keys.
 func UnwrapYAML(data []byte) ([]byte, error) {
 	lines := strings.Split(string(data), "\n")
 
@@ -194,7 +202,10 @@ func UnwrapYAML(data []byte) ([]byte, error) {
 		}
 
 		// Match YAML structure
-		match := yamlLinePattern.FindStringSubmatch(line)
+		match := templateKeyPattern.FindStringSubmatch(line)
+		if match == nil {
+			match = yamlLinePattern.FindStringSubmatch(line)
+		}
 		if match == nil {
 			continue
 		}

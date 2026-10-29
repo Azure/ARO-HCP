@@ -3,14 +3,14 @@ module github.com/Azure/ARO-HCP/tooling/yamlwrap
 go 1.26.0
 
 require (
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261027163642-a8d4876e7d4f
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.4
 	github.com/spf13/cobra v1.10.2
 )
 
 require (
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
