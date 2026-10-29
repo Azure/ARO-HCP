@@ -19,12 +19,12 @@ tests:
     values: "0x60"
   alert_rule_test:
   - eval_time: 30m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts:
     - exp_labels:
         cluster: svc-1
         component: slo
-        severity: "3"
+        severity: "4"
         slo: workload-identity-credential-expiry
       exp_annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
@@ -44,7 +44,7 @@ tests:
     values: "0x60"
   alert_rule_test:
   - eval_time: 10m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts: []
 # Test: between 7 and 30 days left. No alert here (the existing
 # ClusterCredentialExpiringSoon covers this range).
@@ -61,7 +61,7 @@ tests:
     values: "0x60"
   alert_rule_test:
   - eval_time: 30m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts: []
 # Test: only expired / non-renewable credentials (for example orphaned secrets).
 # No alert; these are covered by ClusterCredentialExpired / NotRenewable.
@@ -80,7 +80,7 @@ tests:
     values: "0+4x60"
   alert_rule_test:
   - eval_time: 30m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts: []
 # Test: all credentials healthy. No alert.
 - name: healthy_credentials_do_not_fire
@@ -96,7 +96,7 @@ tests:
     values: "0x60"
   alert_rule_test:
   - eval_time: 30m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts: []
 # Test: same input scraped by two Prometheus replicas fires one alert, not two.
 - name: replica_duplicates_fire_once
@@ -116,14 +116,158 @@ tests:
     values: "0x60"
   alert_rule_test:
   - eval_time: 30m
-    alertname: userJourneyWorkloadIdentityCredentialExpiry7d
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
     exp_alerts:
     - exp_labels:
         cluster: svc-1
         component: slo
-        severity: "3"
+        severity: "4"
         slo: workload-identity-credential-expiry
       exp_annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher healthy, scraped and reconciling. No alert.
+- name: stalled_does_not_fire_when_healthy
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
+    values: "1x400"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+    values: "1x400"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
+    values: "0+1x400"
+  alert_rule_test:
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+# Test: empty vault, no credential observations but still reconciling. No alert.
+- name: stalled_does_not_fire_on_empty_vault
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
+    values: "1x400"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+    values: "1x400"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
+    values: "0+1x400"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0x400"
+  alert_rule_test:
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+# Test: scrape down, deployment still there. Fires after the 1h for.
+- name: stalled_fires_when_scrape_is_down
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
+    values: "1x300"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+    values: "1x60 0x240"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
+    values: "0+1x60 _x240"
+  alert_rule_test:
+  - eval_time: 100m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+  - eval_time: 200m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is down or not reconciling"
+        description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher pod gone for more than 7 days. Still firing on day 8.
+- name: stalled_keeps_firing_beyond_seven_days
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
+    values: "1x12000"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+    values: "1x60 _x11940"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
+    values: "0+1x60 _x11940"
+  alert_rule_test:
+  - eval_time: 11520m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is down or not reconciling"
+        description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher up but not reconciling (hung). Fires after the 1h for.
+- name: stalled_fires_when_not_reconciling
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
+    values: "1x400"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+    values: "1x400"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
+    values: "0+1x120 120x280"
+  alert_rule_test:
+  - eval_time: 200m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is down or not reconciling"
+        description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: duplicate series from two Prometheus replicas fire one alert, not two.
+- name: stalled_replica_duplicates_fire_once
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher",prometheus_replica="prometheus-0"}'
+    values: "1x400"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher",prometheus_replica="prometheus-0"}'
+    values: "1x400"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1",prometheus_replica="prometheus-0"}'
+    values: "0+1x120 120x280"
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher",prometheus_replica="prometheus-1"}'
+    values: "1x400"
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher",prometheus_replica="prometheus-1"}'
+    values: "1x400"
+  - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1",prometheus_replica="prometheus-1"}'
+    values: "0+1x120 120x280"
+  alert_rule_test:
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is down or not reconciling"
+        description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: no refresher deployment in the region. No alert.
+- name: stalled_does_not_fire_without_deployment
+  interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="other",deployment="other"}'
+    values: "1x400"
+  alert_rule_test:
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []

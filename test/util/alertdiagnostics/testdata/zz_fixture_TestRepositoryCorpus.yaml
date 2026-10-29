@@ -7126,6 +7126,47 @@
             value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityRefresherStalled
+  occurrence: 1
+  input: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+  plan:
+    expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+    conditions:
+      - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+        path: root/or:left/unless:left
+        queries:
+          - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0
+        path: root/or:right
+        queries:
+          - expression: sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h])))
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
+  occurrence: 1
+  input: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: hypershift-operator-monitor-rules
   alert: hypershiftOperatorIdle
   occurrence: 1
@@ -12579,6 +12620,61 @@
         thresholds:
           - operator: '>'
             value: 1800
+        unsupported: ""
+- source: observability/alerts/workload-identity-slo-prometheusRule.yaml
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentityRefresherStalled
+  occurrence: 1
+  input: |
+    (
+      group by (cluster) (kube_deployment_status_replicas_available{namespace="msi-credential-refresher", deployment="credential-refresher"})
+      unless on (cluster)
+      max by (cluster) (up{namespace="msi-credential-refresher", container="credential-refresher"} == 1)
+    )
+    or
+    (
+      sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0
+    )
+  plan:
+    expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+    conditions:
+      - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+        path: root/or:left/unless:left
+        queries:
+          - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0
+        path: root/or:right
+        queries:
+          - expression: sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h])))
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 0
+        unsupported: ""
+- source: observability/alerts/workload-identity-slo-prometheusRule.yaml
+  group: arohcp_workload_identity_slo_alerts
+  alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
+  occurrence: 1
+  input: |
+    (
+      workload_identity:credential_refresher_expiry_le7d:increase1h
+      -
+      workload_identity:credential_refresher_expiry_le0d:increase1h
+    ) > 0
+  plan:
+    expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+    conditions:
+      - expression: (workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0
+        path: root
+        queries:
+          - expression: workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: e2e-expired-resource-group-alerts
