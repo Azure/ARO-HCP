@@ -163,7 +163,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd database size is too large for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd database size is too large for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '(((etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
+        expression: '((max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -221,7 +221,7 @@ resource hcpEtcdAvailabilityAlertRules 'Microsoft.AlertsManagement/prometheusRul
           summary: 'etcd member has no leader for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
           title: 'etcd member has no leader for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})'
         }
-        expression: '((etcd_server_has_leader == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
+        expression: '((min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

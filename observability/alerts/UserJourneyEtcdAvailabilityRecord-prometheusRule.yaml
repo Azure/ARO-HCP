@@ -44,7 +44,6 @@ spec:
         sum by (namespace, cluster, pod, le) (
           rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
         )
-
   # ----------------------------------------
   # etcd_network_peer_round_trip_time_seconds (aggregate, no pod)
   # ----------------------------------------
@@ -76,7 +75,6 @@ spec:
         sum by (namespace, cluster, le) (
           rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])
         )
-
   # ----------------------------------------
   # etcd_disk_wal_fsync_duration_seconds (per pod)
   # ----------------------------------------

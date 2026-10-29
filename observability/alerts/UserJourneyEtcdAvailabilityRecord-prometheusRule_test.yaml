@@ -21,7 +21,6 @@ tests:
     exp_samples:
     - labels: '{__name__="namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m", cluster="test-hcp-cluster", namespace="ocm-test-hcp-namespace", pod="etcd-0", le="+Inf"}'
       value: 1.6666666666666667
-
 # Scenario 2: Peer round-trip time bucket rates are recorded without pod dimension
 - interval: 1m
   input_series:
@@ -35,7 +34,6 @@ tests:
     exp_samples:
     - labels: '{__name__="namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m", cluster="test-hcp-cluster", namespace="ocm-test-hcp-namespace", le="+Inf"}'
       value: 1.6666666666666667
-
 # Scenario 3: WAL fsync bucket rates are recorded with per-pod dimensions
 - interval: 1m
   input_series:
@@ -49,7 +47,6 @@ tests:
     exp_samples:
     - labels: '{__name__="namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m", cluster="test-hcp-cluster", namespace="ocm-test-hcp-namespace", pod="etcd-0", le="+Inf"}'
       value: 1.6666666666666667
-
 # Scenario 4: Non-matching namespace is excluded
 - interval: 1m
   input_series:
