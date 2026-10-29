@@ -308,17 +308,43 @@ tests:
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges
     exp_alerts: []
-# Scenario 3: Leader changes exactly at threshold — does not fire
+# Scenario 3: Leader changes exactly at threshold (increase=3) sustained >5m — does not fire (> 3 is strict)
 - interval: 1m
   input_series:
-  - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient"}'
-    values: "0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3"
-  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-transient",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-transient"}'
-    values: "1+0x16"
+  - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="test-hcp-cluster-at-threshold"}'
+    values: "0+0x15 3+0x22"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-at-threshold",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-at-threshold"}'
+    values: "1+0x38"
   alert_rule_test:
-  - eval_time: 15m
+  - eval_time: 25m
     alertname: userJourneyEtcdFrequentLeaderChanges
     exp_alerts: []
+# Scenario 4: Leader changes above threshold (increase=4) sustained >5m — fires
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_leader_changes_seen_total{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-above"}'
+    values: "0+0x15 4+0x22"
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-above",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-above"}'
+    values: "1+0x38"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: userJourneyEtcdFrequentLeaderChanges
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdFrequentLeaderChanges
+        severity: "4"
+        slo: etcd-leader-changes
+        exclude_internal_subscriptions: "true"
+        cluster: test-hcp-cluster
+        namespace: ocm-test-hcp-namespace-above
+        component: hcp
+        resource_id: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-above"
+        subscription_id: "00000000-0000-0000-0000-000000000000"
+      exp_annotations:
+        description: "ocm-test-hcp-namespace-above etcd has seen 4 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Resource ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-above. Subscription ID: 00000000-0000-0000-0000-000000000000."
+        summary: "etcd cluster experiencing frequent leader changes for ocm-test-hcp-namespace-above (/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-above, 00000000-0000-0000-0000-000000000000)"
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdFrequentLeaderChanges/test-hcp-cluster/ocm-test-hcp-namespace-above"
 # Scenario 1: etcd member has no leader — fires
 - interval: 1m
   # ========================================
