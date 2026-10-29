@@ -28,9 +28,9 @@ spec:
       component: slo
     rules:
     # ----------------------------------------
-    # Critical: 7 days or less left (Sev 3)
+    # 7 days or less left (Sev 4 until orphan cleanup, ARO-30512)
     # ----------------------------------------
-    - alert: userJourneyWorkloadIdentityCredentialExpiry7d
+    - alert: userJourneyWorkloadIdentitySaturationCredentialExpiry
       expr: |
         (
           workload_identity:credential_refresher_expiry_le7d:increase1h
@@ -39,9 +39,29 @@ spec:
         ) > 0
       for: 15m
       labels:
-        severity: "3"
+        severity: "4"
         slo: workload-identity-credential-expiry
       annotations:
         summary: "MSI credential close to expiry (7 days or less left)"
         description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+    # Refresher stalled: refresher down or not reconciling for 1h (Sev 4)
+    - alert: userJourneyWorkloadIdentityRefresherStalled
+      expr: |
+        (
+          group by (cluster) (kube_deployment_status_replicas_available{namespace="msi-credential-refresher", deployment="credential-refresher"})
+          unless on (cluster)
+          max by (cluster) (up{namespace="msi-credential-refresher", container="credential-refresher"} == 1)
+        )
+        or
+        (
+          sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0
+        )
+      for: 1h
+      labels:
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      annotations:
+        summary: "Credential refresher is down or not reconciling"
+        description: "The credential refresher on this services cluster is down or has not reconciled any Key Vault for over an hour, so MSI credentials are not being checked or renewed."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"

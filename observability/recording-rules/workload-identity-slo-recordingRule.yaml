@@ -16,6 +16,7 @@ spec:
   # These rules track the MSI credential expiry SLO for the Workload Identity
   # user journey.
   # SLO: 100% of MSI credentials should have more than 30 days left before expiry.
+  # Already-expired credentials (orphan secrets) are not counted in the SLI.
   # Error Budget: 0% (any credential at 30 days or less is a breach)
   #
   # Metric is a histogram (credential_refresher_days_until_msi_credential_expiration)
@@ -60,13 +61,27 @@ spec:
             increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[1h])
           )
         )
-    # SLI: fraction of observations with more than 30 days left.
-    # Absent (not 1) when there are no observations, so a stopped refresher
-    # does not show as 100%.
+    # SLI: fraction of live (not yet expired) observations with more than
+    # 30 days left. Already-expired credentials (le0d) are left out of both
+    # sides: these are mostly orphan secrets of deleted clusters, not a renewal
+    # failure. A real cluster with an expired credential is still caught by
+    # ClusterCredentialExpired and the KAS alerts.
+    # Absent (not 1) when there are no live observations, so a stopped
+    # refresher does not show as 100%.
     - record: workload_identity:credential_expiry:sli_ratio_1h
       expr: |
         1 - (
-          workload_identity:credential_refresher_expiry_le30d:increase1h
+          (
+            workload_identity:credential_refresher_expiry_le30d:increase1h
+            -
+            (workload_identity:credential_refresher_expiry_le0d:increase1h or workload_identity:credential_refresher_expiry_le30d:increase1h * 0)
+          )
           /
-          (workload_identity:credential_refresher_expiry_observations:increase1h > 0)
+          (
+            (
+              workload_identity:credential_refresher_expiry_observations:increase1h
+              -
+              (workload_identity:credential_refresher_expiry_le0d:increase1h or workload_identity:credential_refresher_expiry_observations:increase1h * 0)
+            ) > 0
+          )
         )
