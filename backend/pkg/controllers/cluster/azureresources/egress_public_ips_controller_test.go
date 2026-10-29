@@ -69,6 +69,8 @@ type egressWriteFaultDB struct {
 	corecosmosstorage.ResourcesDBClient
 	beforeReplace func()
 	afterReplace  func()
+	afterGet      func()
+	getErr        error
 	replacements  int
 	replaceErr    error
 }
@@ -80,6 +82,17 @@ func (database *egressWriteFaultDB) ServiceProviderClusters(subscriptionID, reso
 type egressWriteFaultCRUD struct {
 	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 	database *egressWriteFaultDB
+}
+
+func (crud *egressWriteFaultCRUD) Get(ctx context.Context, name string) (*coreapi.ServiceProviderCluster, error) {
+	if crud.database.getErr != nil {
+		return nil, crud.database.getErr
+	}
+	value, err := crud.ResourceCRUD.Get(ctx, name)
+	if err == nil && crud.database.afterGet != nil {
+		crud.database.afterGet()
+	}
+	return value, err
 }
 
 func (crud *egressWriteFaultCRUD) Replace(ctx context.Context, value *coreapi.ServiceProviderCluster, options *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
@@ -275,6 +288,205 @@ func TestEgressPublicIPsUnfinishedObservation(t *testing.T) {
 	}
 }
 
+func TestEgressPublicIPsDelayedInformer(t *testing.T) {
+	for _, initialState := range []string{"empty", "unknown", "found"} {
+		for _, found := range []int{0, 9} {
+			t.Run(fmt.Sprintf("%s/found%d", initialState, found), func(t *testing.T) {
+				ctx := context.Background()
+				cluster := newTestCluster(false)
+				clusterID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
+				cluster.ServiceProviderProperties.ClusterServiceID = &clusterID
+				expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+				require.NoError(t, err)
+				clock := clocktesting.NewFakePassiveClock(time.Now())
+				serviceProvider := newTestServiceProviderCluster(coreapi.AzureReference{})
+				if initialState != "empty" {
+					serviceProvider.Status.AzureResources.EgressPublicIPs = map[string]coreapi.AzureResourceObservation{}
+					for _, resourceID := range expected {
+						serviceProvider.Status.AzureResources.EgressPublicIPs[resourceID.String()] = coreapi.AzureResourceUnknown
+						if initialState == "found" {
+							serviceProvider.Status.AzureResources.EgressPublicIPs[resourceID.String()] = coreapi.AzureResourceFound
+						}
+					}
+					serviceProvider.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{EgressPublicIPsControllerName: ptr.To(metav1.NewTime(clock.Now().Add(-time.Second)))}
+				}
+				memory, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProvider})
+				require.NoError(t, err)
+				database := &egressWriteFaultDB{ResourcesDBClient: memory}
+				crud := memory.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				stored := func() *coreapi.ServiceProviderCluster {
+					value, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, err)
+					return value
+				}
+				indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+				require.NoError(t, indexer.Add(stored()))
+				transport := &egressListTransport{test: t, pages: []egressListPage{{status: 503}}}
+				if found > 0 {
+					transport.pages = append([]egressListPage{{values: egressListValues(expected)}}, transport.pages...)
+				}
+				builder := azureclient.NewMockFirstPartyApplicationClientBuilder(gomock.NewController(t))
+				builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(newEgressListClient(t, transport), nil).AnyTimes()
+				informers := &egressTestInformers{database: database}
+				_, clusterLister := informers.Clusters()
+				enqueuer := &fakeAfterEnqueuer{}
+				newController := func() controllerutils.WatchingController {
+					return controllerutils.NewClusterWatchingController(EgressPublicIPsControllerName, database, informers, nil, time.Minute, &egressPublicIPsSyncer{
+						clock: clock, resourcesDBClient: database, clusterLister: clusterLister,
+						serviceProviderClusterLister: corelisters.NewServiceProviderClusterLister(indexer),
+						subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+						azureFPAClientBuilder:        builder, enqueueAfter: enqueuer,
+					})
+				}
+				key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+				controller := newController()
+				require.Error(t, controller.SyncOnce(ctx, key))
+				pending := stored()
+				healthCRUD := memory.HCPClusters(testSubscriptionID, testResourceGroupName).Controllers(testClusterName)
+				failed, err := healthCRUD.Get(ctx, EgressPublicIPsControllerName)
+				require.NoError(t, err)
+				reads, writes := transport.requests, database.replacements
+				for retry := range 3 {
+					clock.SetTime(clock.Now().Add(time.Second))
+					if retry == 1 {
+						controller = newController()
+					}
+					assert.NoError(t, controller.SyncOnce(ctx, key))
+					assert.Equal(t, reads, transport.requests, "undelivered informer updates must not permit another enumeration")
+					assert.Equal(t, writes, database.replacements, "cooldown must not attempt stale-ETag replacements")
+					assert.Equal(t, pending, stored())
+					health, err := healthCRUD.Get(ctx, EgressPublicIPsControllerName)
+					require.NoError(t, err)
+					assert.Equal(t, failed, health)
+				}
+				require.Len(t, enqueuer.enqueuedDurations, 4)
+				for _, readErr := range []error{context.Canceled, cosmosstorageutils.NewNotFoundError(), errors.New("store unavailable")} {
+					database.getErr = readErr
+					require.ErrorIs(t, controller.SyncOnce(ctx, key), readErr)
+					require.Equal(t, reads, transport.requests)
+					require.Equal(t, writes, database.replacements)
+					require.Equal(t, pending, stored())
+					health, err := healthCRUD.Get(ctx, EgressPublicIPsControllerName)
+					require.NoError(t, err)
+					condition := meta.FindStatusCondition(health.Status.Conditions, "Degraded")
+					require.Equal(t, metav1.ConditionTrue, condition.Status)
+					require.Equal(t, meta.FindStatusCondition(failed.Status.Conditions, "Degraded").LastTransitionTime, condition.LastTransitionTime)
+				}
+				database.getErr = nil
+				require.NoError(t, controller.SyncOnce(ctx, key))
+				require.Equal(t, reads, transport.requests)
+				clock.SetTime(pending.Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName].Time)
+				transport.pages = []egressListPage{{values: egressListValues(expected)}}
+				require.NoError(t, controller.SyncOnce(ctx, key))
+				require.Equal(t, reads+1, transport.requests)
+				require.Nil(t, stored().Spec.EarliestRecheckTimesByController[EgressPublicIPsControllerName])
+				require.NoError(t, indexer.Update(pending))
+				require.NoError(t, controller.SyncOnce(ctx, key))
+				require.Equal(t, reads+1, transport.requests, "late informer delivery must not restart completed observation")
+				health, err := healthCRUD.Get(ctx, EgressPublicIPsControllerName)
+				require.NoError(t, err)
+				require.Equal(t, metav1.ConditionFalse, meta.FindStatusCondition(health.Status.Conditions, "Degraded").Status)
+			})
+		}
+	}
+}
+
+func TestEgressPublicIPsConcurrentKeys(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	database := corecosmosstoragetesting.NewMockResourcesDBClient()
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	transports := map[string]*egressListTransport{}
+	keys := []controllerutils.HCPClusterKey{}
+	for _, name := range []string{"failing", "successful"} {
+		cluster := newTestCluster(false)
+		cluster.ID = metadataapi.Must(azcorearm.ParseResourceID(strings.ReplaceAll(cluster.ID.String(), testClusterName, name)))
+		cluster.ResourceID = cluster.ID
+		cluster.Name = name
+		cluster.CustomerProperties.Platform.ManagedResourceGroup = name
+		clusterID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name))
+		cluster.ServiceProviderProperties.ClusterServiceID = &clusterID
+		expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+		require.NoError(t, err)
+		_, err = database.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
+		require.NoError(t, err)
+		serviceProvider := newTestServiceProviderCluster(coreapi.AzureReference{})
+		serviceProvider.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(strings.ReplaceAll(serviceProvider.ResourceID.String(), testClusterName, name)))
+		stored, err := database.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, name).Create(ctx, serviceProvider, nil)
+		require.NoError(t, err)
+		require.NoError(t, indexer.Add(stored))
+		page := egressListPage{values: egressListValues(expected)}
+		if name == "failing" {
+			page = egressListPage{status: 503}
+		}
+		transports[name] = &egressListTransport{test: t, resourceGroup: name, pages: []egressListPage{page}}
+		keys = append(keys, controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: name})
+	}
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	mockController := gomock.NewController(t)
+	client := azureclient.NewMockPublicIPAddressesClient(mockController)
+	client.EXPECT().NewListPager(gomock.Any(), nil).DoAndReturn(func(group string, options *armnetwork.PublicIPAddressesClientListOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListResponse] {
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-ctx.Done():
+			t.Error("concurrent keys did not both reach enumeration")
+		}
+		return newEgressListClient(t, transports[group]).NewListPager(group, options)
+	}).Times(2)
+	builder := azureclient.NewMockFirstPartyApplicationClientBuilder(mockController)
+	builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).Return(client, nil).Times(2)
+	informers := &egressTestInformers{database: database}
+	_, clusterLister := informers.Clusters()
+	controller := controllerutils.NewClusterWatchingController(EgressPublicIPsControllerName, database, informers, nil, time.Minute, &egressPublicIPsSyncer{
+		clock: clocktesting.NewFakePassiveClock(time.Now()), resourcesDBClient: database, clusterLister: clusterLister,
+		serviceProviderClusterLister: corelisters.NewServiceProviderClusterLister(indexer),
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        builder, enqueueAfter: &fakeAfterEnqueuer{},
+	})
+	results := make(chan error, 2)
+	for _, key := range keys {
+		go func() {
+			var syncErr error
+			defer func() { results <- syncErr }()
+			syncErr = controller.SyncOnce(ctx, key)
+		}()
+	}
+	for range keys {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal("workers did not concurrently enumerate distinct keys")
+		}
+	}
+	close(release)
+	errorsSeen := 0
+	for range keys {
+		if <-results != nil {
+			errorsSeen++
+		}
+	}
+	require.Equal(t, 1, errorsSeen)
+	for _, key := range keys {
+		crud := database.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+		before, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		require.NoError(t, controller.SyncOnce(ctx, key))
+		after, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		require.Equal(t, before, after)
+		require.Equal(t, 1, transports[key.HCPClusterName].requests)
+		health, err := database.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName).Get(ctx, EgressPublicIPsControllerName)
+		require.NoError(t, err)
+		want := metav1.ConditionFalse
+		if key.HCPClusterName == "failing" {
+			want = metav1.ConditionTrue
+		}
+		require.Equal(t, want, meta.FindStatusCondition(health.Status.Conditions, "Degraded").Status)
+	}
+}
+
 func (informers *egressTestInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
 	return cache.NewSharedIndexInformer(nil, &coreapi.Cluster{}, 0, nil), &corelistertesting.DBClusterLister{ResourcesDBClient: informers.database}
 }
@@ -395,15 +607,20 @@ type egressListPage struct {
 }
 
 type egressListTransport struct {
-	test     *testing.T
-	pages    []egressListPage
-	requests int
+	test          *testing.T
+	pages         []egressListPage
+	requests      int
+	resourceGroup string
 }
 
 func (transport *egressListTransport) Do(request *http.Request) (*http.Response, error) {
 	transport.test.Helper()
 	require.Equal(transport.test, http.MethodGet, request.Method)
-	require.Equal(transport.test, "/subscriptions/"+testSubscriptionID+"/resourceGroups/"+testManagedRGName+"/providers/Microsoft.Network/publicIPAddresses", request.URL.Path, "only resource-group enumeration is allowed, never per-IP GETs")
+	group := transport.resourceGroup
+	if group == "" {
+		group = testManagedRGName
+	}
+	require.Equal(transport.test, "/subscriptions/"+testSubscriptionID+"/resourceGroups/"+group+"/providers/Microsoft.Network/publicIPAddresses", request.URL.Path, "only resource-group enumeration is allowed, never per-IP GETs")
 	require.Empty(transport.test, request.URL.Query().Get("$filter"))
 	pageIndex := 0
 	if page := request.URL.Query().Get("page"); page != "" {
@@ -663,7 +880,7 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 		status         int
 		errorCode      string
 		builderFailure bool
-		conflict       bool
+		staleCache     bool
 	}{
 		{name: "zero"},
 		{name: "resource group absent", status: 404, errorCode: "ResourceGroupNotFound"},
@@ -675,7 +892,7 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 		{name: "service failure", status: 503},
 		{name: "transport failure", status: -1},
 		{name: "client failure clears stale missing", builderFailure: true},
-		{name: "persistence conflict", found: 9, conflict: true},
+		{name: "stale informer ETag", found: 9, staleCache: true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			readFailure := testCase.status != 0
@@ -728,17 +945,13 @@ func TestEgressPublicIPsSyncOnce(t *testing.T) {
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
 				azureFPAClientBuilder:        builder,
 			}
-			if testCase.conflict {
+			if testCase.staleCache {
 				serviceProvider.CosmosETag = "stale"
 				syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{serviceProvider}}
 			}
 			key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
 			err = syncer.SyncOnce(ctx, key)
-			if testCase.conflict {
-				require.True(t, cosmosstorageutils.IsPreconditionFailedError(err))
-				syncer.serviceProviderClusterLister = &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database}
-				require.NoError(t, syncer.SyncOnce(ctx, key))
-			} else if testCase.builderFailure || readFailure {
+			if testCase.builderFailure || readFailure {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -932,11 +1145,16 @@ func TestEgressPublicIPsInvalidationAndConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, initial.CosmosETag, unchanged.CosmosETag, "self-generated events must not recheck before the cooldown")
 	clock.SetTime(recheck.Add(time.Second))
-	stale := initial.DeepCopy()
-	stale.CosmosETag = "stale"
-	syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{stale}}
+	faultDB := &egressWriteFaultDB{ResourcesDBClient: database, afterGet: func() {
+		concurrent, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		concurrent.Status.AzureResources.ManagedResourceGroup.AzureResource = testManagedResourceGroupID(t)
+		_, err = crud.Replace(ctx, concurrent, nil)
+		require.NoError(t, err)
+	}}
+	syncer.resourcesDBClient = faultDB
 	require.True(t, cosmosstorageutils.IsPreconditionFailedError(syncer.SyncOnce(ctx, key)), "failed invalidation must prevent all Azure calls")
-	syncer.serviceProviderClusterLister = &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: database}
+	syncer.resourcesDBClient = database
 	builder.EXPECT().PublicIPAddressesClient(testTenantID, testSubscriptionID).DoAndReturn(func(_, _ string) (azureclient.PublicIPAddressesClient, error) {
 		invalidated, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 		require.NoError(t, err)

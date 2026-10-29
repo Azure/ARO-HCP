@@ -104,10 +104,17 @@ func (c *egressPublicIPsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	existing, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || !coreapihelpers.UsesLoadBalancerEgress(cluster) {
+		return nil
+	}
+	existing, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if err != nil {
 		return utils.TrackError(err)
 	}

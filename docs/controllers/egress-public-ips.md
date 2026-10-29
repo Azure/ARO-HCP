@@ -53,6 +53,27 @@ the observation error even when some expected resources are missing. An expired
 retry still enumerates when all expected IDs were found before a later page
 failed.
 
+Informer snapshots may lag a successful document replacement. For eligible
+clusters present in the cache, the controller reads the service-provider document
+directly from storage before deciding whether to observe, skip for cooldown, or
+finish. The stored retry marker and ETag, not a stale informer snapshot, govern
+that decision and subsequent replacements. A failed store read returns an error
+without enumerating public IPs or replacing observations. Cooldown still queues
+the remaining delay and preserves controller health. This adds one store read per
+eligible reconciliation, including cooldown and completed observations, but no
+additional observation replacements. Deletion and non-LoadBalancer clusters skip
+this read.
+
+The RP Cosmos account template declares Strong consistency; point reads use the
+account's consistency without a request override. This is a deployment contract,
+not a guarantee for accounts configured with weaker consistency. Workqueue
+serialization prevents simultaneous processing of the same key within one
+controller; separate keys can reconcile concurrently. ETags still protect writes
+against changes after the read. This is not a cross-process observation lock:
+overlapping controller instances can both read before either writes. A newly
+constructed controller reads persisted cooldown state rather than relying on
+process-local retry memory.
+
 Cluster creation includes an `egressPublicIPs` completion source. Missing or
 unknown resources keep the operation provisioning rather than returning a Go
 error. The existing creation deadline therefore includes the remaining check in
