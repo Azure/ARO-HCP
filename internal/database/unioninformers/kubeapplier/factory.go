@@ -16,12 +16,14 @@ package kubeapplier
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // NewKubeApplierInformerFactory wires a kubeappliercosmosstorage.KubeApplierDBClients into
@@ -48,10 +50,13 @@ type kubeApplierInformerFactory struct {
 
 func (factory *kubeApplierInformerFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
-	if client == nil {
-		return nil
+) (kubeapplierinformers.KubeApplierInformers, error) {
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to resolve kube-applier informer client for management cluster %q: %w", managementClusterResourceID, err))
 	}
-	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, factory.relistDuration)
+	if client == nil {
+		return nil, nil
+	}
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, factory.relistDuration), nil
 }

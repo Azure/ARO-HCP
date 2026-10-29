@@ -170,7 +170,10 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		return nil
 	}
@@ -303,7 +306,10 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 	cachedServiceProviderCluster *coreapi.ServiceProviderCluster,
 ) error {
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		return nil
 	}
