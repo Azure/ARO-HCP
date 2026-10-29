@@ -53,15 +53,6 @@ func buildProvisionShardForCreate(managementCluster *fleetapi.ManagementCluster,
 	if len(managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID) == 0 {
 		return nil, fmt.Errorf("HostedClustersSecretsKeyVaultManagedIdentityClientID is required")
 	}
-	if len(managementCluster.Status.MaestroConsumerName) == 0 {
-		return nil, fmt.Errorf("MaestroConsumerName is required")
-	}
-	if len(managementCluster.Status.MaestroRESTAPIURL) == 0 {
-		return nil, fmt.Errorf("MaestroRESTAPIURL is required")
-	}
-	if len(managementCluster.Status.MaestroGRPCTarget) == 0 {
-		return nil, fmt.Errorf("MaestroGRPCTarget is required")
-	}
 	if len(region) == 0 {
 		return nil, fmt.Errorf("region is required")
 	}
@@ -78,15 +69,6 @@ func buildProvisionShardForCreate(managementCluster *fleetapi.ManagementCluster,
 			CxSecretsKeyVaultUrl(managementCluster.Status.HostedClustersSecretsKeyVaultURL).
 			CxManagedIdentitiesKeyVaultUrl(managementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL).
 			CxSecretsKeyVaultManagedIdentityClientId(managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID),
-		).
-		MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().
-			ConsumerName(managementCluster.Status.MaestroConsumerName).
-			RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
-				Url(managementCluster.Status.MaestroRESTAPIURL),
-			).
-			GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
-				Url(managementCluster.Status.MaestroGRPCTarget),
-			),
 		).
 		Topology(ocm.CSProvisionShardTopologyShared), nil
 }
@@ -105,25 +87,20 @@ func provisionShardStatusUpdateBuilder(shard *arohcpv1alpha1.ProvisionShard, pol
 	return arohcpv1alpha1.NewProvisionShard().Status(newStatus), nil
 }
 
-// searchByIdentityKeys scans all provision shards for a match on both AKS
-// resource ID and consumer name. Both keys must point to the same shard. A
-// partial match (only one key matches) or a duplicate is an error.
-func searchByIdentityKeys(ctx context.Context, clustersServiceClient ProvisionShardClient, aksResourceID, consumerName string) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+// searchByAKSResourceID scans all provision shards for a matching AKS resource ID.
+// Duplicate matches are an error.
+func searchByAKSResourceID(ctx context.Context, clustersServiceClient ProvisionShardClient, aksResourceID string) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
 	var found *arohcpv1alpha1.ProvisionShard
 
 	iter := clustersServiceClient.ListProvisionShards()
 	for shard := range iter.Items(ctx) {
 		matchAKS := strings.EqualFold(shard.AzureShard().AksManagementClusterResourceId(), aksResourceID)
-		matchConsumer := shard.MaestroConfig().ConsumerName() == consumerName
 
-		if !matchAKS && !matchConsumer {
+		if !matchAKS {
 			continue
 		}
-		if matchAKS != matchConsumer {
-			return nil, nil, fmt.Errorf("shard %s partially matches: AKS=%v consumer=%v", shard.HREF(), matchAKS, matchConsumer)
-		}
 		if found != nil {
-			return nil, nil, fmt.Errorf("multiple shards match AKS resource ID %q and consumer name %q", aksResourceID, consumerName)
+			return nil, nil, fmt.Errorf("multiple shards match AKS resource ID %q", aksResourceID)
 		}
 		found = shard
 	}

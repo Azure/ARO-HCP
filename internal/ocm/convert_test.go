@@ -1686,14 +1686,6 @@ func validProvisionShardBuilder(t *testing.T) *arohcpv1alpha1.ProvisionShardBuil
 			CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
 			CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
 			CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
-		).
-		MaestroConfig(
-			arohcpv1alpha1.NewProvisionShardMaestroConfig().
-				ConsumerName("test-consumer").
-				RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
-					Url("http://maestro.maestro.svc.cluster.local:8000")).
-				GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
-					Url("maestro-grpc.maestro.svc.cluster.local:8090")),
 		)
 }
 
@@ -1750,23 +1742,29 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 			expectedErrorSubstr: "failed to parse public DNS zone resource ID",
 		},
 		{
-			name: "missing maestro config",
+			name: "legacy Maestro config is ignored",
 			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
-				shard, err := arohcpv1alpha1.NewProvisionShard().
-					ID("11111111-2222-3333-4444-555555555555").
-					HREF("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555").
-					AzureShard(arohcpv1alpha1.NewAzureShard().
-						AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
-						PublicDnsZoneResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com").
-						CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
-						CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
-						CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
+				shard, err := validProvisionShardBuilder(t).
+					MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().
+						ConsumerName("test-consumer").
+						RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
+							Url("http://maestro.maestro.svc.cluster.local:8000")).
+						GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
+							Url("maestro-grpc.maestro.svc.cluster.local:8090")),
 					).
 					Build()
 				require.NoError(t, err)
 				return shard
 			},
-			expectedErrorSubstr: "no maestro config",
+			validate: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				shard, err := validProvisionShardBuilder(t).Build()
+				require.NoError(t, err)
+				expected, err := ConvertCSManagementClusterToInternal(shard)
+				require.NoError(t, err)
+				require.Len(t, mc.Status.Conditions, 1)
+				expected.Status.Conditions[0].LastTransitionTime = mc.Status.Conditions[0].LastTransitionTime
+				assert.Equal(t, expected, mc, "legacy Maestro config must not affect the converted management cluster")
+			},
 		},
 		{
 			name: "successful conversion populates all fields",
@@ -1796,11 +1794,6 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 
 				// Kube-applier
 				assert.Equal(t, "Manifests-MC-1", mc.Status.KubeApplierCosmosContainerName)
-
-				// Maestro config
-				assert.Equal(t, "test-consumer", mc.Status.MaestroConsumerName)
-				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroRESTAPIURL)
-				assert.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", mc.Status.MaestroGRPCTarget)
 			},
 		},
 		{

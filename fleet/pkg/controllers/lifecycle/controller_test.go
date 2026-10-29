@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -103,12 +105,11 @@ func TestSyncOnce(t *testing.T) {
 			resources: []any{testStamp(stampID)},
 		},
 		{
-			name: "all three True: Ready=True/AllRegistered",
+			name: "CS and SharedIngress True: Ready=True/AllRegistered",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
 					conditionTrue(sharedIngress),
 				),
 			},
@@ -116,12 +117,11 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 		},
 		{
-			name: "CS False, Maestro True: Ready=False/RegistrationIncomplete",
+			name: "CS False: Ready=False/RegistrationIncomplete",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
-					conditionTrue(maestroRegistered),
 					conditionTrue(sharedIngress),
 				),
 			},
@@ -129,7 +129,7 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 		},
 		{
-			name: "CS True, Maestro False: Ready=False/RegistrationIncomplete",
+			name: "legacy Maestro False does not block Ready",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
@@ -138,17 +138,29 @@ func TestSyncOnce(t *testing.T) {
 					conditionTrue(sharedIngress),
 				),
 			},
-			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
-			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 		},
 		{
-			name: "both False: Ready=False/RegistrationIncomplete",
+			name: "legacy Maestro Unknown does not block Ready",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(csRegistered),
+					metav1.Condition{Type: maestroRegistered, Status: metav1.ConditionUnknown, Reason: "Legacy"},
+					conditionTrue(sharedIngress),
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+		},
+		{
+			name: "CS and SharedIngress False: Ready=False/RegistrationIncomplete",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionFalse(csRegistered),
-					conditionFalse(maestroRegistered),
-					conditionTrue(sharedIngress),
+					conditionFalse(sharedIngress),
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
@@ -160,7 +172,6 @@ func TestSyncOnce(t *testing.T) {
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
 					conditionFalse(sharedIngress),
 				),
 			},
@@ -173,7 +184,6 @@ func TestSyncOnce(t *testing.T) {
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,
@@ -191,16 +201,15 @@ func TestSyncOnce(t *testing.T) {
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
 				),
 			},
 		},
 		{
-			name: "CS absent, Maestro present: preserve existing Ready=True (migration safety)",
+			name: "CS absent: preserve existing Ready=True (migration safety)",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
-					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,
@@ -211,6 +220,20 @@ func TestSyncOnce(t *testing.T) {
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
 			wantCondReason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 			wantNoWrite:    true,
+		},
+		{
+			name: "CS absent: remove legacy Maestro condition and preserve unrelated status",
+			resources: []any{
+				testStamp(stampID),
+				testManagementCluster(stampID,
+					conditionTrue(maestroRegistered),
+					conditionTrue(sharedIngress),
+					conditionTrue("Unrelated"),
+					conditionTrue(ready),
+				),
+			},
+			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name: "both absent: preserve existing Ready=True (migration safety)",
@@ -236,17 +259,17 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "all three True, Ready already True/AllRegistered: skip write",
+			name: "CS and SharedIngress True, Ready already True/AllRegistered: skip write",
 			resources: []any{
 				testStamp(stampID),
 				testManagementCluster(stampID,
 					conditionTrue(csRegistered),
-					conditionTrue(maestroRegistered),
 					conditionTrue(sharedIngress),
 					metav1.Condition{
-						Type:   ready,
-						Status: metav1.ConditionTrue,
-						Reason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+						Type:    ready,
+						Status:  metav1.ConditionTrue,
+						Reason:  string(fleetapi.ManagementClusterConditionReasonAllRegistered),
+						Message: "All downstream registrations completed successfully",
 					},
 				),
 			},
@@ -268,6 +291,8 @@ func TestSyncOnce(t *testing.T) {
 			syncer := &lifecycleSyncer{
 				fleetDBClient: mockDB,
 			}
+			crud := mockDB.Stamps().ManagementClusters(stampID)
+			before, beforeErr := crud.Get(ctx, fleetapi.ManagementClusterResourceName)
 
 			key := fleetcontrollers.StampKey{StampIdentifier: stampID}
 			syncErr := syncer.SyncOnce(ctx, key)
@@ -275,13 +300,31 @@ func TestSyncOnce(t *testing.T) {
 				t.Fatalf("unexpected error: %v", syncErr)
 			}
 
-			managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleetapi.ManagementClusterResourceName)
+			managementCluster, err := crud.Get(ctx, fleetapi.ManagementClusterResourceName)
 			if err != nil {
 				if tt.wantCondStatus == nil {
 					return
 				}
 				t.Fatalf("failed to re-read MC: %v", err)
 			}
+
+			require.NoError(t, beforeErr)
+			require.Nil(t, apimeta.FindStatusCondition(managementCluster.Status.Conditions, maestroRegistered), "legacy condition must be removed from stored status")
+			for _, condition := range before.Status.Conditions {
+				if condition.Type != ready && condition.Type != maestroRegistered {
+					require.Equal(t, &condition, apimeta.FindStatusCondition(managementCluster.Status.Conditions, condition.Type), "unrelated conditions must be preserved")
+				}
+			}
+			expected := before.DeepCopy()
+			expected.Status.Conditions = managementCluster.Status.Conditions
+			require.Equal(t, expected.Status, managementCluster.Status, "non-condition status must be preserved")
+			if tt.wantNoWrite {
+				require.Equal(t, before.CosmosETag, managementCluster.CosmosETag, "unchanged status must not be written")
+			}
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			settled, err := crud.Get(ctx, fleetapi.ManagementClusterResourceName)
+			require.NoError(t, err)
+			require.Equal(t, managementCluster, settled, "repeated reconciliation must not write")
 
 			cond := apimeta.FindStatusCondition(managementCluster.Status.Conditions, ready)
 

@@ -1797,9 +1797,6 @@ github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
 github.com/openshift-eng/openshift-tests-extension/pkg/junit
 github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
 github.com/openshift-eng/openshift-tests-extension/pkg/version
-# github.com/openshift-online/maestro v0.0.0-20260213014104-081c1f6df17b
-## explicit; go 1.25.0
-github.com/openshift-online/maestro/pkg/api/openapi
 # github.com/openshift-online/ocm-api-model/clientapi v0.0.468
 ## explicit; go 1.23.0
 github.com/openshift-online/ocm-api-model/clientapi/accesstransparency/v1

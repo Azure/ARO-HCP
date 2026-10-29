@@ -22,7 +22,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func validManagementCluster() *fleetapi.ManagementCluster {
@@ -51,6 +54,23 @@ func mustParseResourceID(s string) *azcorearm.ResourceID {
 	return rid
 }
 
+func TestProvisionShardStatusUpdatePreservesLegacyMaestroConfig(t *testing.T) {
+	shard, err := arohcpv1alpha1.NewProvisionShard().
+		Status(ocm.CSProvisionShardStatusMaintenance).
+		MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().ConsumerName("legacy-consumer")).
+		Build()
+	require.NoError(t, err)
+	builder, err := provisionShardStatusUpdateBuilder(shard, fleetapi.ManagementClusterSchedulingPolicySchedulable)
+	require.NoError(t, err)
+	require.NotNil(t, builder)
+	patch, err := builder.Build()
+	require.NoError(t, err)
+	assert.Equal(t, ocm.CSProvisionShardStatusActive, patch.Status())
+	_, hasMaestroConfig := patch.GetMaestroConfig()
+	assert.False(t, hasMaestroConfig, "status update must leave legacy Maestro configuration untouched")
+	assert.Equal(t, "legacy-consumer", shard.MaestroConfig().ConsumerName())
+}
+
 func TestBuildProvisionShardForCreate(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -59,7 +79,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 		wantErrContains string
 	}{
 		{
-			name:   "valid input succeeds",
+			name:   "valid input succeeds without Maestro configuration",
 			region: "westus3",
 		},
 		{
@@ -100,30 +120,7 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 			region:          "westus3",
 			wantErrContains: "HostedClustersSecretsKeyVaultManagedIdentityClientID is required",
 		},
-		{
-			name: "empty MaestroConsumerName",
-			modify: func(managementCluster *fleetapi.ManagementCluster) {
-				managementCluster.Status.MaestroConsumerName = ""
-			},
-			region:          "westus3",
-			wantErrContains: "MaestroConsumerName is required",
-		},
-		{
-			name: "empty MaestroRESTAPIURL",
-			modify: func(managementCluster *fleetapi.ManagementCluster) {
-				managementCluster.Status.MaestroRESTAPIURL = ""
-			},
-			region:          "westus3",
-			wantErrContains: "MaestroRESTAPIURL is required",
-		},
-		{
-			name: "empty MaestroGRPCTarget",
-			modify: func(managementCluster *fleetapi.ManagementCluster) {
-				managementCluster.Status.MaestroGRPCTarget = ""
-			},
-			region:          "westus3",
-			wantErrContains: "MaestroGRPCTarget is required",
-		},
+
 		{
 			name:            "empty region",
 			region:          "",
@@ -155,7 +152,11 @@ func TestBuildProvisionShardForCreate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.NotNil(t, builder)
+			require.NotNil(t, builder)
+			shard, err := builder.Build()
+			require.NoError(t, err)
+			assert.Nil(t, shard.MaestroConfig())
+			assert.Equal(t, managementCluster.Status.AKSResourceID.String(), shard.AzureShard().AksManagementClusterResourceId())
 		})
 	}
 }
