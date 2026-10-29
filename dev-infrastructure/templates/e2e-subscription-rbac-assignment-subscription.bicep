@@ -65,6 +65,18 @@ resource firstPartyRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/validate/action'
           'Microsoft.Resources/subscriptions/resourceGroups/read'
           'Microsoft.Resources/subscriptions/resourceGroups/write'
+          // Read-only Azure Policy actions for StorageAccountNetworkAccessValidation
+          // (backend/pkg/utils/validationutils/storage_account_network_access_validation.go),
+          // which runs under this mock first-party identity in dev/int (see
+          // FPAClientBuilder) and lists policy assignments/definitions on the
+          // managed resource group to detect registry storage conflicts before
+          // Cluster Service provisioning. Without these, reads return 403 and
+          // validation remains Unknown until the operation validation timeout.
+          // See https://github.com/Azure/ARO-HCP/pull/7514#discussion_r4366177299.
+          'Microsoft.Authorization/policyAssignments/read'
+          'Microsoft.Authorization/policyDefinitions/read'
+          'Microsoft.Authorization/policySetDefinitions/read'
+          'Microsoft.Authorization/policyExemptions/read'
         ]
         notActions: []
       }
