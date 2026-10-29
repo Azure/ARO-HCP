@@ -4,6 +4,9 @@ param bots array
 @description('Service management reference ID for the applications')
 param serviceManagementReference string = ''
 
+@description('Comma-separated Entra object IDs added as owners of every bot application and service principal, so any OWNERS-group member can run the privileged pipeline. Existing owners are kept (append).')
+param ownerIds string = ''
+
 // Microsoft Graph app ID (constant across all tenants)
 var msGraphAppId = '00000003-0000-0000-c000-000000000000'
 // Application.ReadWrite.OwnedBy (Role / application permission)
@@ -39,6 +42,8 @@ module botApp '../modules/entra/app.bicep' = [
       uniqueName: toLower(replace(bot.applicationName, ' ', '-'))
       manageSp: true
       serviceManagementReference: serviceManagementReference
+      ownerIds: ownerIds
+      ownerRelationshipSemantics: 'append'
       requiredResourceAccess: [
         {
           resourceAppId: msGraphAppId
