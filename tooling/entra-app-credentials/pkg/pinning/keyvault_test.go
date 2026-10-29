@@ -84,15 +84,11 @@ func TestGetCertificateIdentifiesNotFound(t *testing.T) {
 }
 
 func TestCreateCertificateUsesEstablishedPolicy(t *testing.T) {
-	oldInterval := certificatePollInterval
-	certificatePollInterval = time.Millisecond
-	t.Cleanup(func() { certificatePollInterval = oldInterval })
-
 	client := &fakeAzureCertificateClient{
 		getResults:        [][]byte{[]byte("new")},
 		operationStatuses: []string{"inProgress", "completed"},
 	}
-	certificates := NewCertificateClient(client)
+	certificates := NewCertificateClient(client, WithPollInterval(time.Millisecond))
 
 	certificate, err := certificates.CreateCertificate(testContext(t), "cert", "cert.example.com", nil)
 	require.NoError(t, err)
@@ -119,16 +115,12 @@ func TestCreateCertificateUsesEstablishedPolicy(t *testing.T) {
 }
 
 func TestRotateCertificateUsesCurrentPolicy(t *testing.T) {
-	oldInterval := certificatePollInterval
-	certificatePollInterval = time.Millisecond
-	t.Cleanup(func() { certificatePollInterval = oldInterval })
-
 	client := &fakeAzureCertificateClient{
 		getResults:        [][]byte{[]byte("old"), []byte("new")},
 		operationStatuses: []string{"completed", "completed"},
 	}
 
-	certificate, err := NewCertificateClient(client).CreateCertificate(testContext(t), "cert", "new.example.com", []byte("old"))
+	certificate, err := NewCertificateClient(client, WithPollInterval(time.Millisecond)).CreateCertificate(testContext(t), "cert", "new.example.com", []byte("old"))
 	require.NoError(t, err)
 	assert.Equal(t, []byte("new"), certificate)
 	require.Len(t, client.createParameters, 1)
@@ -161,26 +153,18 @@ func TestCreateCertificateRequiresDeadline(t *testing.T) {
 }
 
 func TestCreateCertificateTimesOutWaitingForOperation(t *testing.T) {
-	oldInterval := certificatePollInterval
-	certificatePollInterval = time.Millisecond
-	t.Cleanup(func() { certificatePollInterval = oldInterval })
-
 	client := &fakeAzureCertificateClient{
 		operationStatuses: []string{"inProgress"},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	t.Cleanup(cancel)
 
-	_, err := NewCertificateClient(client).CreateCertificate(ctx, "cert", "cert.example.com", nil)
+	_, err := NewCertificateClient(client, WithPollInterval(time.Millisecond)).CreateCertificate(ctx, "cert", "cert.example.com", nil)
 	require.ErrorContains(t, err, "wait for certificate operation")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestCreateCertificateTimesOutWaitingForNewCertificate(t *testing.T) {
-	oldInterval := certificatePollInterval
-	certificatePollInterval = time.Millisecond
-	t.Cleanup(func() { certificatePollInterval = oldInterval })
-
 	client := &fakeAzureCertificateClient{
 		getResults:        [][]byte{[]byte("old")},
 		operationStatuses: []string{"completed"},
@@ -188,7 +172,7 @@ func TestCreateCertificateTimesOutWaitingForNewCertificate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	t.Cleanup(cancel)
 
-	_, err := NewCertificateClient(client).CreateCertificate(ctx, "cert", "cert.example.com", []byte("old"))
+	_, err := NewCertificateClient(client, WithPollInterval(time.Millisecond)).CreateCertificate(ctx, "cert", "cert.example.com", []byte("old"))
 	require.ErrorContains(t, err, "wait for created certificate")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

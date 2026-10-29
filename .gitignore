@@ -4,6 +4,7 @@ aro-hcp-backend
 /aks-cluster-create
 localsecrets
 secrets
+!/tooling/entra-app-credentials/pkg/secrets/
 node_modules
 /.vscode
 /*.crt

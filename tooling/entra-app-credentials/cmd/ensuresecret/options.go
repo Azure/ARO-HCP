@@ -17,15 +17,16 @@ package ensuresecret
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/internal/common"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/secrets"
 )
 
@@ -70,9 +71,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
-	parsedURL, err := url.Parse(strings.TrimSpace(o.VaultURL))
-	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" || parsedURL.Path != "" {
-		return nil, fmt.Errorf("--vault-url must be an HTTPS Key Vault base URL without a path")
+	vaultURL, err := common.ParseVaultURL(o.VaultURL)
+	if err != nil {
+		return nil, err
 	}
 	if o.Timeout <= 0 {
 		return nil, fmt.Errorf("--timeout must be greater than zero")
@@ -81,27 +82,13 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("at least one --mapping is required")
 	}
 
-	bindings := make([]secrets.Binding, 0, len(o.Mappings))
-	seenApplications := map[string]struct{}{}
-	seenSecrets := map[string]struct{}{}
-	for _, mapping := range o.Mappings {
-		binding, err := parseMapping(mapping)
-		if err != nil {
-			return nil, err
-		}
-		if _, found := seenApplications[binding.ApplicationDisplayName]; found {
-			return nil, fmt.Errorf("application %q is specified more than once", binding.ApplicationDisplayName)
-		}
-		if _, found := seenSecrets[binding.ClientSecretName]; found {
-			return nil, fmt.Errorf("secret %q is specified more than once", binding.ClientSecretName)
-		}
-		seenApplications[binding.ApplicationDisplayName] = struct{}{}
-		seenSecrets[binding.ClientSecretName] = struct{}{}
-		bindings = append(bindings, binding)
+	bindings, err := o.bindings()
+	if err != nil {
+		return nil, err
 	}
 
 	return &ValidatedOptions{
-		vaultURL:     parsedURL.String(),
+		vaultURL:     vaultURL,
 		bindings:     bindings,
 		grantConsent: o.GrantConsent,
 		dryRun:       o.DryRun,
@@ -109,30 +96,53 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}, nil
 }
 
+// bindings parses the mappings, rejecting applications and secrets that appear
+// more than once. Key Vault secret names and Entra display name filters are
+// case-insensitive, so uniqueness is checked case-insensitively.
+func (o *RawOptions) bindings() ([]secrets.Binding, error) {
+	bindings := make([]secrets.Binding, 0, len(o.Mappings))
+	applications := sets.New[string]()
+	secretNames := sets.New[string]()
+	for _, mapping := range o.Mappings {
+		binding, err := parseMapping(mapping)
+		if err != nil {
+			return nil, err
+		}
+		application := strings.ToLower(binding.ApplicationDisplayName)
+		secretName := strings.ToLower(binding.ClientSecretName)
+		if applications.Has(application) {
+			return nil, fmt.Errorf("application %q is specified more than once", binding.ApplicationDisplayName)
+		}
+		if secretNames.Has(secretName) {
+			return nil, fmt.Errorf("secret %q is specified more than once", binding.ClientSecretName)
+		}
+		applications.Insert(application)
+		secretNames.Insert(secretName)
+		bindings = append(bindings, binding)
+	}
+	return bindings, nil
+}
+
 func parseMapping(raw string) (secrets.Binding, error) {
-	parts := strings.Split(raw, ";")
-	if len(parts) != 2 {
-		return secrets.Binding{}, fmt.Errorf("invalid --mapping %q: expected application;<prefix>-client-secret", raw)
-	}
+	application, secretName, found := strings.Cut(raw, ";")
 	binding := secrets.Binding{
-		ApplicationDisplayName: strings.TrimSpace(parts[0]),
-		ClientSecretName:       strings.TrimSpace(parts[1]),
+		ApplicationDisplayName: strings.TrimSpace(application),
+		ClientSecretName:       strings.TrimSpace(secretName),
 	}
-	if binding.ApplicationDisplayName == "" || binding.ClientSecretName == "" {
+
+	switch {
+	case !found, strings.Contains(secretName, ";"), binding.ApplicationDisplayName == "", binding.ClientSecretName == "":
 		return secrets.Binding{}, fmt.Errorf("invalid --mapping %q: expected application;<prefix>-client-secret", raw)
-	}
-	if !strings.HasSuffix(binding.ClientSecretName, secrets.ClientSecretSuffix) || binding.Prefix() == "" {
+	case !strings.HasSuffix(binding.ClientSecretName, secrets.ClientSecretSuffix), binding.Prefix() == "":
 		return secrets.Binding{}, fmt.Errorf("invalid --mapping %q: secret name must be <prefix>%s", raw, secrets.ClientSecretSuffix)
 	}
 	return binding, nil
 }
 
 func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
-	credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-		RequireAzureTokenCredentials: true,
-	})
+	credential, err := common.NewCredential()
 	if err != nil {
-		return nil, fmt.Errorf("create Azure credential: %w", err)
+		return nil, err
 	}
 	secretClient, err := azsecrets.NewClient(o.vaultURL, credential, nil)
 	if err != nil {
@@ -142,6 +152,7 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Options{
 		ValidatedOptions: o,
 		ensurer:          secrets.NewEnsurer(graphClient, secrets.NewKeyVaultStore(secretClient)),

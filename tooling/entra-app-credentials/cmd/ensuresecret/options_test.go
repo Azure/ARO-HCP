@@ -45,10 +45,16 @@ func TestValidateRejectsInvalidInput(t *testing.T) {
 		"empty prefix":          func(o *RawOptions) { o.Mappings = []string{"app;-client-secret"} },
 		"missing secret":        func(o *RawOptions) { o.Mappings = []string{"app"} },
 		"duplicate application": func(o *RawOptions) { o.Mappings = []string{"app;a-client-secret", "app;b-client-secret"} },
-		"duplicate secret":      func(o *RawOptions) { o.Mappings = []string{"a;x-client-secret", "b;x-client-secret"} },
-		"no mapping":            func(o *RawOptions) { o.Mappings = nil },
-		"vault with path":       func(o *RawOptions) { o.VaultURL = "https://kv.vault.azure.net/secrets" },
-		"http vault":            func(o *RawOptions) { o.VaultURL = "http://kv.vault.azure.net" },
+		"duplicate application, different case": func(o *RawOptions) {
+			o.Mappings = []string{"App;a-client-secret", "app;b-client-secret"}
+		},
+		"duplicate secret": func(o *RawOptions) { o.Mappings = []string{"a;x-client-secret", "b;x-client-secret"} },
+		"duplicate secret, different case": func(o *RawOptions) {
+			o.Mappings = []string{"a;Bot-client-secret", "b;bot-client-secret"}
+		},
+		"no mapping":      func(o *RawOptions) { o.Mappings = nil },
+		"vault with path": func(o *RawOptions) { o.VaultURL = "https://kv.vault.azure.net/secrets" },
+		"http vault":      func(o *RawOptions) { o.VaultURL = "http://kv.vault.azure.net" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			opts := validOptions()
