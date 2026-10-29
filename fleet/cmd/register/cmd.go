@@ -177,9 +177,6 @@ func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *flee
 	managementCluster.Status.HostedClustersSecretsKeyVaultURL = o.hostedClustersSecretsKeyVaultURL
 	managementCluster.Status.HostedClustersManagedIdentitiesKeyVaultURL = o.hostedClustersManagedIdentitiesKeyVaultURL
 	managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = o.hostedClustersSecretsKeyVaultManagedIdentityClientID
-	managementCluster.Status.MaestroConsumerName = o.maestroConsumerName
-	managementCluster.Status.MaestroRESTAPIURL = o.maestroRESTAPIURL
-	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
 	managementCluster.Status.KubeApplierCosmosContainerMaxScale = o.kubeApplierCosmosContainerMaxScale
 }

@@ -104,15 +104,6 @@ var (
 	toManagementClusterStatusClusterServiceProvisionShardID = func(oldObj *fleetapi.ManagementClusterStatus) *metadataapi.InternalID {
 		return oldObj.ClusterServiceProvisionShardID
 	}
-	toManagementClusterStatusMaestroConsumerName = func(oldObj *fleetapi.ManagementClusterStatus) *string {
-		return &oldObj.MaestroConsumerName
-	}
-	toManagementClusterStatusMaestroRESTAPIURL = func(oldObj *fleetapi.ManagementClusterStatus) *string {
-		return &oldObj.MaestroRESTAPIURL
-	}
-	toManagementClusterStatusMaestroGRPCTarget = func(oldObj *fleetapi.ManagementClusterStatus) *string {
-		return &oldObj.MaestroGRPCTarget
-	}
 	toManagementClusterStatusKubeApplierCosmosContainerName = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.KubeApplierCosmosContainerName
 	}
@@ -151,21 +142,6 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 
 	// ClusterServiceProvisionShardID — optional on create, immutable once set (owned by ClustersServiceRegistrationController)
 	errs = append(errs, immutableByReflectOnceSet(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
-
-	// MaestroConsumerName — required, DNS-1123 label, immutable
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
-	errs = append(errs, DNS1123Label(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
-
-	// MaestroRESTAPIURL — required, validated as URL, immutable
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
-	errs = append(errs, URL(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
-
-	// MaestroGRPCTarget — required, validated as HostPort, immutable
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
-	errs = append(errs, HostPort(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 
 	// KubeApplierCosmosContainerName — required, immutable
 	// for new records, require this. Old records won't have it.

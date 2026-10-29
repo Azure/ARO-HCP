@@ -365,8 +365,8 @@ var _ KubeApplierDBClients = &kubeApplierDBClients{}
 // NewKubeApplierDBClients constructs a thread-safe registry whose contents are
 // resolved against the provided ManagementClusterLister. Each ManagementCluster's
 // Status.KubeApplierCosmosContainerName names the Cosmos container; the
-// management cluster's Status.MaestroConsumerName is used as the per-container
-// partition key. Per-MC KubeApplierDBClient instances are built lazily and
+// management cluster ResourceID is used as the per-container partition key.
+// Per-MC KubeApplierDBClient instances are built lazily and
 // cached on first access via For(). bucketForContainer must retain the same
 // budget for repeated lookups of a container, and may assign independent budgets
 // to different containers. The actual container client requires a TokenBucket.

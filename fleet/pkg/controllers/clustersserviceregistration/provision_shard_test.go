@@ -39,9 +39,6 @@ func validManagementCluster() *fleetapi.ManagementCluster {
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-			MaestroConsumerName:                                  "consumer-1",
-			MaestroRESTAPIURL:                                    "http://maestro:8000",
-			MaestroGRPCTarget:                                    "maestro:8090",
 		},
 	}
 }

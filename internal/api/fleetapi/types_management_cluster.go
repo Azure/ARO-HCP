@@ -215,25 +215,6 @@ type ManagementClusterStatus struct {
 	// +required, validated as a UUID, immutable once set.
 	HostedClustersSecretsKeyVaultManagedIdentityClientID string `json:"hostedClustersSecretsKeyVaultManagedIdentityClientID,omitempty"`
 
-	// MaestroConsumerName is the consumer name of the management cluster in Maestro.
-	// Typically derived from the management cluster stamp identifier.
-	// Example: "hcp-underlay-westus3-mgmt-1"
-	//
-	// +required, immutable once set.
-	MaestroConsumerName string `json:"maestroConsumerName,omitempty"`
-
-	// MaestroRESTAPIURL is the URL of the Maestro REST API.
-	// Example: "http://maestro.maestro.svc.cluster.local:8000"
-	//
-	// +required, validated as a well-formed URL, immutable once set.
-	MaestroRESTAPIURL string `json:"maestroRESTAPIURL,omitempty"`
-
-	// MaestroGRPCTarget is the gRPC dial target (host:port) of the Maestro GRPC API.
-	// Example: "maestro-grpc.maestro.svc.cluster.local:8090"
-	//
-	// +required, immutable once set.
-	MaestroGRPCTarget string `json:"maestroGRPCTarget,omitempty"`
-
 	// ClusterServiceProvisionShardID is the Cluster Service provision shard HREF for this management cluster.
 	// Example: "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 	//
