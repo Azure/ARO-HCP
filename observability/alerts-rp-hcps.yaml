@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
+  - alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
   - alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   - alerts/hypershiftUserJourney-prometheusRule.yaml
   untestedRules: []
