@@ -10,7 +10,7 @@ YAMLWRAP = $(YAMLWRAP_DIR)yamlwrap
 YAMLWRAP_SOURCES = $(shell find $(YAMLWRAP_DIR) -name '*.go' -o -name '*.json')
 
 # Build the binary
-$(YAMLWRAP): $(YAMLWRAP_SOURCES) $(MAKEFILE_LIST) $(YAMLWRAP_DIR)/go.mod $(YAMLWRAP_DIR)/go.sum
+$(YAMLWRAP): $(YAMLWRAP_SOURCES) $(MAKEFILE_LIST) $(YAMLWRAP_DIR)/go.mod $(YAMLWRAP_DIR)/go.sum force-go-build
 	cd $(YAMLWRAP_DIR) && go build -ldflags="-s -w" -o $(YAMLWRAP_BINARY) .
 
 # Clean the build artifacts
@@ -18,3 +18,7 @@ clean:
 	rm -f $(YAMLWRAP)
 
 .PHONY: clean
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:
