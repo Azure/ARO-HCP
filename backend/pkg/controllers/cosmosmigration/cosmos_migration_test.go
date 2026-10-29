@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -39,6 +40,57 @@ import (
 type stubDoc struct {
 	coreapi.CosmosMetadata
 	Name string
+}
+
+func TestMigrateClustersIncludesStackDesires(t *testing.T) {
+	ctx := t.Context()
+	db := corecosmosstoragetesting.NewMockResourcesDBClient()
+	clusterID, err := coreapihelpers.ToClusterResourceID("sub", "rg", "cluster")
+	require.NoError(t, err)
+	cluster := coreapi.NewDefaultCluster(clusterID, "eastus")
+	cluster.ResourceID = clusterID
+	cluster.PartitionKey = "sub"
+	_, err = db.HCPClusters("sub", "rg").Create(ctx, cluster, nil)
+	require.NoError(t, err)
+	tests := []struct {
+		name   string
+		desire *coreapi.StackDesire
+	}{
+		{
+			name: "apply",
+			desire: &coreapi.StackDesire{
+				Spec:   coreapi.StackDesireSpec{Action: coreapi.StackDesireActionApply},
+				Status: coreapi.StackDesireStatus{ObservedSpecHash: "apply-hash"},
+			},
+		},
+		{
+			name: "delete",
+			desire: &coreapi.StackDesire{
+				Spec:   coreapi.StackDesireSpec{Action: coreapi.StackDesireActionDelete},
+				Status: coreapi.StackDesireStatus{ObservedSpecHash: "delete-hash"},
+			},
+		},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		id, err := coreapihelpers.ToStackDesireResourceID("sub", "rg", "cluster", tc.name)
+		require.NoError(t, err)
+		tc.desire.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub"}
+		tc.desire, err = db.StackDesires("sub", "rg", "cluster").Create(ctx, tc.desire, nil)
+		require.NoError(t, err)
+	}
+	controller := &cosmosMigrationController{resourcesDBClient: db}
+	require.NoError(t, controller.migrateClusters(ctx, testr.New(t), "sub"), "stack desires must migrate without management-cluster placement")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			after, err := db.StackDesires("sub", "rg", "cluster").Get(ctx, tc.name)
+			require.NoError(t, err)
+			require.EqualValues(t, 2, after.InstanceVersion, "migration must rewrite every stack desire")
+			require.Equal(t, tc.desire.Status, after.Status, "migration must preserve reconciliation state")
+			require.Equal(t, tc.desire.Spec, after.Spec)
+			require.NotEqual(t, tc.desire.CosmosETag, after.CosmosETag)
+		})
+	}
 }
 
 // stubCRUD implements cosmosstorageutils.ResourceCRUD[stubDoc, *stubDoc] just enough for

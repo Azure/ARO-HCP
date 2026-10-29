@@ -12,6 +12,7 @@ package client
 import (
 	reflect "reflect"
 
+	armdeploymentstacks "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -112,6 +113,45 @@ func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) Do(f f
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall) DoAndReturn(f func(string, string) (DenyAssignmentsClient, error)) *MockFirstPartyApplicationClientBuilderDenyAssignmentsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// DeploymentStacksClient mocks base method.
+func (m *MockFirstPartyApplicationClientBuilder) DeploymentStacksClient(tenantID, subscriptionID string) (*armdeploymentstacks.Client, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeploymentStacksClient", tenantID, subscriptionID)
+	ret0, _ := ret[0].(*armdeploymentstacks.Client)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeploymentStacksClient indicates an expected call of DeploymentStacksClient.
+func (mr *MockFirstPartyApplicationClientBuilderMockRecorder) DeploymentStacksClient(tenantID, subscriptionID any) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploymentStacksClient", reflect.TypeOf((*MockFirstPartyApplicationClientBuilder)(nil).DeploymentStacksClient), tenantID, subscriptionID)
+	return &MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall{Call: call}
+}
+
+// MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall wrap *gomock.Call
+type MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) Return(arg0 *armdeploymentstacks.Client, arg1 error) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) Do(f func(string, string) (*armdeploymentstacks.Client, error)) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall) DoAndReturn(f func(string, string) (*armdeploymentstacks.Client, error)) *MockFirstPartyApplicationClientBuilderDeploymentStacksClientCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

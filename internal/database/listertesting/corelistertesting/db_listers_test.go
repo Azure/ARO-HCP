@@ -326,6 +326,43 @@ func TestDBServiceProviderClusterLister(t *testing.T) {
 	})
 }
 
+func TestDBStackDesireLister(t *testing.T) {
+	ctx := context.Background()
+
+	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	desire := newTestStackDesire(testSubscriptionID, testResourceGroupName, testClusterName, "role-assignments")
+
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, desire})
+	require.NoError(t, err)
+
+	lister := &DBStackDesireLister{ResourcesDBClient: mockResourcesDBClient}
+
+	t.Run("List returns all stack desires", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+	})
+
+	t.Run("Get returns matching stack desire", func(t *testing.T) {
+		result, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "role-assignments")
+		require.NoError(t, err)
+		require.NotNil(t, result.GetResourceID())
+		assert.Equal(t, "role-assignments", result.GetResourceID().Name)
+	})
+
+	t.Run("Get returns not found for non-existent stack desire", func(t *testing.T) {
+		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
+		require.Error(t, err)
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
+	})
+
+	t.Run("ListForCluster returns stack desires for cluster", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+	})
+}
+
 func TestDBControllerLister(t *testing.T) {
 	ctx := context.Background()
 

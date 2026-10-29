@@ -66,6 +66,15 @@ func serviceProviderNodePoolMatchesNodePool(resourceID *azcorearm.ResourceID, no
 	return strings.EqualFold(resourceID.Parent.Name, nodePoolName)
 }
 
+// stackDesireMatchesCluster checks if a stack desire's resource ID belongs to the given cluster.
+// Stack desires are child resources of clusters, so we check the parent resource name.
+func stackDesireMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {
+	if resourceID == nil || resourceID.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Name, clusterName)
+}
+
 // serviceProviderNodePoolMatchesCluster checks if a service provider node pool's resource ID belongs to the given cluster.
 // The cluster name is the grandparent: .../hcpOpenShiftClusters/<cluster>/nodePools/<np>/serviceProviderNodePools/default
 func serviceProviderNodePoolMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {
