@@ -119,12 +119,14 @@ func (c *ClusterDiscoveryPoller) Collectors() []prometheus.Collector {
 
 // Poll runs one discovery query and then waits before returning.
 //
-// The wait is unconditional. Callers drive this from a bare `for { Poll(ctx) }`
-// loop, so returning early on error turns a single transient Resource Graph
-// failure into an unthrottled retry storm, which gets the exporter throttled and
-// keeps the failure alive. Because GetDiscoverResult blocks until the first
-// successful poll, that state also leaves every collector blocked indefinitely
-// and the exporter publishing nothing while still serving 200s on /metrics.
+// Short of shutdown the wait always happens, including on failure. Callers
+// drive this from a bare `for { Poll(ctx) }` loop, so returning early on error
+// turns a single transient Resource Graph failure into an unthrottled retry
+// storm, which gets the exporter throttled and keeps the failure alive. Because
+// GetDiscoverResult blocks until the first successful poll, that state also
+// leaves every collector blocked indefinitely and the exporter publishing
+// nothing while still serving 200s on /metrics. The only early returns are for
+// a cancelled context, where the caller breaks out of its loop anyway.
 //
 // Poll is not safe for concurrent use; call it from a single goroutine.
 func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
@@ -134,6 +136,13 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 
 	delay := c.sleepTime
 	if err := c.discoverOnce(ctx); err != nil {
+		// A query cancelled by shutdown is not a discovery failure. Counting it
+		// would add a synthetic error to exporter_cluster_discovery_errors_total
+		// on every rollout, which is noise in the alerting this counter exists
+		// to drive, and would log an ERROR line on routine graceful shutdown.
+		if ctx.Err() != nil {
+			return
+		}
 		c.errorsTotal.Inc()
 		c.consecutiveFailures++
 		delay = c.retryDelay()
@@ -205,7 +214,7 @@ func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 	}
 
 	if !c.hasDiscovered() {
-		return wait.Jitter(c.sleepTime, discoveryBackoffJitter)
+		return jitteredDelay(c.sleepTime)
 	}
 
 	maxBase := maxDiscoveryBackoffBase
@@ -237,7 +246,23 @@ func (c *ClusterDiscoveryPoller) retryDelay() time.Duration {
 	if base > maxBase || base <= 0 {
 		base = maxBase
 	}
-	return wait.Jitter(base, discoveryBackoffJitter)
+	return jitteredDelay(base)
+}
+
+// jitteredDelay spreads d by discoveryBackoffJitter, falling back to an
+// un-jittered d if the result overflows.
+//
+// wait.Jitter computes `d + Duration(rand * factor * float64(d))`. For a d
+// close to the int64 ceiling that addition wraps negative, and a negative delay
+// makes time.After fire immediately — reintroducing the hot retry loop this
+// backoff exists to prevent. Jitter only ever adds, so any result below d is an
+// overflow.
+func jitteredDelay(d time.Duration) time.Duration {
+	jittered := wait.Jitter(d, discoveryBackoffJitter)
+	if jittered < d {
+		return d
+	}
+	return jittered
 }
 
 func (c *ClusterDiscoveryPoller) hasDiscovered() bool {

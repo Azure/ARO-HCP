@@ -17,6 +17,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -173,6 +174,40 @@ func TestClusterDiscoveryPoller_Poll_SleepsOnError(t *testing.T) {
 		"Poll returned without waiting after a failed query, which lets the caller hot-loop")
 }
 
+// cancellingQuerier cancels the context mid-query and returns the resulting
+// context error, mimicking a graceful shutdown landing while a Resource Graph
+// request is in flight.
+type cancellingQuerier struct {
+	cancel context.CancelFunc
+}
+
+func (q *cancellingQuerier) ExecuteConvertRequest(ctx context.Context, _ graphquery.ResourceGraphRequest) error {
+	q.cancel()
+	return ctx.Err()
+}
+
+// TestClusterDiscoveryPoller_Poll_ShutdownIsNotADiscoveryFailure keeps routine
+// rollouts out of the discovery error counter. Counting a cancelled query would
+// add a synthetic error on every restart, polluting the alerting this counter
+// exists to drive.
+func TestClusterDiscoveryPoller_Poll_ShutdownIsNotADiscoveryFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	poller := NewClusterDiscoveryPoller(&cancellingQuerier{cancel: cancel}, "eastus", []string{"svc-cluster"}, "", time.Hour)
+
+	start := time.Now()
+	poller.Poll(ctx)
+	elapsed := time.Since(start)
+
+	assert.Zero(t, testutil.ToFloat64(poller.errorsTotal),
+		"a query cancelled by shutdown must not count as a discovery failure")
+	assert.Zero(t, poller.consecutiveFailures,
+		"a query cancelled by shutdown must not escalate the backoff")
+	assert.Less(t, elapsed, 5*time.Second,
+		"Poll must return promptly on shutdown rather than serving out its backoff")
+}
+
 func TestClusterDiscoveryPoller_retryDelay(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -272,16 +307,48 @@ func TestClusterDiscoveryPoller_retryDelay_NoOverflowForHugePollInterval(t *test
 	}
 }
 
+// TestJitteredDelay_OverflowFallsBackToBase covers the second overflow path:
+// wait.Jitter adds `rand * factor * d` to d, which wraps negative for a d near
+// the int64 ceiling. A negative delay makes time.After fire immediately, which
+// is the hot retry loop again.
+func TestJitteredDelay_OverflowFallsBackToBase(t *testing.T) {
+	ceiling := time.Duration(math.MaxInt64)
+	for i := range 100 {
+		assert.GreaterOrEqual(t, jitteredDelay(ceiling), ceiling,
+			"jitter wrapped below the base delay on iteration %d", i)
+	}
+
+	normal := 2 * time.Minute
+	for i := range 100 {
+		delay := jitteredDelay(normal)
+		require.GreaterOrEqual(t, delay, normal, "iteration %d", i)
+		require.LessOrEqual(t, delay, time.Duration(float64(normal)*(1+discoveryBackoffJitter)),
+			"iteration %d", i)
+	}
+}
+
 // TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess pins the recovery
 // window while the exporter has published nothing. Escalating here would widen
 // the gap in which a recovered Resource Graph goes unnoticed, with no cached
 // data to protect in exchange.
 func TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess(t *testing.T) {
-	const pollInterval = 2 * time.Minute
+	// pollInterval mirrors the deployed collectionInterval (values.yaml) and
+	// e2eBudget mirrors exporterCollectorTimeout in test/e2e, which lives in a
+	// different module and so cannot be imported here. That is the budget that
+	// matters for cold start: the discovery health metrics are emitted whether
+	// or not discovery succeeds, so it is the collector-derived metrics that
+	// stay missing until a query lands. Twelve jittered intervals are 28m48s,
+	// so the cold-start path gets at least twelve chances to notice a recovered
+	// Resource Graph before the e2e test gives up.
+	const (
+		pollInterval = 2 * time.Minute
+		e2eBudget    = 30 * time.Minute
+		attempts     = 12
+	)
 	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, "", pollInterval)
 
 	elapsed := time.Duration(0)
-	for attempt := 1; attempt <= 8; attempt++ {
+	for attempt := 1; attempt <= attempts; attempt++ {
 		poller.consecutiveFailures = attempt
 		delay := poller.retryDelay()
 		require.LessOrEqual(t, delay, pollInterval+pollInterval/5,
@@ -289,8 +356,8 @@ func TestClusterDiscoveryPoller_retryDelay_FlatUntilFirstSuccess(t *testing.T) {
 		elapsed += delay
 	}
 
-	assert.LessOrEqual(t, elapsed, 20*time.Minute,
-		"eight failed attempts must still fit inside the e2e budget; got %s", elapsed)
+	assert.LessOrEqual(t, elapsed, e2eBudget,
+		"%d failed attempts must still fit inside the %s e2e budget; got %s", attempts, e2eBudget, elapsed)
 }
 
 func TestClusterDiscoveryPoller_Poll_ResetsBackoffAfterSuccess(t *testing.T) {

@@ -43,21 +43,41 @@ const (
 	exporterServiceName = "aro-hcp-exporter"
 	exporterServicePort = 8080
 
-	// exporterMetricsTimeout bounds how long we wait for both collectors to
-	// publish. A healthy exporter gets there within a couple of collection
-	// intervals (collectionInterval is 2m and the Kusto collector self-throttles
-	// to 5m). The remaining budget absorbs a transient Resource Graph outage at
-	// startup: until its first success the discovery poller retries at a flat 2m
-	// interval, so recovery is picked up within one interval and the dependent
-	// collectors still have room to publish afterwards. Beyond that a longer
-	// wait buys no correctness — it just holds a parallel worker hostage while
-	// an already-doomed run plays out.
-	exporterMetricsTimeout = 15 * time.Minute
+	// exporterHealthTimeout bounds the wait for the exporter's own health
+	// metrics. These are plain gauges and counters emitted from process start,
+	// so they are there as soon as the pod serves traffic — the only slack
+	// needed is for the port-forward and the pod becoming ready. Keeping this
+	// tight means a registration regression, or an exporter that never comes
+	// up, fails in minutes instead of holding a parallel worker for half an
+	// hour.
+	exporterHealthTimeout = 5 * time.Minute
+
+	// exporterCollectorTimeout bounds the wait for the collector-derived
+	// metrics. This stays generous on purpose. kusto_logs_age_in_seconds is
+	// only cached once a Kusto query returns rows, and on a freshly built
+	// environment that depends on log ingestion catching up, which is outside
+	// this repo's control and can run well past the collector's own 5m
+	// self-throttle. Tightening this budget would trade a real failure mode
+	// (ingestion lag) for CI minutes.
+	exporterCollectorTimeout = 30 * time.Minute
+
 	exporterMetricsPolling = 30 * time.Second
 )
 
-// expectedExporterMetrics must all be present in a single scrape.
-var expectedExporterMetrics = []string{
+// exporterHealthMetrics are emitted unconditionally from process start, so
+// their absence means the exporter failed to register them rather than that it
+// has nothing to report. Asserting on them turns a registration regression into
+// a test failure instead of a silently missing signal.
+var exporterHealthMetrics = []string{
+	"exporter_cluster_discovery_last_success_timestamp_seconds",
+	"exporter_cluster_discovery_errors_total",
+	"exporter_cluster_discovery_clusters",
+}
+
+// exporterCollectorMetrics are produced by collectors that must first reach
+// Azure Resource Graph and Kusto, so they appear only once real data has been
+// gathered.
+var exporterCollectorMetrics = []string{
 	"public_ip_count_by_region_service_tag",
 	"kusto_logs_age_in_seconds",
 }
@@ -111,17 +131,17 @@ var _ = Describe("Engineering", func() {
 				Timeout: 30 * time.Second,
 			}
 
-			By("polling the /metrics endpoint until every expected metric is published")
-			Eventually(func() error {
-				// (Re-)establish port-forward if needed.
+			// scrape returns the current /metrics body, (re-)establishing the
+			// port-forward when it is not up or has broken.
+			scrape := func() (string, error) {
 				if !connected {
 					podName, err := getExporterPodName(cancelCtx, kubeClient)
 					if err != nil {
-						return fmt.Errorf("no running exporter pod: %w", err)
+						return "", fmt.Errorf("no running exporter pod: %w", err)
 					}
 					localPort, stopChan, err = startPortForward(cancelCtx, restConfig, podName)
 					if err != nil {
-						return fmt.Errorf("failed to port-forward to exporter pod %q: %w", podName, err)
+						return "", fmt.Errorf("failed to port-forward to exporter pod %q: %w", podName, err)
 					}
 					connected = true
 				}
@@ -129,42 +149,60 @@ var _ = Describe("Engineering", func() {
 				metricsURL := fmt.Sprintf("http://localhost:%d/metrics", localPort)
 				req, err := http.NewRequestWithContext(cancelCtx, http.MethodGet, metricsURL, nil)
 				if err != nil {
-					return fmt.Errorf("failed to build request for %s: %w", metricsURL, err)
+					return "", fmt.Errorf("failed to build request for %s: %w", metricsURL, err)
 				}
 
 				resp, err := httpClient.Do(req)
 				if err != nil {
 					disconnect()
-					return fmt.Errorf("failed to GET %s: %w", metricsURL, err)
+					return "", fmt.Errorf("failed to GET %s: %w", metricsURL, err)
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("GET %s returned %s, want 200 OK", metricsURL, resp.Status)
+					return "", fmt.Errorf("GET %s returned %s, want 200 OK", metricsURL, resp.Status)
 				}
 
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
 					disconnect()
-					return fmt.Errorf("failed to read response body from %s: %w", metricsURL, err)
+					return "", fmt.Errorf("failed to read response body from %s: %w", metricsURL, err)
 				}
-				metricsOutput := string(body)
+				return string(body), nil
+			}
 
-				var missing []string
-				for _, name := range expectedExporterMetrics {
-					if !strings.Contains(metricsOutput, name) {
-						missing = append(missing, name)
+			awaitMetrics := func(names []string) func() error {
+				return func() error {
+					metricsOutput, err := scrape()
+					if err != nil {
+						return err
 					}
+
+					var missing []string
+					for _, name := range names {
+						if !strings.Contains(metricsOutput, name) {
+							missing = append(missing, name)
+						}
+					}
+					if len(missing) > 0 {
+						return fmt.Errorf("exporter has not published %s; exporter health metrics:\n%s",
+							strings.Join(missing, ", "),
+							extractMetricLines(metricsOutput, exporterHealthMetricPrefixes),
+						)
+					}
+					return nil
 				}
-				if len(missing) > 0 {
-					return fmt.Errorf("exporter has not published %s; exporter health metrics:\n%s",
-						strings.Join(missing, ", "),
-						extractMetricLines(metricsOutput, exporterHealthMetricPrefixes),
-					)
-				}
-				return nil
-			}).WithTimeout(exporterMetricsTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
-				"exporter never published all of %s within %s", strings.Join(expectedExporterMetrics, ", "), exporterMetricsTimeout)
+			}
+
+			By("waiting for the exporter's own health metrics")
+			Eventually(awaitMetrics(exporterHealthMetrics)).
+				WithTimeout(exporterHealthTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
+				"exporter never published all of %s within %s", strings.Join(exporterHealthMetrics, ", "), exporterHealthTimeout)
+
+			By("waiting for the collector-derived metrics")
+			Eventually(awaitMetrics(exporterCollectorMetrics)).
+				WithTimeout(exporterCollectorTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
+				"exporter never published all of %s within %s", strings.Join(exporterCollectorMetrics, ", "), exporterCollectorTimeout)
 		})
 })
 
