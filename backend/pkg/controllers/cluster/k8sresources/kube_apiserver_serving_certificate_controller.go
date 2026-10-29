@@ -118,7 +118,10 @@ func (syncer *kubeAPIServerServingCertificateSyncer) SyncOnce(ctx context.Contex
 		return nil
 	}
 	managementClusterID := serviceProviderCluster.Status.ManagementClusterResourceID
-	client := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
+	client, err := syncer.kubeApplierDBClients.For(ctx, managementClusterID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("resolve kube-applier client for serving certificate: %w", err))
+	}
 	if client == nil {
 		return nil
 	}

@@ -809,6 +809,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') 
   params: {
     cosmosDBAccountName: rpCosmosDbName
     userAssignedMIs: [frontendMI, backendMI, adminApiMI, fleetMI]
+    backendManagedIdentityPrincipalId: backendMI.uamiPrincipalID
     csManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale

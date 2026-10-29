@@ -139,7 +139,10 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	controlPlaneNamespace := cachedServiceProviderCluster.Status.ControlPlaneNamespace
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC
@@ -217,7 +220,10 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) error {
 	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC

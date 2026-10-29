@@ -181,6 +181,15 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "negative kubeApplierCosmosContainerMaxScale rejected",
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status.KubeApplierCosmosContainerMaxScale = -1
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.kubeApplierCosmosContainerMaxScale", message: "must be greater than or equal to 1"},
+			},
+		},
+		{
 			name: "zero kubeApplierCosmosContainerMaxScale rejected",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.KubeApplierCosmosContainerMaxScale = 0
@@ -519,15 +528,7 @@ func TestValidateManagementClusterUpdate_KubeApplierContainerMigration(t *testin
 	}
 }
 
-// TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrandfathered
-// covers Status.KubeApplierCosmosContainerMaxScale: records predating this
-// field have it unset (zero), and unrelated controllers (lifecycle,
-// sharedingress, ...) replace the whole document on every reconcile without
-// touching this field. An update must not newly reject those documents just
-// because the carried-over zero value fails the create-time minimum. Unlike
-// KubeApplierCosmosContainerName, there is no immutability check: a
-// registration rerun may freely overwrite the value once it is set.
-func TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrandfathered(t *testing.T) {
+func TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScale(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -536,10 +537,11 @@ func TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrand
 		newValue   int32
 		wantErrSub string // empty → expect success
 	}{
+		{name: "unchanged negative rejected", oldValue: -1, newValue: -1, wantErrSub: "must be greater than or equal to 1"},
+		{name: "positive to negative rejected", oldValue: 19000, newValue: -1, wantErrSub: "must be greater than or equal to 1"},
+		{name: "unchanged positive allowed", oldValue: 19000, newValue: 19000},
 		{
-			name:     "zero old, zero new is allowed (record predates this field, untouched by update)",
-			oldValue: 0,
-			newValue: 0,
+			name: "unchanged zero rejected", oldValue: 0, newValue: 0, wantErrSub: "must be greater than or equal to 1",
 		},
 		{
 			name:     "zero old, set new is allowed (registration backfill)",
@@ -552,11 +554,6 @@ func TestValidateManagementClusterUpdate_KubeApplierCosmosContainerMaxScaleGrand
 			newValue: 38000,
 		},
 		{
-			// Validated: the minimum check runs on Create, or on Update
-			// whenever the value actually changes (see
-			// validateManagementClusterStatus). Clearing a previously-set
-			// value is a change, so it is still rejected, unlike an unrelated
-			// Replace that carries a stale value forward unchanged.
 			name:       "set old, cleared new is rejected (value actually changed)",
 			oldValue:   19000,
 			newValue:   0,

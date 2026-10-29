@@ -235,7 +235,8 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				client := kubeApplierClients.For(ctx, testManagementClusterResourceID)
+				client, err := kubeApplierClients.For(ctx, testManagementClusterResourceID)
+				require.NoError(t, err)
 				require.NotNil(t, client, "kube-applier client should exist")
 
 				applyCRUD, err := client.ApplyDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)

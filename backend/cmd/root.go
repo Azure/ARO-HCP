@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cosmos"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -48,8 +49,7 @@ type BackendRootCmdFlags struct {
 	Kubeconfig                                                                                    string
 	K8sNamespace                                                                                  string
 	AzureLocation                                                                                 string
-	AzureCosmosDBName                                                                             string
-	AzureCosmosDBURL                                                                              string
+	CosmosAccountResourceID                                                                       string
 	ClustersServiceURL                                                                            string
 	ClustersServiceTLSInsecure                                                                    bool
 	MetricsServerListenAddress                                                                    string
@@ -82,8 +82,7 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.Kubeconfig, "kubeconfig", f.Kubeconfig, "Absolute path to the kubeconfig file")
 	cmd.Flags().StringVar(&f.K8sNamespace, "namespace", f.K8sNamespace, "Kubernetes namespace")
 	cmd.Flags().StringVar(&f.AzureLocation, "location", f.AzureLocation, "Azure location")
-	cmd.Flags().StringVar(&f.AzureCosmosDBName, "cosmos-name", f.AzureCosmosDBName, "Cosmos database name")
-	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL")
+	cmd.Flags().StringVar(&f.CosmosAccountResourceID, "cosmos-account-resource-id", f.CosmosAccountResourceID, "Cosmos database account ARM resource ID")
 	cmd.Flags().StringVar(&f.ClustersServiceURL, "clusters-service-url", f.ClustersServiceURL, "URL of the OCM API gateway")
 	cmd.Flags().BoolVar(&f.ClustersServiceTLSInsecure, "insecure", f.ClustersServiceTLSInsecure, "Skip validating TLS for clusters-service")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress, "Address on which to expose metrics")
@@ -249,7 +248,6 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
 	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
 
-	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
 func (f *BackendRootCmdFlags) validate() error {
@@ -261,12 +259,8 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--clusters-service-url is required"))
 	}
 
-	if len(f.AzureCosmosDBName) == 0 {
-		return utils.TrackError(fmt.Errorf("--cosmos-name is required"))
-	}
-
-	if len(f.AzureCosmosDBURL) == 0 {
-		return utils.TrackError(fmt.Errorf("--cosmos-url is required"))
+	if _, err := cosmos.ParseAccountID(f.CosmosAccountResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("--cosmos-account-resource-id: %w", err))
 	}
 
 	if len(f.K8sNamespace) == 0 {
@@ -544,8 +538,19 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		HasRealFPA:               !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
 		OrphanedMRGCleanupConfig: orphanedMRGCleanupConfig,
 	}
-	storageFactory, err := app.NewStorageFactory(f.AzureCosmosDBURL, f.AzureCosmosDBName, cosmosclient.Options{ClientOptions: azCoreClientOptions},
-		app.BackendStorageFactoryOptions(storageControllerContext))
+	cosmosAccount, err := backendIdentityAzureClients.CosmosAccount(f.CosmosAccountResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	discoveredAccount, err := cosmosAccount.Discover(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	storageOptions, err := discoverStorageOptions(ctx, discoveredAccount, storageControllerContext)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	storageFactory, err := app.NewStorageFactory(discoveredAccount.Endpoint(), discoveredAccount.DatabaseName(), cosmosclient.Options{ClientOptions: azCoreClientOptions}, storageOptions)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
@@ -605,8 +610,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		Kubeconfig:                 "",
 		K8sNamespace:               os.Getenv("NAMESPACE"),
 		AzureLocation:              os.Getenv("LOCATION"),
-		AzureCosmosDBName:          os.Getenv("DB_NAME"),
-		AzureCosmosDBURL:           os.Getenv("DB_URL"),
+		CosmosAccountResourceID:    os.Getenv("COSMOS_ACCOUNT_RESOURCE_ID"),
 		ClustersServiceTLSInsecure: false,
 		MetricsServerListenAddress: ":8081",
 		HealthzServerListenAddress: ":8083",
@@ -639,7 +643,7 @@ func NewCmdRoot() *cobra.Command {
 	communicates with Clusters Service and CosmosDB.
 
 	# Run ARO HCP Backend locally to connect to a local Clusters Service at http://localhost:8000
-	%s --cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} --location ${LOCATION} \
+	%s --cosmos-account-resource-id ${COSMOS_ACCOUNT_RESOURCE_ID} --location ${LOCATION} \
 		--clusters-service-url "http://localhost:8000"
 `, processName),
 		RunE: func(cmd *cobra.Command, args []string) error {

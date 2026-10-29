@@ -46,8 +46,6 @@ type StorageFactoryOptions struct {
 	ResourcesRUsPerSecond float64
 	BillingRUsPerSecond   float64
 	FleetRUsPerSecond     float64
-	// KubeApplierRUsPerSecond applies independently to each MC container.
-	KubeApplierRUsPerSecond float64
 	// KubeApplierUtilization overrides Utilization for MC containers so the
 	// backend and kube-applier binary can reserve separate shares.
 	KubeApplierUtilization float64
@@ -139,13 +137,14 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		limitsByContainer[allocation.container] = limits
 	}
 	kubeApplierOptions := commonOptions
-	kubeApplierOptions.TotalRUsPerSecond = options.KubeApplierRUsPerSecond
 	if options.KubeApplierUtilization != 0 {
 		kubeApplierOptions.Utilization = options.KubeApplierUtilization
 	}
 	// Validate before controllers start; actual MC container names are resolved
 	// lazily from Fleet, and each gets its own ControllerRateLimits instance.
-	if _, err := cosmosratelimit.NewControllerRateLimits(kubeApplierOptions); err != nil {
+	validationOptions := kubeApplierOptions
+	validationOptions.TotalRUsPerSecond = 1
+	if _, err := cosmosratelimit.NewControllerRateLimits(validationOptions); err != nil {
 		return nil, fmt.Errorf("invalid kube-applier rate limits: %w", err)
 	}
 	factory := &cosmosStorageFactory{
@@ -164,19 +163,38 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 	return factory, nil
 }
 
-// tokenBucket retains one budget per physical container and controller. The
-// three fixed containers are preconfigured; MC containers use the kube-applier
-// allocation and are registered when their names become known.
+// tokenBucket returns the preconfigured budget for a fixed container and controller.
 func (f *cosmosStorageFactory) tokenBucket(containerName, controllerName string) (*cosmosratelimit.TokenBucket, error) {
 	if bucket, found := f.unlimitedBuckets[controllerName]; found {
 		return bucket, nil
 	}
 	f.rateLimitsMu.Lock()
+	limits := f.rateLimits[containerName]
+	f.rateLimitsMu.Unlock()
+	if limits == nil {
+		return nil, fmt.Errorf("cosmos container %q has no configured budget", containerName)
+	}
+	return limits.ForController(controllerName)
+}
+
+// kubeApplierTokenBucket retains one budget per physical MC container and
+// controller. MC containers use the kube-applier allocation and are registered
+// when their names become known.
+func (f *cosmosStorageFactory) kubeApplierTokenBucket(containerName string, maxScale int32, controllerName string) (*cosmosratelimit.TokenBucket, error) {
+	if bucket, found := f.unlimitedBuckets[controllerName]; found {
+		return bucket, nil
+	}
+	if maxScale <= 0 {
+		return nil, fmt.Errorf("kube-applier container %q requires positive registered KubeApplierCosmosContainerMaxScale, got %d; rerun management cluster registration", containerName, maxScale)
+	}
+	f.rateLimitsMu.Lock()
 	defer f.rateLimitsMu.Unlock()
-	limits, found := f.rateLimits[containerName]
-	if !found {
+	limits := f.rateLimits[containerName]
+	if limits == nil {
+		options := f.kubeApplierRateLimitOptions
+		options.TotalRUsPerSecond = float64(maxScale)
 		var err error
-		limits, err = cosmosratelimit.NewControllerRateLimits(f.kubeApplierRateLimitOptions)
+		limits, err = cosmosratelimit.NewControllerRateLimits(options)
 		if err != nil {
 			return nil, err
 		}
@@ -211,8 +229,8 @@ func (f *cosmosStorageFactory) newControllerClients(name string) (*controllerSto
 		return nil, err
 	}
 	kubeApplier := kubeappliercosmosstorage.NewKubeApplierDBClients(f.cosmosURL, f.databaseName, f.clientOptions,
-		func(containerName string) (*cosmosratelimit.TokenBucket, error) {
-			return f.tokenBucket(containerName, name)
+		func(containerName string, maxScale int32) (*cosmosratelimit.TokenBucket, error) {
+			return f.kubeApplierTokenBucket(containerName, maxScale, name)
 		},
 		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleet))
 	return &controllerStorageClients{resources: resources, billing: billing, fleet: fleet, kubeApplier: kubeApplier}, nil

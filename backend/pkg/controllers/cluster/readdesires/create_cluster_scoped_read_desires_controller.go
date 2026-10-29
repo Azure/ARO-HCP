@@ -164,7 +164,10 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC

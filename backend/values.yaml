@@ -7,8 +7,7 @@ pullBinding:
 configMap:
   location: "{{ .region }}"
   backendMiClientId: "__backendMsiClientId__"
-  databaseUrl: "__cosmosDBDocumentEndpoint__"
-  databaseName: "{{ .frontend.cosmosDB.name }}"
+  cosmosAccountResourceId: "__rpCosmosDbAccountResourceId__"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
 orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"

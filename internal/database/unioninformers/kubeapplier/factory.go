@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // NewKubeApplierInformerFactory wires a kubeappliercosmosstorage.KubeApplierDBClients into
@@ -49,7 +50,11 @@ type kubeApplierInformerFactory struct {
 func (factory *kubeApplierInformerFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		utils.LoggerFromContext(ctx).Error(err, "resolve kube-applier informer client")
+		return nil
+	}
 	if client == nil {
 		return nil
 	}
