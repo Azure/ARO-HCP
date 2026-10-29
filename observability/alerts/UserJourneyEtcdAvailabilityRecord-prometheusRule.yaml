@@ -7,10 +7,11 @@ spec:
   groups:
   # ========================================
   # Precomputed histogram bucket rates for the MWMBR etcd availability
-  # alerts. Each recording rule computes `sum by (...) (rate(metric[window]))`
-  # so the alert expressions can run `histogram_quantile()` over the
-  # recorded series instead of recomputing expensive large-window rates
-  # (especially 6h and 3d) at every alert evaluation.
+  # alerts. Each recording rule deduplicates HA Prometheus replicas with
+  # `max without (prometheus_replica)` before summing, so the alert
+  # expressions can run `histogram_quantile()` over the recorded series
+  # instead of recomputing expensive large-window rates (especially 6h
+  # and 3d) at every alert evaluation.
   # ========================================
 
   # ----------------------------------------
@@ -22,28 +23,39 @@ spec:
     - record: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          max without (prometheus_replica) (
+            rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          max without (prometheus_replica) (
+            rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          max without (prometheus_replica) (
+            rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          max without (prometheus_replica) (
+            rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          max without (prometheus_replica) (
+            rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          )
         )
+
   # ----------------------------------------
   # etcd_network_peer_round_trip_time_seconds (aggregate, no pod)
   # ----------------------------------------
@@ -53,28 +65,39 @@ spec:
     - record: namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m
       expr: |
         sum by (namespace, cluster, le) (
-          rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          max without (prometheus_replica) (
+            rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          )
         )
     - record: namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m
       expr: |
         sum by (namespace, cluster, le) (
-          rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          max without (prometheus_replica) (
+            rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          )
         )
     - record: namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h
       expr: |
         sum by (namespace, cluster, le) (
-          rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          max without (prometheus_replica) (
+            rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          )
         )
     - record: namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h
       expr: |
         sum by (namespace, cluster, le) (
-          rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          max without (prometheus_replica) (
+            rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          )
         )
     - record: namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d
       expr: |
         sum by (namespace, cluster, le) (
-          rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          max without (prometheus_replica) (
+            rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          )
         )
+
   # ----------------------------------------
   # etcd_disk_wal_fsync_duration_seconds (per pod)
   # ----------------------------------------
@@ -84,25 +107,35 @@ spec:
     - record: namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          max without (prometheus_replica) (
+            rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          max without (prometheus_replica) (
+            rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          max without (prometheus_replica) (
+            rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          max without (prometheus_replica) (
+            rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])
+          )
         )
     - record: namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d
       expr: |
         sum by (namespace, cluster, pod, le) (
-          rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          max without (prometheus_replica) (
+            rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])
+          )
         )

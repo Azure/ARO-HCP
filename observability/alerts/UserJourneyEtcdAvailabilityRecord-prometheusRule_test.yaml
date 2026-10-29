@@ -47,7 +47,24 @@ tests:
     exp_samples:
     - labels: '{__name__="namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m", cluster="test-hcp-cluster", namespace="ocm-test-hcp-namespace", pod="etcd-0", le="+Inf"}'
       value: 1.6666666666666667
-# Scenario 4: Non-matching namespace is excluded
+# Scenario 4: Two prometheus replicas are deduplicated, not doubled
+- interval: 1m
+  input_series:
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",prometheus_replica="prometheus-0",le="0.001"}'
+    values: "0+10x10"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",prometheus_replica="prometheus-0",le="+Inf"}'
+    values: "0+100x10"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",prometheus_replica="prometheus-1",le="0.001"}'
+    values: "0+10x10"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace",pod="etcd-0",prometheus_replica="prometheus-1",le="+Inf"}'
+    values: "0+100x10"
+  promql_expr_test:
+  - expr: namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m{namespace="ocm-test-hcp-namespace",le="+Inf"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m", cluster="test-hcp-cluster", namespace="ocm-test-hcp-namespace", pod="etcd-0", le="+Inf"}'
+      value: 1.6666666666666667
+# Scenario 5: Non-matching namespace is excluded
 - interval: 1m
   input_series:
   - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="kube-system",pod="etcd-0",le="+Inf"}'

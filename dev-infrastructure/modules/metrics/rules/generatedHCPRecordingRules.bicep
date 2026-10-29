@@ -238,23 +238,23 @@ resource etcdDiskBackendCommitBucketRates 'Microsoft.AlertsManagement/prometheus
     rules: [
       {
         record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
       }
     ]
   }
@@ -272,23 +272,23 @@ resource etcdNetworkPeerRoundTripTimeBucketRates 'Microsoft.AlertsManagement/pro
     rules: [
       {
         record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m'
-        expression: 'sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m]))'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
       }
       {
         record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m'
-        expression: 'sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m]))'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
       }
       {
         record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h'
-        expression: 'sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h]))'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
       }
       {
         record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h'
-        expression: 'sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h]))'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
       }
       {
         record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d'
-        expression: 'sum by (namespace, cluster, le, region) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d]))'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
       }
     ]
   }
@@ -306,23 +306,23 @@ resource etcdDiskWalFsyncBucketRates 'Microsoft.AlertsManagement/prometheusRuleG
     rules: [
       {
         record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
       }
       {
         record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d'
-        expression: 'sum by (namespace, cluster, pod, le, region) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d]))'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
       }
     ]
   }
