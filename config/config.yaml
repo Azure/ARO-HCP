@@ -177,7 +177,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
-      digest: sha256:3c5c06a5c480305dfcb3a9a90b54fbc94469a0852eff90ed872cc4601af8e349 # v1.31.0 (2026-10-19 21:17)
+      digest: sha256:f3e1d47d5262085888399936bc85f9f593c6957bc714de6c3e900738372c4235 # v1.31.1 (2026-10-22 19:19)
   # AKS Runtime Image
   aksCommandRuntime:
     image:
@@ -190,7 +190,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:413bd678fbaa1544fb6decaead554f63fa40e88907779fd69f0f69a27b399bda # v5.1.4 (2026-10-13 10:58)
+        digest: sha256:b308702b6c8aad0e5974f5ff031e79db34b134413ad62e66a262aaec4d50d837 # v5.1.5 (2026-10-21 10:43)
       resources:
         requests:
           cpu: 250m
@@ -222,14 +222,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:d8a9b34a83e836c2cfdd38a4437218ecbefd4746a9e0e307c3884259eed73ad8 # 1.44.2-20261020-1 (2026-10-20 03:43)
+        digest: sha256:66b9e310769062f1b0f955a4b9b4676f312ca69cc762375be459fd63c61704e0 # 1.44.2-20261022-2 (2026-10-22 23:03)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:f45f2e02544ba4005d39e435073a6c59ab5db372223dee379b08a36d3bc20871 # 20261018.1 (2026-10-18 03:25)
+      digest: sha256:5311f2facc0d47816963cecacfb89c95694929bd03b37483b482fc0721ac3367 # 20261025.1 (2026-10-25 03:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -325,7 +325,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:55a0ad895a8f10193bb070883194449f5252c057353887af1ba0767760a0d2f0 # v1.8.2 (2026-10-18 04:12)
+      digest: sha256:934436fbd45578f0fbf5cd2e80bbd6d36acf82fa44f16d77be135f0ae8e54fdf # v1.8.2 (2026-10-28 12:30)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -448,7 +448,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:92d8765dea9419d3b534a51b18b4ca34e7ae6152ede7eb5442afa8c4abe6866d # 51bfaf4a8d2a8b4cb3e80987b2748623c642f8ea (2026-10-21 02:35)
+      digest: sha256:b3f2ac3edc2b6d57d42be104bd0d23c92b37e753a2c2deb4410e9376a513b3ee # 50cdb250c16d0a39d933255f0b5e1daa63c4104f (2026-10-29 05:39)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -582,15 +582,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:3cd80bba1d9d323c025ef4ecf1412e348dddf0801af344e7839395073d16c7fc # 1.6.2 (2026-10-15 15:02)
+      digest: sha256:3fe04379244671a078ff68d1d938fb245f755af8b4b5f4b4974a3217ffb5d7a0 # 1.6.2 (2026-10-27 12:13)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:1a514e936d28b954d35c29cfccd1d969db1e6d6da27caf5d2bd32508eb122a26 # 1.6.2 (2026-10-15 14:53)
+      digest: sha256:4c973e9ee5c8ddc53bbaf1d2dd94d05beae1328febe58112ed62d7ae7309d255 # 1.6.2 (2026-10-27 12:16)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:b9df7e16fc8323377e4833c22d825dc37c9dccd047bd312b98b0805fa811fdf9 # 1.6.2 (2026-10-15 14:53)
+      digest: sha256:3b417e5c53485c21ba922c2af247d5de98bffd21a7f64055117c36b82bd2e281 # 1.6.2 (2026-10-27 12:17)
   # SVC cluster specifics
   svc:
     subscription:
@@ -697,13 +697,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: beb3136196cc4c3ac295e8ec4e734151605533b89d6618c7ea6f2f0adb2ebe97 # v0.94.1 (2026-10-16 04:35)
+          sha: c218b09ac6bd86af292baba6c71efc9cdd66f73eef3cb9cc300ed64772406e26 # v0.94.2 (2026-10-26 19:35)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: bbb9119bd7a809f4d61711457773d65f093dd33980f4a107131b51fd39108022 # v3.15.0 (2026-10-15 09:30)
+          sha: 58461b08376b14f868bec075d795a9e2177dd75a18993fc5d5dba414c00192af # v3.15.1 (2026-10-28 15:00)
         version: ""
         resources:
           requests:
@@ -717,12 +717,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: a8ac03e4c43d0dceef3e092c904466e272b044a20617eeff5549a0e7b7b4809c # v0.94.1 (2026-10-16 19:28)
+          sha: 9cac4b9502289b72651056e61a789cf7fad3c3ea89ec2ebce126276b42ecc887 # v0.94.2 (2026-10-26 19:41)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:d752ec78be754693d5c4850b11b23e496310dccbe5fa3c3dc316a51fc999353a # v2.20.0 (2026-10-15 09:20)
+          digest: sha256:fa7d0dd798ac5172d2bdae7696d9bdd377ff3e545e3d34246e83c4d4856e52ba # v2.20.0 (2026-10-28 11:38)
       admissionWebhook:
         patch:
           image:
@@ -734,7 +734,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
+          sha: 0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7 # v0.42.5 (2026-10-27 10:54)
     monitoringApiGroup: "monitoring.coreos.com"
   # MGMT cluster specifics
   mgmt:
@@ -836,13 +836,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: beb3136196cc4c3ac295e8ec4e734151605533b89d6618c7ea6f2f0adb2ebe97 # v0.94.1 (2026-10-16 04:35)
+          sha: c218b09ac6bd86af292baba6c71efc9cdd66f73eef3cb9cc300ed64772406e26 # v0.94.2 (2026-10-26 19:35)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: bbb9119bd7a809f4d61711457773d65f093dd33980f4a107131b51fd39108022 # v3.15.0 (2026-10-15 09:30)
+          sha: 58461b08376b14f868bec075d795a9e2177dd75a18993fc5d5dba414c00192af # v3.15.1 (2026-10-28 15:00)
         resources:
           requests:
             cpu: NONE
@@ -855,12 +855,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: a8ac03e4c43d0dceef3e092c904466e272b044a20617eeff5549a0e7b7b4809c # v0.94.1 (2026-10-16 19:28)
+          sha: 9cac4b9502289b72651056e61a789cf7fad3c3ea89ec2ebce126276b42ecc887 # v0.94.2 (2026-10-26 19:41)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:d752ec78be754693d5c4850b11b23e496310dccbe5fa3c3dc316a51fc999353a # v2.20.0 (2026-10-15 09:20)
+          digest: sha256:fa7d0dd798ac5172d2bdae7696d9bdd377ff3e545e3d34246e83c4d4856e52ba # v2.20.0 (2026-10-28 11:38)
       admissionWebhook:
         patch:
           image:
@@ -872,7 +872,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
+          sha: 0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7 # v0.42.5 (2026-10-27 10:54)
   # Backend
   backend:
     image:
@@ -1118,7 +1118,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:ec23965a03e8fef376d3f91ce39ee8461be2c2cc4c1fe04f03d49684327896db # 1.30.6-1-azl3.0.20261015 (2026-10-16 01:22)
+          digest: sha256:7861e42a2eb2e62485928131c2b6506ac3aa57b975d706d10917d2049c4b9cf1 # 1.30.6-1-azl3.0.20261027 (2026-10-28 05:09)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -1151,12 +1151,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:a02f5e70ac8b396946f8086ec23aa4e97196c2d9bad458e80577325d44a0d78c # v2.17.4-498 (2026-10-20 20:19)
+        digest: sha256:ed7effc829fe652594e3e642e98a53acf2151164d91985a444bdaefc71408e08 # v2.17.4-508 (2026-10-28 20:05)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:870715c2989c60f0dd41f5469b96f2c6f7d7610aa2aa166a641eacd501c66660 # v2.17.4-544 (2026-10-20 20:07)
+        digest: sha256:870715c2989c60f0dd41f5469b96f2c6f7d7610aa2aa166a641eacd501c66660 # v2.17.4-544 (2026-10-20 20:07) pinned: v2.17.4-556 hypershift-addon-agent crash-loops (AROSLSRE-2645)
   # Cluster Service
   clustersService:
     image:
