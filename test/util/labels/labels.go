@@ -82,6 +82,26 @@ func MIContainers(n int) ginkgo.Labels {
 	return ginkgo.Label(fmt.Sprintf("MIContainers:%d", n))
 }
 
+// ExpectFailureLabelPrefix is the label-name prefix for expect-failure tests.
+const ExpectFailureLabelPrefix = "ExpectFailure"
+
+// ExpectFailure marks a test that reproduces a known bug and has been reported as a Jira ticket.
+// JiraID must reference a tracking issue (e.g. "ARO-123").
+// Produces ginkgo.Label("ExpectFailure:ARO-123"). Filtering matches on the
+// ExpectFailureLabelPrefix, not the full value. Temporary by design: remove
+// the label once the bug is fixed.
+// Tests with this label are excluded from all other suites (integration, stage, prod, dev,
+// rp-api-compat, hypershift-presubmit, upgrade/in-place) and collected in the dedicated
+// `expect-failure` suite to track fixing progress without polluting normal CI
+// results.
+func ExpectFailure(jiraID string) ginkgo.Labels {
+	if len(jiraID) == 0 {
+		panic("ExpectFailure: jiraID must not be empty")
+	}
+
+	return ginkgo.Label(fmt.Sprintf("ExpectFailure:%s", jiraID))
+}
+
 // Environments this test can be used in.
 var (
 	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")

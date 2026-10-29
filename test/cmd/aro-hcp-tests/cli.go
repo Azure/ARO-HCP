@@ -71,6 +71,20 @@ func isUpgradeInPlaceSuiteInvocation() bool {
 	return false
 }
 
+// hasExpectFailureLabel reports whether any of the given spec labels is an
+// expect-failure label. ExpectFailure labels carry a per-JIRA value
+// ("ExpectFailure:ARO-123"), so membership is tested by prefix rather than by
+// exact match — mirroring the CEL `l.startsWith(ExpectFailureLabelPrefix)`
+// qualifiers in registerSuites.
+func hasExpectFailureLabel(specLabels []string) bool {
+	for _, l := range specLabels {
+		if strings.HasPrefix(l, labels.ExpectFailureLabelPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Build the CLI with registration-time concurrency defaults and lazy extension specs.
 func setupCli() (*cobra.Command, error) {
 	containerCount, containerCountSource := parseMIContainerCount()
@@ -111,9 +125,14 @@ func setupCli() (*cobra.Command, error) {
 			panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 		}
 
+		// Count only the specs the upgrade/in-place suite actually schedules.
+		// ExpectFailure specs are quarantined out of that suite (see registerSuites),
+		// so counting them here would make the coordinator wait at the barrier for
+		// participants that never start — deadlocking the cohort until the
+		// settlement timeout. Keep this filter in sync with the suite qualifier.
 		upgradeInPlaceCount := 0
 		for _, spec := range specs {
-			if spec.Labels.Has(labels.UpgradeInPlace[0]) {
+			if spec.Labels.Has(labels.UpgradeInPlace[0]) && !hasExpectFailureLabel(spec.Labels.UnsortedList()) {
 				upgradeInPlaceCount++
 			}
 		}
