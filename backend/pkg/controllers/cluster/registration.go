@@ -461,6 +461,7 @@ func instantiateTriggerControlPlaneUpgradeController(controllerContext controlle
 	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
 	_, clusterLister := controllerContext.BackendInformers.Clusters()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterversion.NewTriggerControlPlaneUpgradeController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
@@ -470,6 +471,7 @@ func instantiateTriggerControlPlaneUpgradeController(controllerContext controlle
 		serviceProviderClusterLister,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
+		unionReadDesireLister,
 	), nil
 }
 
