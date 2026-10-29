@@ -101,7 +101,7 @@ A brand-new subscription typically has no Azure resource providers registered be
    - Append `<subscription-id>=<display name>` to the comma-separated string `ci.dev.e2eSubscriptions` in `config/config-dev-ci.yaml` (display names must not contain commas, equals signs, quotes (`'` `"`), backslashes, `$` or backticks).
    - That list feeds both the `dev-ci` RBAC grants and Cost Management tag-inheritance rollout. A new hosted-cluster subscription needs no per-index template edits. The E2E infrastructure subscription opts in separately via `costTagInheritance: true`; do not enable it for the global infrastructure subscription.
    - No separate tenant-quota entry is needed: the `tenant-quota-collector` chart derives the `redHat0` tenant's subscriptions from `ci.<env>.e2eSubscriptions` (and `ci.dev.infrastructureSubscriptions`), monitoring them in the regions listed in `ci.<env>.regions`. Make sure that CSV covers the regions the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
-   - Include the subscription's exact display name in `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh` and the Red Hat tenant inventory in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual CI bot and quota-reader bootstrap grants cover it.
+   - Include the subscription's exact display name in the Red Hat tenant inventory in `tooling/tenant-quota/scripts/manage-service-principals.sh` so manual quota-reader bootstrap grants cover it.
    - Existing `ci.dev.mockIdentities` application names and pool sizes do not need to change. The mock RBAC template resolves shared and pooled principal IDs through Microsoft Graph and grants them on every subscription in `ci.dev.e2eSubscriptions`.
    - Apply the **privileged** customer-subscription grants, createdAt tag policy, and Cost Management tag inheritance. The rollout requires **Owner** for subscription-scoped RBAC; its operator also needs permission to edit Cost Management settings on every target subscription (Cost Management Contributor). It is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member with the required access to run it from the repo root:
      - `make dev-ci-privileged-local-run`
@@ -136,7 +136,6 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
-- `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh`: manual CI bot bootstrap subscription inventory
 - `tooling/tenant-quota/scripts/manage-service-principals.sh`: manual quota-reader bootstrap subscription inventory
 - `dev-infrastructure/scripts/e2e-enable-cost-tag-inheritance.sh` — applies and verifies the billing setting through REST; the provider's GET response lacks `kind`, which causes ARM deployments to report failure after persisting the setting.
 - [Dev-CI Topology](dev-ci-topology.md)
