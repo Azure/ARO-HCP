@@ -177,13 +177,6 @@ func (e *Ensurer) ensureOne(ctx context.Context, binding Binding, options Option
 		return fmt.Errorf("find application: %w", err)
 	}
 
-	if options.GrantConsent {
-		err := e.grantConsent(ctx, logger, application, options.DryRun)
-		if err != nil {
-			return fmt.Errorf("grant admin consent: %w", err)
-		}
-	}
-
 	prefix := binding.Prefix()
 	err = e.ensureClientSecret(ctx, logger, application, prefix+ClientSecretSuffix, options.DryRun)
 	if err != nil {
@@ -195,7 +188,22 @@ func (e *Ensurer) ensureOne(ctx context.Context, binding Binding, options Option
 	if err != nil {
 		return err
 	}
-	return e.ensurePlain(ctx, logger, prefix+tenantIDSuffix, options.DryRun, e.graph.TenantID)
+	err = e.ensurePlain(ctx, logger, prefix+tenantIDSuffix, options.DryRun, e.graph.TenantID)
+	if err != nil {
+		return err
+	}
+
+	if options.GrantConsent {
+		// Admin consent usually needs a tenant admin, so failing to grant it
+		// is reported but never fails the run. It runs last so that a slow or
+		// timing-out consent cannot affect the required secret reconciliation.
+		// Re-run once it is granted.
+		err := e.grantConsent(ctx, logger, application, options.DryRun)
+		if err != nil {
+			logger.Info("WARNING: could not grant admin consent; request it from the tenant admins", "error", err.Error())
+		}
+	}
+	return nil
 }
 
 // ensureClientSecret mints and stores a client secret unless one is stored already.

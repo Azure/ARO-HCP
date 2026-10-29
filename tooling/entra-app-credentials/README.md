@@ -67,7 +67,8 @@ AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret
 application permission declared in `requiredResourceAccess` becomes an app role
 assignment, and delegated permissions are added to the tenant-wide permission
 grant without dropping scopes already granted. It runs on every invocation, is
-idempotent, and fails the command if consent cannot be granted. Use `--dry-run`
+idempotent, and only warns if consent cannot be granted (it usually needs a
+tenant admin), so the secrets are still reconciled. Use `--dry-run`
 to see what would change.
 
 The caller needs secret read/write access on the Key Vault and permission to

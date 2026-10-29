@@ -42,6 +42,7 @@ type fakeGraph struct {
 	created     []string
 	updated     []string
 	passwordErr error
+	assignErr   error
 	expiry      time.Time
 }
 
@@ -72,8 +73,21 @@ func (f *fakeGraph) ListAppRoleAssignments(context.Context, string) ([]AppRoleAs
 }
 
 func (f *fakeGraph) CreateAppRoleAssignment(_ context.Context, _, resourceID, appRoleID string) error {
+	if f.assignErr != nil {
+		return f.assignErr
+	}
 	f.assigned = append(f.assigned, AppRoleAssignment{ResourceID: resourceID, AppRoleID: appRoleID})
 	return nil
+}
+
+func TestConsentFailureIsOnlyAWarning(t *testing.T) {
+	graph := &fakeGraph{application: newApplication(), assignErr: fmt.Errorf("Authorization_RequestDenied")}
+	store := &fakeStore{values: map[string]string{}}
+
+	require.NoError(t, ensure(t, graph, store, Options{GrantConsent: true}))
+
+	assert.Equal(t, []string{"bot-client-secret-managed"}, graph.passwords)
+	assert.Equal(t, "minted", store.values["bot-client-secret"])
 }
 
 func (f *fakeGraph) FindPermissionGrant(context.Context, string, string) (*PermissionGrant, error) {
