@@ -28,26 +28,28 @@ import (
 )
 
 const (
-	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
-	WildcardLocation          = "{" + PathSegmentLocation + "}"
-	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
-	WildcardExternalAuthName  = "{" + PathSegmentExternalAuthName + "}"
-	WildcardOperationID       = "{" + PathSegmentOperationID + "}"
-	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
-	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
-	WildcardSubscriptionID    = "{" + PathSegmentSubscriptionID + "}"
+	WildcardDeploymentName              = "{" + PathSegmentDeploymentName + "}"
+	WildcardLocation                    = "{" + PathSegmentLocation + "}"
+	WildcardNodePoolName                = "{" + PathSegmentNodePoolName + "}"
+	WildcardExternalAuthName            = "{" + PathSegmentExternalAuthName + "}"
+	WildcardOperationID                 = "{" + PathSegmentOperationID + "}"
+	WildcardResourceGroupName           = "{" + PathSegmentResourceGroupName + "}"
+	WildcardResourceName                = "{" + PathSegmentResourceName + "}"
+	WildcardSubscriptionID              = "{" + PathSegmentSubscriptionID + "}"
+	WildcardOperatorIdentityRoleSetName = "{" + PathSegmentOperatorIdentityRoleSetName + "}"
 
-	PatternSubscriptions     = "subscriptions/" + WildcardSubscriptionID
-	PatternLocations         = "locations/" + WildcardLocation
-	PatternProviders         = "providers/" + coreapi.ProviderNamespace
-	PatternClusters          = coreapi.ClusterResourceTypeName + "/" + WildcardResourceName
-	PatternNodePools         = coreapi.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternVersions          = coreapi.VersionResourceTypeName + "/" + WildcardResourceName
-	PatternExternalAuth      = coreapi.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
-	PatternDeployments       = "deployments/" + WildcardDeploymentName
-	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
-	PatternOperationResults  = coreapi.OperationResultResourceTypeName + "/" + WildcardOperationID
-	PatternOperationStatuses = coreapi.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternSubscriptions            = "subscriptions/" + WildcardSubscriptionID
+	PatternLocations                = "locations/" + WildcardLocation
+	PatternProviders                = "providers/" + coreapi.ProviderNamespace
+	PatternClusters                 = coreapi.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools                = coreapi.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternVersions                 = coreapi.VersionResourceTypeName + "/" + WildcardResourceName
+	PatternExternalAuth             = coreapi.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
+	PatternDeployments              = "deployments/" + WildcardDeploymentName
+	PatternResourceGroups           = "resourcegroups/" + WildcardResourceGroupName
+	PatternOperationResults         = coreapi.OperationResultResourceTypeName + "/" + WildcardOperationID
+	PatternOperationStatuses        = coreapi.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternOperatorIdentityRoleSets = coreapi.OperatorIdentityRoleSetResourceTypeName + "/" + WildcardOperatorIdentityRoleSetName
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -393,6 +395,9 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, coreapi.VersionResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListVersion)))
+	middlewareMux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, coreapi.OperatorIdentityRoleSetResourceTypeName),
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListOperatorIdentityRoleSets)))
 
 	// Resource read endpoints
 	// These endpoints must have a corresponding entry in AvailableOperations.
@@ -413,6 +418,9 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.GetExternalAuth)))
+	middlewareMux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperatorIdentityRoleSets),
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.GetOperatorIdentityRoleSet)))
 
 	// Resource create/update/delete endpoints
 	// These endpoints must have a corresponding entry in AvailableOperations.
