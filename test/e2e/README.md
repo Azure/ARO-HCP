@@ -88,6 +88,15 @@ credentials, and is deleted on success, failure, or cancellation. The existing
 five-minute ClusterIssuer readiness timeout and certificate/HTTPS assertions
 remain independent of this prerequisite.
 
+While waiting for issuance, the test wakes processing ACME Orders whose owned
+Challenges are all valid by updating a dedicated annotation at most once every
+30 seconds per Order UID. Only the Certificate's controller-owner UID chain is
+eligible, and atomic UID/resource-version checks protect each metadata-only patch.
+This works around missing processing-Order polling in the pinned cert-manager;
+remove it when the pin includes [the upstream fix](https://github.com/cert-manager/cert-manager/pull/9463).
+It does not restart cert-manager, recreate Orders, extend the ten-minute issuance
+wait, or bypass certificate and HTTPS validation.
+
 Failed tests write `ingress-certificate-diagnostics/` under their artifact
 directory before guest teardown. These artifacts include bounded cert-manager
 controller logs, issuer conditions/events, and guest DNS readiness state. They
