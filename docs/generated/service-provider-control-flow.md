@@ -123,6 +123,10 @@ Snapshot PVC cleanup update baseline: `e8dff36c2e806a8189de15da4935ac1f613f4c4a`
 scope: management-agent snapshot PVC finalizer cleanup, external ownership and
 the conditional control-plane namespace teardown path in the cluster-delete view.
 
+Orphaned-MRG update baseline: `fc95bc45c46e370c1e256f6abbbe657df503bcf9` plus rebase repairs;
+scope: AFEC ownership, dry-run/delete mode, 24-hour subscription discovery, required cache synchronization, and reserved Cosmos storage budget.
+Discovery update scope: subscription queue, 5-minute discovery timeout, rate-limited retries, and cancellation and worker shutdown.
+
 The generation instructions are maintained in [controller-data-flow.md](../prompts/controller-data-flow.md).
 The generated reference lives at `docs/generated/service-provider-control-flow.md`.
 
@@ -449,8 +453,9 @@ informer/server goroutines and closes listeners, including an unserved API liste
 | Cluster PUT create and deployment preflight | `newClusterAdmissionContext` lists clusters in the request subscription, then node pools under those cached clusters. [Collision checks](../../internal/admission/admit_cluster.go) use these inventories for managed-resource-group name, subnet and NSG reuse. | Subscription and request-target existence reads remain live. Preflight does not persist resources. |
 | Cluster PUT/PATCH update | The same [context builder](../../frontend/pkg/frontend/cluster.go) gets SPC and lists the cluster's node pools, pairing every cached pool, including deleting pools, with its cached SPNP for version-skew admission. | Subscription and target-cluster reads remain live; the resource/operation transaction is unchanged. |
 | Node-pool PUT create | [Node-pool admission setup](../../frontend/pkg/frontend/node_pool.go) gets the parent SPC for control-plane version state; no SPNP is required for create. | Subscription, parent-cluster and target-existence reads remain live; the resource/operation transaction is unchanged. |
-| Node-pool PUT/PATCH update | The same node-pool context builder gets the parent SPC and target SPNP for version validation. | Subscription, parent-cluster and target-node-pool reads remain live; the resource/operation transaction is unchanged. |
+| Node-pool PUT/PATCH update | The same node-pool context builder gets the parent SPC and target SPNP for version validation, and the cluster's node-pool inventory for the [best-effort zero-worker admission gate](../../internal/admission/admit_nodepool.go) | Subscription, parent-cluster and target-node-pool reads remain live; the resource/operation transaction is unchanged. |
 | Explicit node-pool DELETE | [DeleteNodePool](../../frontend/pkg/frontend/node_pool.go) lists sibling pools for the [best-effort last-pool check](../../internal/admission/admit_nodepool.go), which rejects inventories of at most one pool. | The target node pool, provisioning-state conflict checks and operation handling remain live; the delete transaction is unchanged. |
+
 
 All SPC/SPNP reads for admission come from the caches. Admission setup does not
 call GetOrCreate, create provider documents, or fall back to a live parent-resource
@@ -538,6 +543,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 ### PUT Cluster (Create)
 
+Admission sets `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` to `Enabled` when the experimental AFEC is registered and `aro-hcp.experimental.cluster.backup-schedule-override=Enabled` is present; otherwise it is unset (other non-empty values are rejected when gated on).
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource does not exist)
 **Handler:** `createHCPCluster` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` x2)
@@ -567,6 +574,8 @@ admin-owned override and takes precedence during assignment and completion.
 
 ### PUT Cluster (Update)
 
+Admission re-derives `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` from the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag. Only `Enabled` or empty is accepted; removing the tag or AFEC clears the override.
+
 **Path:** `PUT .../hcpOpenShiftClusters/{name}` (resource exists)
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
 **Write method:** Transactional batch (`AddCreateToTransaction` + `AddReplaceToTransaction`)
@@ -579,6 +588,8 @@ admin-owned override and takes precedence during assignment and completion.
 ---
 
 ### PATCH Cluster (Update)
+
+Admission re-derives `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` from the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag. Only `Enabled` or empty is accepted; removing the tag or AFEC clears the override.
 
 **Path:** `PATCH .../hcpOpenShiftClusters/{name}`
 **Handler:** `updateHCPClusterInCosmos` ([cluster.go](../../frontend/pkg/frontend/cluster.go))
@@ -1432,9 +1443,9 @@ For normal schedule reconciliation, Cluster `ResourceID`, provider placement, an
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (normal reconciliation: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (normal reconciliation: must be non-empty)</li><li>`ResourceID` (required; backup annotation)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version` (enables observing the HostedCluster key fingerprint)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (normal reconciliation: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (normal reconciliation: must be non-empty)</li><li>`ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` (lifts only the deployment-wide pause when `Enabled`)</li><li>`ResourceID` (required; backup annotation)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version` (enables observing the HostedCluster key fingerprint)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.BackupScheduleState` (determines whether per-cluster schedules are paused)</li><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li></ul> |
-| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` based on global pause config or `Spec.BackupScheduleState == Disabled`</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates/replaces one Velero `Schedule` ApplyDesire per configured backup schedule; sets `Spec.Paused` to `clusterState == Disabled || (globalState == Disabled && override != Enabled)`</li></ul> |
 | **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates/replaces one ReadDesire per schedule to observe `Schedule` status on the management cluster</li></ul> |
 
 No writes to the Cosmos Resources container.
@@ -1560,9 +1571,27 @@ Uses legacy MSI/data-plane identity status, not `ManagedIdentityDetails`, and re
 
 [Source](../../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go) · **Trigger:** Cluster; 1m.
 
-Live-rechecks a nondeleting cluster with a pending ID and no confirmed ID. Requires desired version, selected management cluster/provision shard and deny-assignment precondition when enabled. Adopts by Azure identity metadata or POSTs to Cluster Service; confirms `ClusterServiceID` and clears `PendingClusterServiceID`.
+Live-rechecks a nondeleting cluster with a pending ID and no confirmed ID. Requires desired version, selected management cluster/provision shard and deny-assignment precondition when enabled. Adopts by Azure identity metadata before checking DNS readiness. New POSTs require the persisted prefix and claimed base domain, passed as `domain_prefix` and `dns.base_domain`. Confirms `ClusterServiceID` and clears `PendingClusterServiceID` in the same reconcile after successful POST.
 
 Both cached and live cluster checks consult cached provider placement; desired-version and deny gates then use the live get-or-created provider. Deny readiness requires no pending entries, at least one observed assignment and a nonnil recheck time, not a fresh Azure validation. Subscription tenant ID must be present. Adoption searches and re-filters subscription/RG/resource name in lower case, with exact tenant/MRG casing; multiple matches or iterator errors fail. Adoption does not revalidate the matched cluster's shard or pending ID. Only the POST path resolves the selected cached MC's provision-shard ID and verifies the returned ID matches the pending UID. Final cluster replacement is separate from the CS effect; conflicts defer and a later pass can adopt the created cluster. Declared subscription/MC interests do not add watches, so changes to those cached inputs can wait for cluster/provider events or the primary resync.
+
+#### ClusterDNSAllocation
+
+[Source](../../backend/pkg/controllers/cluster/dns/allocation_controller.go) · **Trigger:** Cluster/provider and claim-owner events; cluster key, 1m resync.
+
+Uses the admission-assigned ARO ClusterUID and waits for the pending CS ID and selected management cluster. Checks the shared CS adoption lookup before generating names. Persists a five-character candidate in `ServiceProviderCluster.Spec.DesiredDNSBaseDomain`, creates a Fleet claim owned by the ARO UID, then publishes the base domain on Cluster after observing ownership. Provider intent remains set. CREATE admission defaults omitted prefixes to `cluster`; allocation also covers previously accepted unallocated clusters when publishing the name. Each reconcile performs one mutation. Conditional writes retry stale observations. See [DNS allocation](../controllers/dns-allocation.md).
+
+#### ClusterDNSBackfill
+
+[Source](../../backend/pkg/controllers/cluster/dns/backfill.go) · **Trigger:** Cluster, mirrored HyperShift resources, and claim-owner events; cluster key, 1m resync.
+
+For established nondeleting clusters, fills missing legacy base domains and establishes claims with a fresh creation timestamp. Verifies API/ingress names and reservation ownership; retiring claims are unavailable. Mismatches use the standard wrapper's Degraded condition and retries. ClusterBaseDomainPrefixSync first recovers legacy prefixes. Reconciliation calls listers and CRUD directly and performs one mutation. A retirement TODO includes a fleet-wide verification query.
+
+#### DNSClaimCleanup
+
+[Source](../../backend/pkg/controllers/cluster/dns/cleanup.go) · **Trigger:** Fleet DNSClaim informer; claim key, 1h resync.
+
+A matching owner UID retains the claim, including while deleting. If the owner cache is absent or shows a different UID, confirms the old incarnation is gone with a live cluster GET before recording claim-local `DeletionTimestamp`. Retains the name for seven days from that persisted timestamp, then reconfirms owner absence live before `DeleteWithETag`. The content timestamp does not hide the claim or start Cosmos TTL; final soft deletion does. Observation errors retry; stale cleanup write conflicts are benign and reconsidered on events/resync. Each reconcile performs at most one claim mutation. No release acknowledgement or cluster-deletion gate. No Azure or CS effects.
 
 #### ManagementClusterPlacementSync
 
@@ -1624,15 +1653,15 @@ Reads cached ServiceProviderCluster and mirrored HostedCluster content; requires
 
 [Source](../../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go) · **Trigger:** Cluster; 5m.
 
-Reads mirrored HostedCluster state and synchronizes cluster service-provider API/console URLs, DNS base domain and issuer URL. These values are not taken from create request bodies. Does not submit a Cluster Service configuration change.
+Reads mirrored HostedCluster state and synchronizes cluster service-provider API/console URLs and issuer URL. DNS backfill and verification belong to ClusterDNSBackfill. These values are not taken from create request bodies. Does not submit a Cluster Service configuration change.
 
-Requires a cached cluster with nonempty customer `DNS.BaseDomainPrefix` and nonnil decoded HostedCluster content, but ignores the helper's Successful boolean and has no deletion guard. Console URL uses HostedCluster `Spec.DNS.BaseDomain`; the ARM DNS base domain instead strips the required `api.<BaseDomainPrefix>.` prefix from `Spec.KubeAPIServerDNSName` (mismatch errors). API URL uses that spec DNS name and the observed endpoint port, not the endpoint host; port zero retains the old URL. Issuer URL is copied from spec. Equal documents skip replacement; cached-ETag conflicts defer.
+Requires a cached nondeleting cluster with nonempty customer `DNS.BaseDomainPrefix` and nonnil decoded HostedCluster content, but ignores the helper's Successful boolean. Console URL uses HostedCluster `Spec.DNS.BaseDomain`. API URL uses the spec KubeAPIServerDNSName and observed endpoint port, not the endpoint host; port zero retains the old URL. Issuer URL is copied from spec. Equal documents skip replacement; cached-ETag conflicts defer.
 
 #### ClusterBaseDomainPrefixSync
 
 [Source](../../backend/pkg/controllers/cluster/properties/cluster_base_domain_prefix_sync.go) · **Trigger:** Cluster; 5m.
 
-Fills customer `DNS.BaseDomainPrefix` only when empty and ClusterServiceID is nonempty, checking both cached and live Cluster before a live Cluster Service GET. Copies `DomainPrefix()` without additional nonempty validation; an empty result leaves the field eligible for later retries. No deletion guard or refresh of an already-set prefix. Equal state skips replacement; ETag conflicts defer.
+Fills customer `DNS.BaseDomainPrefix` only for nondeleting clusters when empty and ClusterServiceID is nonempty, checking both cached and live Cluster before a live Cluster Service GET. Copies `DomainPrefix()` without additional nonempty validation; an empty result leaves the field eligible for later retries. Does not refresh an already-set prefix. New clusters receive explicit or admission-defaulted prefixes before CS POST. Equal state skips replacement; ETag conflicts defer.
 
 #### ClusterIdentitySync
 
@@ -1674,7 +1703,7 @@ An observation-only domain controller: it never PATCHes Cluster Service. Runs wh
 
 [Source](../../backend/pkg/controllers/cluster/backups/schedule_controller.go) · **Trigger:** Cluster and mirrored reads; 5m.
 
-Uses `Spec.BackupScheduleState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Default retention is two days for six-hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
+Uses `ServiceProviderCluster.Spec.BackupScheduleState`, placement and namespaces to reconcile Velero schedule ApplyDesires and observed status. Handles pause and deletion; kube-applier performs the Kubernetes writes. Each Schedule's `spec.paused` comes from three levers, resolved by [`BackupConfig.SchedulePaused`](../../backend/pkg/controllers/cluster/backups/config.go) as `clusterState == Disabled || (globalState == Disabled && override != Enabled)`: the per-cluster admin API pause `ServiceProviderCluster.Spec.BackupScheduleState` always wins, the deployment-wide `--backup-schedule-state` pauses everything below it, and the experimental `Cluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` lifts only the deployment-wide pause for a single cluster. Default retention is two days for six-hourly backups, 30 days for daily backups and 90 days for weekly backups; [configuration](../../backend/pkg/controllers/cluster/backups/config.go) also supports a short-retention mode.
 
 #### KeyRotationBackup
 
@@ -2096,11 +2125,13 @@ Aggregates cached child Controller conditions into the ARM resource `Status.Cond
 
 On cached cluster deletion intent, lists cached credential requests/revocations, then live-reads each unmarked child and stamps `Status.DeletionTimestamp` so its own controller can clean up before cluster child-resource deletion. Already-marked or missing children are skipped; per-child ETag conflicts are deferred, other errors stop the pass. One timestamp is shared across the pass; the parent itself is not live-rechecked. Child informer events also enqueue the cluster.
 
-#### CleanOrphanedClusterManagedResourceGroup
+#### OrphanedManagedResourceGroupCleanup
 
-[Source](../../backend/pkg/controllers/cluster/deletion/clean_orphaned_cluster_managed_resource_group_controller.go) · **Trigger:** Subscription; 10m.
+[Source](../../backend/pkg/controllers/cluster/deletion/orphaned_managed_resource_group_controller.go) · **Trigger:** ManagedResourceGroupWatchingController (subscription informer; 24h resync).
 
-Lists regional Azure managed resource groups and live HCP resource references; considers only orphan groups. Default mode only reports them. With `CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite`, rechecks then begins Azure group deletion and polls it. Skips already-deleting groups; no Cosmos domain write.
+The [watcher](../../backend/pkg/utils/controllerutils/managed_resource_group_watching_controller.go) queues subscription IDs from add/update/resync notifications; informer callbacks do not call Azure. After required caches synchronize, a single `ManagedResourceGroupDiscovery` worker reads each subscription from the current lister and pages Azure resource groups, filtering by region and HCP cluster `managedBy` type before enqueueing MRGs for the existing processor workers. Each discovery has a 5-minute timeout derived from the controller context. Lister, client-creation, paging, and timeout errors requeue the subscription with rate limiting; missing subscriptions or tenant data are skipped. Shutdown cancels in-flight discovery, shuts down both queues, and waits for workers to exit. This wrapper does not persist Controller status or other Cosmos documents.
+
+Startup passes the ownership AFECs and dry-run/delete mode together in `OrphanedMRGCleanupConfig`. The shared backend values template sets one rollout mode for all environments; AFEC ownership remains environment-specific. The controller checks subscription ownership via AFEC flags (mode `TargetAFECs` or `ExcludedAFECs`), then verifies cluster existence (lister first, Cosmos fallback). Fail-closed: no configured ownership AFECs, nil `Properties`, or nil `RegisteredFeatures` treats the subscription as not-owned. It then reads the Azure resource group: 404 completes the work, `Deleting` schedules another check after 15 minutes in delete mode, and any other state permits a delete attempt. In delete mode, a successful ARM `BeginDelete` also schedules a check after 15 minutes without occupying a worker. Failed immediate calls use the workqueue's rate-limited retry. Detection is counted only while the resource group still exists and is not already `Deleting`. The controller does **not** write to Cosmos; it deletes orphaned Azure managed resource groups via ARM or logs detection in dry-run mode. Reads: `Subscription` (cached via lister: existence, `Properties.RegisteredFeatures`, `Properties.TenantId`), `HCPOpenShiftCluster` (cached via lister, then `HCPClusters().Get()` Cosmos fallback for existence check).
 
 ### Backend: system-admin credentials
 
@@ -2897,7 +2928,7 @@ The [server registry](../../sessiongate/pkg/server/server.go) is keyed by Sessio
 
 | Resource / system | Actual mutator | Intent, observation and cleanup |
 |---|---|---|
-| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
+| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [OrphanedManagedResourceGroupCleanup](#orphanedmanagedresourcegroupcleanup) deletes confirmed orphans only in delete mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
 | Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
 | Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
@@ -3128,7 +3159,8 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | Cluster `PendingClusterServiceID` / `ClusterServiceID` | [Pending ID assignment](#clusterpendingclusterserviceidassign) reserves the ID. [Cluster creation](#clusterclusterservicecreate) confirms the external ID and clears pending. The [ID clearer](#clusterdeletionclusterserviceidclearer) clears confirmed ID only after external absence. Node-pool/external-auth create and clear controllers similarly share their confirmed-ID fields. |
 | `ClusterServiceDeletionTimestamp` | Each delete dispatcher stamps completion of dispatch/creation-race handling; cleanup also requires the confirmed ID cleared. It is not a timestamp of all Azure/Kubernetes deletion. |
 | Cluster `ClusterUID`, `BillingDocumentCosmosID`; Billing document `DeletionTime` | [Frontend cluster admission](../../internal/admission/admit_cluster.go) generates the immutable UID on CREATE; UPDATE does not backfill an absent UID. [CreateBillingDoc](#createbillingdoc) creates billing and links it. [ClusterDeletionController](#clusterdeletioncontroller) and [OrphanedBillingCleanup](#orphanedbillingcleanup) mark billing deleted. |
-| Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | [ClusterPropertiesSync](#clusterpropertiessync) writes observed values. Frontend clears supplied values on create rather than persisting them; updates preserve stored values. |
+| Cluster `ServiceProviderProperties.API.URL`, `.Console.URL`, `.DNS.BaseDomain`, `.Platform.IssuerURL` | [ClusterPropertiesSync](#clusterpropertiessync) writes observed URLs. ClusterDNSAllocation publishes claimed names before CS POST; ClusterDNSBackfill fills missing legacy names and verifies them. Frontend clears supplied read-only values on create; updates preserve stored values. |
+| Fleet DNSClaim; ServiceProviderCluster `Spec.DesiredDNSBaseDomain` | ClusterDNSAllocation persists intent and creates an exclusive parent-zone/slug claim with ClusterUUID equal to ARO ClusterUID. ClusterDNSBackfill establishes legacy claims. DNSClaimCleanup records DeletionTimestamp after live-confirmed owner disappearance, retains names seven days, then conditionally soft-deletes. |
 | Cluster `Identity.UserAssignedIdentities` | Frontend supplies identity intent without create-body client/principal IDs; [ClusterIdentitySync](#clusteridentitysync) fills resolved identity fields or clears stale values when the provider has no matching identity. Updates preserve stored resolved values. Azure identities themselves are not created by that syncer. |
 | Cluster/node-pool `Status.ActiveVersions` | [ControlPlaneActiveVersions](#controlplaneactiveversions) writes distinct major.minor cluster versions; [NodePoolActiveVersions](#nodepoolactiveversions) writes full node-pool versions. The 2026-10-01 API returns these stored observations through `properties.status.activeVersions`; customer configuration remains separately owned. |
 | ARM Degraded / RequirementsValid conditions | Resource-specific aggregators combine Controller or service-provider validation conditions. A validation failure and a reconcile error are separate signals. |
@@ -3140,6 +3172,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | External-auth provider and health fields | [CreateServiceProviderExternalAuth](#createserviceproviderexternalauth) creates the `default` provider singleton. [ExternalAuthOIDCClientsDegradedController](#externalauthoidcclientsdegradedcontroller) writes its `Status.Conditions[OIDCClientsDegraded]`; the [user-facing aggregator](#externalauthuserfacingdegradedaggregator) writes ExternalAuth `Status.UserFacingConditions[Degraded]`. [ExternalAuthDegradedAggregator](#externalauthdegradedaggregator) independently writes internal `Status.Conditions[Degraded]` from Controller status. [Child cleanup](#externalauthchildresourcescleanupcontroller) deletes the provider singleton; neither health field gates create/update operation completion. |
 | Service-provider cluster `Spec.ControlPlaneVersion.DesiredVersion` / `DesiredVersionLastTransitionTime` | [Initial assignment](#initialnormalclusterdesiredversion), [minor-version assignment](#minorupgradenormalclusterdesiredversion), [normal rollout](#zstreamprogressivedesiredversionrollout) and [forced assignment](#forcedclusterdesiredversion) write the target and transition time. Initial assignment also backfills a missing/zero time without changing the target. Cluster creation, upgrade dispatch and operation completion consume desired state; it is not an observed version. |
 | Cluster `ServiceProviderProperties.ExperimentalFeatures.ZStreamUpdatePolicy` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.z-stream-update-policy` tag; its only valid value is `Immediate`. Removing the tag or AFEC clears the policy. [Forced assignment](#forcedclusterdesiredversion) follows the desired channel's best z-stream without progressive gates, after pins and exact overrides. |
+| Cluster `ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride` | Frontend admission projects the AFEC-gated `aro-hcp.experimental.cluster.backup-schedule-override` tag; its only valid value is `Enabled`. Removing the tag or AFEC clears the override. [BackupSchedule](#backupschedule) uses it to lift the deployment-wide `--backup-schedule-state` pause for one cluster so a single test can opt into active backups; it cannot pause a cluster and it never defeats the admin API pause. |
 | Service-provider cluster `Spec.PinnedVersion` | [Admin API ControlPlaneVersionPin](#admin-api-post-controlplaneversionpin) and [FleetControlPlaneVersionPin](#admin-api-post-fleetcontrolplaneversionpin) set `ExactVersion` and optional `UntilExactVersion`; sending a nil `ExactVersion` clears the pin. [Forced assignment](#forcedclusterdesiredversion) also clears the pin once channel best reaches the release threshold. Pins precede experimental exact versions and normal assignment. |
 | Fleet `ControlPlaneVersionRollout.Spec.Version.{ID,ChannelGroup}` | [Seeding](#controlplaneversionrolloutseeding) sets the profile on creation. Shared Cosmos conversion fills absent/zero legacy profiles on read; [migration](#cosmosrolloutversionmigration) and ordinary rollout replacements persist them. Consumers still parse channel names. |
 | Fleet `ControlPlaneVersionRollout.Spec.BestExactVersion` | [Seeding](#controlplaneversionrolloutseeding) creates requested/pinned channel documents without a best version. [Best selection](#controlplaneversionbestversionselection) owns the target; assignment controllers consume it. |
@@ -3158,7 +3191,7 @@ actors and use optimistic concurrency; retries must re-read on conflict.
 | `Status.MSIManagedIdentities`, `Status.DataPlaneOperatorsManagedIdentities`, `Status.ManagedIdentityDetails` | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) and [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) write resolved IDs and errors for deny assignments, role assignments, and identity-property synchronization. [FetchManagedIdentitiesInfo](#fetchmanagedidentitiesinfo) writes `Status.ManagedIdentityDetails` by lowercased resource ID, including per-source metadata. `Spec.EarliestRecheckTimesByController` has independently owned entries for these identity controllers and role assignments; deny assignments keep their own `EarliestRecheckTime` under `Status.AzureResources.DenyAssignments`. |
 | `Status.Validations` | Each registered validation writes its own condition in the service-provider cluster or node pool; requirements aggregators consume the set. |
 | ServiceProviderCluster `Status.HostedClusterNamespace`, `ControlPlaneNamespace`, `ServingCABundle` | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) derives namespaces from mirrored HostedCluster identity and copies nonempty serving-CA content, retaining an old bundle when content is absent. Credentials and create-operation completion wait on them. |
-| ServiceProviderCluster `Spec.BackupScheduleState` | Admin backup PATCH writes Enabled/Disabled; [BackupSchedule](#backupschedule) reconciles Velero intent. Mirrored Kubernetes status reports results separately. |
+| ServiceProviderCluster `Spec.BackupScheduleState` | Admin backup PATCH writes Enabled/Disabled; [BackupSchedule](#backupschedule) reconciles Velero intent. It is the highest-precedence pause lever: neither the deployment-wide `--backup-schedule-state` nor the experimental override can resume a cluster paused here. Mirrored Kubernetes status reports results separately. |
 | Velero deletion intent | [BackupCleanup](#backupcleanup) SSA-applies `DeleteBackupRequest.spec.backupName` and retries its processed requests; Velero owns request status and Backup/data deletion. Backup/repository opt-outs do not cancel issued requests or Velero TTL. |
 | Repository cleanup intent / protection / status | [RepositoryCleanup](#repositorycleanup) owns its repository finalizer, immutable `BackupRepositoryCleanup.spec` and intent finalizer, and `status.conditions[Complete]` through separate SSA managers. No owner reference ties the cleanup CR to the repository. Completed tombstones remain monitored; explicit removal requires fresh verification. No Cosmos field records cleanup completion. |
 | Kubernetes PVC `metadata.finalizers` | External snapshot controller owns the normal source-protection lifecycle. Management-agent [SnapshotPVCFinalizerCleanupController](#snapshotpvcfinalizercleanupcontroller) removes only `snapshot.storage.kubernetes.io/pvc-as-source-protection` from a deleting PVC in any namespace when cached and live snapshot checks show no references; other finalizers remain under their respective owners. This Kubernetes update has no Cosmos field or direct ARM-operation write. |

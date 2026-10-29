@@ -23,11 +23,11 @@ GOHOSTARM    ?= $(shell $(GO) env GOHOSTARM)
 #	@echo "Running addlicense"
 #	@$(ADDLICENSE) <flags/args..>
 #
-ADDLICENSE := $(GOBIN)/addlicense-v1.1.1
+ADDLICENSE := $(GOBIN)/addlicense-v1.2.0
 $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
+	@echo "(re)installing $(GOBIN)/addlicense-v1.2.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.2.0 "github.com/google/addlicense"
 
 APPLYCONFIGURATION_GEN := $(GOBIN)/applyconfiguration-gen-v0.34.3
 $(APPLYCONFIGURATION_GEN): $(BINGO_DIR)/applyconfiguration-gen.mod

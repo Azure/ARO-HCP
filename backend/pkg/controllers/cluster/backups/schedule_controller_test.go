@@ -445,7 +445,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		return cluster
 	}
 
-	newTestServiceProviderCluster := func() *coreapi.ServiceProviderCluster {
+	newTestServiceProviderCluster := func(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testKey.SubscriptionID +
 				"/resourceGroups/" + testKey.ResourceGroupName +
@@ -454,7 +454,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 			clusterResourceID.String(), coreapi.ServiceProviderClusterResourceTypeName, coreapi.ServiceProviderClusterResourceName)))
 		controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, testDomainPrefix)
-		return &coreapi.ServiceProviderCluster{
+		serviceProviderCluster := &coreapi.ServiceProviderCluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   serviceProviderClusterResourceID,
 				PartitionKey: strings.ToLower(testKey.SubscriptionID),
@@ -465,6 +465,37 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				ControlPlaneNamespace:       controlPlaneNamespace,
 			},
 		}
+		for _, opt := range opts {
+			opt(serviceProviderCluster)
+		}
+		return serviceProviderCluster
+	}
+
+	// verifyPaused asserts spec.paused on every Velero Schedule the syncer shipped.
+	verifyPaused := func(want bool) func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+		return func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+			t.Helper()
+			applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
+			for _, scheduleConfig := range testBackupConfig.Schedules() {
+				desireName := backupApplyDesireName(scheduleConfig.Name)
+				applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
+				require.NoError(t, err, "ApplyDesire %s should exist", desireName)
+				require.NotNil(t, applyDesire.Spec.ServerSideApply)
+
+				var got velerov1api.Schedule
+				require.NoError(t, json.Unmarshal(applyDesire.Spec.ServerSideApply.KubeContent.Raw, &got))
+				assert.Equal(t, want, got.Spec.Paused, "%s should have spec.paused=%v", scheduleConfig.Name, want)
+			}
+		}
+	}
+
+	withBackupScheduleOverride := func(c *coreapi.Cluster) {
+		c.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride = coreapi.BackupScheduleStateEnabled
+	}
+
+	withAdminAPIPause := func(spc *coreapi.ServiceProviderCluster) {
+		spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
 	}
 
 	// seedHostedClusterReadDesire creates the ReadDesire that mirrors the live
@@ -504,12 +535,13 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, testDomainPrefix)
 		managementClusterResourceID := testMgmtClusterResourceID()
 		configSchedules := config.Schedules()
-		schedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
+		applyDesires := make([]*kubeapplierapi.ApplyDesire, 0, len(configSchedules))
 		for _, scheduleConfig := range configSchedules {
-			schedules = append(schedules, NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false))
+			schedule := NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false)
+			applyDesire, err := buildApplyDesireFromSchedule(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, backupApplyDesireName(scheduleConfig.Name), managementClusterResourceID, schedule)
+			require.NoError(t, err)
+			applyDesires = append(applyDesires, applyDesire)
 		}
-		applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, schedules)
-		require.NoError(t, err)
 		applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 		require.NoError(t, err)
 		for _, applyDesire := range applyDesires {
@@ -540,6 +572,33 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 	}
 
 	confirmedDeletions := make(map[string]bool)
+	confirmScheduleDeletions := func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+		t.Helper()
+		applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+		require.NoError(t, err)
+		readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+		require.NoError(t, err)
+		iter, err := applyDesireCRUD.List(ctx, nil)
+		require.NoError(t, err)
+		for _, ad := range iter.Items(ctx) {
+			if ad.Spec.Type != kubeapplierapi.ApplyDesireTypeDelete {
+				continue
+			}
+			assert.Nil(t, ad.Spec.ServerSideApply, "Delete-type ApplyDesire %s must not have ServerSideApply", ad.ResourceID.Name)
+			_, err := readDesireCRUD.Get(ctx, ad.ResourceID.Name)
+			require.NoError(t, err, "ReadDesire %s must remain until deletion is confirmed", ad.ResourceID.Name)
+			if !confirmedDeletions[ad.ResourceID.Name] {
+				assert.False(t, isDesireSuccessful(ad.Status.Conditions), "ApplyDesire %s must wait for deletion confirmation", ad.ResourceID.Name)
+			}
+			ad.Status.Conditions = []metav1.Condition{
+				{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
+			}
+			_, err = applyDesireCRUD.Replace(ctx, ad, nil)
+			require.NoError(t, err)
+			confirmedDeletions[ad.ResourceID.Name] = true
+		}
+		require.NoError(t, iter.GetError(), "failed to list ApplyDesires awaiting deletion confirmation")
+	}
 	tests := []struct {
 		name            string
 		seedDB          func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
@@ -549,6 +608,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		backupConfig    *BackupConfig
 		syncCount       int
 		clusterOpts     []func(*coreapi.Cluster)
+		spcOpts         []func(*coreapi.ServiceProviderCluster)
 		expectError     bool
 		errorContains   string
 		verify          func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
@@ -583,7 +643,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					_, err := applyDesireCRUD.Get(ctx, desireName)
 					assert.True(t, cosmosstorageutils.IsNotFoundError(err), "desire %s should not exist when BillingDocumentCosmosID is empty", desireName)
 				}
@@ -605,7 +665,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					_, err := applyDesireCRUD.Get(ctx, desireName)
 					assert.True(t, cosmosstorageutils.IsNotFoundError(err), "desire %s should not exist for cluster targeted for deletion", desireName)
 				}
@@ -627,7 +687,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
@@ -673,7 +733,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, schedule := range testingSchedules {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, schedule.Name))
+					desireName := backupApplyDesireName(schedule.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "testing ApplyDesire %s should exist", desireName)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
@@ -683,7 +743,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 				for _, schedule := range testBackupConfig.Schedules() {
 					name := schedule.Name
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, name))
+					desireName := backupApplyDesireName(name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "stale %s ApplyDesire should still exist with Delete type", name)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, applyDesire.Spec.Type, "stale %s ApplyDesire should be Delete type", name)
@@ -713,35 +773,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				return seedAllDesiresForConfig(t, ctx, mockKubeApplier, testBackupConfig)
 			},
-			afterSync: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
-				t.Helper()
-				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
-				require.NoError(t, err)
-				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
-				require.NoError(t, err)
-				iter, err := applyDesireCRUD.List(ctx, nil)
-				require.NoError(t, err)
-				for _, ad := range iter.Items(ctx) {
-					if ad.Spec.Type != kubeapplierapi.ApplyDesireTypeDelete {
-						continue
-					}
-					// Simulate kube-applier confirming the delete succeeded.
-					// EnsureApplyDesireRemoved gates the purge on the ApplyDesire's
-					// own delete condition, so set it here.
-					current, err := applyDesireCRUD.Get(ctx, ad.ResourceID.Name)
-					require.NoError(t, err, "ApplyDesire %s must exist before deletion is confirmed", ad.ResourceID.Name)
-					assert.Nil(t, current.Spec.ServerSideApply, "Delete-type ApplyDesire %s must not have ServerSideApply", ad.ResourceID.Name)
-					_, err = readDesireCRUD.Get(ctx, ad.ResourceID.Name)
-					assert.NoError(t, err, "ReadDesire %s must remain until deletion is confirmed", ad.ResourceID.Name)
-					current.Status.Conditions = []metav1.Condition{
-						{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
-					}
-					_, err = applyDesireCRUD.Replace(ctx, current, nil)
-					require.NoError(t, err)
-					confirmedDeletions[ad.ResourceID.Name] = true
-				}
-				require.NoError(t, iter.GetError(), "failed to list ApplyDesires awaiting deletion confirmation")
-			},
+			afterSync: confirmScheduleDeletions,
 			// Convert each apply to Delete, purge it after confirmation, then remove each read.
 			syncCount: 3 * len(productionSchedules),
 			verify: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -752,7 +784,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, schedule := range productionSchedules {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, schedule.Name))
+					desireName := backupApplyDesireName(schedule.Name)
 					assert.True(t, confirmedDeletions[desireName], "ApplyDesire %s must go through confirmed deletion before purge", desireName)
 					_, err := applyDesireCRUD.Get(ctx, desireName)
 					assert.True(t, cosmosstorageutils.IsNotFoundError(err), "ApplyDesire %s should be purged after full deletion lifecycle", desireName)
@@ -888,7 +920,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					_, err := applyDesireCRUD.Get(ctx, desireName)
 					assert.True(t, cosmosstorageutils.IsNotFoundError(err), "no desires should exist for cluster being deleted with no pre-existing desires")
 				}
@@ -916,7 +948,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, scheduleConfig := range productionSchedules {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "production ApplyDesire %s should exist", desireName)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
@@ -932,7 +964,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}
 
 				for _, schedule := range testingSchedules {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, schedule.Name))
+					desireName := backupApplyDesireName(schedule.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "stale %s ApplyDesire should still exist with Delete type", schedule.Name)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, applyDesire.Spec.Type, "stale %s ApplyDesire should be Delete type", schedule.Name)
@@ -971,13 +1003,14 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 				oldFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v1")
 				configSchedules := testBackupConfig.Schedules()
-				oldSchedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
+				applyDesires := make([]*kubeapplierapi.ApplyDesire, 0, len(configSchedules))
 				for _, scheduleConfig := range configSchedules {
-					oldSchedules = append(oldSchedules, NewScheduledBackup(testArmResourceIDStr, oldFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false))
+					schedule := NewScheduledBackup(testArmResourceIDStr, oldFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false)
+					applyDesire, err := buildApplyDesireFromSchedule(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, backupApplyDesireName(scheduleConfig.Name), managementClusterResourceID, schedule)
+					require.NoError(t, err)
+					applyDesires = append(applyDesires, applyDesire)
 				}
 
-				applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, oldSchedules)
-				require.NoError(t, err)
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, applyDesire := range applyDesires {
@@ -1019,7 +1052,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
@@ -1076,7 +1109,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 				expectedFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v1")
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
 					require.NotNil(t, applyDesire.Spec.ServerSideApply)
@@ -1108,13 +1141,16 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}
 				schedules := backupConfig.Schedules()
 
-				oldSchedules := []*velerov1api.Schedule{}
+				applyDesires := make([]*kubeapplierapi.ApplyDesire, 0, len(schedules))
 				for _, schedule := range schedules {
-					oldSchedules = append(oldSchedules, NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false))
+					oldSchedule := NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false)
+					oldSchedule.Spec.Schedule = "0 0 * * *"
+					oldSchedule.Spec.Template.TTL = metav1.Duration{Duration: schedule.TTL / 2}
+					applyDesire, err := buildApplyDesireFromSchedule(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, backupApplyDesireName(schedule.Name), managementClusterResourceID, oldSchedule)
+					require.NoError(t, err)
+					applyDesires = append(applyDesires, applyDesire)
 				}
 
-				applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, oldSchedules)
-				require.NoError(t, err)
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				for _, applyDesire := range applyDesires {
@@ -1151,7 +1187,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, scheduleConfig := range testBackupConfig.Schedules() {
-					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					desireName := backupApplyDesireName(scheduleConfig.Name)
 					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
 					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
 					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
@@ -1164,10 +1200,99 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "deployment-wide Disabled pauses schedules",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			syncCount: 6,
+			verify:    verifyPaused(true),
+		},
+		{
+			name: "admin API pause pauses schedules",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			spcOpts:   []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount: 6,
+			verify:    verifyPaused(true),
+		},
+		{
+			name: "override lifts the deployment-wide pause",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			syncCount:   6,
+			verify:      verifyPaused(false),
+		},
+		{
+			name: "admin API pause outranks the override",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			spcOpts:     []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount:   6,
+			verify:      verifyPaused(true),
+		},
+		{
+			name: "admin API pause re-pauses an overridden cluster",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(withBackupScheduleOverride), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement: true,
+			// seedAllDesiresForConfig ships unpaused Schedules, standing in for the
+			// steady state of a cluster whose override already lifted the
+			// deployment-wide pause.
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) ([]*kubeapplierapi.ApplyDesire, []*kubeapplierapi.ReadDesire) {
+				t.Helper()
+				return seedAllDesiresForConfig(t, ctx, mockKubeApplier, testBackupConfig)
+			},
+			backupConfig: &BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateDisabled,
+				BackupCadenceProfile: BackupCadenceProduction,
+			},
+			clusterOpts: []func(*coreapi.Cluster){withBackupScheduleOverride},
+			spcOpts:     []func(*coreapi.ServiceProviderCluster){withAdminAPIPause},
+			syncCount:   1,
+			verify:      verifyPaused(true),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			confirmedDeletions = make(map[string]bool)
 			ctx := context.Background()
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			mockKubeApplierDBClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
@@ -1190,7 +1315,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 			var serviceProviderClusterList []*coreapi.ServiceProviderCluster
 			if tt.hasPlacement {
-				serviceProviderClusterList = []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster()}
+				serviceProviderClusterList = []*coreapi.ServiceProviderCluster{newTestServiceProviderCluster(tt.spcOpts...)}
 			}
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{

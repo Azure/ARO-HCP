@@ -305,7 +305,7 @@ For slot-managed jobs:
 
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev`
+- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for ci02)
   (the `apply-identity-pool` target remains a compatibility alias)
 
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
@@ -331,7 +331,7 @@ incomplete, reconcile only the affected subscription:
 
 ```bash
 make -C test apply-pool-assets \
-  ENVIRONMENT=<dev|int|stg|prod> \
+  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
@@ -345,7 +345,7 @@ Then validate the complete expected inventory against Azure:
 
 ```bash
 make -C test validate-pool-assets \
-  ENVIRONMENT=<dev|int|stg|prod> \
+  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```

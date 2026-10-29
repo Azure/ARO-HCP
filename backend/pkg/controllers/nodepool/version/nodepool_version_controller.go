@@ -105,9 +105,10 @@ func NewNodePoolVersionController(
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
 
-	// we need to trigger on serviceProviderCluster changes because we rely on a version field there to make decisions
+	// React to ServiceProviderCluster version changes without resyncing this input.
+	// NewNodePoolWatchingController resyncs node pool keys once, not once for every input.
 	serviceProviderClusterInformer, _ := informers.ServiceProviderClusters()
-	err := controller.QueueForInformers(resyncDuration, serviceProviderClusterInformer)
+	err := controller.QueueForInformers(0, serviceProviderClusterInformer)
 	if err != nil {
 		panic(err) // coding error
 	}

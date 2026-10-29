@@ -651,7 +651,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: "1.35"
+      kubernetesVersion: "1.36"
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       upgradeSettings:
@@ -790,7 +790,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: "1.35"
+      kubernetesVersion: "1.36"
       networkDataplane: "azure"
       networkPolicy: "azure"
       upgradeSettings:
@@ -898,6 +898,8 @@ defaults:
     backupScheduleState: Enabled
     exitOnPanic: true
     logVerbosity: 4
+    orphanedMRGCleanupTargetSubscriptionAFECFlags: ""
+    orphanedMRGCleanupExcludedSubscriptionAFECFlags: ""
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Fleet
@@ -1947,6 +1949,107 @@ clouds:
                 vmSize: Standard_D4ds_v6
               userAgentPool:
                 # Keep the persisted AKS pool name despite the smaller VM size.
+                name: 'u64d8dsv6'
+                vmSize: Standard_D4ds_v6
+                osDiskSizeGB: 64
+              infraAgentPool:
+                vmSize: Standard_D2ds_v6
+          fleet:
+            nodePoolPlanning:
+              profile: "ci"
+      ci02:
+        # prow upgrade infra - deploys into "ARO HCP E2E Infrastructure" subscription
+        # Sized for 6 concurrent HCPs
+        defaults:
+          swiftRecorder:
+            captureMode: all
+          # Avoid per-restore instant-access fees while retaining backup coverage.
+          velero:
+            enableInstantAccess: false
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
+          auditLogsEventHub:
+            enabled: true
+          kusto:
+            manageInstance: false
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
+          # Cluster Service
+          clustersService:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+          # Geneva
+          geneva:
+            logs:
+              manage: Disabled
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+          # Backend
+          backend:
+            backupCadenceProfile: testing
+            backupScheduleState: Disabled
+          # Frontend
+          frontend:
+            audit:
+              connectSocket: false
+            cosmosDB:
+              private: false
+              enableBurstCapacity: true
+              zoneRedundantMode: 'Disabled'
+          # MC - sized for 6 concurrent HCPs
+          mgmt:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                maxCount: 4
+                osDiskSizeGB: 32
+                vmSize: Standard_D4ds_v6
+              userAgentPool:
+                maxCount: 3
+                minCount: 1
+                osDiskSizeGB: 100
+                vmSize: Standard_D16ds_v6
+                secondaryNicCount: 7
+              infraAgentPool:
+                vmSize: Standard_E4ds_v6
+                osDiskSizeGB: 64
+          # SVC - same as ci01
+          svc:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemPoolOnly: true
+              systemAgentPool:
+                minCount: 3
+                maxCount: 5
+                vmSize: Standard_D4ds_v6
+              userAgentPool:
                 name: 'u64d8dsv6'
                 vmSize: Standard_D4ds_v6
                 osDiskSizeGB: 64

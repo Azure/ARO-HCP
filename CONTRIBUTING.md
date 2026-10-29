@@ -66,6 +66,13 @@ Please follow these guidelines when contributing to ARO HCP:
   in the Jira card. Please, also include all design documents and slack discussion in the Jira. This will
   help others to understand the context and decisions made.
 
+Use `make generate` to regenerate mocks, the nonlocal E2E specification list, and
+deepcopy code. Generation finishes with one `all-tidy` pass for module and
+workspace dependencies, Go formatting, and license headers. `make deepcopy`
+retains the same finishing checks when only deepcopy generation is needed.
+Both `make verify-deepcopy` and `make verify-generate` run complete generation
+before checking for uncommitted changes; `make verify` shares that generation pass.
+
 Please note, that you might be asked to comply with these guidelines before your PR is accepted.
 
 ## Pull Request Standards
@@ -96,7 +103,8 @@ All pull requests must follow these standards. Reviewers will check for complian
 - Lead with motivation and business context, then briefly describe the technical approach.
 
 ### 4. Link to Relevant Ticket or Issue
-- Every PR must reference its tracking ticket (Jira, GitHub Issue).
+- PRs authored by `aro-hcp-robot[bot]` do not require a separate Jira or GitHub tracking issue. The bot PR itself tracks the automated change, including dependency, component, image and tool updates. This exception does not waive CI, security checks or substantive code review.
+- All other PRs must reference their tracking ticket (Jira, GitHub Issue) or explain why no ticket is needed.
 - Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
 - If no ticket exists, create one first or explain why in the PR body.
 

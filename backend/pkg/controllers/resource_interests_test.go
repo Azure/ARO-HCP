@@ -303,7 +303,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name: "cluster resources observes node pools",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				return clusterresources.NewClusterResourcesController(db, nil, nil, inf, u, nil)
+				return clusterresources.NewClusterResourcesController(db, nil, inf, u, nil)
 			},
 			events: []event{{"nodepool", "/nodePools/np", true}},
 		},

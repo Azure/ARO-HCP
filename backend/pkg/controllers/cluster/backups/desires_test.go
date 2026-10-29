@@ -36,11 +36,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/backup"
 )
 
-// TestBuildApplyDesiresFromSchedules validates what an ApplyDesire built for a
+// TestBuildApplyDesireFromSchedule validates what an ApplyDesire built for a
 // backup schedule is expected to look like: the scope-correct name, the Velero
 // Schedule target, the server-side-apply type, and the marshaled Schedule as
 // the apply content.
-func TestBuildApplyDesiresFromSchedules(t *testing.T) {
+func TestBuildApplyDesireFromSchedule(t *testing.T) {
 	clusterID := "11111111111111111111111111111111"
 	hostedClusterNamespace := controllerutils.HostedClusterNamespace("testenv", clusterID)
 	controlPlaneNamespace := hostedClusterNamespace + "-test-domprefix"
@@ -51,18 +51,15 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	}
 	schedules := backupConfig.Schedules()
 
-	veleroSchedules := []*velerov1api.Schedule{}
-	for _, schedule := range schedules {
-		veleroSchedules = append(veleroSchedules, NewScheduledBackup(clusterID, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false))
-	}
-	desires, err := buildApplyDesiresFromSchedules("test-sub", "test-rg", "test-cluster", managementClusterResourceID, veleroSchedules)
-	require.NoError(t, err)
-	require.Len(t, desires, 3)
+	for _, scheduleConfig := range schedules {
+		schedule := NewScheduledBackup(clusterID, "", hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false)
+		desireName := backupApplyDesireName(scheduleConfig.Name)
+		applyDesire, err := buildApplyDesireFromSchedule("test-sub", "test-rg", "test-cluster", desireName, managementClusterResourceID, schedule)
+		require.NoError(t, err)
 
-	for i, schedule := range veleroSchedules {
-		applyDesire := desires[i]
-
-		assert.Equal(t, backupApplyDesireName(schedule.Name), applyDesire.ResourceID.Name)
+		assert.Equal(t, "backupschedule-"+scheduleConfig.Name, applyDesire.ResourceID.Name)
+		wantResourceID := kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", desireName)
+		assert.True(t, strings.EqualFold(wantResourceID, applyDesire.ResourceID.String()), "ApplyDesire must use the cluster-scoped resource ID for %s", scheduleConfig.Name)
 		assert.Equal(t, backup.VeleroGroup, applyDesire.Spec.TargetItem.Group)
 		assert.Equal(t, backup.VeleroScheduleResource, applyDesire.Spec.TargetItem.Resource)
 		assert.Equal(t, backup.VeleroNamespace, applyDesire.Spec.TargetItem.Namespace)

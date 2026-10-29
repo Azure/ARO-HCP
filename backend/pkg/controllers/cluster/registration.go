@@ -16,6 +16,7 @@ package cluster
 
 import (
 	"strings"
+	"time"
 
 	utilsclock "k8s.io/utils/clock"
 
@@ -31,6 +32,7 @@ import (
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
@@ -45,6 +47,7 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
 
@@ -760,21 +763,33 @@ func instantiateCreateServiceProviderClusterController(controllerContext control
 	), nil
 }
 
-func registerCleanOrphanedClusterManagedResourceGroupController() controllerconfig.ControllerRegistration {
+func registerOrphanedManagedResourceGroupWatchingController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCleanOrphanedClusterManagedResourceGroupController, false),
+		Workers: 50,
+		Enabled: func(ctx controllerconfig.ControllerContext) bool {
+			return ctx.OrphanedMRGCleanupConfig.Enabled()
+		},
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateOrphanedManagedResourceGroupWatchingController, false),
 	}
 }
 
-func instantiateCleanOrphanedClusterManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+func instantiateOrphanedManagedResourceGroupWatchingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	orphanedMRGController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		controllerContext.AzureLocation,
-		activeOperationLister,
 		controllerContext.ResourcesDBClient,
+		subscriptionLister,
+		clusterLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.OrphanedMRGCleanupConfig,
+	)
+	return controllerutils.NewManagedResourceGroupWatchingController(
+		controllerContext.AzureLocation,
+		orphanedMRGController,
 		controllerContext.FPAClientBuilder,
 		controllerContext.BackendInformers,
+		24*time.Hour,
 	), nil
 }
 
@@ -1272,7 +1287,31 @@ func instantiateControlPlaneVersionRolloutRetirementController(controllerContext
 	), nil
 }
 
+func registerDNSClaimCleanupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 1, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSClaimCleanupController, false)}
+}
+
+func instantiateDNSClaimCleanupController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewCleanupController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.FleetInformers, ctx.BackendInformers, ctx.Clock), nil
+}
+
+func registerDNSAllocationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSAllocationController, false)}
+}
+func instantiateDNSAllocationController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewDNSAllocationController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.ClustersServiceClient, ctx.Clock), nil
+}
+func registerDNSBackfillController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSBackfillController, true)}
+}
+func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewBackfillController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.UnionKubeApplierInformers, ctx.Clock), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
+	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
+	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
@@ -1322,7 +1361,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
-	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
+	registry[strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)] = registerOrphanedManagedResourceGroupWatchingController()
 	registry[strings.ToLower(clusterazureresources.ManagedResourceGroupControllerName)] = registerEnsureManagedResourceGroupController()
 	registry[strings.ToLower(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName)] = registerClusterDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(clusterdeletion.ClusterDeletionClusterServiceIDClearerControllerName)] = registerClusterClusterServiceIDClearerController()

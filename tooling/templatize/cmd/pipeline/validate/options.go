@@ -51,6 +51,7 @@ func BindValidationOptions(opts *RawValidationOptions, cmd *cobra.Command) error
 	cmd.Flags().BoolVar(&opts.DevMode, "dev-mode", opts.DevMode, "Validate just one region, using public production Ev2 contexts.")
 	cmd.Flags().StringVar(&opts.DevRegion, "dev-region", opts.DevRegion, "Region to use for dev mode validation.")
 	cmd.Flags().BoolVar(&opts.OnlyChanged, "only-changed", opts.OnlyChanged, "Validate only pipelines whose files have uncommitted changes.")
+	cmd.Flags().BoolVar(&opts.SkipHelmParamBudgetValidation, "skip-helm-param-budget-validation", opts.SkipHelmParamBudgetValidation, "Skip the Helm deployment parameter budget check while still validating values and namespace templates.")
 	cmd.Flags().StringArrayVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Central remote URL for the repository. Can be specified multiple times.")
 
 	for _, flag := range []string{
@@ -66,12 +67,13 @@ func BindValidationOptions(opts *RawValidationOptions, cmd *cobra.Command) error
 
 // RawValidationOptions holds input values.
 type RawValidationOptions struct {
-	ServiceConfigFile string
-	TopologyFiles     []string
-	DevMode           bool
-	DevRegion         string
-	OnlyChanged       bool
-	CentralRemoteUrl  []string
+	ServiceConfigFile             string
+	TopologyFiles                 []string
+	DevMode                       bool
+	DevRegion                     string
+	OnlyChanged                   bool
+	CentralRemoteUrl              []string
+	SkipHelmParamBudgetValidation bool
 }
 
 // validatedValidationOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -86,13 +88,14 @@ type ValidatedValidationOptions struct {
 
 // completedValidationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedValidationOptions struct {
-	TopologyFiles    []string
-	Topology         *topology.CombinedTopology
-	Config           config.ConfigProvider
-	DevMode          bool
-	DevRegion        string
-	OnlyChanged      bool
-	CentralRemoteUrl []string
+	TopologyFiles                 []string
+	Topology                      *topology.CombinedTopology
+	Config                        config.ConfigProvider
+	DevMode                       bool
+	DevRegion                     string
+	OnlyChanged                   bool
+	CentralRemoteUrl              []string
+	SkipHelmParamBudgetValidation bool
 }
 
 type ValidationOptions struct {
@@ -142,13 +145,14 @@ func (o *ValidatedValidationOptions) Complete() (*ValidationOptions, error) {
 
 	return &ValidationOptions{
 		completedValidationOptions: &completedValidationOptions{
-			TopologyFiles:    o.TopologyFiles,
-			Topology:         t,
-			Config:           c,
-			DevMode:          o.DevMode,
-			DevRegion:        o.DevRegion,
-			OnlyChanged:      o.OnlyChanged,
-			CentralRemoteUrl: o.CentralRemoteUrl,
+			TopologyFiles:                 o.TopologyFiles,
+			Topology:                      t,
+			Config:                        c,
+			DevMode:                       o.DevMode,
+			DevRegion:                     o.DevRegion,
+			OnlyChanged:                   o.OnlyChanged,
+			CentralRemoteUrl:              o.CentralRemoteUrl,
+			SkipHelmParamBudgetValidation: o.SkipHelmParamBudgetValidation,
 		},
 	}, nil
 }
@@ -236,7 +240,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				}
 
 				for _, service := range opts.Topology.Services {
-					if err := handleService(regionLogger, prefix, group, opts.Topology, service, cfg, shouldHandleService); err != nil {
+					if err := handleService(regionLogger, prefix, group, opts.Topology, service, cfg, opts.SkipHelmParamBudgetValidation, shouldHandleService); err != nil {
 						return err
 					}
 				}
@@ -246,7 +250,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 	return group.Wait()
 }
 
-func handleService(logger logr.Logger, context string, group *errgroup.Group, t *topology.CombinedTopology, service topology.Service, cfg configtypes.Configuration, shouldHandleService func(string) bool) error {
+func handleService(logger logr.Logger, context string, group *errgroup.Group, t *topology.CombinedTopology, service topology.Service, cfg configtypes.Configuration, skipHelmParamBudgetValidation bool, shouldHandleService func(string) bool) error {
 	group.Go(func() error {
 		if !shouldHandleService(service.ServiceGroup) {
 			return nil
@@ -268,6 +272,15 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, t 
 		for i, rg := range pipeline.ResourceGroups {
 			for j, step := range rg.Steps {
 				switch step.ActionType() {
+				case "Helm":
+					specificStep, ok := step.(*types.HelmStep)
+					if !ok {
+						return fmt.Errorf("%s: resourceGroups[%d].steps[%d]: have action %q, expected *types.HelmStep, but got %T", service.ServiceGroup, i, j, step.ActionType(), step)
+					}
+					pipelineDir := filepath.Join(baseDir, filepath.Dir(service.PipelinePath))
+					if err := validateHelmStep(specificStep, pipelineDir, cfg, skipHelmParamBudgetValidation); err != nil {
+						return fmt.Errorf("%s: %s: resourceGroups[%d].steps[%d]: %w", context, service.ServiceGroup, i, j, err)
+					}
 				case "Shell":
 					specificStep, ok := step.(*types.ShellStep)
 					if !ok {
@@ -474,9 +487,24 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, t 
 		return nil
 	})
 	for _, child := range service.Children {
-		if err := handleService(logger, context, group, t, child, cfg, shouldHandleService); err != nil {
+		if err := handleService(logger, context, group, t, child, cfg, skipHelmParamBudgetValidation, shouldHandleService); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateHelmStep(step *types.HelmStep, pipelineDir string, cfg configtypes.Configuration, skipParamBudgetValidation bool) error {
+	if _, err := config.PreprocessFile(filepath.Join(pipelineDir, step.ValuesFile), cfg); err != nil {
+		return fmt.Errorf("helm step %q: failed to preprocess values file %s: %w", step.Name, step.ValuesFile, err)
+	}
+	for _, file := range step.NamespaceFiles {
+		if _, err := config.PreprocessFile(filepath.Join(pipelineDir, file), cfg); err != nil {
+			return fmt.Errorf("helm step %q: failed to preprocess namespace file %s: %w", step.Name, file, err)
+		}
+	}
+	if !skipParamBudgetValidation {
+		return step.ValidateEv2Compatibility(pipelineDir, cfg)
 	}
 	return nil
 }

@@ -31,6 +31,7 @@ import (
 // construct one of these with the appropriate fleetcosmosstorage.FleetGlobalListers
 // and fleetcosmosstorage.FleetDBClient — the factory does not care which.
 type FleetInformers interface {
+	DNSClaims() (cache.SharedIndexInformer, fleetlisters.DNSClaimLister)
 	Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister)
 	ManagementClusters() (cache.SharedIndexInformer, fleetlisters.ManagementClusterLister)
 	ManagementClusterSchedulings() (cache.SharedIndexInformer, fleetlisters.ManagementClusterSchedulingLister)
@@ -41,6 +42,8 @@ type FleetInformers interface {
 }
 
 type fleetInformers struct {
+	dnsClaimInformer                    cache.SharedIndexInformer
+	dnsClaimLister                      fleetlisters.DNSClaimLister
 	stampInformer                       cache.SharedIndexInformer
 	stampLister                         fleetlisters.StampLister
 	managementClusterInformer           cache.SharedIndexInformer
@@ -51,6 +54,10 @@ type fleetInformers struct {
 	controlPlaneVersionRolloutLister    fleetlisters.ControlPlaneVersionRolloutLister
 	hcpResourceRequirementsInformer     cache.SharedIndexInformer
 	hcpResourceRequirementsLister       fleetlisters.HCPResourceRequirementsLister
+}
+
+func (f *fleetInformers) DNSClaims() (cache.SharedIndexInformer, fleetlisters.DNSClaimLister) {
+	return f.dnsClaimInformer, f.dnsClaimLister
 }
 
 func (f *fleetInformers) Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister) {
@@ -74,7 +81,7 @@ func (f *fleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, f
 }
 
 func (f *fleetInformers) HasSynced() bool {
-	return f.stampInformer.HasSynced() &&
+	return f.dnsClaimInformer.HasSynced() && f.stampInformer.HasSynced() &&
 		f.managementClusterInformer.HasSynced() &&
 		f.managementClusterSchedulingInformer.HasSynced() &&
 		f.controlPlaneVersionRolloutInformer.HasSynced() &&
@@ -84,6 +91,8 @@ func (f *fleetInformers) HasSynced() bool {
 // NewFleetInformers creates FleetInformers with default relist durations.
 func NewFleetInformers(ctx context.Context, globalListers fleetcosmosstorage.FleetGlobalListers, fleetDBClient fleetcosmosstorage.FleetDBClient) FleetInformers {
 	ret := &fleetInformers{}
+	ret.dnsClaimInformer = NewDNSClaimInformer(globalListers.DNSClaims(), fleetDBClient)
+	ret.dnsClaimLister = fleetlisters.NewDNSClaimLister(ret.dnsClaimInformer.GetIndexer())
 	ret.stampInformer = NewStampInformer(globalListers.Stamps(), fleetDBClient)
 	ret.stampLister = fleetlisters.NewStampLister(ret.stampInformer.GetIndexer())
 	ret.managementClusterInformer = NewManagementClusterInformer(globalListers.ManagementClusters(), fleetDBClient)
@@ -105,6 +114,12 @@ func (f *fleetInformers) RunWithContext(ctx context.Context) {
 	defer logger.Info("stopped fleet informers")
 
 	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		f.dnsClaimInformer.RunWithContext(ctx)
+	}()
 
 	wg.Add(1)
 	go func() {

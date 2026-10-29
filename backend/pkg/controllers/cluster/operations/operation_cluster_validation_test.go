@@ -19,12 +19,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -188,6 +190,134 @@ func TestClusterValidationOperationAge(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
+func TestClusterValidationProbeFreshness(t *testing.T) {
+	t.Parallel()
+	now := operationtesting.MustParseTime("2026-09-23T12:00:00Z")
+	failedFor := func(age time.Duration) metav1.Condition {
+		return metav1.Condition{
+			Type: "Subnet", Status: metav1.ConditionFalse, Reason: "InvalidSubnet",
+			LastTransitionTime: metav1.NewTime(now.Add(-age)),
+		}
+	}
+	unknownFor := func(age time.Duration) metav1.Condition {
+		return metav1.Condition{
+			Type: "Subnet", Status: metav1.ConditionUnknown, Reason: "InternalError",
+			LastTransitionTime: metav1.NewTime(now.Add(-age)),
+		}
+	}
+	tests := []struct {
+		name       string
+		validation metav1.Condition
+		probeAge   *time.Duration // nil means no probe recorded
+		zeroProbe  bool           // record a zero-value probe time
+		wantState  coreapi.ProvisioningState
+	}{
+		{
+			name:       "old failure with fresh probe fails the operation",
+			validation: failedFor(10 * time.Minute),
+			probeAge:   ptrTo(time.Minute),
+			wantState:  coreapi.ProvisioningStateFailed,
+		},
+		{
+			name:       "old failure with stale probe stays provisioning",
+			validation: failedFor(10 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + 2*time.Minute),
+			wantState:  coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:       "probe exactly at the freshness window boundary still fails",
+			validation: failedFor(10 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow),
+			wantState:  coreapi.ProvisioningStateFailed,
+		},
+		{
+			name:       "probe just beyond the freshness window stays provisioning",
+			validation: failedFor(10 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + time.Second),
+			wantState:  coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:       "zero-value recorded probe is treated as stale",
+			validation: failedFor(10 * time.Minute),
+			zeroProbe:  true,
+			wantState:  coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:       "missing probe falls back to condition age",
+			validation: failedFor(10 * time.Minute),
+			probeAge:   nil,
+			wantState:  coreapi.ProvisioningStateFailed,
+		},
+		{
+			name:       "old unknown condition without a probe fails the operation",
+			validation: unknownFor(10 * time.Minute),
+			probeAge:   nil,
+			wantState:  coreapi.ProvisioningStateFailed,
+		},
+		{
+			name:       "old unknown condition with a stale probe stays provisioning",
+			validation: unknownFor(10 * time.Minute),
+			probeAge:   ptrTo(validationutils.ValidationProbeFreshnessWindow + 2*time.Minute),
+			wantState:  coreapi.ProvisioningStateProvisioning,
+		},
+		{
+			name:       "fresh probe does not accelerate failure of a young condition",
+			validation: failedFor(4 * time.Minute),
+			probeAge:   ptrTo(time.Minute),
+			wantState:  coreapi.ProvisioningStateProvisioning,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			status := coreapi.ServiceProviderClusterStatus{Validations: []metav1.Condition{tt.validation}}
+			switch {
+			case tt.zeroProbe:
+				status.ValidationProbeTimes = map[string]metav1.Time{"Subnet": {}}
+			case tt.probeAge != nil:
+				status.ValidationProbeTimes = map[string]metav1.Time{
+					"Subnet": metav1.NewTime(now.Add(-*tt.probeAge)),
+				}
+			}
+			spc := &coreapi.ServiceProviderCluster{Status: status}
+			got := clusterValidationOperationState(spc, now.Add(-time.Hour), now)
+			assert.Equal(t, tt.wantState, got.ProvisioningState)
+			assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, got.CloudErrorCode)
+			assert.Equal(t, "Subnet: "+tt.validation.Reason, got.Message)
+		})
+	}
+}
+
+func TestClusterValidationProbeFreshnessMetrics(t *testing.T) {
+	t.Parallel()
+	now := operationtesting.MustParseTime("2026-09-23T12:00:00Z")
+	const validationType = "ProbeFreshnessMetricsValidation"
+	spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{
+		Validations: []metav1.Condition{{
+			Type: validationType, Status: metav1.ConditionFalse, Reason: "InvalidSubnet",
+			LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+		}},
+		ValidationProbeTimes: map[string]metav1.Time{validationType: metav1.NewTime(now.Add(-validationutils.ValidationProbeFreshnessWindow - time.Second))},
+	}}
+	deferralsBefore := testutil.ToFloat64(validationStaleProbeDeferrals.WithLabelValues(validationType))
+	failuresBefore := testutil.ToFloat64(validationTerminalFailures.WithLabelValues(validationType))
+
+	got := clusterValidationOperationState(spc, now.Add(-time.Hour), now)
+	assert.Equal(t, coreapi.ProvisioningStateProvisioning, got.ProvisioningState)
+	assert.Equal(t, deferralsBefore+1, testutil.ToFloat64(validationStaleProbeDeferrals.WithLabelValues(validationType)), "stale probe must count a deferral")
+	assert.Equal(t, failuresBefore, testutil.ToFloat64(validationTerminalFailures.WithLabelValues(validationType)), "stale probe must not count a terminal failure")
+
+	spc.Status.ValidationProbeTimes[validationType] = metav1.NewTime(now.Add(-time.Minute))
+	got = clusterValidationOperationState(spc, now.Add(-time.Hour), now)
+	assert.Equal(t, coreapi.ProvisioningStateFailed, got.ProvisioningState)
+	assert.Equal(t, deferralsBefore+1, testutil.ToFloat64(validationStaleProbeDeferrals.WithLabelValues(validationType)), "fresh probe must not count a deferral")
+	assert.Equal(t, failuresBefore+1, testutil.ToFloat64(validationTerminalFailures.WithLabelValues(validationType)), "fresh probe must count a terminal failure")
 }
 
 func TestClusterValidationRecovery(t *testing.T) {

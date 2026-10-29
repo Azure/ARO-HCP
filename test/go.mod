@@ -14,8 +14,8 @@ require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20261015161319-19f2993c1807
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261015161319-19f2993c1807
+	github.com/Azure/ARO-Tools/config v0.0.0-20261027163642-a8d4876e7d4f
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261027163642-a8d4876e7d4f
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
@@ -87,16 +87,18 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261026080510-e37eb4c5f882 // indirect
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261015161319-19f2993c1807 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261015161319-19f2993c1807 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261027163642-a8d4876e7d4f // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
@@ -106,8 +108,11 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 // indirect
+	github.com/Azure/checkaccess-v2-go-sdk v0.0.4-0.20260707173829-4b27d1696d22 // indirect
 	github.com/Azure/go-amqp v1.5.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/Azure/msi-dataplane v0.4.3 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0 // indirect
@@ -181,7 +186,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect

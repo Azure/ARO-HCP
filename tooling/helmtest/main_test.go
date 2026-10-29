@@ -15,6 +15,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -37,6 +40,46 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/helmtest/testrunner"
 )
+
+func TestIngressCertificatePolicyOwnership(t *testing.T) {
+	for _, install := range []bool{true, false} {
+		name := "upgrade"
+		if install {
+			name = "install"
+		}
+		t.Run(name, func(t *testing.T) {
+			chart, err := loader.Load("../../acm/deploy/helm/policies")
+			require.NoError(t, err)
+			values, err := util.ToRenderValues(chart, nil, common.ReleaseOptions{
+				Name: "policy", Namespace: "open-cluster-management-policies", IsInstall: install, IsUpgrade: !install,
+			}, nil)
+			require.NoError(t, err)
+			manifests, err := engine.Render(chart, values)
+			require.NoError(t, err)
+			var identities []string
+			for path, manifest := range manifests {
+				decoder := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 4096)
+				for {
+					var object unstructured.Unstructured
+					err := decoder.Decode(&object.Object)
+					if err == io.EOF {
+						break
+					}
+					require.NoError(t, err, path)
+					if len(object.Object) == 0 {
+						continue
+					}
+					require.Equal(t, "open-cluster-management-policies", object.GetNamespace(), path)
+					identities = append(identities, object.GetKind()+"/"+object.GetName())
+				}
+			}
+			require.ElementsMatch(t, []string{
+				"ManagedClusterSetBinding/hypershift-management-clusters",
+				"Placement/all-hosted-clusters",
+			}, identities, "the chart must retain shared resources without managing ingress certificates or their controller")
+		})
+	}
+}
 
 func TestMgmtScheduling(t *testing.T) {
 	raw, err := os.ReadFile("../../config/rendered/dev/dev/westus3.yaml")

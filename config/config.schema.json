@@ -1489,6 +1489,14 @@
           "minimum": 0,
           "description": "Log verbosity level for the backend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
         },
+        "orphanedMRGCleanupTargetSubscriptionAFECFlags": {
+          "type": "string",
+          "description": "AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup"
+        },
+        "orphanedMRGCleanupExcludedSubscriptionAFECFlags": {
+          "type": "string",
+          "description": "Comma-separated AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup"
+        },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
@@ -4147,8 +4155,8 @@
       "message": "infrastructure identity reuse requires an explicit AKS identity name for the current management stamp"
     },
     {
-      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",
-      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'ci02', 'pers']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01, ci02 and pers"
     },
     {
       "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",

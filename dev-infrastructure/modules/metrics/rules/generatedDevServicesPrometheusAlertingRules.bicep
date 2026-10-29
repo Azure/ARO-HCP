@@ -665,14 +665,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
-          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -693,14 +693,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
-          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2172,13 +2172,13 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyDenied/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
           title: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2196,19 +2196,19 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         enabled: true
         labels: {
           component: 'image-registry-policy'
-          severity: 'info'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
           title: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

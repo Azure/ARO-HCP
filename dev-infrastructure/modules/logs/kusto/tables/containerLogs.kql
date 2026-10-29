@@ -15,6 +15,7 @@
   cluster_id: string,                // fluentbit: cluster_id (Azure ARM resource ID; expected uppercased by the arobit forwarder, casing not enforced here)
   resource_group: string             // fluentbit: resource_group (RG segment of the ARM resource ID; expected uppercased by the arobit forwarder, casing not enforced here)
 )
+with (docstring = "Catch-all container stdout/stderr tailed from /var/log/containers on service and management clusters for pods without a dedicated table, forwarded by arobit")
 
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
 ```

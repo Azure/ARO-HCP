@@ -98,6 +98,8 @@ func NewManagementClusterWatchingController(
 	if fleetInformers != nil {
 		managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 		mcSyncer.managementClusterLister = managementClusterLister
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		err := mcController.QueueForInformers(resyncDuration, managementClusterInformer)
 		if err != nil {
 			panic(err) // coding error

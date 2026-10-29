@@ -17,14 +17,43 @@ The `Dockerfile` in this directory defines the base image used in our release co
 
 - **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.26-openshift-4.22`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
 - **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
+- **Bicep**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
 - **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
 When updating versions:
 
 1. **Go bump**: Update `.ci-operator.yaml` first (the base-ci image must have the new Go version before `go.work` is updated). Then update `go.work` in a follow-up PR.
-2. **Promtool bump**: Edit `versions.mk` and update the `ARG` default in the `Dockerfile`.
-3. Run `make verify` to check that Go minor version in `go.work` matches the builder image tag, and that the promtool version is in sync.
+2. **Bicep/promtool bump**: Run `make update-tool-versions` at the repo root to update both tools, or run `dev-infrastructure/openshift-ci/update-tool-versions.sh BICEP_VERSION` (or `PROMTOOL_VERSION`) to update one tool and its Dockerfile ARG.
+3. Run `make verify` to check that Go minor version in `go.work` matches the builder image tag, and that the pinned tool versions are in sync.
 4. Run `make test` to build the image and smoke-test all tools.
+
+Inside an already-built CI image, run
+`make -C dev-infrastructure/openshift-ci verify test IN_CONTAINER=true`.
+This uses the same fail-closed `smoke-test.sh` as the local container test,
+without requiring nested Docker or Podman. Use this mode only when the caller
+already supplies the image under test. Missing or broken tools fail the job.
+The baseimage-generator presubmit retains its non-root Go build/test check.
+
+### Agentic Tool Updates
+
+The [tool-version-updates GitHub Agentic Workflow](../../.github/workflows/tool-version-updates.md)
+checks bicep, promtool and every Bingo-managed tool daily and after an owned
+tool-update PR merges. It resolves stable
+upstream versions and proposes one upstream family at a time. All five
+`k8s.io/code-generator` tools update together; unrelated tools remain separate.
+Native Bingo updates regenerate module/checksum files and the Make/shell helpers,
+including their host-platform build settings.
+
+Tool updates are serialized against existing agent-owned tool-update PRs.
+Human PRs and unrelated automation do not block daily updates. Published PRs
+use the existing CI/Tide auto-merge path.
+
+Checks use the proposed tool: bicep compiles the committed golden fixtures,
+promtool runs the Prometheus rule generator's consumer tests, and Bingo updates build their tools
+and run repository verification/lint. Dockerfile and `.bingo/` changes also
+select the existing Prow baseimage-generator build. Expected current, covered
+or compatibility-blocked states emit explicit no-ops without routine issues.
+Real API, authentication and infrastructure failures remain failures.
 
 ### CI Build Flow
 

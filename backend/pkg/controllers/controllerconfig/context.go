@@ -71,6 +71,8 @@ type ControllerContext struct {
 	Clock                                               utilsclock.PassiveClock
 	AsyncOperationNotificationClient                    *http.Client
 
+	OrphanedMRGCleanupConfig *OrphanedMRGCleanupConfig
+
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers

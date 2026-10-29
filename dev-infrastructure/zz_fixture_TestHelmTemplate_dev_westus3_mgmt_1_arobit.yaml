@@ -276,9 +276,8 @@ data:
         # ocm.logs record as cluster_id, plus its resource group as resource_group,
         # read directly from the pod's namespace annotation
         # azure.microsoft.com/hcp-cluster-azure-resource-id (enriched by the kubernetes
-        # filter's Namespace_annotations On). This is the namespace-annotation
-        # alternative to resolving the ID from the ACM-managed /shoebox-config file
-        # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
+        # filter's Namespace_annotations On). Only mgmt clusters emit ocm.logs to the
+        # containerLogs Kusto table.
         # Fail-soft: records without the annotation are left unchanged. This runs before
         # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
@@ -380,8 +379,8 @@ data:
         Emitter_Storage.type   filesystem
   set-cluster-id-from-annotation.lua: |
     -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
-    -- control-plane container logs. Unlike the ACM /shoebox-config file lookup,
-    -- this reads the resource ID directly from the pod's NAMESPACE annotation
+    -- control-plane container logs. It reads the resource ID directly from the
+    -- pod's NAMESPACE annotation
     -- "azure.microsoft.com/hcp-cluster-azure-resource-id", which the kubernetes
     -- filter enriches onto every record when "Namespace_annotations On" is set.
     -- It stamps two top-level fields:
@@ -904,7 +903,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: abaa31e38b1b37c2a488f5d6af9b51400073ab2aac84183130a89ab5e3975fc2
+        checksum/configmap: 152e66743a9f20a8610b78e7c73e0bed5122551de866d8e8a7da839695c5d745
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

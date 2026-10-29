@@ -492,6 +492,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("waiting for the Certificate to be issued")
+			orderRequeuer := newIngressCertificateOrderRequeuer(dynClient)
 			var lastCertStatus string
 			Eventually(func() error {
 				cert, err := dynClient.Resource(certGVR).Namespace(ingressNamespace).Get(ctx, "cluster-ingress-cert", metav1.GetOptions{})
@@ -503,6 +504,13 @@ var _ = Describe("Customer", func() {
 					if msg != lastCertStatus {
 						GinkgoLogr.Info("waiting for Certificate issuance", "status", msg)
 						lastCertStatus = msg
+					}
+					requeuedOrders, err := orderRequeuer.requeue(ctx, cert, time.Now())
+					if err != nil {
+						return fmt.Errorf("requeueing processing ACME Order: %w", err)
+					}
+					for _, name := range requeuedOrders {
+						GinkgoLogr.Info("requested processing ACME Order reconciliation", "order", name)
 					}
 					return fmt.Errorf("certificate not ready: %s", msg)
 				}

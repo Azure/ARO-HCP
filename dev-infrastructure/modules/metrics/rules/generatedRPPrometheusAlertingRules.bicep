@@ -26,127 +26,6 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'userJourneyAccessClusterErrors1h5m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '1h'
-          severity: '3'
-          short_window: '5m'
-          slo: 'access-cluster-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          info: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Credential operation error rate critically high (>72%)'
-        }
-        expression: 'errors:backend_credential_operation:error_rate > 0.72'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyAccessClusterErrors6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          severity: '3'
-          short_window: '30m'
-          slo: 'access-cluster-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          info: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
-        }
-        expression: 'errors:backend_credential_operation:error_rate > 0.3'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyAccessClusterErrors3d'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          severity: '4'
-          slo: 'access-cluster-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          info: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
-        }
-        expression: 'errors:backend_credential_operation:error_rate > 0.05'
-        for: 'PT6H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyAccessClusterErrorsDegradation'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'access-cluster-errors'
-        }
-        annotations: {
-          correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
-          description: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          info: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes'
-        }
-        expression: 'errors:backend_credential_operation:error_rate > 0.15'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
@@ -157,7 +36,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
           title: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
         }
@@ -198,7 +77,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
         }
@@ -226,12 +105,148 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
         }
         expression: '(sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m])))) > 0.5 and sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) > 0.008'
         for: 'PT10M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_access_cluster_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAccessClusterErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'access-cluster-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
+          description: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed credential operations (requestcredential/revokecredentials) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: '{{ $labels.cluster }}: Credential operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Credential operations failing fast (>72% of recent operations)'
+        }
+        expression: 'errors:backend_credential_operation:failed_1h >= 3 and errors:backend_credential_operation:error_rate_1h > 0.72 and errors:backend_credential_operation:error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAccessClusterErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'access-cluster-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
+          description: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: '{{ $labels.cluster }}: Credential operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Credential operation error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:error_rate_6h > 0.3 and errors:backend_credential_operation:error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAccessClusterErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'access-cluster-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
+          description: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed credential operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: '{{ $labels.cluster }}: Credential operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Credential operation error budget burning (>5% over 3d)'
+        }
+        expression: 'errors:backend_credential_operation:total_3d >= 10 and errors:backend_credential_operation:failed_3d >= 2 and errors:backend_credential_operation:error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyAccessClusterErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          short_window: '30m'
+          slo: 'access-cluster-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed credential operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_credential_operation:total_6h >= 5 and errors:backend_credential_operation:failed_6h >= 2 and errors:backend_credential_operation:error_rate_6h > 0.15 and errors:backend_credential_operation:error_rate_30m > 0.15'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
@@ -315,7 +330,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
           title: '{{ $labels.cluster }}: Cluster create operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72'
+        expression: 'errors:backend_cluster_provision:failed_1h >= 3 and errors:backend_cluster_provision:error_rate_1h > 0.72 and errors:backend_cluster_provision:error_rate_5m > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -346,7 +361,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Cluster create operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:error_rate_6h > 0.3 and errors:backend_cluster_provision:error_rate_30m > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -396,6 +411,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           component: 'slo'
           long_window: '6h'
           severity: '4'
+          short_window: '30m'
           slo: 'cluster-provision-errors'
         }
         annotations: {
@@ -406,7 +422,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           summary: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Cluster create operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15'
+        expression: 'errors:backend_cluster_provision:total_6h >= 5 and errors:backend_cluster_provision:failed_6h >= 2 and errors:backend_cluster_provision:error_rate_6h > 0.15 and errors:backend_cluster_provision:error_rate_30m > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -512,135 +528,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors1h5m'
+        alert: 'userJourneyNodePoolStuckOperation'
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '1h'
-          severity: 'info'
-          short_window: '5m'
-          slo: 'nodepool-errors'
+          severity: '4'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          info: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
-        }
-        expression: 'errors:backend_nodepool_operation:error_rate > 0.72'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJNodePoolErrors6h30m'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '6h'
-          severity: 'info'
-          short_window: '30m'
-          slo: 'nodepool-errors'
-        }
-        annotations: {
-          correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          info: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
-        }
-        expression: 'errors:backend_nodepool_operation:error_rate > 0.3'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJNodePoolErrors3d'
-        enabled: true
-        labels: {
-          component: 'slo'
-          long_window: '3d'
-          severity: 'info'
-          slo: 'nodepool-errors'
-        }
-        annotations: {
-          correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          info: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
-        }
-        expression: 'errors:backend_nodepool_operation:error_rate > 0.05'
-        for: 'PT6H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJNodePoolErrorsDegradation'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: 'info'
-          slo: 'nodepool-errors'
-        }
-        annotations: {
-          correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
-          description: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          info: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
-        }
-        expression: 'errors:backend_nodepool_operation:error_rate > 0.15'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJNodePoolStuckOperation'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -674,14 +569,14 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'UJNodePoolSaturationQueueDepth'
+        alert: 'userJourneyNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
           component: 'slo'
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
-          correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'userJourneyNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
@@ -690,6 +585,142 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_nodepool_slo_windowed_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyNodePoolErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '4'
+          short_window: '5m'
+          slo: 'nodepool-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}'
+          description: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
+        }
+        expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyNodePoolErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          short_window: '30m'
+          slo: 'nodepool-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}'
+          description: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyNodePoolErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'nodepool-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}'
+          description: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
+        }
+        expression: 'errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyNodePoolErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '4'
+          short_window: '30m'
+          slo: 'nodepool-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}'
+          description: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
+          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+        }
+        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
@@ -1292,6 +1323,121 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
   }
 }
 
+resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-operator-monitor-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorPodsUnavailable'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '3'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorPodsUnavailable/{{ $labels.cluster }}'
+          description: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
+          title: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
+        }
+        expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorPodsDown'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '2'
+          slo: 'hypershift-operator-availability'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorPodsDown/{{ $labels.cluster }}'
+          description: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator pods down'
+          title: '{{ $labels.cluster }}: hypershift-operator pods down'
+        }
+        expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hypershiftOperatorIdle'
+        enabled: true
+        labels: {
+          component: 'slo'
+          service: 'hypershift-operator'
+          severity: '3'
+          slo: 'hypershift-operator-traffic'
+        }
+        annotations: {
+          correlationId: 'hypershiftOperatorIdle/{{ $labels.cluster }}'
+          description: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+Management Cluster: {{ $labels.cluster }}
+'''
+          info: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+Management Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hypershift-operators.md'
+          summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+          title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+        }
+        expression: 'hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_backup_slo_availability_alerts'
   location: location
@@ -1686,6 +1832,131 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
         }
         expression: 'group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)'
         for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_certificate_rotation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateRotationFailure'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateRotationFailure/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) exceeded the rotation safety threshold. Current lifetime: {{ $value | humanizePercentage }}. Safety threshold: 65%. Expected rotation: 50%.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} rotation is overdue'
+        }
+        expression: 'certificate:keyvault_certificate:lifetime_ratio > 0.65'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateDisabled'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateDisabled/{{ $labels.cluster }}/{{ $labels.certificate_name }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          info: 'Certificate \'{{ $labels.certificate_name }}\' in Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has remained disabled for at least one hour.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate {{ $labels.certificate_name }} is disabled'
+        }
+        expression: 'certificate:keyvault_certificate:enabled == 0'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateCollectionStale'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateCollectionStale/{{ $labels.cluster }}/{{ $labels.key_vault }}/{{ $labels.region }}'
+          description: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          info: 'Certificate metadata collection for Key Vault \'{{ $labels.key_vault }}\' ({{ $labels.region }}) has not completed successfully within the last hour.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+          title: '{{ $labels.region }}/{{ $labels.key_vault }}: Certificate collection is stale'
+        }
+        expression: 'certificate:keyvault_certificate:collector_fresh == 0'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyCertificateExporterUnavailable'
+        enabled: true
+        labels: {
+          component: 'certificate-rotation'
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'userJourneyCertificateExporterUnavailable/{{ $labels.cluster }}'
+          description: 'The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          info: 'The ARO HCP exporter has had no healthy Prometheus scrape target for at least one hour, so certificate collection health cannot be evaluated.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-cert-rotation'
+          summary: 'Certificate exporter target is unavailable'
+          title: 'Certificate exporter target is unavailable'
+        }
+        expression: 'max by (cluster, environment, region) (kube_deployment_spec_replicas{deployment="aro-hcp-exporter",namespace="aro-hcp-exporter"} > 0) unless on (cluster, environment, region) max by (cluster, environment, region) (up{namespace="aro-hcp-exporter"} == 1)'
+        for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]

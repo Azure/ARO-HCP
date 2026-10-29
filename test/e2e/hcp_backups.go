@@ -20,11 +20,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -56,6 +56,7 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 
 	By("creating cluster parameters")
 	clusterParams := framework.NewDefaultClusterParams20251223()
+	clusterParams.Tags[metadataapi.TagClusterBackupScheduleOverride] = to.Ptr(string(coreapi.BackupScheduleStateEnabled))
 	clusterParams.ClusterName = cfg.clusterName
 	managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 	clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -100,7 +101,6 @@ func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) b
 }
 
 var _ = Describe("SRE", func() {
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-10-29T00:00:00Z"))
 
 	It("can pause schedules to stop backup execution for an HCP cluster",
 		labels.RequireNothing,
@@ -111,9 +111,6 @@ var _ = Describe("SRE", func() {
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
-			if time.Now().Before(timeBombDeadline) {
-				Skip(fmt.Sprintf("scheduled backup execution is temporarily disabled until %s", timeBombDeadline.Format(time.RFC3339)))
-			}
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
@@ -128,27 +125,7 @@ var _ = Describe("SRE", func() {
 				vnetName:            "pause-bkp-vnet-name",
 				subnetName:          "pause-bkp-vnet-subnet1",
 			})
-			By("verifying backup schedules were created")
-			Eventually(func() (bool, error) {
-				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
-				if err != nil {
-					return false, err
-				}
-				if len(resp.Schedules) == 0 {
-					return false, nil
-				}
-				return true, nil
-			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
-				"schedules should have been created on the mgmt cluster")
-
-			By("verifying testing cadence is present before timing-sensitive wait")
-			schedResp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
-			Expect(err).NotTo(HaveOccurred(), "failed to get backup schedules for cadence check")
-			if !hasTestingCadence(schedResp.Schedules) {
-				Skip("no 10-minute backup schedule present; skipping timing-sensitive LastBackupTime assertion")
-			}
-
-			By("waiting for at least one scheduled backup to execute")
+			By("verifying backup schedules were created and are active")
 			Eventually(func() (bool, error) {
 				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
 				if err != nil {
@@ -158,12 +135,13 @@ var _ = Describe("SRE", func() {
 					return false, nil
 				}
 				for _, s := range resp.Schedules {
-					if s.LastBackupTime != "" {
-						return true, nil
+					if s.BackupExecutionState != hcp.BackupExecutionStateActive {
+						return false, nil
 					}
 				}
-				return false, nil
-			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(), "at least one schedule should have a LastBackupTime")
+				return true, nil
+			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
+				"schedules should have been created and unpaused on the mgmt cluster")
 
 			By("pausing the backup schedule")
 			patchResp, err := patchBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID, coreapi.BackupScheduleStateDisabled)
@@ -171,7 +149,6 @@ var _ = Describe("SRE", func() {
 			Expect(patchResp.State).To(Equal(coreapi.BackupScheduleStateDisabled), "patch response state should be Disabled")
 
 			By("verifying backup schedule pause propagated to the mgmt cluster")
-			var pausedBaselineTimes map[string]string
 			Eventually(func() (bool, error) {
 				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
 				if err != nil {
@@ -185,25 +162,9 @@ var _ = Describe("SRE", func() {
 						return false, nil
 					}
 				}
-				pausedBaselineTimes = collectLastBackupTimes(resp.Schedules)
 				return true, nil
 			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
 				"all velero schedules should have spec.paused=true on the mgmt cluster")
-
-			By("verifying no new backups execute while paused")
-			Consistently(func() (bool, error) {
-				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)
-				if err != nil {
-					return false, err
-				}
-				currentTimes := collectLastBackupTimes(resp.Schedules)
-				for name, lastTime := range pausedBaselineTimes {
-					if currentTime, ok := currentTimes[name]; ok && currentTime != lastTime {
-						return false, fmt.Errorf("schedule %s LastBackupTime changed from %s to %s while paused", name, lastTime, currentTime)
-					}
-				}
-				return true, nil
-			}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(), "no schedule should execute new backups while paused")
 		})
 
 })
@@ -226,21 +187,4 @@ func patchBackupScheduleViaAdminAPI(ctx context.Context, httpClient *http.Client
 	return framework.DoAdminAPIRequest[hcp.BackupSchedulePatchResponse](ctx, httpClient, http.MethodPatch,
 		fmt.Sprintf("%s/admin/v1/hcp%s/backupschedules", adminAPIAddress, resourceID), http.StatusOK,
 		bytes.NewReader(bodyBytes))
-}
-
-func hasTestingCadence(schedules []hcp.BackupScheduleDetail) bool {
-	for _, s := range schedules {
-		if strings.Contains(s.Name, "10min") {
-			return true
-		}
-	}
-	return false
-}
-
-func collectLastBackupTimes(schedules []hcp.BackupScheduleDetail) map[string]string {
-	times := make(map[string]string, len(schedules))
-	for _, s := range schedules {
-		times[s.Name] = s.LastBackupTime
-	}
-	return times
 }

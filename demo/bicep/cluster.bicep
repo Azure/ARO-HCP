@@ -302,9 +302,10 @@ var fileStorageOperatorRoleId = subscriptionResourceId(
   '0d7aedc0-15fd-4a67-a412-efad370c947e'
 )
 
-resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
-  scope: subnet
+// VNet scope provides virtualNetworks/join/action and covers the worker subnet through inheritance.
+resource fileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
+  scope: vnet
   properties: {
     principalId: fileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -339,6 +340,21 @@ resource serviceManagedIdentityReaderOnFileCsiDriverMi 'Microsoft.Authorization/
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-image-registry-${randomSuffix}'
   location: resourceGroup().location
+}
+
+var imageRegistryOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '8b32b316-c2f5-4ddf-b05b-83dacd2d08b5'
+)
+
+resource imageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, imageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: imageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
 }
 
 resource serviceManagedIdentityReaderOnImageRegistryMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -438,9 +454,9 @@ resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
   }
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
-  scope: subnet
+resource dpFileCsiDriverFileStorageOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, vnet.id)
+  scope: vnet
   properties: {
     principalId: dpFileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -461,6 +477,16 @@ resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authoriz
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-dp-image-registry-${randomSuffix}'
   location: resourceGroup().location
+}
+
+resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, dpImageRegistryMi.id, imageRegistryOperatorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: dpImageRegistryMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: imageRegistryOperatorRoleId
+  }
 }
 
 resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -601,8 +627,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview'
     cloudControllerManagerRoleSubnetAssignment
     cloudControllerManagerRoleNsgAssignment
     ingressOperatorRoleSubnetAssignment
-    fileStorageOperatorRoleSubnetAssignment
+    fileStorageOperatorRoleVnetAssignment
     fileStorageOperatorRoleNsgAssignment
+    imageRegistryOperatorRoleVnetAssignment
     networkOperatorRoleSubnetAssignment
     networkOperatorRoleVnetAssignment
     dpDiskCsiDriverMiFederatedCredentialsRoleAssignment
@@ -610,8 +637,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview'
     dpImageRegistryMiFederatedCredentialsRoleAssignment
     serviceManagedIdentityRoleAssignmentVnet
     serviceManagedIdentityRoleAssignmentNSG
-    dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment
+    dpFileCsiDriverFileStorageOperatorRoleVnetAssignment
     dpFileCsiDriverFileStorageOperatorRoleNsgAssignment
+    dpImageRegistryOperatorRoleVnetAssignment
     serviceManagedIdentityReaderOnControlPlaneMi
     serviceManagedIdentityReaderOnCloudControllerManagerMi
     serviceManagedIdentityReaderOnIngressMi
