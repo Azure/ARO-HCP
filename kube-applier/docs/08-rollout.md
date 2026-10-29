@@ -78,10 +78,11 @@ Single small PR, ideally landed in parallel with Phase 2/3 reviews.
       `dev-infrastructure/`.
 - [ ] Add managed-identity + role-assignment scoped to the new container,
       partitioned per management cluster.
-- [ ] Verify in `cspr` first; deploy to `dev` after merge.
+- [ ] Verify in a personal DEV environment (`pers`) first; let the change reach
+      the shared `dev` environment after merge.
 
-Exit criteria: the container exists in `cspr`; partition-scoped writes
-work end-to-end via a one-off script.
+Exit criteria: the container exists in the personal DEV environment;
+partition-scoped writes work end-to-end via a one-off script.
 
 ## Phase 5 &mdash; Backend writer + cross-partition reads
 
@@ -115,7 +116,7 @@ Single PR.
 - [ ] Manifestclient-based unit tests covering the matrix in Doc 07.2,
       including delete-type ApplyDesires.
 
-Exit criteria: in cspr, a hand-inserted ApplyDesire with `Type=ServerSideApply`
+Exit criteria: in a personal DEV environment, a hand-inserted ApplyDesire with `Type=ServerSideApply`
 produces the expected kube object and `.status.conditions["SuccessfullyApplied"]=True`
 (with `["Successful"]=True` mirrored for backwards compatibility); an ApplyDesire
 with `Type=Delete` removes the target object and reports

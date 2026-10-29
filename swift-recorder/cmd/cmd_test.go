@@ -130,7 +130,7 @@ func TestControllerFlags(t *testing.T) {
 }
 
 func TestRouterCheckValidation(t *testing.T) {
-	for _, environment := range []string{"ci00", "ci01", "ci02", "dev", "pers", "perf", "int", "stg", "prod", "cspr", "test"} {
+	for _, environment := range []string{"ci00", "ci01", "ci02", "dev", "pers", "perf", "int", "stg", "prod", "test"} {
 		o := testOptions(t)
 		o.Environment = environment
 		_, err := o.Validate()

@@ -64,7 +64,7 @@ func TestApplyDevEnvironmentRegionShort_NoOverrideConfigured(t *testing.T) {
 	opts := ConfigOptions{
 		ConfigFile: filepath.FromSlash(realRepoConfigFile),
 		Cloud:      "dev",
-		DeployEnv:  "cspr",
+		DeployEnv:  "dev",
 	}
 
 	got := applyDevEnvironmentRegionShort(opts, "yt")
