@@ -64,6 +64,14 @@ steps:
         | jq -s '.' > tool-version-open-prs.json
 
 safe-outputs:
+  # Keep failure diagnostics in Actions logs and artifacts, not GitHub issues.
+  # External alerting can monitor failed runs without expanding the App's permissions.
+  report-failure-as-issue: false
+  report-failed-jobs: false
+  report-missing-tool:
+    create-issue: false
+  report-incomplete:
+    create-issue: false
   github-app:
     client-id: ${{ secrets.DEPENDABOT_APP_CLIENT_ID }}
     private-key: ${{ secrets.DEPENDABOT_APP_PRIVATE_KEY }}
