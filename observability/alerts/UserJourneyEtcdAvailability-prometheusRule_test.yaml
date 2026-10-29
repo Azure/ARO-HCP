@@ -116,17 +116,17 @@ tests:
 # Scenario 2: Normal commit duration — no tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.001"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.001"}'
     values: "0+20x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.002"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.002"}'
     values: "0+50x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.004"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.004"}'
     values: "0+80x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.008"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.008"}'
     values: "0+95x15"
-  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+100x15"
-  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
     values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
@@ -519,15 +519,15 @@ tests:
 # Scenario 2: Normal peer RTT — no tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.0001"}'
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",le="0.0001"}'
     values: "0+50x15"
-  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.0002"}'
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",le="0.0002"}'
     values: "0+90x15"
-  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="0.0004"}'
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",le="0.0004"}'
     values: "0+95x15"
-  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",le="+Inf"}'
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",le="+Inf"}'
     values: "0+100x15"
-  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
     values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
@@ -642,15 +642,15 @@ tests:
 # Scenario 2: Normal WAL fsync duration — no tiers fire
 - interval: 1m
   input_series:
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.001"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.001"}'
     values: "0+100x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.002"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.002"}'
     values: "0+180x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="0.004"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="0.004"}'
     values: "0+195x15"
-  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",pod="etcd-0",le="+Inf"}'
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",pod="etcd-0",le="+Inf"}'
     values: "0+200x15"
-  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="test-hcp-cluster-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
+  - series: 'kube_namespace_annotations{job="kube-state-metrics",cluster="test-hcp-cluster",namespace="ocm-test-hcp-namespace-healthy",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-hcp-cluster-healthy"}'
     values: "1+0x15"
   alert_rule_test:
   - eval_time: 11m
