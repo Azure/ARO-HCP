@@ -123,6 +123,10 @@ Snapshot PVC cleanup update baseline: `e8dff36c2e806a8189de15da4935ac1f613f4c4a`
 scope: management-agent snapshot PVC finalizer cleanup, external ownership and
 the conditional control-plane namespace teardown path in the cluster-delete view.
 
+Orphaned-MRG update baseline: `fc95bc45c46e370c1e256f6abbbe657df503bcf9` plus rebase repairs;
+scope: AFEC ownership, dry-run/delete mode, 24-hour subscription discovery, required cache synchronization, and reserved Cosmos storage budget.
+Discovery update scope: subscription queue, 5-minute discovery timeout, rate-limited retries, and cancellation and worker shutdown.
+
 The generation instructions are maintained in [controller-data-flow.md](../prompts/controller-data-flow.md).
 The generated reference lives at `docs/generated/service-provider-control-flow.md`.
 
@@ -2121,11 +2125,13 @@ Aggregates cached child Controller conditions into the ARM resource `Status.Cond
 
 On cached cluster deletion intent, lists cached credential requests/revocations, then live-reads each unmarked child and stamps `Status.DeletionTimestamp` so its own controller can clean up before cluster child-resource deletion. Already-marked or missing children are skipped; per-child ETag conflicts are deferred, other errors stop the pass. One timestamp is shared across the pass; the parent itself is not live-rechecked. Child informer events also enqueue the cluster.
 
-#### CleanOrphanedClusterManagedResourceGroup
+#### OrphanedManagedResourceGroupCleanup
 
-[Source](../../backend/pkg/controllers/cluster/deletion/clean_orphaned_cluster_managed_resource_group_controller.go) · **Trigger:** Subscription; 10m.
+[Source](../../backend/pkg/controllers/cluster/deletion/orphaned_managed_resource_group_controller.go) · **Trigger:** ManagedResourceGroupWatchingController (subscription informer; 24h resync).
 
-Lists regional Azure managed resource groups and live HCP resource references; considers only orphan groups. Default mode only reports them. With `CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite`, rechecks then begins Azure group deletion and polls it. Skips already-deleting groups; no Cosmos domain write.
+The [watcher](../../backend/pkg/utils/controllerutils/managed_resource_group_watching_controller.go) queues subscription IDs from add/update/resync notifications; informer callbacks do not call Azure. After required caches synchronize, a single `ManagedResourceGroupDiscovery` worker reads each subscription from the current lister and pages Azure resource groups, filtering by region and HCP cluster `managedBy` type before enqueueing MRGs for the existing processor workers. Each discovery has a 5-minute timeout derived from the controller context. Lister, client-creation, paging, and timeout errors requeue the subscription with rate limiting; missing subscriptions or tenant data are skipped. Shutdown cancels in-flight discovery, shuts down both queues, and waits for workers to exit. This wrapper does not persist Controller status or other Cosmos documents.
+
+Startup passes the ownership AFECs and dry-run/delete mode together in `OrphanedMRGCleanupConfig`. The shared backend values template sets one rollout mode for all environments; AFEC ownership remains environment-specific. The controller checks subscription ownership via AFEC flags (mode `TargetAFECs` or `ExcludedAFECs`), then verifies cluster existence (lister first, Cosmos fallback). Fail-closed: no configured ownership AFECs, nil `Properties`, or nil `RegisteredFeatures` treats the subscription as not-owned. It then reads the Azure resource group: 404 completes the work, `Deleting` schedules another check after 15 minutes in delete mode, and any other state permits a delete attempt. In delete mode, a successful ARM `BeginDelete` also schedules a check after 15 minutes without occupying a worker. Failed immediate calls use the workqueue's rate-limited retry. Detection is counted only while the resource group still exists and is not already `Deleting`. The controller does **not** write to Cosmos; it deletes orphaned Azure managed resource groups via ARM or logs detection in dry-run mode. Reads: `Subscription` (cached via lister: existence, `Properties.RegisteredFeatures`, `Properties.TenantId`), `HCPOpenShiftCluster` (cached via lister, then `HCPClusters().Get()` Cosmos fallback for existence check).
 
 ### Backend: system-admin credentials
 
@@ -2922,7 +2928,7 @@ The [server registry](../../sessiongate/pkg/server/server.go) is keyed by Sessio
 
 | Resource / system | Actual mutator | Intent, observation and cleanup |
 |---|---|---|
-| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [CleanOrphanedClusterManagedResourceGroup](#cleanorphanedclustermanagedresourcegroup) deletes confirmed orphans only in readwrite mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
+| Azure managed resource group | [EnsureManagedResourceGroup](#ensuremanagedresourcegroup) creates; [OrphanedManagedResourceGroupCleanup](#orphanedmanagedresourcegroupcleanup) deletes confirmed orphans only in delete mode | Pending reference is persisted before creation; provisioning success confirms it. Normal deletion relies on external teardown; EnsureManagedResourceGroup observes absence and clears references. EnsureManagedResourceGroup also initiates Azure deletion for orphaned MRGs (where Cluster Service deletion completed, Cluster Service ID cleared, but Azure resource group still exists) |
 | Azure deny assignments | [ClusterDenyAssignment](#clusterdenyassignment) gets/creates/updates/deletes stale assignments | Tracks pending/confirmed IDs. Cluster creation requires no pending entries, a nonempty confirmed list and `EarliestRecheckTime` when enabled. Cluster deletion skips direct assignment cleanup; resource-group deletion cascades. |
 | Azure role assignments | [IdentityRoleAssignments](#identityroleassignments) gets and creates missing assignments | Persists intent before PUT; later GET confirms existence. Old confirmed assignments are retained. Cluster creation requires a nonempty confirmed list and no pending assignments. |
 | Azure identities, VM SKUs, quota, NSGs, container registry pull MI access and access checks | Identity/validation controllers and SKU cache **observe** | Store resolved identities, validation conditions or memory cache; these checks do not create identities, change NSGs, raise quota or modify managed identities. [ClusterValidationContainerRegistryPullCredentialsPermissionValidation](#clustervalidationcontainerregistrypullcredentialspermissionvalidation) checks CAPZ assign/action permission on pull MI using CheckAccess V2. |
