@@ -65,6 +65,7 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 					spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
 					spc.Spec.ManagementClusterResourceID = managementID
 					spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
+					spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/test-mrg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111"))
 					subscriptionID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 					subscription := &coreapi.Subscription{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subscriptionID, PartitionKey: testSubscriptionID}, Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("11111111-1111-1111-1111-111111111111")}}
 					management := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementID, PartitionKey: "1"}, Status: fleetapi.ManagementClusterStatus{PublicDNSZoneResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/dns/providers/Microsoft.Network/dnsZones/example.com")), ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID)))}}
