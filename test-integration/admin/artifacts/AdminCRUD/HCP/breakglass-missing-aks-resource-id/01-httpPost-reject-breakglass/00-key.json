@@ -1,0 +1,4 @@
+{
+	"id": "c7d3685e-cd0f-5a9d-92f5-28a5f9aff1f5",
+	"resourceID": "/admin/v1/hcp/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster/breakglass"
+}
