@@ -114,6 +114,10 @@ kubectl's output, not merely a successful kubectl exit code.
   ./hack/ci/tls-preflight-test.sh
   ```
 
+  The same suite runs as `make verify-tls-preflight`, which is part of
+  `make verify` and therefore of the `ci/prow/verify` job, so the parser and
+  classifier cannot drift unnoticed between image bumps.
+
 ## Interpreting failures
 
 | Failed check | Meaning | Action |
