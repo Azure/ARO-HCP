@@ -54,14 +54,13 @@ func (f *fakeManagementClusterLister) List(ctx context.Context) ([]*fleetapi.Man
 	return out, nil
 }
 
-func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string) *fleetapi.ManagementCluster {
+func newFakeMC(t *testing.T, stampIdentifier, containerName string) *fleetapi.ManagementCluster {
 	t.Helper()
 	rid := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stampIdentifier))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 		Status: fleetapi.ManagementClusterStatus{
 			KubeApplierCosmosContainerName: containerName,
-			MaestroConsumerName:            consumerName,
 		},
 	}
 }
@@ -82,7 +81,7 @@ func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
 // counter goes up).
 func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) {
 	lister := &fakeManagementClusterLister{
-		mcs: []*fleetapi.ManagementCluster{newFakeMC(t, "present", "container-a", "mc-a")},
+		mcs: []*fleetapi.ManagementCluster{newFakeMC(t, "present", "container-a")},
 	}
 	clients := NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{}, func(string) (*cosmosratelimit.TokenBucket, error) {
 		return cosmosratelimit.NewUnlimitedTokenBucket("test"), nil

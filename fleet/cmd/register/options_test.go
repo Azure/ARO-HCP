@@ -32,9 +32,6 @@ func validRawOptions() *RawRegisterOptions {
 		HostedClustersSecretsKeyVaultURL: "https://kv.vault.azure.net",
 		HostedClustersManagedIdentitiesKeyVaultURL:           "https://mi-kv.vault.azure.net",
 		HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-		MaestroConsumerName:                                  "consumer-1",
-		MaestroRESTAPIURL:                                    "http://maestro:8000",
-		MaestroGRPCTarget:                                    "maestro:8090",
 		KubeApplierCosmosContainerName:                       "Manifests-MC-1",
 		KubeApplierCosmosContainerMaxScale:                   19000,
 	}

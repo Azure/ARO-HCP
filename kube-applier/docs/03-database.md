@@ -13,10 +13,11 @@
    resolves each management-cluster resourceID to its per-MC
    `KubeApplierDBClient` on demand. Resolution walks a
    `ManagementClusterLister` to find the matching `fleet.ManagementCluster`
-   document and uses its `Status.KubeApplierCosmosContainerName` /
-   `Status.MaestroConsumerName`. The backend holds one of these so it can
-   talk to every management cluster; the kube-applier sidecar binary opens
-   its own single container directly and does not need the registry.
+   document and uses its `Status.KubeApplierCosmosContainerName` and the
+   management cluster resource ID to configure the client. The backend holds
+   one of these so it can talk to every management cluster; the kube-applier
+   sidecar binary opens its own single container directly and does not need
+   the registry.
 4. Fully isolate the kube-applier types from the existing `DBClient` / `GlobalListers`
    so an audit can see that the kube-applier credential surface cannot reach
    `Resources`, `Billing`, or any other container the binary should not touch.
@@ -70,8 +71,8 @@ type KubeApplierListers interface {
 
 // Thread-safe registry of per-MC clients. Backend constructs one of these from a
 // ManagementClusterLister; each For() call walks the lister to find the matching
-// fleet.ManagementCluster and reads its container name and partition key off the
-// status fields.
+// fleet.ManagementCluster and reads its container name from status. Partition
+// keys are derived using the management cluster resource ID.
 type KubeApplierDBClients interface {
     // For returns the client for this management cluster, constructing it on
     // demand. nil if no MC matches the rid, if the lister errors, or if the
@@ -122,8 +123,8 @@ func NewDBBackedManagementClusterLister(fleetClient FleetDBClient) ManagementClu
   `NewDBBackedManagementClusterLister(fleetClient)` adapter; both satisfy the
   narrow interface. Each `For()` consults the lister to find the matching MC
   (linear scan, expected to be small) and reads
-  `Status.KubeApplierCosmosContainerName` for the container name and
-  `Status.MaestroConsumerName` for the partition key. The constructed per-MC
+  `Status.KubeApplierCosmosContainerName` for the container name. Partition keys
+  are derived using the management cluster resource ID. The constructed per-MC
   client is cached under a `sync.Mutex`; the MC set itself is re-read each
   call so fleet additions/removals become visible without restarting the
   backend.

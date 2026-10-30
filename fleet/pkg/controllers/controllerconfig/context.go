@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
-	"github.com/Azure/ARO-HCP/fleet/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -32,17 +31,16 @@ import (
 )
 
 type ControllerContext struct {
-	FleetDBClient                fleetcosmosstorage.FleetDBClient
-	ClustersServiceClient        ocm.ClusterServiceClientSpec
-	MaestroConsumerClientFactory maestro.ConsumerClientFactory
-	KubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
-	Region                       string
-	AzureCredential              azcore.TokenCredential
-	AzureClientOptions           *policy.ClientOptions
-	NodePoolProfile              *compute.Profile
-	NodePoolZones                []string
-	AMWWorkspaceResourceIDs      []string
-	AMWScalingPollInterval       time.Duration
+	FleetDBClient           fleetcosmosstorage.FleetDBClient
+	ClustersServiceClient   ocm.ClusterServiceClientSpec
+	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
+	Region                  string
+	AzureCredential         azcore.TokenCredential
+	AzureClientOptions      *policy.ClientOptions
+	NodePoolProfile         *compute.Profile
+	NodePoolZones           []string
+	AMWWorkspaceResourceIDs []string
+	AMWScalingPollInterval  time.Duration
 
 	FleetInformers                      fleetinformers.FleetInformers
 	UnionKubeApplierInformers           *unionkubeapplierinformers.UnionKubeApplierInformers
