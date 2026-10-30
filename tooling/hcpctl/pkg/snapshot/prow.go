@@ -556,10 +556,9 @@ func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime
 	return setupFinishTime, testStartTime
 }
 
-// fetchTestTimings downloads timing metadata files from the GCS bucket and
-// returns a map from test name to the derived timing boundaries. The top-level
-// finishedAt marks when cleanup began. Steps whose name contains "identity
-// container" are treated as setup; the remaining steps are the test itself.
+// Fetches timing metadata from GCS and derives per-test timing boundaries.
+// CleanupStartedAt marks when teardown began; historical artifacts used FinishedAt instead.
+// Identity-container steps are setup; the remaining steps identify test work.
 func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, artifactPrefix string, logger logr.Logger, strictClient *http.Client) (map[string]testTimingBoundaries, error) {
 	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
 	logger.V(1).Info("Fetching timing metadata", "prefix", prefix)
@@ -643,12 +642,16 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 		}
 		boundaries := testTimingBoundaries{}
 
-		if tm.FinishedAt != "" {
-			t, err := time.Parse(time.RFC3339, tm.FinishedAt)
+		cleanupStartedAt := tm.CleanupStartedAt
+		if cleanupStartedAt == "" {
+			cleanupStartedAt = tm.FinishedAt
+		}
+		if cleanupStartedAt != "" {
+			t, err := time.Parse(time.RFC3339Nano, cleanupStartedAt)
 			if err == nil {
 				boundaries.CleanupStartTime = t
 			} else {
-				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
+				logger.Error(err, "Failed to parse cleanup boundary from timing metadata, skipping", "path", objPath)
 				if strictClient != nil {
 					ReportProwArtifactProblem(ctx, "timing", "malformed")
 				}

@@ -112,6 +112,8 @@ func LoadSteps(ctx context.Context, dir string) ([]pipeline.NodeInfo, error) {
 
 // LoadTestTimingInfo reads all timing-metadata-*.yaml(.gz) files from a
 // directory and returns parsed timing info keyed by test identifier.
+// CleanupStartedAt preserves the body/cleanup boundary when FinishedAt includes
+// teardown; historical artifacts used FinishedAt for that boundary.
 func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo, error) {
 	if dir == "" {
 		return nil, nil
@@ -158,13 +160,21 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			return fmt.Errorf("failed to unmarshal %s: %w", p, err)
 		}
 
-		startedAt, err := time.Parse(time.RFC3339, tm.StartedAt)
+		startedAt, err := time.Parse(time.RFC3339Nano, tm.StartedAt)
 		if err != nil {
 			return fmt.Errorf("failed to parse startedAt in %s: %w", p, err)
 		}
-		finishedAt, err := time.Parse(time.RFC3339, tm.FinishedAt)
+		finishedAt, err := time.Parse(time.RFC3339Nano, tm.FinishedAt)
 		if err != nil {
 			return fmt.Errorf("failed to parse finishedAt in %s: %w", p, err)
+		}
+
+		cleanupStart := finishedAt
+		if tm.CleanupStartedAt != "" {
+			cleanupStart, err = time.Parse(time.RFC3339Nano, tm.CleanupStartedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse cleanupStartedAt in %s: %w", p, err)
+			}
 		}
 
 		rgNames := make([]string, 0)
@@ -182,7 +192,7 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			EndTime:            finishedAt.Add(endGracePeriodDuration),
 			SetupFinishTime:    setupFinishTime,
 			TestStartTime:      testStartTime,
-			CleanupStartTime:   finishedAt,
+			CleanupStartTime:   cleanupStart,
 			ResourceGroupNames: rgNames,
 			SubscriptionID:     tm.SubscriptionID,
 			Steps:              tm.Steps,

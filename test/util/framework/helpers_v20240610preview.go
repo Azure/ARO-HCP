@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 // ========================================================================
@@ -350,6 +351,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx
 // Functions from deployment_helper.go
 // ========================================================================
 
+// CreateHCPClusterFromParam20240610 creates a cluster and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
@@ -367,7 +369,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
@@ -389,6 +391,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	return nil
 }
 
+// CreateNodePoolFromParam20240610 creates a node pool and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
@@ -404,7 +407,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
 	}()
 
 	nodePoolName := parameters.NodePoolName
@@ -591,13 +594,18 @@ func deleteHCPClusterAttempt(
 // DeleteHCPCluster20240610 deletes an hcp cluster and waits for the operation to complete
 // Transient ConflictingConcurrentWriteNotAllowed (409) errors are retried automatically
 // with exponential backoff.
-func DeleteHCPCluster20240610(
+func (tc *perItOrDescribeTestContext) DeleteHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
 ) error {
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestOperation(timing.KindDeleteCluster, fmt.Sprintf("Delete cluster %s/%s", resourceGroupName, hcpClusterName), startTime, time.Now())
+	}()
+
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
@@ -751,7 +759,7 @@ func GetHCPCluster20240610(
 }
 
 // DeleteAllHCPClusters20240610 deletes all Clusters within a resource group and waits
-func DeleteAllHCPClusters20240610(
+func (tc *perItOrDescribeTestContext) DeleteAllHCPClusters20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -786,7 +794,7 @@ func DeleteAllHCPClusters20240610(
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			defer utilruntime.HandleCrashWithContext(ctx)
 
-			return DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, HCPClusterDeletionTimeout)
+			return tc.DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, HCPClusterDeletionTimeout)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {

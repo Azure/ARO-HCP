@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 // --- Types from deployment_params.go ---
@@ -332,6 +333,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260901(ctx
 
 // --- Functions from deployment_helper.go ---
 
+// CreateHCPClusterFromParam20260901 creates a cluster and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 	ctx context.Context,
 	logger logr.Logger,
@@ -350,7 +352,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20260901preview)", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20260901preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20260901(parameters, tc.Location(), imageDigestMirrors)
@@ -375,6 +377,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 	return nil
 }
 
+// CreateNodePoolFromParam20260901 creates a node pool and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 	ctx context.Context,
 	logger logr.Logger,
@@ -390,7 +393,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260901(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
 	}()
 
 	nodePoolName := parameters.NodePoolName

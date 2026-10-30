@@ -19,6 +19,14 @@ type SpecTimingMetadata struct {
 	StartedAt  string   `json:"startedAt"`
 	FinishedAt string   `json:"finishedAt"`
 
+	// CleanupStartedAt separates test work from framework teardown. FinishedAt
+	// includes teardown; older artifacts without this field ended before it.
+	CleanupStartedAt string `json:"cleanupStartedAt,omitempty"`
+	// Outcome is the final Ginkgo spec state, including cleanup failures.
+	Outcome string `json:"outcome,omitempty"`
+	// Phases partition the lifecycle independently of nested operation steps.
+	Phases []StepTimingMetadata `json:"phases,omitempty"`
+
 	// SubscriptionID is the Azure subscription the test ran its resources in.
 	// Unlike Resource.SubscriptionID (which is omitted from artifacts), this is
 	// serialized on purpose so the per-test must-gather links can target the right
@@ -34,6 +42,10 @@ type SpecTimingMetadata struct {
 
 type StepTimingMetadata struct {
 	Name string `json:"name"`
+	// Kind identifies an operation for duration summaries without parsing its label.
+	Kind string `json:"kind,omitempty"`
+	// Incomplete marks a phase interrupted before its callback returned.
+	Incomplete bool `json:"incomplete,omitempty"`
 	// StartedAt is the time at which the step started, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
 	StartedAt string `json:"startedAt"`
 	// FinishedAt is the time at which the step finished, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00

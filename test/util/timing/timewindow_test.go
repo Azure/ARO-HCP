@@ -645,3 +645,35 @@ func TestLoadTestTimingInfo_SetupTestBoundary(t *testing.T) {
 		t.Errorf("CleanupStartTime: got %v, want %v", info.CleanupStartTime, wantCleanup)
 	}
 }
+
+func TestLoadTestTimingInfoFullLifecycleBoundary(t *testing.T) {
+	t.Parallel()
+	for _, cleanup := range []string{"2026-10-30T14:20:23.155483Z", "invalid"} {
+		t.Run(cleanup, func(t *testing.T) {
+			dir := t.TempDir()
+			metadata := SpecTimingMetadata{
+				Identifier:       []string{"full-lifecycle"},
+				StartedAt:        "2026-10-30T13:30:56.518088Z",
+				CleanupStartedAt: cleanup,
+				FinishedAt:       "2026-10-30T14:39:42.324789Z",
+			}
+			writeYAML(t, filepath.Join(dir, "timing-metadata-full.yaml"), metadata)
+			got, err := LoadTestTimingInfo(ctxWithLogger(t), dir)
+			if cleanup == "invalid" {
+				if err == nil {
+					t.Fatal("invalid cleanup boundary must not be replaced with lifecycle finish")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			info := got["full-lifecycle"]
+			wantCleanup, _ := time.Parse(time.RFC3339Nano, cleanup)
+			wantEnd, _ := time.Parse(time.RFC3339Nano, metadata.FinishedAt)
+			if !info.CleanupStartTime.Equal(wantCleanup) || !info.EndTime.Equal(wantEnd.Add(endGracePeriodDuration)) {
+				t.Fatalf("cleanup and query end must stay distinct: %+v", info)
+			}
+		})
+	}
+}

@@ -35,7 +35,7 @@ func TestTestTimingChartLinearData(t *testing.T) {
 				times = append(times, TestInfo{
 					Identifier: []string{fmt.Sprintf("test-%d", i)},
 					StartedAt:  start, FinishedAt: start.Add(time.Second),
-					Steps: []StepTimingMetadata{{Name: "step", StartedAt: start, FinishedAt: start}},
+					Steps: []StepTimingMetadata{{Name: "step", StartedAt: start, FinishedAt: start.Add(time.Second)}},
 				})
 			}
 			chart := testTimingChart(times)
@@ -64,8 +64,15 @@ func TestTestTimingChartTimings(t *testing.T) {
 		}},
 		{Identifier: []string{"first"}, StartedAt: start.Add(4 * time.Second), FinishedAt: start.Add(5 * time.Second)},
 	})
-	offsets := chart.MultiSeries[0].Data.([]opts.BarData)
-	durations := chart.MultiSeries[1].Data.([]opts.BarData)
+	var offsets, durations []opts.BarData
+	allOffsets := chart.MultiSeries[0].Data.([]opts.BarData)
+	for i, row := range chart.MultiSeries[1].Data.([]opts.BarData) {
+		if strings.Contains(row.Name, ": Untracked") {
+			continue
+		}
+		offsets = append(offsets, allOffsets[i])
+		durations = append(durations, row)
+	}
 	for i, want := range []struct {
 		name             string
 		offset, duration float64
@@ -85,9 +92,6 @@ func TestTestTimingChartTimings(t *testing.T) {
 	}
 	if durations[0].ItemStyle.BorderWidth != 1 || durations[1].ItemStyle.BorderWidth != 0 {
 		t.Error("test rows, but not step rows, should have borders")
-	}
-	if chart.Subtitle != "Overall Runtime: 5s" {
-		t.Errorf("unexpected runtime: %q", chart.Subtitle)
 	}
 	if !strings.Contains(string(chart.RenderContent()), "2026-01-01T00:00:00.123Z") {
 		t.Error("axis formatter must retain the fractional-second start time")

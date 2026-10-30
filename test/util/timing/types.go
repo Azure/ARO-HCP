@@ -24,3 +24,11 @@ type SpecTimingMetadata = utilitytiming.SpecTimingMetadata
 type StepTimingMetadata = utilitytiming.StepTimingMetadata
 type Operation = utilitytiming.Operation
 type Resource = utilitytiming.Resource
+
+// Operation kinds keep duration summaries independent of human-readable labels.
+const (
+	KindCreateCluster        = "create-cluster"
+	KindCreateNodePool       = "create-nodepool"
+	KindDeleteCluster        = "delete-cluster"
+	KindResourceGroupCleanup = "resource-group-cleanup"
+)

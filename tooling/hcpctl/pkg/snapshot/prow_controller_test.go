@@ -19,6 +19,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/go-logr/logr"
 )
 
 type controllerArtifactTransport func(*http.Request) (*http.Response, error)
@@ -133,4 +136,46 @@ func TestProwArtifactProblemHandlerBoundedCategories(t *testing.T) {
 	}
 	ReportProwArtifactProblem(t.Context(), "job", "absent")
 	ReportProwArtifactProblem(WithProwArtifactProblemHandler(t.Context(), nil), "job", "absent")
+}
+
+func TestFetchTestTimingsCleanupBoundary(t *testing.T) {
+	t.Parallel()
+	const prefix = "logs/job/123/" + timingMetadataPath + "timing-metadata-"
+	for _, fullLifecycle := range []bool{false, true} {
+		name := "historical"
+		if fullLifecycle {
+			name = "full-lifecycle"
+		}
+		t.Run(name, func(t *testing.T) {
+			client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+				var body string
+				if r.URL.Query().Get("prefix") == prefix {
+					body = `{"items":[{"name":"` + prefix + `test.yaml"}]}`
+				} else {
+					body = "identifier: [test]\nfinishedAt: '2026-10-30T14:39:42.324789Z'\n"
+					if fullLifecycle {
+						body += "cleanupStartedAt: '2026-10-30T14:20:23.155483Z'\n"
+					}
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+			})}
+			gcs, err := controllerGCSClient(t.Context(), client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer gcs.Close()
+			got, err := fetchTestTimings(t.Context(), gcs, "bucket", "logs/job/123", logr.Discard(), client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "2026-10-30T14:39:42.324789Z"
+			if fullLifecycle {
+				want = "2026-10-30T14:20:23.155483Z"
+			}
+			boundary, _ := time.Parse(time.RFC3339Nano, want)
+			if !got["test"].CleanupStartTime.Equal(boundary) {
+				t.Fatalf("wrong cleanup start: got %s, want %s", got["test"].CleanupStartTime, boundary)
+			}
+		})
+	}
 }
