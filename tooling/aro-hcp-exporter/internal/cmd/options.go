@@ -40,6 +40,11 @@ const (
 	DefaultListenAddress      = ":8080"
 	DefaultCacheTTL           = 1 * time.Minute
 	DefaultCollectionInterval = 1 * time.Minute
+	// MaxCollectionInterval is an upper sanity bound on --collection-interval.
+	// It is far above any useful scrape cadence and exists to keep the value
+	// well clear of the durations where the discovery backoff arithmetic would
+	// approach the int64 ceiling.
+	MaxCollectionInterval = 24 * time.Hour
 )
 
 var (
@@ -144,6 +149,16 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("cache TTL is required")
 	}
 
+	// A non-positive interval makes collectLoop skip its sleep entirely and
+	// spin; an absurdly large one is never intended and pushes the discovery
+	// backoff arithmetic toward the int64 ceiling.
+	if o.CollectionInterval <= 0 {
+		return nil, fmt.Errorf("collection-interval must be positive, got %s", o.CollectionInterval)
+	}
+	if o.CollectionInterval > MaxCollectionInterval {
+		return nil, fmt.Errorf("collection-interval must be at most %s, got %s", MaxCollectionInterval, o.CollectionInterval)
+	}
+
 	if len(o.EnabledCollectors) == 0 {
 		return nil, fmt.Errorf("at least one collector must be enabled")
 	}
@@ -228,6 +243,11 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
 	registry := prometheus.NewRegistry()
+	for _, collector := range clusterPoller.Collectors() {
+		if regErr := registry.Register(collector); regErr != nil {
+			return nil, fmt.Errorf("failed to register cluster discovery collector: %w", regErr)
+		}
+	}
 	for _, collector := range collectors {
 		if regErr := registry.Register(collector); regErr != nil {
 			return nil, fmt.Errorf("failed to register collector: %s, error: %w", collector.Name(), regErr)

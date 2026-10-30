@@ -42,7 +42,58 @@ const (
 	exporterNamespace   = "aro-hcp-exporter"
 	exporterServiceName = "aro-hcp-exporter"
 	exporterServicePort = 8080
+
+	// exporterHealthTimeout bounds the wait for the exporter's own health
+	// metrics. These are plain gauges and counters emitted from process start,
+	// so they are there as soon as the pod serves traffic — the only slack
+	// needed is for the port-forward and the pod becoming ready. Keeping this
+	// tight means a registration regression, or an exporter that never comes
+	// up, fails in minutes instead of holding a parallel worker for half an
+	// hour.
+	exporterHealthTimeout = 5 * time.Minute
+
+	// exporterCollectorTimeout bounds the wait for the collector-derived
+	// metrics. This stays generous on purpose. kusto_logs_age_in_seconds is
+	// only cached once a Kusto query returns rows, and on a freshly built
+	// environment that depends on log ingestion catching up, which is outside
+	// this repo's control and can run well past the collector's own 5m
+	// self-throttle. Tightening this budget would trade a real failure mode
+	// (ingestion lag) for CI minutes.
+	exporterCollectorTimeout = 30 * time.Minute
+
+	exporterMetricsPolling = 30 * time.Second
 )
+
+// exporterHealthMetrics are emitted unconditionally from process start, so
+// their absence means the exporter failed to register them rather than that it
+// has nothing to report. Asserting on them turns a registration regression into
+// a test failure instead of a silently missing signal.
+var exporterHealthMetrics = []string{
+	"exporter_cluster_discovery_last_success_timestamp_seconds",
+	"exporter_cluster_discovery_errors_total",
+	"exporter_cluster_discovery_clusters",
+}
+
+// exporterCollectorMetrics are produced by collectors that must first reach
+// Azure Resource Graph and Kusto, so they appear only once real data has been
+// gathered.
+var exporterCollectorMetrics = []string{
+	"public_ip_count_by_region_service_tag",
+	"kusto_logs_age_in_seconds",
+}
+
+// exporterHealthMetricPrefixes select the samples the exporter emits
+// unconditionally. They explain *why* expectedExporterMetrics are missing:
+// collectors serve cached const-metrics, so a collector that produced nothing
+// contributes no output at all and is otherwise indistinguishable from one that
+// is wedged. In particular a
+// exporter_cluster_discovery_last_success_timestamp_seconds of 0 means cluster
+// discovery never succeeded and every collector is blocked behind it.
+var exporterHealthMetricPrefixes = []string{
+	"exporter_cluster_discovery_",
+	"exporter_collector_errors_total",
+	"exporter_collector_duration_seconds_count",
+}
 
 var _ = Describe("Engineering", func() {
 	It("should be able to retrieve expected metrics from the /metrics endpoint",
@@ -68,67 +119,90 @@ var _ = Describe("Engineering", func() {
 			var localPort int
 			var stopChan chan struct{}
 			connected := false
-			defer func() {
+			disconnect := func() {
 				if connected {
 					close(stopChan)
+					connected = false
 				}
-			}()
+			}
+			defer disconnect()
 
 			httpClient := http.Client{
 				Timeout: 30 * time.Second,
 			}
-			Eventually(func() bool {
-				// (Re-)establish port-forward if needed.
+
+			// scrape returns the current /metrics body, (re-)establishing the
+			// port-forward when it is not up or has broken.
+			scrape := func() (string, error) {
 				if !connected {
-					By("finding a pod for the aro-hcp-exporter service")
 					podName, err := getExporterPodName(cancelCtx, kubeClient)
 					if err != nil {
-						return false
+						return "", fmt.Errorf("no running exporter pod: %w", err)
 					}
-					By("port-forwarding to the exporter pod")
 					localPort, stopChan, err = startPortForward(cancelCtx, restConfig, podName)
 					if err != nil {
-						return false
+						return "", fmt.Errorf("failed to port-forward to exporter pod %q: %w", podName, err)
 					}
 					connected = true
 				}
 
-				By("querying the /metrics endpoint")
 				metricsURL := fmt.Sprintf("http://localhost:%d/metrics", localPort)
 				req, err := http.NewRequestWithContext(cancelCtx, http.MethodGet, metricsURL, nil)
-				Expect(err).NotTo(HaveOccurred(), "failed to create HTTP request for metrics endpoint")
+				if err != nil {
+					return "", fmt.Errorf("failed to build request for %s: %w", metricsURL, err)
+				}
 
 				resp, err := httpClient.Do(req)
 				if err != nil {
-					GinkgoWriter.Printf("Failed to get metrics endpoint: %v", err)
-					close(stopChan)
-					connected = false
-					return false
+					disconnect()
+					return "", fmt.Errorf("failed to GET %s: %w", metricsURL, err)
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					return false
+					return "", fmt.Errorf("GET %s returned %s, want 200 OK", metricsURL, resp.Status)
 				}
 
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					GinkgoWriter.Printf("Failed to read metrics response body: %v", err)
-					close(stopChan)
-					connected = false
-					return false
+					disconnect()
+					return "", fmt.Errorf("failed to read response body from %s: %w", metricsURL, err)
 				}
+				return string(body), nil
+			}
 
-				metricsOutput := string(body)
+			awaitMetrics := func(names []string) func() error {
+				return func() error {
+					metricsOutput, err := scrape()
+					if err != nil {
+						return err
+					}
 
-				By("verifying public_ip_count_by_region_service_tag is present")
-				if !strings.Contains(metricsOutput, "public_ip_count_by_region_service_tag") {
-					return false
+					var missing []string
+					for _, name := range names {
+						if !strings.Contains(metricsOutput, name) {
+							missing = append(missing, name)
+						}
+					}
+					if len(missing) > 0 {
+						return fmt.Errorf("exporter has not published %s; exporter health metrics:\n%s",
+							strings.Join(missing, ", "),
+							extractMetricLines(metricsOutput, exporterHealthMetricPrefixes),
+						)
+					}
+					return nil
 				}
+			}
 
-				By("verifying kusto_logs_age_in_seconds is present")
-				return strings.Contains(metricsOutput, "kusto_logs_age_in_seconds")
-			}).WithTimeout(30 * time.Minute).WithPolling(30 * time.Second).Should(BeTrue())
+			By("waiting for the exporter's own health metrics")
+			Eventually(awaitMetrics(exporterHealthMetrics)).
+				WithTimeout(exporterHealthTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
+				"exporter never published all of %s within %s", strings.Join(exporterHealthMetrics, ", "), exporterHealthTimeout)
+
+			By("waiting for the collector-derived metrics")
+			Eventually(awaitMetrics(exporterCollectorMetrics)).
+				WithTimeout(exporterCollectorTimeout).WithPolling(exporterMetricsPolling).Should(Succeed(),
+				"exporter never published all of %s within %s", strings.Join(exporterCollectorMetrics, ", "), exporterCollectorTimeout)
 		})
 })
 
@@ -152,6 +226,28 @@ func getExporterPodName(ctx context.Context, kubeClient kubernetes.Interface) (s
 		}
 	}
 	return "", fmt.Errorf("no running pod found for service %s/%s (selector: %s)", exporterNamespace, exporterServiceName, selector)
+}
+
+// extractMetricLines returns the sample lines whose metric name starts with one
+// of the given prefixes, so a failure message carries the exporter's own health
+// signals instead of the entire scrape.
+func extractMetricLines(metricsOutput string, prefixes []string) string {
+	var lines []string
+	for _, line := range strings.Split(metricsOutput, "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(line, prefix) {
+				lines = append(lines, "  "+line)
+				break
+			}
+		}
+	}
+	if len(lines) == 0 {
+		return "  (none found in scrape)"
+	}
+	return strings.Join(lines, "\n")
 }
 
 func selectorToString(selector map[string]string) string {
