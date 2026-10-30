@@ -19,6 +19,12 @@ The local code can also be deployed directly into a personal DEV environment by 
 
 `make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other developer images or CI built ones. The actual deployment is delegated to the pipeline/RP.Frontend target in the root of the repository, providing a configuration override for `frontend.image.repository` and `frontend.image.digest` respectively.
 
+### Integration Tests
+
+Frontend CRUD and cross-version tests run up to four independent mock-backed scenarios concurrently. Steps within each scenario stay ordered; Cosmos-backed scenarios remain serial because they share the emulator database.
+
+For serial mock execution while debugging, run `go test -race -parallel 1 ./test-integration/frontend` from the repository root.
+
 ## Deployment
 
 The [pipeline.yaml](pipeline.yaml) file in this directory contains the pipeline definition for the Frontend. It is integrated into the [topology.yaml](../topology.yaml) file and runs as part of the service cluster deployment.

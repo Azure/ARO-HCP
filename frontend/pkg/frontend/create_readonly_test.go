@@ -53,7 +53,7 @@ func readonlyCreateCases(t testing.TB) []readonlyCreateCase {
 	t.Helper()
 	reg := prometheus.NewRegistry()
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
-	frontend := NewFrontend(logr.Discard(), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, nil, "eastus", true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	frontend := NewFrontend(logr.Discard(), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, nil, "eastus", azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	docs := readonlySwagger{}
 	var cases []readonlyCreateCase
 	for _, versionName := range slices.Sorted(maps.Keys(frontend.apiRegistry.ListVersions())) {
