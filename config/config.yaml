@@ -1158,7 +1158,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:870715c2989c60f0dd41f5469b96f2c6f7d7610aa2aa166a641eacd501c66660 # v2.17.4-544 (2026-10-20 20:07) pinned: v2.17.4-556 hypershift-addon-agent crash-loops (AROSLSRE-2645)
+        digest: sha256:d71b1317fc4090ddb46083888d99bf9b65b478e88a4251fca038a942ba73280c # v2.17.4-558 (2026-10-29 20:42)
   # Cluster Service
   clustersService:
     image:
