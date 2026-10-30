@@ -148,6 +148,20 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+            # metadata.deletionTimestamp (RFC3339) is parsed into a Unix timestamp;
+            # nilIsZero emits 0 while the HostedCluster is live and not marked for
+            # deletion, >0 once marked, and the series disappears once the CR is
+            # removed. Like every hostedClusterAPI_* metric this carries
+            # namespace=ocm-<env>-<csid>, so it is remote-written to the "hcps"
+            # workspace. Consumers (e.g. the backup SLO alerts) can gate on "== 0"
+            # to exclude deleting/deleted clusters.
+            - name: "deletion_timestamp_seconds"
+              help: "HostedCluster metadata.deletionTimestamp as a Unix timestamp; 0 while the cluster is not marked for deletion"
+              each:
+                type: Gauge
+                gauge:
+                  path: [metadata, deletionTimestamp]
+                  nilIsZero: true
           - groupVersionKind:
               group: velero.io
               kind: "Backup"

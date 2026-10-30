@@ -67727,6 +67727,16 @@ data:
             type: StateSet
           help: Azure KMS configuration validity condition
           name: valid_azure_kms_config
+        - each:
+            gauge:
+              nilIsZero: true
+              path:
+              - metadata
+              - deletionTimestamp
+            type: Gauge
+          help: HostedCluster metadata.deletionTimestamp as a Unix timestamp; 0 while
+            the cluster is not marked for deletion
+          name: deletion_timestamp_seconds
       - groupVersionKind:
           group: velero.io
           kind: Backup
