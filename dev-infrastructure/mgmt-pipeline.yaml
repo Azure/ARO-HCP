@@ -956,6 +956,8 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    # Give the rollout the same budget the mitigations step already uses. ARO-30377.
+    timeout: 15m
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"
@@ -963,6 +965,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # A retry upgrades the same release and waits again, so a straggler that
+      # recovers late no longer fails the provision run. ARO-30377.
+      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
