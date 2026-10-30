@@ -71,11 +71,11 @@ $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@echo "(re)installing $(GOBIN)/golangci-lint-v2.5.0"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v2.5.0 "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 
-HELM := $(GOBIN)/helm-v3.16.3
+HELM := $(GOBIN)/helm-v3.22.1
 $(HELM): $(BINGO_DIR)/helm.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/helm-v3.16.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.16.3 "helm.sh/helm/v3/cmd/helm"
+	@echo "(re)installing $(GOBIN)/helm-v3.22.1"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.22.1 "helm.sh/helm/v3/cmd/helm"
 
 INFORMER_GEN := $(GOBIN)/informer-gen-v0.34.3
 $(INFORMER_GEN): $(BINGO_DIR)/informer-gen.mod
