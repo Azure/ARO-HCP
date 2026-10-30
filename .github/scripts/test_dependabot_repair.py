@@ -44,6 +44,27 @@ class RepairTests(unittest.TestCase):
         ):
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text(value)
+        fixtures = {
+            "go.work": "go 1.26.0\nuse .\n",
+            "go.mod": "module example.com/app\n\ngo 1.26.0\nrequire example.com/dep v1.0.0\nreplace example.com/dep => ./dep\n",
+            "app.go": 'package app\nimport _ "example.com/dep"\n',
+            "dep/go.mod": "module example.com/dep\n\ngo 1.26.0\n",
+            "dep/dep.go": "package dep\n",
+            "image-sync/oc-mirror/acrauth/go.mod": "module example.com/acrauth\n\ngo 1.26.0\nrequire example.com/dep v1.0.0\nreplace example.com/dep => ../../../dep\n",
+            "image-sync/oc-mirror/acrauth/app.go": 'package acrauth\nimport _ "example.com/dep"\n',
+            "Makefile": "verify-vendor:\n\tbash hack/verify-vendor.sh\n",
+            "hack/verify-vendor.sh": (ROOT / "hack/verify-vendor.sh").read_text(),
+        }
+        for name, content in fixtures.items():
+            file = self.seed / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(content)
+        (self.seed / "image-sync/oc-mirror/acrauth/vendor").mkdir()
+        subprocess.run(["go", "work", "vendor"], cwd=self.seed, check=True, capture_output=True)
+        subprocess.run(
+            ["go", "mod", "vendor"], cwd=self.seed / "image-sync/oc-mirror/acrauth",
+            env={**os.environ, "GOWORK": "off"}, check=True, capture_output=True,
+        )
         git(self.seed, "add", ".")
         git(self.seed, "commit", "-m", "original")
         git(self.seed, "remote", "add", "origin", str(self.remote))
@@ -69,10 +90,10 @@ class RepairTests(unittest.TestCase):
         ) + "\n"
         git(root, "clone", "--branch", "main", str(self.remote), str(self.runner))
         self.output = root / "output.json"
-        self.command = (
-            yaml.safe_load((ROOT / ".github/workflows/dependabot-remediation.md").read_text().split("---", 2)[1])
-            ["safe-outputs"]["jobs"]["repair-owned-pr"]["steps"][2]["run"]
-        )
+        steps = yaml.safe_load(
+            (ROOT / ".github/workflows/dependabot-remediation.md").read_text().split("---", 2)[1]
+        )["safe-outputs"]["jobs"]["repair-owned-pr"]["steps"]
+        self.command = next(step["run"] for step in steps if step.get("name") == "Verify and apply repair")
         gh = self.bin / "gh"
         gh.write_text(
             "#!/bin/sh\n"
@@ -128,6 +149,29 @@ class RepairTests(unittest.TestCase):
             git(self.seed, "--git-dir", str(self.remote), "rev-parse", "refs/heads/bot/typespec"),
             self.old_head,
         )
+
+    def test_stale_vendor_rejected_and_regenerated_vendor_published(self):
+        module = self.seed / "go.mod"
+        module.write_text(module.read_text().replace("v1.0.0", "v1.1.0"))
+        self.patch = git(self.seed, "diff", "--", "go.mod") + "\n"
+        failed = self.execute()
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("Vendored dependencies are out of date", failed.stdout + failed.stderr)
+        self.assertEqual(
+            git(self.seed, "--git-dir", str(self.remote), "rev-parse", "refs/heads/bot/typespec"),
+            self.old_head,
+        )
+        git(self.runner, "reset", "--hard", self.base)
+        subprocess.run(["go", "work", "vendor"], cwd=self.seed, check=True, capture_output=True)
+        self.patch = git(self.seed, "diff", "--", "go.mod", "vendor") + "\n"
+        fixed = self.execute()
+        self.assertEqual(fixed.returncode, 0, fixed.stdout + fixed.stderr)
+        new_head = git(self.seed, "--git-dir", str(self.remote), "rev-parse", "refs/heads/bot/typespec")
+        self.assertIn(
+            "example.com/dep v1.1.0",
+            git(self.seed, "--git-dir", str(self.remote), "show", f"{new_head}:vendor/modules.txt"),
+        )
+
 
 
 if __name__ == "__main__":
