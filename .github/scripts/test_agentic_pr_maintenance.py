@@ -133,6 +133,55 @@ class OwnershipTests(TestCase):
         self.assertIn("current head does not match", " ".join(result["release_blockers"]))
 
 
+class ToolOwnershipTests(TestCase):
+    def tool_snapshot(self):
+        data = snapshot()
+        data["pull"]["title"] = "chore(tools): bump yq to v4.54.1"
+        data["pull"]["labels"].append({"name": "agentic-tool-upgrade"})
+        data["pull"]["head"]["ref"] = "agentic-tool-yq"
+        return data
+
+    def test_owned_tool_can_release_green_hold_but_not_refresh_compiler(self):
+        result = assess(self.tool_snapshot())
+        self.assertEqual(result["kind"], "tool")
+        self.assertTrue(result["can_release_hold"])
+        self.assertFalse(result["can_refresh_upgrade"])
+
+    def test_tool_identity_requires_author_label_title_and_same_repo_main(self):
+        mutations = [
+            lambda p: p["user"].update(login="human"),
+            lambda p: p["head"]["repo"].update(full_name="attacker/ARO-HCP"),
+            lambda p: p["base"]["repo"].update(full_name="attacker/ARO-HCP"),
+            lambda p: p["base"].update(ref="release"),
+            lambda p: p.update(title="chore: unrelated update"),
+            lambda p: p.update(labels=[{"name": guard.HOLD_LABEL}]),
+        ]
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                data = self.tool_snapshot()
+                mutate(data["pull"])
+                result = assess(data)
+                self.assertIsNone(result["kind"])
+                self.assertFalse(result["can_release_hold"])
+                self.assertFalse(result["can_recover_retry"])
+
+    def test_tool_retry_preserves_human_holds_pending_ci_and_spent_budget(self):
+        data = self.tool_snapshot()
+        data["statuses"] = [dict(status("failure"), target_url="https://prow.ci.openshift.org/view/test")]
+        self.assertTrue(assess(data)["can_recover_retry"])
+        for blocker in ("human", "pending", "spent"):
+            with self.subTest(blocker=blocker):
+                blocked = copy.deepcopy(data)
+                if blocker == "human":
+                    blocked["comments"].append(comment(2, "/hold", "human"))
+                elif blocker == "pending":
+                    blocked["statuses"].append(status("pending", 2, "ci/prow/verify"))
+                else:
+                    blocked["comments"].append(comment(
+                        2, f"<!-- {guard.RECOVERY_MARKER}{HEAD} -->", guard.ROBOT))
+                self.assertFalse(assess(blocked)["can_recover_retry"])
+
+
 class HoldLifecycleTests(TestCase):
     def test_unknown_human_or_inconsistent_hold_label_blocks_recovery(self):
         for provenance in ("missing", "human", "unknown-bot", "removed"):

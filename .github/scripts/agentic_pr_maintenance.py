@@ -134,7 +134,7 @@ def fetch_snapshot(repo, number, expected_head):
 
 
 def owned_kind(pull, repo):
-    """Recognize only the two published same-repository robot PR identities."""
+    """Recognize the published same-repository robot maintenance PR identities."""
     for field in ("user", "head", "base"):
         if not isinstance(pull.get(field), dict):
             raise ValueError(f"missing pull request {field} evidence")
@@ -161,6 +161,8 @@ def owned_kind(pull, repo):
         return "upgrade"
     if title.startswith("fix(deps): ") and "agentic-dependabot" in {label["name"] for label in labels}:
         return "dependency"
+    if title.startswith("chore(tools): bump ") and "agentic-tool-upgrade" in {label["name"] for label in labels}:
+        return "tool"
     return None
 
 
@@ -332,7 +334,7 @@ def assess(snapshot, repo, number, expected_head):
     if pull.get("number") != number:
         blockers.append("pull request number does not match")
     if kind is None:
-        blockers.append("pull request is not an owned robot upgrade or dependency PR")
+        blockers.append("pull request is not an owned robot upgrade, dependency, or tool PR")
     if pull.get("state") != "open" or pull.get("merged") is not False or pull.get("draft") is not False:
         blockers.append("pull request must be open, unmerged, and ready for review")
     if head != expected_head or head not in commits:
