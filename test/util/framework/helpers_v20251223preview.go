@@ -539,6 +539,24 @@ func CreateHCPClusterAndWait20251223(
 	}
 }
 
+func DiagnoseHCPClusterCreation20251223(
+	ctx context.Context,
+	poller *runtime.Poller[hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse],
+	primaryErr error,
+	timeout time.Duration,
+) error {
+	diagnosticCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := poller.Poll(diagnosticCtx); err != nil {
+		return errors.Join(primaryErr, fmt.Errorf("failed reading cluster creation operation diagnostics: %w", err))
+	}
+	if !poller.Done() {
+		return errors.Join(primaryErr, fmt.Errorf("cluster creation operation diagnostics are not terminal yet"))
+	}
+	_, err := poller.Result(diagnosticCtx)
+	return errors.Join(primaryErr, err)
+}
+
 // UpdateHCPCluster20251223 updates an HCP cluster using the v20251223preview SDK and waits for the operation to complete.
 // Transient 500 and 409 errors are retried automatically with exponential backoff.
 func UpdateHCPCluster20251223(
