@@ -1,0 +1,19 @@
+{
+	"permissions": {
+		"allow": [
+			"Bash(go build *)"
+		]
+	},
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node .claude/setup.mjs"
+					}
+				]
+			}
+		]
+	}
+}
