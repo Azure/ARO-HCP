@@ -1,8 +1,9 @@
 # E2E Cost Reports
 
-Small CLIs collect Azure-reported amortized costs for an ARO HCP
-`pull-ci-Azure-ARO-HCP-main-e2e-parallel` PR job and render an offline HTML report.
-Collection and rendering are separate so UI changes need no Azure refetch.
+Small CLIs collect Azure-reported amortized costs for an ARO HCP e2e-parallel
+Prow build and render an offline HTML report, one build at a time or for every
+build that started on a day. Collection and rendering are separate so UI changes
+need no Azure refetch.
 
 ## Usage
 
@@ -34,7 +35,8 @@ configurable with `--timeout`.
 
 The renderer needs no credentials or network. ECharts, CSS, data, and license notices
 are embedded in the HTML. Both outputs are atomically replaced and private (0600)
-by default: they contain resource IDs and negotiated pricing. No output is published.
+by default: they contain resource IDs and negotiated pricing. Publish them only to
+private, authenticated storage, never to public CI artifacts.
 
 ## Reading the Report
 
@@ -146,6 +148,107 @@ Cost Details downloads, not live-resource inventory scans. Invalid inputs or
 failed partitions are saved as diagnostics; independently retrieved costs remain
 available as known subtotals. Re-run collection to change filters or refresh data;
 excluded groups retain totals/reasons, not their per-resource inventory.
+
+## Daily Reports
+
+The daily flow reports every e2e-parallel build that started on one UTC day,
+across presubmit, periodic, and postsubmit jobs in every environment:
+
+```bash
+go build -o . ./cmd/e2e-cost-runs ./cmd/e2e-cost-gather ./cmd/e2e-cost-render ./cmd/e2e-cost-index ./cmd/e2e-cost-costs
+DAY=2026-10-19; mkdir -p snapshots site/$DAY billing-cache
+
+./e2e-cost-runs --day "$DAY" |
+  xargs -P 16 -I{} sh -c 'id=$(basename "{}")
+    ./e2e-cost-gather --job "{}" --billing-cache billing-cache --output "snapshots/$id.json"
+    ./e2e-cost-render --input "snapshots/$id.json" --format json --output "site/$DAY/$id.json.gz"'
+
+./e2e-cost-index --day "$DAY" --snapshots snapshots --dir "site/$DAY" --manifest site/manifest.json --site-index site/index.html
+./e2e-cost-costs --tenant-id <tenant-uuid> --monthly-budget-usd 400000 --output site/costs.json
+```
+
+`site/` is a static site to serve as-is over HTTPS: one viewer page (`index.html`),
+the list of published days (`manifest.json`), and per day an `index.json` run list
+and one gzip-compressed JSON report per build, about 20 MB a day in total.
+`e2e-cost-runs` selects jobs from Prow's history by name: every ARO-HCP job with
+`e2e-parallel` in its name, so new environments and variants are picked up
+without a list to maintain. Without `--day` it selects the day three days ago, by
+which time most billing has arrived. Each build still gets its own snapshot and
+report; a gather that exits nonzero still writes both, marked incomplete.
+
+Cost Details reports are subscription-wide, so every build of a day would
+otherwise request the same reports. With `--billing-cache`, concurrent gathers
+share one report per subscription and window: the first generates and stores
+it under a file lock, and the rest read it from disk. A failed generation is not
+cached, so the next gather retries. The cache holds pricing data; keep it private
+and discard it after the run.
+
+`e2e-cost-render --format json` writes the same computed report as the HTML
+output, as data. The viewer lists published days on the side; a day shows every
+build with its job, PR, result, and infrastructure, test, and net cost, most
+expensive first; and a build shows its report. Reports use the single-file
+report's markup, styles, and scripts, so they look and behave the same, and UI
+changes apply to every published day without regenerating it. `e2e-cost-index`
+writes the day's `index.json`, updates `manifest.json` (rerunning a day replaces
+its entry), and writes the viewer.
+
+Builds that provision their own environment (`aro-hcp-test-local`) report
+infrastructure and test resources. Builds against persistent stage, prod, and
+integration environments (`aro-hcp-test-persistent`) report only their test
+resources; the shared environment is not attributed to runs. Periodic builds
+record only their branch, so their commit is shown as unknown.
+
+## Composite Subscription Costs
+
+The site has two views. **Aggregate spend** charts the whole spend picture: amortized
+monthly and daily cost across every subscription the E2E environments run in, with
+the current month's projection against the monthly budget. **E2E runs** lists the
+daily per-run reports. One command rebuilds the overall view from Cost Management and
+writes `site/costs.json` beside the day index:
+
+```bash
+./e2e-cost-costs --tenant-id 64dc69e4-d083-49fc-9569-ebece1dd1408 \
+  --monthly-budget-usd 400000 --output site/costs.json
+```
+
+`--subscriptions` charts an explicit list instead; without it, every enabled
+subscription in `--tenant-id` is discovered through ARM, so a new E2E subscription
+joins the chart without a code change. A subscription whose queries fail is listed
+as an error diagnostic and left out of the totals, which marks the page a known
+subtotal rather than publishing a partial figure as complete.
+
+Each subscription costs four Cost Management Query API calls: grouped by service and
+usage type, and by region, at monthly and daily granularity. A query may group by two
+dimensions at once, so those responses also supply the per-subscription stack-by
+choice — summing a subscription's own service rows yields its total for the period —
+without a separate ungrouped query. One Forecast API call per subscription covers the
+unbilled rest of the current month. A cost query that loses its connection is retried
+three times, since dropping it would remove a subscription's series from the page. No
+Cost Details downloads, Key Vault, or database are involved.
+
+All eight chart variants (two granularities by the four stack-by choices) are
+precomputed into `costs.json`, so the page switches datasets instead of refetching.
+Each variant keeps the eight largest groups as their own series and combines the rest
+into Other. Monthly charts trim leading periods before collection began; the daily
+charts cover the last three calendar months including the current one. Hovering a bar
+is the accessible path: the tooltip lists every series, the actual total, and the
+forecast.
+
+The rest of the current month is Azure's own forecast, not a local guess. The forecast
+endpoint is throttled far below the Query API and answers 429 without a retry-after
+header, so its calls are serialized and paced twelve seconds apart instead of bursting
+alongside the per-subscription queries. A subscription whose forecast fails keeps its
+billed totals, reports a warning, and leaves the month marked as a floor: the page says
+how many subscriptions returned a forecast rather than presenting a partial forecast as
+complete.
+
+The page judges the projection against `--monthly-budget-usd`, and the chart draws that
+budget as its only reference line. The trailing three-month average is a summary
+figure, not a chart overlay. The attributed-versus-total share on the **E2E runs** view
+compares each day's per-run attribution with the same day's daily total; per-run billing
+windows overlap, so the denominator is never a sum of runs. Shared infrastructure,
+persistent environments, and unmatched resources remain in the total, which makes that
+share a floor.
 
 ## Attribution
 

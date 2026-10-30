@@ -40,6 +40,14 @@ type billingKey struct {
 // QueryStart and QueryEnd are inclusive UTC dates. Subscription-wide reports
 // are streamed and only owned groups' aggregates are retained.
 func Collect(ctx context.Context, client *http.Client, credential azcore.TokenCredential, snapshot *Snapshot) {
+	CollectWithCache(ctx, client, credential, snapshot, "")
+}
+
+// CollectWithCache is Collect with a shared billing report cache directory.
+// Reports are subscription-wide, so runs collected together for the same
+// window share one generated report instead of each requesting their own;
+// an empty cacheDir disables caching.
+func CollectWithCache(ctx context.Context, client *http.Client, credential azcore.TokenCredential, snapshot *Snapshot, cacheDir string) {
 	snapshot.Currency, snapshot.CostBasis = "USD", "AmortizedCost"
 	snapshot.Diagnose("info", "billing-provisional", "billing", "Azure billing is provisional: recent usage may arrive late and charges may be adjusted; complete means all requested intervals were retrieved, not that billing is final")
 	if client == nil {
@@ -181,7 +189,7 @@ func Collect(ctx context.Context, client *http.Client, credential azcore.TokenCr
 	for _, sub := range subs {
 		for _, window := range windows {
 			windowCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-			rows, bad, err := collectBillingWindow(windowCtx, &httpClient, credential, sub, owned[sub], window)
+			rows, bad, err := collectBillingWindow(windowCtx, &httpClient, credentialFor(credential, sub), sub, owned[sub], window, cacheDir)
 			cancel()
 			for _, i := range owned[sub] {
 				g := &groups[i]
@@ -306,6 +314,34 @@ func billingURL(raw string, authenticated bool) bool {
 	return strings.HasSuffix(host, ".blob.core.windows.net")
 }
 
+// billingRetryAfter returns the longest throttling delay the response asks for.
+// Cost Management throttles with per-quota x-ms-ratelimit-microsoft.costmanagement-*-retry-after
+// headers instead of Retry-After; the short fallback backoff would retry inside the window.
+func billingRetryAfter(header http.Header) string {
+	value := header.Get("Retry-After")
+	longest, err := strconv.ParseUint(value, 10, 32)
+	if err != nil && value != "" {
+		return value // HTTP-date form
+	}
+	found := err == nil
+	for name, values := range header {
+		name = strings.ToLower(name)
+		if !strings.HasPrefix(name, "x-ms-ratelimit-microsoft.costmanagement-") || !strings.HasSuffix(name, "-retry-after") {
+			continue
+		}
+		for _, v := range values {
+			if seconds, err := strconv.ParseUint(strings.TrimSpace(v), 10, 32); err == nil {
+				found = true
+				longest = max(longest, seconds)
+			}
+		}
+	}
+	if !found {
+		return ""
+	}
+	return strconv.FormatUint(longest, 10)
+}
+
 func billingWait(ctx context.Context, header string, fallback time.Duration) error {
 	delay := fallback
 	if seconds, err := strconv.ParseUint(header, 10, 32); err == nil {
@@ -324,10 +360,22 @@ func billingWait(ctx context.Context, header string, fallback time.Duration) err
 }
 
 func billingRequest(ctx context.Context, client *http.Client, credential azcore.TokenCredential, method, target, body string, authenticated bool) (*http.Response, error) {
+	return billingRequestAttempts(ctx, client, credential, method, target, body, authenticated, 4)
+}
+
+// errBillingTransport marks a connection-level failure. Its details are
+// deliberately withheld because http.Client errors embed URLs, including
+// download SAS credentials, so callers can only test for this sentinel.
+var errBillingTransport = errors.New("billing HTTP request failed or was cancelled; endpoint and response details omitted")
+
+// billingRequestAttempts bounds how many times a throttled request is retried.
+// Cost Management Query API calls share a low tenant-wide quota, so they ask for
+// more attempts than the report generator needs.
+func billingRequestAttempts(ctx context.Context, client *http.Client, credential azcore.TokenCredential, method, target, body string, authenticated bool, attempts int) (*http.Response, error) {
 	if !billingURL(target, authenticated) {
 		return nil, errors.New("rejected untrusted billing endpoint")
 	}
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		if ctx.Err() != nil {
 			return nil, errors.New("billing request cancelled or timed out")
 		}
@@ -345,28 +393,33 @@ func billingRequest(ctx context.Context, client *http.Client, credential azcore.
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			// http.Client errors embed URLs, including download SAS credentials.
-			return nil, errors.New("billing HTTP request failed or was cancelled; endpoint and response details omitted")
+			return nil, errBillingTransport
 		}
 		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusServiceUnavailable {
 			return resp, nil
 		}
 		resp.Body.Close()
-		if attempt == 3 {
-			return nil, fmt.Errorf("billing HTTP %d after four attempts", resp.StatusCode)
+		if attempt == attempts-1 {
+			return nil, fmt.Errorf("billing HTTP %d after %d attempts", resp.StatusCode, attempts)
 		}
-		if err := billingWait(ctx, resp.Header.Get("Retry-After"), time.Second<<attempt); err != nil {
+		if err := billingWait(ctx, billingRetryAfter(resp.Header), time.Second<<attempt); err != nil {
 			return nil, err
 		}
 	}
 	panic("unreachable")
 }
 
-func collectBillingWindow(ctx context.Context, client *http.Client, credential azcore.TokenCredential, sub string, owned map[string]int, window billingWindow) (map[int]map[billingKey]float64, map[int]string, error) {
+func collectBillingWindow(ctx context.Context, client *http.Client, credential azcore.TokenCredential, sub string, owned map[string]int, window billingWindow, cacheDir string) (map[int]map[billingKey]float64, map[int]string, error) {
 	rows, bad := map[int]map[billingKey]float64{}, map[int]string{}
-	err := consumeBillingWindow(ctx, client, credential, sub, window, func(body io.Reader) error {
+	consume := func(body io.Reader) error {
 		return readBillingCSV(ctx, body, sub, owned, window, rows, bad)
-	})
+	}
+	var err error
+	if cacheDir == "" {
+		err = consumeBillingWindow(ctx, client, credential, sub, window, consume)
+	} else {
+		err = consumeCachedBillingWindow(ctx, client, credential, sub, window, cacheDir, consume)
+	}
 	return rows, bad, err
 }
 

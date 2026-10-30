@@ -28,6 +28,68 @@ import (
 
 const kustoTestSub = "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
 
+func init() {
+	// Retry behavior is tested by request counts, not wall-clock backoff.
+	kustoRetryBase = time.Millisecond
+}
+
+func TestResolveInfraRetriesTransientFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		failures []func() (*http.Response, error)
+		requests int // per lookup
+		resolved bool
+	}{
+		{"recovers after network and 503", []func() (*http.Response, error){
+			func() (*http.Response, error) { return nil, errors.New("timeout") },
+			func() (*http.Response, error) { return billingResponse(503, ""), nil },
+		}, 3, true},
+		{"recovers after 429", []func() (*http.Response, error){
+			func() (*http.Response, error) { return billingResponse(429, ""), nil },
+		}, 2, true},
+		{"gives up after three attempts", []func() (*http.Response, error){
+			func() (*http.Response, error) { return billingResponse(500, ""), nil },
+			func() (*http.Response, error) { return billingResponse(500, ""), nil },
+			func() (*http.Response, error) { return billingResponse(500, ""), nil },
+		}, 3, false},
+		{"does not retry access denied", []func() (*http.Response, error){
+			func() (*http.Response, error) { return billingResponse(403, ""), nil },
+		}, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := kustoFixture(t)
+			attempts := map[string]int{}
+			client := &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
+				var query map[string]string
+				if json.NewDecoder(r.Body).Decode(&query) != nil {
+					t.Fatal("retry lost the query body")
+				}
+				var binding infraBinding
+				for _, b := range s.infraLookup.bindings {
+					if strings.Contains(query["csl"], "/managedclusters/"+b.cluster+`"`) {
+						binding = b
+					}
+				}
+				n := attempts[binding.cluster]
+				attempts[binding.cluster]++
+				if n < len(tc.failures) {
+					return tc.failures[n]()
+				}
+				return billingResponse(200, kustoResult(kustoID(kustoTestSub, binding.rg, binding.cluster))), nil
+			})}
+			ResolveInfraSubscriptions(context.Background(), client, &kustoCredential{t: t}, s)
+			for _, b := range s.infraLookup.bindings {
+				if attempts[b.cluster] != tc.requests {
+					t.Fatalf("lookup %s made %d requests, want %d", b.cluster, attempts[b.cluster], tc.requests)
+				}
+			}
+			if got := findDiscoveryGroup(t, s, "run-svc").SubscriptionID == kustoTestSub; got != tc.resolved {
+				t.Fatalf("resolved = %t, want %t", got, tc.resolved)
+			}
+		})
+	}
+}
+
 type kustoCredential struct {
 	t     *testing.T
 	err   error

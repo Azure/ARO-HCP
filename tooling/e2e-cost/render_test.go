@@ -112,6 +112,26 @@ func renderedOption(t *testing.T, page string) (map[string]json.RawMessage, []*c
 	return option, series[0].Data
 }
 
+func TestFormatUSD(t *testing.T) {
+	cases := map[float64]string{
+		0:          "$0.0000",
+		-0.5:       "$-0.5000",
+		1263.58:    "$1,263.5800",
+		9027.24:    "$9,027.2400",
+		-1234567.8: "$-1,234,567.8000",
+		999.9999:   "$999.9999",
+		1000:       "$1,000.0000",
+	}
+	for value, want := range cases {
+		if got := formatUSD(value); got != want {
+			t.Errorf("formatUSD(%v) = %q, want %q", value, got, want)
+		}
+	}
+	if got := formatUSD(math.Inf(1)); got != "$+Inf" {
+		t.Errorf("non-finite value = %q, want %q", got, "$+Inf")
+	}
+}
+
 func TestRenderResourceTypeView(t *testing.T) {
 	s := renderFixture()
 	page := rendered(t, s)
