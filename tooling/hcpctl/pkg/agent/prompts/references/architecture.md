@@ -64,19 +64,20 @@ Clusters Service sets the cluster to `uninstalling` and runs its destruct chain 
 restarting from the first step on each reconcile:
 
 1. `swift-sal-deleter`, `rh-managed-nsg-deleter`, and `managed-resource-group-deleter` each wait
-   until CS's `csReadonlyHypershiftHostedCluster` ReadDesire no longer observes the HostedCluster,
-   i.e. until the backend chain has finished step 3. CS treats a missing ReadDesire or empty
-   `kubeContent` as absent without checking `Successful`.
+   until CS's `csReadonlyHypershiftHostedCluster` ReadDesire no longer observes the HostedCluster.
+   This is an observation-based gate, not proof that backend step 3 completed: CS treats a missing
+   ReadDesire or empty `kubeContent` as absent without checking `Successful`.
 2. `read-desires-deleter` removes CS's own ReadDesires.
 3. `dns-recordsets-deleter`, `container-registry-token-deleter`, `oidc-config-deleter`,
    `data-plane-identity-unfederator`, `managed-identities-secrets-deleter`, and
    `tls-certificate-deleter` clean up Azure resources, then `archiver` archives the cluster.
 
 For stuck deletion, first find the blocked chain. CS logs `Destructor '<name>' did not finish.
-Not continuing to the next destructor` in `clustersServiceLogs`; if it is waiting on the
-HostedCluster, the blocker is in the backend chain. There, correlate backend controller
-conditions, kube-applier logs, ReadDesire state, Kubernetes events, and the target object's
-finalizers. ManagedCluster addon pre-delete hooks can still block its removal; check
+Not continuing to the next destructor` in `clustersServiceLogs`. If it is waiting on the
+HostedCluster, check both backend deletion progress and the health of CS's HostedCluster
+ReadDesire: its mirrored content may be stale after the object is gone. Correlate backend
+controller conditions, kube-applier logs, ReadDesire state, Kubernetes events, and the target
+object's finalizers. ManagedCluster addon pre-delete hooks can still block its removal; check
 `conditions/acm/managedClusterConditions` when that object exists.
 
 ### Node Pool Deletion
@@ -98,8 +99,7 @@ NodePool conditions and finalizers, and CS logs for the destruct chain.
 ## Topology
 
 - **Management clusters**: Run HyperShift, kube-applier, and hosted control planes for many customers.
-- **Service clusters**: Run the Frontend, Backend, Clusters Service, fleet, and the Maestro server
-  (still deployed, but no longer on the delivery path).
+- **Service clusters**: Run the Frontend, Backend, Clusters Service, and fleet.
 - Each environment has its own Kusto cluster with service, control-plane, and monitoring databases:
   - **Service database**: Frontend, Backend, Clusters Service, kube-applier, and HyperShift operator logs.
   - **Monitoring database**: Prometheus/metric alert events.
