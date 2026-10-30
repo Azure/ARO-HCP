@@ -2,12 +2,13 @@
 #
 # Creates and configures service principals for the tenant-quota collector.
 #
-# This script manages the Azure AD service principals that the tenant-quota
-# collector uses to query directory quotas (Graph API) and subscription
-# quotas (ARM APIs) across multiple tenants.
+# This script manages the Azure AD service principal that the tenant-quota
+# collector uses to query subscription quotas (ARM APIs) in the Microsoft test
+# tenant. The RedHat0 principal (Graph consent, Reader on every ci.<env>
+# subscription, Key Vault secret) is declarative and reconciled by the
+# privileged entrypoint (make dev-ci-privileged-local-run).
 #
-# Each tenant needs its own service principal with:
-# - Directory.Read.All (Graph API) for directory quota monitoring
+# The test-tenant service principal needs:
 # - Reader role on each target subscription for compute/network quota monitoring
 #   and role assignment counting via the ARM authorization API
 #
@@ -55,10 +56,6 @@ DEFER_SECRET_OUT=""
 # One-time password from az ad sp create-for-rbac (avoid an extra credential reset on first deploy).
 SP_BOOTSTRAP_PASSWORD=""
 
-GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
-# Organization.Read.All application permission (for /v1.0/organization directory quota)
-ORGANIZATION_READ_ALL="498476ce-e0fe-48b0-b801-37ba7e2685c6"
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -105,54 +102,16 @@ is_secret_not_found_error() {
 # for a specific tenant. Subscriptions are referenced by display name and
 # resolved to IDs at runtime.
 
-setup_redhat() {
-    local APPLICATION_NAME="custom-metrics-collector-redhat0-ms-graph-ro"
-    local KEYVAULT_SECRET_NAME="custom-metrics-collector-redhat0-client-secret"
-    local DIRECTORY_QUOTA=true
-    local SUBSCRIPTIONS=(
-        "ARO Hosted Control Planes (EA Subscription 1)"
-        "ARO HCP E2E Infrastructure (EA Subscription)"
-        "ARO HCP E2E Hosted Clusters (EA Subscription)"
-        "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-        "ARO HCP E2E Hosted Clusters - Dev - 02"
-        "ARO HCP E2E Hosted Clusters - Dev - 03"
-        "ARO HCP E2E Hosted Clusters - Dev - 04"
-        "ARO HCP E2E Hosted Clusters - Dev - 05 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Dev - 06 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Dev - 07 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Dev - 08 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Dev - 09 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Dev - 10 (MCA Sponsorship)"
-        "ARO SRE Team - INT (EA Subscription 3)"
-        "ARO HCP E2E Hosted Clusters - Stage - 00"
-        "ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Prod - 00"
-        "ARO HCP E2E Hosted Clusters - Prod - 01"
-        "ARO HCP E2E Hosted Clusters - Prod - 02 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Prod - 03 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Prod - 04 (MCA Sponsorship)"
-        "ARO HCP E2E Hosted Clusters - Prod - 05 (MCA Sponsorship)"
-    )
-
-    create_or_get_sp "${APPLICATION_NAME}"
-    grant_graph_permissions "${APP_ID}" "${DIRECTORY_QUOTA}"
-    grant_subscription_reader "${APP_ID}" "${SUBSCRIPTIONS[@]}"
-    maybe_store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
-}
-
-# Test Test Azure Red Hat OpenShift (Microsoft test tenant).
-# Subscription quota only — no Graph / Organization.Read.All (directory quota not used).
+# Test Test Azure Red Hat OpenShift (Microsoft test tenant). Subscription quota only.
 setup_test_tenant() {
     local APPLICATION_NAME="custom-metrics-collector-test-test-azure-arohcp-ms-graph-ro"
     local KEYVAULT_SECRET_NAME="custom-metrics-collector-test-test-azure-arohcp-client-secret"
-    local DIRECTORY_QUOTA=false
     local SUBSCRIPTIONS=(
         "ARO HCP E2E"
         "ARO HCP E2E - Staging"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"
-    grant_graph_permissions "${APP_ID}" "${DIRECTORY_QUOTA}"
     grant_subscription_reader "${APP_ID}" "${SUBSCRIPTIONS[@]}"
     maybe_store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
 }
@@ -244,50 +203,6 @@ create_or_get_sp() {
             SP_BOOTSTRAP_PASSWORD=""
         fi
         print_success "Created service principal: ${APP_ID}"
-    fi
-}
-
-grant_graph_permissions() {
-    local app_id="$1"
-    local directory_quota="$2"
-
-    if [[ "${directory_quota}" != "true" ]]; then
-        print_info "Skipping Graph API permissions (directoryQuota=false)"
-        return 0
-    fi
-
-    header "Granting Graph API permissions"
-
-    local existing
-    local error_file
-    local permission_error
-
-    error_file=$(mktemp)
-    if existing=$(az rest --method GET \
-        --url "https://graph.microsoft.com/v1.0/servicePrincipals(appId='${app_id}')/appRoleAssignments" \
-        --query "value[].appRoleId" -o tsv 2>"${error_file}"); then
-        :
-    else
-        permission_error=$(<"${error_file}")
-        rm -f "${error_file}"
-        print_error "Failed to query existing Graph API permissions for '${app_id}'"
-        print_error_details "${permission_error}"
-        exit 1
-    fi
-    rm -f "${error_file}"
-
-    if echo "${existing}" | grep -q "${ORGANIZATION_READ_ALL}"; then
-        print_info "Organization.Read.All already granted"
-    else
-        print_info "Adding Organization.Read.All permission..."
-        az ad app permission add \
-            --id "${app_id}" \
-            --api "${GRAPH_APP_ID}" \
-            --api-permissions "${ORGANIZATION_READ_ALL}=Role"
-
-        print_info "Requesting admin consent (requires tenant admin)..."
-        az ad app permission admin-consent --id "${app_id}"
-        print_success "Graph API permissions granted"
     fi
 }
 
@@ -445,16 +360,13 @@ keyvault_upload_secret_from_file() {
 
 list_tenants() {
     header "Available tenant configurations"
-    echo "  redhat          - RedHat0 tenant (dev/int/e2e subscriptions)"
     echo "  test-tenant     - Test Test Azure Red Hat OpenShift (subscriptions only; no Graph directory quota)"
     echo ""
     echo "Usage:"
-    echo "  $0 --tenant redhat"
     echo "  $0 --tenant test-tenant"
     echo ""
     echo "Prerequisites:"
     echo "  Login to the TARGET tenant before running:"
-    echo "    RedHat0:      az login --tenant 64dc69e4-d083-49fc-9569-ebece1dd1408"
     echo "    test-tenant:  az login --tenant <tenant-id>"
     echo ""
     echo "  Different users for target tenant vs Key Vault (common for test tenants):"
@@ -478,7 +390,7 @@ usage() {
     echo "Creates and configures service principals for the tenant-quota collector."
     echo ""
     echo "Options:"
-    echo "  --tenant NAME       Setup SP for the named tenant (redhat, test-tenant)"
+    echo "  --tenant NAME       Setup SP for the named tenant (test-tenant)"
     echo "  --skip-keyvault     Stop after subscriptions/permissions; write client secret to a local file"
     echo "  --defer-secret-out  With --skip-keyvault: path for the one-line secret file (default: mktemp)"
     echo "  --keyvault-only     Only Key Vault: upload --secret-file, or reset+KV with --app-id"
@@ -606,9 +518,6 @@ if [[ -z "${TENANT}" ]]; then
 fi
 
 case "${TENANT}" in
-    redhat|RedHat0|redhat0)
-        setup_redhat
-        ;;
     test-tenant|test_tenant|TestTenant)
         setup_test_tenant
         ;;

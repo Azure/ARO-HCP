@@ -22,10 +22,14 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
+
+const defaultCertificatePollInterval = 2 * time.Second
 
 type azureCertificateClient interface {
 	GetCertificate(ctx context.Context, name, version string, options *azcertificates.GetCertificateOptions) (azcertificates.GetCertificateResponse, error)
@@ -34,29 +38,44 @@ type azureCertificateClient interface {
 }
 
 type certificateClient struct {
-	client azureCertificateClient
+	client       azureCertificateClient
+	pollInterval time.Duration
+}
+
+// CertificateClientOption configures a certificate client.
+type CertificateClientOption func(*certificateClient)
+
+// WithPollInterval sets how long to wait between Key Vault reads while a
+// certificate is being created.
+func WithPollInterval(interval time.Duration) CertificateClientOption {
+	return func(c *certificateClient) {
+		c.pollInterval = interval
+	}
 }
 
 // NewCertificateClient adapts the Azure Key Vault SDK client.
-func NewCertificateClient(client azureCertificateClient) CertificateClient {
-	return &certificateClient{client: client}
+func NewCertificateClient(client azureCertificateClient, options ...CertificateClientOption) CertificateClient {
+	certificates := &certificateClient{client: client, pollInterval: defaultCertificatePollInterval}
+	for _, option := range options {
+		option(certificates)
+	}
+	return certificates
 }
 
 // ErrCertificateNotFound identifies a missing Key Vault certificate.
 var ErrCertificateNotFound = errors.New("certificate not found in Key Vault")
 
-var certificatePollInterval = 2 * time.Second
-
 func (c *certificateClient) GetCertificate(ctx context.Context, name string) ([]byte, error) {
 	response, err := c.client.GetCertificate(ctx, name, "", nil)
-	if err != nil {
-		var responseErr *azcore.ResponseError
-		if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("%w: %s", ErrCertificateNotFound, name)
-		}
-		return nil, fmt.Errorf("get certificate: %w", err)
+	if err == nil {
+		return response.CER, nil
 	}
-	return response.CER, nil
+
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: %s", ErrCertificateNotFound, name)
+	}
+	return nil, fmt.Errorf("get certificate: %w", err)
 }
 
 func (c *certificateClient) CreateCertificate(ctx context.Context, name, dnsName string, previousCertificate []byte) ([]byte, error) {
@@ -67,53 +86,64 @@ func (c *certificateClient) CreateCertificate(ctx context.Context, name, dnsName
 	parameters := azcertificates.CreateCertificateParameters{
 		CertificatePolicy: certificatePolicy(dnsName),
 	}
-	if _, err := c.client.CreateCertificate(ctx, name, parameters, nil); err != nil {
+	_, err := c.client.CreateCertificate(ctx, name, parameters, nil)
+	if err != nil {
 		return nil, fmt.Errorf("create certificate: %w", err)
 	}
 
-	if err := c.pollForCertificateOperation(ctx, name); err != nil {
+	err = c.pollForCertificateOperation(ctx, name)
+	if err != nil {
 		return nil, err
 	}
 
-	for {
-		certificate, err := c.GetCertificate(ctx, name)
-		if err == nil && len(certificate) > 0 && !bytes.Equal(certificate, previousCertificate) {
-			return certificate, nil
+	var certificate []byte
+	err = wait.PollUntilContextCancel(ctx, c.pollInterval, true, func(ctx context.Context) (bool, error) {
+		current, err := c.GetCertificate(ctx, name)
+		switch {
+		case errors.Is(err, ErrCertificateNotFound):
+			return false, nil
+		case err != nil:
+			return false, err
 		}
-		if err != nil && !errors.Is(err, ErrCertificateNotFound) {
-			return nil, fmt.Errorf("wait for created certificate: %w", err)
+		if len(current) == 0 || bytes.Equal(current, previousCertificate) {
+			return false, nil
 		}
-		if err := waitForCertificatePoll(ctx); err != nil {
-			return nil, fmt.Errorf("wait for created certificate: %w", err)
-		}
+		certificate = current
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("wait for created certificate: %w", err)
 	}
+	return certificate, nil
 }
 
 func (c *certificateClient) pollForCertificateOperation(ctx context.Context, name string) error {
-	for {
+	err := wait.PollUntilContextCancel(ctx, c.pollInterval, true, func(ctx context.Context) (bool, error) {
 		operation, err := c.client.GetCertificateOperation(ctx, name, nil)
 		if err != nil {
-			return fmt.Errorf("get certificate operation: %w", err)
+			return false, fmt.Errorf("get certificate operation: %w", err)
 		}
 		if operation.Status == nil {
-			return fmt.Errorf("get certificate operation: Key Vault returned no status")
+			return false, fmt.Errorf("get certificate operation: Key Vault returned no status")
 		}
+
 		switch *operation.Status {
 		case "completed":
-			return nil
+			return true, nil
 		case "inProgress":
-			if err := waitForCertificatePoll(ctx); err != nil {
-				return fmt.Errorf("wait for certificate operation: %w", err)
-			}
+			return false, nil
 		case "cancelled":
-			return fmt.Errorf("certificate operation was cancelled")
-		default:
-			if operation.Error != nil {
-				return fmt.Errorf("certificate operation failed with status %q and code %q", *operation.Status, operation.Error.Code)
-			}
-			return fmt.Errorf("certificate operation failed with status %q", *operation.Status)
+			return false, fmt.Errorf("certificate operation was cancelled")
 		}
+		if operation.Error != nil {
+			return false, fmt.Errorf("certificate operation failed with status %q and code %q", *operation.Status, operation.Error.Code)
+		}
+		return false, fmt.Errorf("certificate operation failed with status %q", *operation.Status)
+	})
+	if err != nil {
+		return fmt.Errorf("wait for certificate operation: %w", err)
 	}
+	return nil
 }
 
 func certificatePolicy(dnsName string) *azcertificates.CertificatePolicy {
@@ -153,16 +183,5 @@ func certificatePolicy(dnsName string) *azcertificates.CertificatePolicy {
 			},
 			ValidityInMonths: to.Ptr(int32(120)),
 		},
-	}
-}
-
-func waitForCertificatePoll(ctx context.Context) error {
-	timer := time.NewTimer(certificatePollInterval)
-	select {
-	case <-ctx.Done():
-		timer.Stop()
-		return ctx.Err()
-	case <-timer.C:
-		return nil
 	}
 }

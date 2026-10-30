@@ -46,3 +46,31 @@ using lifecycle flags, and permission to update the target Entra applications.
 It retries Microsoft Graph propagation and throttling failures, skips applications
 that already contain exactly the requested pinned certificate, and verifies each
 successful update by thumbprint.
+
+## Client secrets
+
+`ensure-secret` makes sure applications that authenticate with a client secret
+have their credentials in Key Vault. For each `--mapping
+'application;<prefix>-client-secret'` it stores three secrets, each only when
+missing: `<prefix>-client-secret` (minted with `addPassword`, valid for two
+years), `<prefix>-client-id` and `<prefix>-tenant-id`. An existing secret is
+never regenerated or overwritten; rotation is a separate, deliberate operation.
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret \
+  --vault-url https://example.vault.azure.net \
+  --grant-consent \
+  --mapping 'application-name;prefix-client-secret'
+```
+
+`--grant-consent` reproduces `az ad app permission admin-consent`: each
+application permission declared in `requiredResourceAccess` becomes an app role
+assignment, and delegated permissions are added to the tenant-wide permission
+grant without dropping scopes already granted. It runs on every invocation, is
+idempotent, and only warns if consent cannot be granted (it usually needs a
+tenant admin), so the secrets are still reconciled. Use `--dry-run`
+to see what would change.
+
+The caller needs secret read/write access on the Key Vault and permission to
+add credentials to the applications and, with `--grant-consent`, to grant
+admin consent in the tenant.

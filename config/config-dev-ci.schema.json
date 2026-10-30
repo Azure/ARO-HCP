@@ -552,6 +552,7 @@
       "properties": {
         "tenantId": { "type": "string", "description": "Azure AD tenant ID" },
         "tenantName": { "type": "string", "description": "Display name for metrics labels" },
+        "applicationName": { "type": "string", "description": "Display name of the Entra application when it is managed declaratively by the privileged dev-ci entrypoint (redHat0 only); lowercased as the application uniqueName" },
         "servicePrincipalClientId": { "type": "string", "description": "App ID of the service principal" },
         "keyVaultSecretName": { "type": "string", "description": "Key Vault secret name holding the SP client secret" },
         "directoryQuota": { "type": "boolean", "description": "Enable directory (Azure AD) quota monitoring" },

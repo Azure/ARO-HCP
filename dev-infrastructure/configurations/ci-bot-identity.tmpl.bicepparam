@@ -1,5 +1,7 @@
 using '../templates/ci-bot-identity.bicep'
 
+param ownerIds = '{{ .entraAppOwnerIds }}'
+
 param bots = [
   {
     envName: 'dev'
