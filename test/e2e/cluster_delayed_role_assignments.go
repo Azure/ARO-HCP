@@ -136,6 +136,12 @@ var _ = Describe("ARO HCP Service", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster spec")
 			cluster.Identity = msi
 			cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities = uamis
+			// This spec starts the creation through the SDK directly instead of
+			// the framework helpers, so pace it explicitly. The wait consumes the
+			// spec's budget; the RP-side max-creation-duration tag only bounds the
+			// creation once it has started.
+			err = framework.PaceHCPClusterCreateStart(ctx, GinkgoLogr, *resourceGroup.Name, customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed while waiting for cluster-creation pacing of cluster %q", customerClusterName)
 			_, err = hcpClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, customerClusterName, cluster, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
