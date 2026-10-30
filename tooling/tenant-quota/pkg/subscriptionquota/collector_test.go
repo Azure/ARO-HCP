@@ -55,6 +55,9 @@ func setupTestCredentials(t *testing.T, secretNames ...string) {
 	t.Helper()
 	secretsDir := t.TempDir()
 	t.Setenv("SECRETS_STORE_PATH", secretsDir)
+	if err := os.WriteFile(filepath.Join(secretsDir, "cid"), []byte("11111111-1111-1111-1111-111111111111"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range secretNames {
 		if err := os.WriteFile(filepath.Join(secretsDir, name), []byte("fake-secret"), 0o644); err != nil {
 			t.Fatalf("write secret file: %v", err)
@@ -116,9 +119,9 @@ func TestNewCollector(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testConfig(config.TenantConfig{
-				TenantID:                 "tid",
-				ServicePrincipalClientId: "cid",
-				KeyVaultSecretName:       "secret",
+				TenantID:                       "tid",
+				ClientIDKeyVaultSecretName:     "cid",
+				ClientSecretKeyVaultSecretName: "secret",
 			})
 
 			var collector *Collector
@@ -269,10 +272,10 @@ func TestCollectAll(t *testing.T) {
 			setupTestCredentials(t, "test-secret")
 
 			tenant := config.TenantConfig{
-				TenantID:                 "tid",
-				ServicePrincipalClientId: "cid",
-				KeyVaultSecretName:       "test-secret",
-				Subscriptions:            tc.subscriptions,
+				TenantID:                       "tid",
+				ClientIDKeyVaultSecretName:     "cid",
+				ClientSecretKeyVaultSecretName: "test-secret",
+				Subscriptions:                  tc.subscriptions,
 			}
 			cfg := testConfig(tenant)
 			if tc.timeout != "" {

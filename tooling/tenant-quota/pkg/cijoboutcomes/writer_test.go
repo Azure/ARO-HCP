@@ -47,7 +47,7 @@ func newTestWriter(t *testing.T) *Writer {
 		TestNames:   config.KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
 		Discovered:  config.KustoTableConfig{Table: "ciDiscoveredJobs", IngestionMapping: "ciDiscoveredJobsMapping"},
 		Processed:   config.KustoTableConfig{Table: "ciProcessedJobs", IngestionMapping: "ciProcessedJobsMapping"},
-	}, Tenants: []config.TenantConfig{{TenantID: "t", ServicePrincipalClientId: "c", KeyVaultSecretName: "s"}}}
+	}, Tenants: []config.TenantConfig{{TenantID: "t", ClientIDKeyVaultSecretName: "c", ClientSecretKeyVaultSecretName: "s"}}}
 	require.NoError(t, cfg.Validate())
 	w := NewWriter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w.tagExists = func(context.Context, batchKind, BuildID) (bool, error) { return false, nil }

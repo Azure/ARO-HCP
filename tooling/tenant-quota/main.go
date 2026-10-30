@@ -96,10 +96,6 @@ func run(logger *slog.Logger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if err := credProvider.StartWatching(ctx, cfg.Tenants); err != nil {
-		return fmt.Errorf("start credential watchers: %w", err)
-	}
-
 	if cfg.HasSubscriptions() {
 		if err := resolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
 			return fmt.Errorf("subscription ID resolution failed: %w", err)
