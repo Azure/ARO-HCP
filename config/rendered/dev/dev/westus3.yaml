@@ -983,7 +983,7 @@ region: westus3
 regionRG: hcp-underlay-dev-westus3
 secretSyncController:
   image:
-    digest: sha256:72abeb657cfbdd6a5891fc102a16429875d70c5932ad5994524d0246db914013
+    digest: sha256:b98f9f1c3c603f0e3ee70cd3d70746d8265b8d425df5b71f23c4b0dcb3eb979c
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
   k8s:
