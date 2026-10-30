@@ -165,6 +165,13 @@ var clusterCreatePacingMu sync.Mutex
 // through the state file. The value is a clusterCreatePaceCall: concurrent
 // paces of the same cluster wait for the in-flight admission, and a failed
 // admission is dropped for the retry to re-pace.
+//
+// Entries are never expired or invalidated, so the memo assumes at most one
+// creation per (resource group, cluster name) per process: a spec that deleted
+// a cluster and recreated it under the same names would find the second start
+// already memoized and begin it unpaced. No current spec deletes and recreates
+// under the same key; a future one needs distinct names or an invalidation
+// hook here.
 var pacedClusterCreates sync.Map
 
 // clusterCreatePacingKey identifies a cluster for the in-process memo: the
