@@ -177,6 +177,14 @@ func TestValidateDraft_Classification(t *testing.T) {
 			wantCategory:   "",
 		},
 		{
+			name:           "valid Maestro failure",
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2Maestro, Confidence: 0.9},
+		},
+		{
+			name:           "valid Kube Applier failure",
+			classification: &Classification{L1Category: L1ProductFailures, L2Subcategory: L2KubeApplier, Confidence: 0.9},
+		},
+		{
 			name:           "valid Test Reliability",
 			classification: &Classification{L1Category: L1TestReliability, Confidence: 0.7},
 			wantCategory:   "",
@@ -231,7 +239,7 @@ func TestRenderMarkdown_WithClassification(t *testing.T) {
 		Summary:   "summary",
 		Classification: &Classification{
 			L1Category:    L1ProductFailures,
-			L2Subcategory: L2Maestro,
+			L2Subcategory: L2KubeApplier,
 			Confidence:    0.88,
 		},
 		Chain: []HydratedLink{
@@ -251,7 +259,7 @@ func TestRenderMarkdown_WithClassification(t *testing.T) {
 	if !strings.Contains(rendered, "Product Failures") {
 		t.Error("rendered markdown missing L1 category")
 	}
-	if !strings.Contains(rendered, "Maestro") {
+	if !strings.Contains(rendered, "Kube Applier") {
 		t.Error("rendered markdown missing L2 component")
 	}
 	if !strings.Contains(rendered, "88%") {

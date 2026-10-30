@@ -14,8 +14,11 @@ nodepool-scoped desire activity for the cluster.
 
 - `level == 'error'` entries and the `msg` around a stuck apply/delete — e.g. server-side-apply
   rejections (`KubeAPIError`) or a delete waiting on finalizers (`WaitingForDeletion`).
-- Repeated reconciles for the same `resource_id` without progress — indicates a desire that never
-  reaches its successful condition.
+- Repeated reconciles can be normal: applies resync every ten minutes, deletes waiting on finalizers
+  every 5–30 seconds, and readers reevaluate every 60 seconds.
+  Correlate errors, waiting reasons, conditions, and target-object changes before diagnosing a stuck desire.
+- `SuccessfullyApplied=True` confirms apply success; check target-object conditions for readiness.
+  Deletion requires `SuccessfullyDeleted=True`; never fall back to legacy `Successful`.
 - Group by `controller_name` to separate apply (`applydesire`) from read (`readdesire*`) activity.
 
 ## Where to Go Next

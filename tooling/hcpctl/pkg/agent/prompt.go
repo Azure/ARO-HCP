@@ -160,7 +160,7 @@ func buildDomainContent(mode Mode) (string, error) {
 	}
 	if len(exemplars) > 0 {
 		sb.WriteString("\n\n## Exemplar Analyses\n\n")
-		sb.WriteString("The following are completed analyses demonstrating the expected quality, depth, and reasoning patterns.\n\n")
+		sb.WriteString("The following are historical analyses demonstrating the expected quality, depth, and reasoning patterns. Their component paths and code excerpts reflect the deployment at the time; use the architecture reference and deployed source code for the current kube-applier path.\n\n")
 		for _, content := range exemplars {
 			sb.WriteString(content)
 			sb.WriteString("\n\n---\n\n")

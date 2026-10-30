@@ -26,6 +26,7 @@ to identify the responsible component:
 - **Cluster Service** — Clusters Service (CS) cluster lifecycle management
 - **Backend** — the RP backend for async operations
 - **Maestro** — multi-cluster orchestration (server or agent)
+- **Kube Applier** — management-cluster resource application, deletion, and observation through Cosmos desires
 - **HyperShift** — HyperShift operator, hosted control plane components, CAPI
 - **RH Upstream** — bugs in upstream Red Hat components (MCE, ACM, OLM, etc.)
 
