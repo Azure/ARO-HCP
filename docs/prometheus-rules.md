@@ -71,11 +71,6 @@ tests:
     alertname: InstancesDownV1
 ```
 
-## HostedCluster deletion
-
-For the dedicated severity 4 HostedCluster deletion alert, which checks actual
-deletion age over 48 hours with a 15-minute pending period, see [HostedCluster deletion alert](hosted-cluster-deletion-stuck.md).
-
 ## Dev notifications
 
 In non MSFT environments (e.g. personal dev) you can add e-mail alerts by adding your email to the `devAlertingEmails` key.

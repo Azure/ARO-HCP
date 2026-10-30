@@ -5661,23 +5661,6 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
-  group: rp-hosted-cluster-deletion-stuck
-  alert: userJourneyClusterDeletionStuck
-  occurrence: 1
-  input: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
-  plan:
-    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
-    conditions:
-      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
-        path: root
-        queries:
-          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 172800
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
@@ -9987,26 +9970,6 @@
         thresholds:
           - operator: '>'
             value: 10800
-        unsupported: ""
-- source: observability/alerts/hosted-cluster-deletion-stuck-prometheusRule.yaml
-  group: rp-hosted-cluster-deletion-stuck
-  alert: userJourneyClusterDeletionStuck
-  occurrence: 1
-  input: |
-    time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (
-      hostedClusterAPI_deletion_timestamp_seconds > 0
-    ) > 172800
-  plan:
-    expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
-    conditions:
-      - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0) > 172800
-        path: root
-        queries:
-          - expression: time() - max by (name, namespace, _id, subscription_id, resource_id, cluster, region) (hostedClusterAPI_deletion_timestamp_seconds > 0)
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 172800
         unsupported: ""
 - source: observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml
   group: hypershift-operator-monitor-rules
