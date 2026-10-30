@@ -65,6 +65,9 @@ type Settings struct {
 	// microsoft_metrics_include_label replacement value the matched
 	// ServiceMonitors/PodMonitors must set instead of the default "service".
 	MetricsRoutingLabelOverrides map[string]string
+
+	// ValidateDaemonSetUpdateStrategies enables the HCP rollout policy; other consumers retain their own strategies.
+	ValidateDaemonSetUpdateStrategies bool
 }
 
 type Replace struct {

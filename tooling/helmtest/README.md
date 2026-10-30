@@ -11,6 +11,13 @@ Use `UPDATE=true go test -count=1 ./...` to update the golden test files. Note, 
 
 The test code picks up all Helm steps configured in this repo by iterating over the `../../topology.yaml` file. It then generates fixtures using the default configuration referenced in the `settings.yaml`.
 
+DaemonSet rollout validation is opt-in for consumers of the shared test runner.
+Set `ValidateDaemonSetUpdateStrategies: true` in `settings.yaml` to require
+`RollingUpdate` with `maxUnavailable: 100%`, except for the kubelet-parameters
+DaemonSet, which requires `25%` to limit concurrent kubelet restarts. The HCP
+settings enable this policy. When the setting is omitted or false, the runner
+does not enforce a DaemonSet update strategy or alter the rendered configuration.
+
 ## Tests with custom data
 
 If you want to test certain template features, you can create a custom test by adding a `helmtest_...yaml` file, i.e.:
