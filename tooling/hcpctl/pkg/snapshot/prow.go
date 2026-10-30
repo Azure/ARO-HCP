@@ -85,10 +85,10 @@ type ProwJobConfig struct {
 	ServiceDatabase          string
 	MonitoringEventsDatabase string
 
-	// ServiceClusterName and ManagementClusterName are the AKS cluster names
-	// used to filter Kusto queries to only relevant clusters. These are only
-	// populated for PR (pull-ci) jobs where the shared Kusto database contains
-	// data from multiple clusters.
+	// ServiceClusterName scopes service-side bootstrap queries for PR jobs.
+	// ManagementClusterName is the cluster named by the rendered config's own
+	// stamp and is retained for callers such as tenant-quota; snapshot gathering
+	// resolves the actual hosting management cluster from cluster placement.
 	ServiceClusterName    string
 	ManagementClusterName string
 }

@@ -60,15 +60,14 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
-	OutputDir             string
-	KustoEndpoint         string
-	ServiceDB             string
-	HCPDB                 string
-	MonitoringEventsDB    string
-	ServiceClusterName    string
-	ManagementClusterName string
-	TestTimingInfo        map[string]timing.TimingInfo
-	kustoClient           *azkustodata.Client
+	OutputDir          string
+	KustoEndpoint      string
+	ServiceDB          string
+	HCPDB              string
+	MonitoringEventsDB string
+	ServiceClusterName string
+	TestTimingInfo     map[string]timing.TimingInfo
+	kustoClient        *azkustodata.Client
 }
 
 type Options struct {
@@ -157,7 +156,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		"hcpDB", jobConfig.HCPDatabase,
 		"monitoringEventsDB", jobConfig.MonitoringEventsDatabase,
 		"serviceCluster", jobConfig.ServiceClusterName,
-		"managementCluster", jobConfig.ManagementClusterName,
 	)
 
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
@@ -181,15 +179,14 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:             o.OutputDir,
-		KustoEndpoint:         kustoEndpoint.String(),
-		ServiceDB:             jobConfig.ServiceDatabase,
-		HCPDB:                 jobConfig.HCPDatabase,
-		MonitoringEventsDB:    jobConfig.MonitoringEventsDatabase,
-		ServiceClusterName:    jobConfig.ServiceClusterName,
-		ManagementClusterName: jobConfig.ManagementClusterName,
-		TestTimingInfo:        testTimingInfo,
-		kustoClient:           kustoClient,
+		OutputDir:          o.OutputDir,
+		KustoEndpoint:      kustoEndpoint.String(),
+		ServiceDB:          jobConfig.ServiceDatabase,
+		HCPDB:              jobConfig.HCPDatabase,
+		MonitoringEventsDB: jobConfig.MonitoringEventsDatabase,
+		ServiceClusterName: jobConfig.ServiceClusterName,
+		TestTimingInfo:     testTimingInfo,
+		kustoClient:        kustoClient,
 	}}, nil
 }
 
@@ -236,7 +233,6 @@ func (o Options) Run(ctx context.Context) error {
 				MonitoringEventsDatabase: o.MonitoringEventsDB,
 				ResourceGroup:            rg,
 				ServiceClusterName:       o.ServiceClusterName,
-				ManagementClusterName:    o.ManagementClusterName,
 				TimeWindow: snapshot.TimeWindow{
 					Start:           ti.StartTime,
 					End:             ti.EndTime,

@@ -62,12 +62,16 @@ type GatherInput struct {
 	// began. A zero value means no cleanup time is available.
 	CleanupStartTime time.Time
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter to scope results to only
-	// the relevant clusters.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ServiceClusterName is the AKS cluster that emitted service-side logs.
+	// ManagementClusterNames are resolved from hosted-cluster placement during
+	// PR snapshots and are empty for non-PR snapshots. When placement resolution
+	// has completed, queries are scoped to the service cluster and any resolved
+	// management clusters. ManagementClusterName remains as a single-cluster
+	// fallback for existing callers.
+	ServiceClusterName                 string
+	ManagementClusterName              string
+	ManagementClusterNames             []string
+	ManagementClusterPlacementResolved bool
 }
 
 // validate checks that all required fields are set.
@@ -270,6 +274,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		ResourceGroup:            input.ResourceGroup,
 		ServiceClusterName:       input.ServiceClusterName,
 		ManagementClusterName:    input.ManagementClusterName,
+		ManagementClusterNames:   managementClusterNames(input),
 		FullStartTime:            input.TimeWindow.Start,
 		FullEndTime:              input.TimeWindow.End,
 		// Discovery queries use the full window for phase fields too.
@@ -277,19 +282,17 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		PhaseEndTime:   input.TimeWindow.End,
 	}
 
-	pool := &queryPool{gatherer: g, input: input}
-
 	// =========================================================================
 	// Phase-independent discovery
 	// =========================================================================
 
 	discoveryDir := filepath.Join(outputDir, "discovery")
 
-	// Run context queries (frontendRequests) to discover all ARM requests.
-	for _, q := range contextQueries {
-		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
-			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
-		}
+	// Discover frontend requests first. This query only needs the service
+	// cluster filter, and its results identify the cluster whose placement
+	// must be resolved before management-side queries can be scoped.
+	if _, err := g.executeQuery(ctx, frontendRequestQuery, &seedData, discoveryDir, input); err != nil {
+		return nil, nil, fmt.Errorf("context query %s failed: %w", frontendRequestQuery.key(), err)
 	}
 
 	// Discover all ARM requests from the frontend request data.
@@ -298,6 +301,30 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		logger.Error(err, "Failed to discover requests, continuing with empty request list")
 		requests = nil
 	}
+
+	if input.ServiceClusterName != "" {
+		managementClusterNames, err := g.resolveManagementCluster(ctx, input, seedData, requests, discoveryDir)
+		if err != nil {
+			return nil, nil, err
+		}
+		input.ManagementClusterName = ""
+		input.ManagementClusterNames = managementClusterNames
+		input.ManagementClusterPlacementResolved = true
+		seedData.ManagementClusterName = ""
+		seedData.ManagementClusterNames = managementClusterNames
+		seedData.ManagementClusterPlacementResolved = true
+		logger.Info("Resolved management clusters", "managementClusters", managementClusterNames)
+	}
+
+	// Run the remaining context queries now that management-cluster placement
+	// is known.
+	for _, q := range scopedContextQueries {
+		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
+			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
+		}
+	}
+
+	pool := &queryPool{gatherer: g, input: input}
 
 	// Run per-request and per-resource discovery.
 	trackedReqs, resources, resourceOrder := g.runDiscovery(ctx, pool, seedData, requests, discoveryDir, report, logger)
@@ -834,17 +861,19 @@ func (g *Gatherer) gatherPhase(
 	// Service-level event queries for this phase.
 	serviceEventsDir := filepath.Join(phaseDir, "events")
 	serviceEventData := queryData{
-		ClusterURI:            input.ClusterURI,
-		ServiceDatabase:       input.ServiceDatabase,
-		HCPDatabase:           input.HCPDatabase,
-		ResourceGroup:         input.ResourceGroup,
-		ServiceClusterName:    input.ServiceClusterName,
-		ManagementClusterName: input.ManagementClusterName,
-		FullStartTime:         input.TimeWindow.Start,
-		FullEndTime:           input.TimeWindow.End,
-		PhaseStartTime:        phase.start,
-		PhaseEndTime:          phase.end,
-		PhaseName:             phase.name,
+		ClusterURI:                         input.ClusterURI,
+		ServiceDatabase:                    input.ServiceDatabase,
+		HCPDatabase:                        input.HCPDatabase,
+		ResourceGroup:                      input.ResourceGroup,
+		ServiceClusterName:                 input.ServiceClusterName,
+		ManagementClusterName:              input.ManagementClusterName,
+		ManagementClusterNames:             managementClusterNames(input),
+		ManagementClusterPlacementResolved: input.ManagementClusterPlacementResolved,
+		FullStartTime:                      input.TimeWindow.Start,
+		FullEndTime:                        input.TimeWindow.End,
+		PhaseStartTime:                     phase.start,
+		PhaseEndTime:                       phase.end,
+		PhaseName:                          phase.name,
 	}
 	serviceEventMu := &sync.Mutex{}
 	for _, q := range queriesByCategory(categoryEvents) {
