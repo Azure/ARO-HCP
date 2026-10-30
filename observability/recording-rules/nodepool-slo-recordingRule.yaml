@@ -32,7 +32,10 @@ spec:
   # arohcp_nodepool_slo_windowed_recording_rules for alerting; the instantaneous
   # records are kept for dashboards / compatibility only.
   #
-  # Scope: covers node pool create, update, and delete operations.
+  # Scope: covers node pool create, update, and delete operations that reach
+  # the backend. Creates rejected at the frontend (validation, quota, etc.)
+  # never produce a backend operation and are only visible in the fleet-wide
+  # frontend HTTP error ratio.
   - name: arohcp_nodepool_slo_recording_rules
     interval: 1m
     rules:

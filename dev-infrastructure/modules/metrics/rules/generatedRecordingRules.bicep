@@ -360,22 +360,6 @@ resource arohcpClusterDeletionSloRecordingRules 'Microsoft.AlertsManagement/prom
         record: 'errors:backend_cluster_deletion_operation:latency_error_rate'
         expression: '(count by (cluster, region) ((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 1800 and max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1), 1)'
       }
-      {
-        record: 'errors:backend_nodepool_operation:succeeded_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
-      }
-      {
-        record: 'errors:backend_nodepool_operation:terminal_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
-      }
-      {
-        record: 'errors:backend_nodepool_operation:error_rate'
-        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
-      }
-      {
-        record: 'nodepool:provision_state:count_by_phase'
-        expression: 'count by (phase, region) (max by (phase, resource_id, subscription_id, region) (backend_nodepool_provision_state))'
-      }
     ]
   }
 }
@@ -540,15 +524,15 @@ resource arohcpNodepoolSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     rules: [
       {
         record: 'errors:backend_nodepool_operation:succeeded_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="succeeded",resource_type=~".*nodepools"}))'
       }
       {
         record: 'errors:backend_nodepool_operation:terminal_total'
-        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
+        expression: 'count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))'
       }
       {
         record: 'errors:backend_nodepool_operation:error_rate'
-        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
+        expression: '(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase="failed",resource_type=~".*nodepools"})) or 0 * count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"}))) / clamp_min(count by (cluster, region) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type=~"create|update|delete",phase=~"succeeded|failed",resource_type=~".*nodepools"})), 1)'
       }
       {
         record: 'nodepool:provision_state:count_by_phase'

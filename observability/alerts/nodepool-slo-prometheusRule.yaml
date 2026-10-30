@@ -67,6 +67,7 @@ spec:
         exclude_internal_subscriptions: "true"
         severity: "4"
       annotations:
+        correlationId: "NodePoolStuckOperation/{{ $labels.subscription_id }}/{{ $labels.resource_id }}"
         summary: "{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
