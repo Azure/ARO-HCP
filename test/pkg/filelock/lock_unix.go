@@ -44,7 +44,7 @@ func TryLock(fd uintptr) error {
 
 func Unlock(fd uintptr) error {
 	if err := syscall.Flock(int(fd), syscall.LOCK_UN); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
+		return fmt.Errorf("failed to release state file lock: %w", err)
 	}
 	return nil
 }

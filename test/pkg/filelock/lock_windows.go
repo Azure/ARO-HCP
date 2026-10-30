@@ -51,7 +51,7 @@ func Unlock(fd uintptr) error {
 	handle := windows.Handle(fd)
 	var overlapped windows.Overlapped
 	if err := windows.UnlockFileEx(handle, 0, 1, 0, &overlapped); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
+		return fmt.Errorf("failed to release state file lock: %w", err)
 	}
 	return nil
 }
