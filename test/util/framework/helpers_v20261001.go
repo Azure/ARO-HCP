@@ -343,7 +343,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20261001(
 	parameters ClusterParams20261001,
 	imageDigestMirrors []*hcpsdk20261001.ImageDigestMirror,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20261001FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
@@ -354,7 +354,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20261001(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20261001)", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20261001)", resourceGroupName, clusterName), startTime, finishTime, operationErr)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20261001(parameters, tc.Location(), imageDigestMirrors)
@@ -388,14 +388,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20261001(
 	hcpClusterName string,
 	parameters NodePoolParams20261001,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime, operationErr)
 	}()
 
 	nodePoolName := parameters.NodePoolName

@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
-// ParseSteps preserves operation kinds and interrupted spans while rejecting malformed timestamps.
+// Parses operation kinds, outcomes and interrupted spans while rejecting malformed timestamps.
 func parseSteps(raw []timing.StepTimingMetadata, logger logr.Logger) []StepTimingMetadata {
 	steps := make([]StepTimingMetadata, 0, len(raw))
 	for _, step := range raw {
@@ -40,7 +40,7 @@ func parseSteps(raw []timing.StepTimingMetadata, logger logr.Logger) []StepTimin
 			logger.Error(err, "invalid step finish date", "identifier", step.Name)
 			continue
 		}
-		steps = append(steps, StepTimingMetadata{Name: step.Name, Kind: step.Kind, Incomplete: step.Incomplete, StartedAt: start, FinishedAt: finish})
+		steps = append(steps, StepTimingMetadata{Name: step.Name, Kind: step.Kind, Outcome: step.Outcome, Incomplete: step.Incomplete, StartedAt: start, FinishedAt: finish})
 	}
 	return steps
 }
@@ -122,6 +122,11 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 			if clipped.Incomplete {
 				clipped.Name += " (incomplete)"
 			}
+			if clipped.Outcome != "" {
+				clipped.Name += " (" + clipped.Outcome + ")"
+			} else if clipped.Kind != "" {
+				clipped.Name += " (outcome unknown)"
+			}
 			clipped.Kind = "operation"
 			rows = append(rows, clipped)
 		}
@@ -186,7 +191,7 @@ type lifecycleSummary struct {
 	Other, Full, Legacy               int
 }
 
-// SummarizeLifecycle selects passed tests and keeps operation categories independent of enclosing cleanup.
+// Summarizes successful operations in passed tests independently of enclosing cleanup.
 func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 	summary := lifecycleSummary{Rows: []durationSummary{
 		{Name: timing.KindCreateCluster},
@@ -226,6 +231,9 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 					summary.Rows[i].Incomplete++
 					continue
 				}
+				if step.Outcome != timing.OutcomeSucceeded {
+					continue
+				}
 				if clipped, ok := clipSpan(step, item.StartedAt, item.FinishedAt); ok {
 					// Each typed span records one resource operation, even when operations overlap.
 					summary.Rows[i].Count++
@@ -261,7 +269,7 @@ var summaryTemplate = template.Must(template.New("lifecycle-summary").Parse(`<se
 <p>Only final outcome <code>passed</code> contributes: {{.Passed}} passed tests. Excluded tests: {{.Failed}} failed/panicked, {{.TimedOut}} timed out, {{.Unknown}} unknown outcome, {{.Other}} other outcomes.</p>
 <p>Full lifecycle metadata: {{.Full}} tests; legacy/unknown cleanup coverage: {{.Legacy}} tests. The chart measures the recorded test envelope, not Prow build/pre/post time. Historical intervals can end before cleanup.</p>
 <table style="border-collapse:collapse;text-align:left" cellpadding="6"><thead><tr><th>Operation</th><th>Mean</th><th>Samples</th><th>Incomplete spans excluded</th></tr></thead><tbody>{{range .Rows}}<tr><td>{{.Name}}</td><td>{{.Mean}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Resource-group cleanup includes contained resources and purge. Categories are independent, not additive: full cleanup includes harvest/debug and nested deletion work. Each typed resource operation contributes one sample, even when its interval overlaps another operation. Missing kinds in legacy artifacts are not inferred from labels.</p>
+<p>Resource-group cleanup includes contained resources and purge. Categories are independent, not additive: full cleanup includes harvest/debug and nested deletion work. Each complete typed resource operation with outcome <code>succeeded</code> contributes one sample, even when its interval overlaps another operation. Failed and unknown operation outcomes remain visible but never contribute operation averages, including expected rejections in passing tests. Missing kinds or outcomes in legacy artifacts are not inferred from labels or the enclosing test.</p>
 <p>Outlined test bars show recorded start → finish; translucent phase bars do not count as operation coverage. Gray bars explicitly show untracked time after taking the union of operation intervals, clipped to phase/test boundaries. Incomplete spans are labeled and never contribute successful samples.</p>
 </section>`))
 

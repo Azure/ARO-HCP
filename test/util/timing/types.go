@@ -32,3 +32,9 @@ const (
 	KindDeleteCluster        = "delete-cluster"
 	KindResourceGroupCleanup = "resource-group-cleanup"
 )
+
+// Operation outcomes describe the helper's result rather than the enclosing test.
+const (
+	OutcomeSucceeded = "succeeded"
+	OutcomeFailed    = "failed"
+)

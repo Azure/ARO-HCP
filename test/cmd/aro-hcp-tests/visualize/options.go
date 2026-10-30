@@ -313,6 +313,7 @@ type TestInfo struct {
 type StepTimingMetadata struct {
 	Name       string
 	Kind       string
+	Outcome    string
 	Incomplete bool
 	StartedAt  time.Time
 	FinishedAt time.Time

@@ -79,7 +79,7 @@ func TestLifecycleCoverageUsesOperationUnionNotPhases(t *testing.T) {
 func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	span := func(kind, name string, first, last int) StepTimingMetadata {
-		return StepTimingMetadata{Name: name, Kind: kind, StartedAt: start.Add(time.Duration(first) * time.Second), FinishedAt: start.Add(time.Duration(last) * time.Second)}
+		return StepTimingMetadata{Name: name, Kind: kind, Outcome: timing.OutcomeSucceeded, StartedAt: start.Add(time.Duration(first) * time.Second), FinishedAt: start.Add(time.Duration(last) * time.Second)}
 	}
 	passed := TestInfo{
 		StartedAt: start, FinishedAt: start.Add(40 * time.Second), CleanupStartedAt: start.Add(20 * time.Second), Outcome: "passed",
@@ -128,6 +128,33 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	}
 }
 
+func TestLifecycleSummaryExcludesFailedAndUnknownOperationsInPassingTests(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	item := TestInfo{StartedAt: start, FinishedAt: start.Add(10 * time.Second), Outcome: "passed"}
+	for _, kind := range []string{timing.KindCreateCluster, timing.KindCreateNodePool, timing.KindDeleteCluster, timing.KindResourceGroupCleanup} {
+		for _, outcome := range []string{"", timing.OutcomeFailed, "timedout", "unrecognized"} {
+			item.Steps = append(item.Steps, StepTimingMetadata{
+				Name: kind, Kind: kind, Outcome: outcome,
+				StartedAt: start, FinishedAt: start.Add(time.Second),
+			})
+		}
+	}
+	for _, row := range summarizeLifecycle([]TestInfo{item}).Rows[:4] {
+		if row.Count != 0 || row.Total != 0 || row.Mean() != "N/A" {
+			t.Errorf("unsuccessful or unknown operations became successful samples: %+v", row)
+		}
+	}
+	var operations int
+	for _, row := range lifecycleRows(item) {
+		if row.Kind == "operation" {
+			operations++
+		}
+	}
+	if operations != len(item.Steps) {
+		t.Fatalf("excluded samples must remain visible, got %d operation rows for %d attempts", operations, len(item.Steps))
+	}
+}
+
 func TestLifecycleGapSplitsAtCleanupAndPhaseBoundaries(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	item := TestInfo{StartedAt: start, FinishedAt: start.Add(10 * time.Second), CleanupStartedAt: start.Add(4 * time.Second), Phases: []StepTimingMetadata{
@@ -160,6 +187,7 @@ phases:
 steps:
 - name: create
   kind: create-cluster
+  outcome: succeeded
   startedAt: '2026-01-01T00:00:00.000000001Z'
   finishedAt: '2026-01-01T00:00:02.000000001Z'
 - name: interrupted
@@ -167,6 +195,20 @@ steps:
   incomplete: true
   startedAt: '2026-01-01T00:00:08.000000001Z'
   finishedAt: '2026-01-01T00:00:10.000000001Z'
+- name: rejected nodepool (201 replicas)
+  kind: create-nodepool
+  outcome: failed
+  startedAt: '2026-01-01T00:00:02.000000001Z'
+  finishedAt: '2026-01-01T00:00:03.000000001Z'
+- name: accepted nodepool
+  kind: create-nodepool
+  outcome: succeeded
+  startedAt: '2026-01-01T00:00:03.000000001Z'
+  finishedAt: '2026-01-01T00:00:06.000000001Z'
+- name: historical nodepool
+  kind: create-nodepool
+  startedAt: '2026-01-01T00:00:01.000000001Z'
+  finishedAt: '2026-01-01T00:00:05.000000001Z'
 `,
 		"timing-metadata-old.yaml": `identifier: [legacy]
 startedAt: '2026-01-01T00:00:00Z'
@@ -198,7 +240,7 @@ steps:
 			current = item
 		}
 	}
-	if current.CleanupStartedAt.Nanosecond() != 1 || len(current.Phases) != 1 || current.Phases[0].Kind != "resource-cleanup" || len(current.Steps) != 2 || current.Steps[0].Kind != timing.KindCreateCluster || !current.Steps[1].Incomplete {
+	if current.CleanupStartedAt.Nanosecond() != 1 || len(current.Phases) != 1 || current.Phases[0].Kind != "resource-cleanup" || len(current.Steps) != 5 || current.Steps[0].Kind != timing.KindCreateCluster || current.Steps[0].Outcome != timing.OutcomeSucceeded || !current.Steps[1].Incomplete || current.Steps[2].Outcome != timing.OutcomeFailed || current.Steps[3].Outcome != timing.OutcomeSucceeded || current.Steps[4].Outcome != "" {
 		t.Fatalf("lifecycle fields did not survive loading: %+v", current)
 	}
 	if err := options.Visualize(logr.NewContext(context.Background(), logr.Discard())); err != nil {
@@ -211,6 +253,14 @@ steps:
 	text := string(html)
 	if !strings.Contains(text, "Successful-test operation averages") || !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>1</td>") || !strings.Contains(text, "1 unknown outcome") {
 		t.Fatal("visible summary must show passed-only means, sample counts, and unknown legacy outcomes")
+	}
+	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>1</td>") {
+		t.Fatal("a passing negative test must count only the successful nodepool operation")
+	}
+	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {
+		if !strings.Contains(text, label) {
+			t.Fatalf("timeline lost the operation outcome %q", label)
+		}
 	}
 	if strings.Contains(text, "<img src=x") || strings.Contains(text, "<b>cleanup</b>") || !strings.Contains(text, `\u003cb\u003ecleanup\u003c/b\u003e`) {
 		t.Fatal("hostile phase and test labels must remain escaped data")

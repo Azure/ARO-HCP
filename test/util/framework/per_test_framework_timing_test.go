@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -27,28 +28,75 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
-func TestRecordTestOperationPreservesKindsAndNanoseconds(t *testing.T) {
+func TestRecordTestOperationPreservesKindsOutcomesAndNanoseconds(t *testing.T) {
 	tc := &perItOrDescribeTestContext{}
 	start := time.Date(2026, 10, 30, 12, 0, 0, 123456789, time.UTC)
 	finish := start.Add(987654321 * time.Nanosecond)
-	tc.RecordTestOperation(timing.KindDeleteCluster, "a label independent of operation kind", start, finish)
+	tc.RecordTestOperation(timing.KindDeleteCluster, "a label independent of operation kind", start, finish, nil)
 	tc.RecordTestStep("Release leased identities", start, finish)
-	require.Len(t, tc.timingMetadata.Steps, 2)
-	require.Equal(t, timing.KindDeleteCluster, tc.timingMetadata.Steps[0].Kind)
-	require.Empty(t, tc.timingMetadata.Steps[1].Kind)
-	require.Equal(t, start.Format(time.RFC3339Nano), tc.timingMetadata.Steps[0].StartedAt)
-	require.Equal(t, finish.Format(time.RFC3339Nano), tc.timingMetadata.Steps[0].FinishedAt)
+	for _, err := range []error{errors.New("HTTP 400"), context.DeadlineExceeded, errors.New("invalid parameters")} {
+		tc.RecordTestOperation(timing.KindCreateNodePool, "unsuccessful attempt", start, finish, err)
+	}
+	encoded, err := yaml.Marshal(tc.timingMetadata)
+	require.NoError(t, err)
+	var metadata timing.SpecTimingMetadata
+	require.NoError(t, yaml.Unmarshal(encoded, &metadata))
+	require.Len(t, metadata.Steps, 5)
+	require.Equal(t, timing.KindDeleteCluster, metadata.Steps[0].Kind)
+	require.Equal(t, timing.OutcomeSucceeded, metadata.Steps[0].Outcome)
+	require.Empty(t, metadata.Steps[1].Kind)
+	require.Empty(t, metadata.Steps[1].Outcome, "generic spans must not fabricate a successful operation")
+	for _, step := range metadata.Steps[2:] {
+		require.Equal(t, timing.OutcomeFailed, step.Outcome)
+	}
+	require.Equal(t, start.Format(time.RFC3339Nano), metadata.Steps[0].StartedAt)
+	require.Equal(t, finish.Format(time.RFC3339Nano), metadata.Steps[0].FinishedAt)
+}
+
+func TestCreateNodePoolValidationFailureRecordsFailedOutcomeAllAPIVersions(t *testing.T) {
+	ctx, logger := context.Background(), logr.Discard()
+	for _, test := range []struct {
+		version string
+		create  func(*perItOrDescribeTestContext) error
+	}{
+		{"20240610", func(tc *perItOrDescribeTestContext) error {
+			return tc.CreateNodePoolFromParam20240610(ctx, logger, "rg", "managed", "cluster", NodePoolParams20240610{}, time.Second)
+		}},
+		{"20251223", func(tc *perItOrDescribeTestContext) error {
+			return tc.CreateNodePoolFromParam20251223(ctx, logger, "rg", "managed", "cluster", NodePoolParams20251223{}, time.Second)
+		}},
+		{"20260630", func(tc *perItOrDescribeTestContext) error {
+			return tc.CreateNodePoolFromParam20260630(ctx, logger, "rg", "managed", "cluster", NodePoolParams20260630{}, time.Second)
+		}},
+		{"20260901", func(tc *perItOrDescribeTestContext) error {
+			return tc.CreateNodePoolFromParam20260901(ctx, logger, "rg", "managed", "cluster", NodePoolParams20260901{}, time.Second)
+		}},
+		{"20261001", func(tc *perItOrDescribeTestContext) error {
+			return tc.CreateNodePoolFromParam20261001(ctx, logger, "rg", "managed", "cluster", NodePoolParams20261001{}, time.Second)
+		}},
+	} {
+		t.Run(test.version, func(t *testing.T) {
+			tc := &perItOrDescribeTestContext{}
+			require.ErrorContains(t, test.create(tc), "nodePoolName")
+			require.Len(t, tc.timingMetadata.Steps, 1)
+			require.Equal(t, timing.KindCreateNodePool, tc.timingMetadata.Steps[0].Kind)
+			require.Equal(t, timing.OutcomeFailed, tc.timingMetadata.Steps[0].Outcome)
+		})
+	}
 }
 
 func TestTimingFinalizationUsesResolvedSubscriptionCache(t *testing.T) {
@@ -111,7 +159,7 @@ func TestTimingPhasesRetainInterruptedBoundaries(t *testing.T) {
 }
 
 func TestFrameworkTimingLifecycle(t *testing.T) {
-	for _, scenario := range []string{"success", "body-failure", "cleanup-failure", "cleanup-timeout"} {
+	for _, scenario := range []string{"success", "expected-rejection", "body-failure", "cleanup-failure", "cleanup-timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			if retained := os.Getenv("ARO_HCP_TIMING_SMOKE_ARTIFACTS"); retained != "" {
@@ -124,7 +172,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			cmd.Env = append(os.Environ(), "ARO_HCP_TIMING_SMOKE_CHILD="+scenario, "ARO_HCP_TIMING_SMOKE_ROOT="+root)
 			output, err := cmd.CombinedOutput()
 			require.NoError(t, ctx.Err(), "child exceeded its deterministic deadline: %s", output)
-			if scenario == "success" {
+			if scenario == "success" || scenario == "expected-rejection" {
 				require.NoError(t, err, "%s", output)
 			} else {
 				var exitError *exec.ExitError
@@ -157,7 +205,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 				require.False(t, phaseFinish.After(finish))
 				previousFinish = phaseFinish
 				if phase.Kind == "controlled-cleanup" {
-					require.Equal(t, scenario != "success" && scenario != "body-failure", phase.Incomplete)
+					require.Equal(t, scenario == "cleanup-failure" || scenario == "cleanup-timeout", phase.Incomplete)
 				}
 			}
 			require.Equal(t, []string{"test-work", "controlled-cleanup", "arm-metadata-harvest", "debug-collection", "resource-cleanup"}, phaseKinds)
@@ -165,6 +213,19 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			for _, step := range metadata.Steps {
 				stepNames = append(stepNames, step.Name)
 				require.False(t, parseTimingTimestamp(t, step.FinishedAt).After(finish))
+			}
+			if scenario == "expected-rejection" {
+				var operations []timing.StepTimingMetadata
+				for _, step := range metadata.Steps {
+					if step.Kind == timing.KindCreateNodePool {
+						operations = append(operations, step)
+					}
+				}
+				require.Len(t, operations, 2)
+				require.Equal(t, timing.OutcomeFailed, operations[0].Outcome, "the expected HTTP 400 must not inherit the passing spec outcome")
+				require.Equal(t, timing.OutcomeSucceeded, operations[1].Outcome)
+				require.Contains(t, operations[0].Name, "rejected")
+				require.Contains(t, operations[1].Name, "accepted")
 			}
 			require.Contains(t, stepNames, "Controlled teardown")
 			require.Contains(t, stepNames, "Delete created resources")
@@ -239,6 +300,56 @@ func TestFrameworkTimingLifecycleChild(t *testing.T) {
 		ginkgo.It(scenario, func() {
 			if scenario == "body-failure" {
 				ginkgo.Fail("intentional body failure")
+			}
+			if scenario == "expected-rejection" {
+				// Exercise the public framework wrapper and SDK HTTP transport, not a manually recorded span.
+				options := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
+				var rejectedPUTs, successfulPUTs int
+				options.Transport = &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
+					if !strings.Contains(req.URL.Path, "/nodePools/") {
+						return nil, errors.New("unexpected HCP request in offline timing smoke")
+					}
+					status, body := http.StatusOK, `{"name":"accepted","location":"uksouth","properties":{"provisioningState":"Succeeded","replicas":1}}`
+					if req.Method == http.MethodPut {
+						var payload hcpsdk20240610preview.NodePool
+						if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+							return nil, err
+						}
+						if payload.Properties == nil || payload.Properties.Replicas == nil {
+							return nil, errors.New("nodepool request omitted replicas")
+						}
+						switch *payload.Properties.Replicas {
+						case 201:
+							rejectedPUTs++
+							status, body = http.StatusBadRequest, `{"error":{"code":"InvalidParameter","message":"replicas must not exceed 200"}}`
+						case 1:
+							successfulPUTs++
+						default:
+							return nil, errors.New("unexpected replicas in offline timing smoke")
+						}
+					} else if req.Method != http.MethodGet {
+						return nil, errors.New("unexpected HCP method in offline timing smoke")
+					}
+					return &http.Response{
+						StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}},
+						Body: io.NopCloser(strings.NewReader(body)), Request: req,
+					}, nil
+				}}
+				var err error
+				tc.clientFactory20240610, err = hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				// Disable unrelated failure-bundle collection; all provisioning still uses the real wrapper.
+				tc.LogDirPath = ""
+				defer func() { tc.LogDirPath = root }()
+				params := NodePoolParams20240610{NodePoolName: "rejected", Replicas: 201, VMSize: "Standard_D4s_v3"}
+				err = tc.CreateNodePoolFromParam20240610(context.Background(), logr.Discard(), "rg", "managed", "cluster", params, time.Second)
+				var responseError *azcore.ResponseError
+				gomega.Expect(errors.As(err, &responseError)).To(gomega.BeTrue())
+				gomega.Expect(responseError.StatusCode).To(gomega.Equal(http.StatusBadRequest))
+				params.NodePoolName, params.Replicas = "accepted", 1
+				gomega.Expect(tc.CreateNodePoolFromParam20240610(context.Background(), logr.Discard(), "rg", "managed", "cluster", params, time.Second)).To(gomega.Succeed())
+				gomega.Expect(rejectedPUTs).To(gomega.Equal(1))
+				gomega.Expect(successfulPUTs).To(gomega.Equal(1))
 			}
 		})
 	})

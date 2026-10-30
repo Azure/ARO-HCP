@@ -337,9 +337,13 @@ steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
 The summary reports means and sample counts for recorded cluster creation,
 nodepool creation, cluster deletion, resource-group cleanup and full cleanup.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
-or unknown-outcome tests are excluded. Distinct concurrent operations remain
-separate samples. Resource-group cleanup includes contained resources and purge,
-so categories are independent and must not be added together.
+or unknown-outcome tests are excluded. Typed resource-operation averages also
+require an explicit successful operation outcome: failed attempts, including
+expected rejections in passing tests, and unknown historical outcomes remain on
+the timeline but do not contribute averages or sample counts. Distinct concurrent
+successful operations remain separate samples. Resource-group cleanup includes
+contained resources and purge, so categories are independent and must not be
+added together.
 
 Historical metadata remains readable, but its missing cleanup intervals and
 unknown outcomes are labeled rather than reconstructed. Regenerate a report with:

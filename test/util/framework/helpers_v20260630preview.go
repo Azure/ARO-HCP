@@ -371,7 +371,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260630(
 	parameters ClusterParams20260630,
 	imageDigestMirrors []*hcpsdk20260630preview.ImageDigestMirror,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20260630FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
@@ -382,7 +382,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260630(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime, operationErr)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20260630(parameters, tc.Location(), imageDigestMirrors)
@@ -416,14 +416,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260630(
 	hcpClusterName string,
 	parameters NodePoolParams20260630,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime, operationErr)
 	}()
 
 	nodePoolName := parameters.NodePoolName

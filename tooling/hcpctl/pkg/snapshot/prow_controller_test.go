@@ -22,6 +22,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 type controllerArtifactTransport func(*http.Request) (*http.Response, error)
@@ -177,5 +181,140 @@ func TestFetchTestTimingsCleanupBoundary(t *testing.T) {
 				t.Fatalf("wrong cleanup start: got %s, want %s", got["test"].CleanupStartTime, boundary)
 			}
 		})
+	}
+}
+
+func TestFetchTestTimingsPreCleanupBoundaries(t *testing.T) {
+	t.Parallel()
+	const prefix = "logs/job/123/" + timingMetadataPath + "timing-metadata-"
+	start, err := time.Parse(time.RFC3339Nano, "2026-10-30T10:00:00.123456789Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup := start.Add(10 * time.Minute)
+	step := func(name string, from, to time.Duration) timing.StepTimingMetadata {
+		return timing.StepTimingMetadata{Name: name, StartedAt: start.Add(from).Format(time.RFC3339Nano), FinishedAt: start.Add(to).Format(time.RFC3339Nano)}
+	}
+	for _, tc := range []struct {
+		name           string
+		steps          []timing.StepTimingMetadata
+		setupFinish    time.Time
+		testStart      time.Time
+		hasBodyRequest bool
+	}{
+		{name: "no spans", testStart: start, hasBodyRequest: true},
+		{
+			name: "cleanup only",
+			steps: []timing.StepTimingMetadata{
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			testStart: start, hasBodyRequest: true,
+		},
+		{
+			name: "setup and cleanup only",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(2 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "body span crosses cleanup",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Create cluster", 3*time.Minute, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "setup span crosses cleanup",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: cleanup, testStart: cleanup,
+		},
+		{
+			name: "setup overlaps body",
+			steps: []timing.StepTimingMetadata{
+				step("Lease identity container", 0, 5*time.Minute),
+				step("Create cluster", 3*time.Minute, 9*time.Minute),
+			},
+			setupFinish: start.Add(3 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+	} {
+		for _, fullLifecycle := range []bool{false, true} {
+			mode := "legacy"
+			if fullLifecycle {
+				mode = "full lifecycle"
+			}
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				metadata := timing.SpecTimingMetadata{
+					Identifier: []string{"test"},
+					StartedAt:  start.Format(time.RFC3339Nano),
+					FinishedAt: cleanup.Format(time.RFC3339Nano),
+					Steps:      tc.steps,
+				}
+				finish := cleanup
+				if fullLifecycle {
+					metadata.CleanupStartedAt = cleanup.Format(time.RFC3339Nano)
+					finish = cleanup.Add(2 * time.Minute)
+					metadata.FinishedAt = finish.Format(time.RFC3339Nano)
+				}
+				data, err := yaml.Marshal(metadata)
+				if err != nil {
+					t.Fatal(err)
+				}
+				client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+					body := string(data)
+					if r.URL.Query().Get("prefix") == prefix {
+						body = `{"items":[{"name":"` + prefix + `test.yaml"}]}`
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				})}
+				gcs, err := controllerGCSClient(t.Context(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer gcs.Close()
+				got, err := fetchTestTimings(t.Context(), gcs, "bucket", "logs/job/123", logr.Discard(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				boundaries := got["test"]
+				if !boundaries.SetupFinishTime.Equal(tc.setupFinish) || !boundaries.TestStartTime.Equal(tc.testStart) || !boundaries.CleanupStartTime.Equal(cleanup) {
+					t.Fatalf("unexpected phase boundaries: %+v", boundaries)
+				}
+				if boundaries.TestStartTime.Before(start) ||
+					(!boundaries.SetupFinishTime.IsZero() && (boundaries.SetupFinishTime.Before(start) || boundaries.SetupFinishTime.After(boundaries.TestStartTime))) {
+					t.Fatalf("setup/test boundaries must stay ordered: %+v", boundaries)
+				}
+				phases := computePhases(GatherInput{
+					TimeWindow:       TimeWindow{Start: start, End: finish.Add(5 * time.Minute), SetupFinishTime: boundaries.SetupFinishTime},
+					TestStartTime:    boundaries.TestStartTime,
+					CleanupStartTime: boundaries.CleanupStartTime,
+				})
+				if len(phases) != 2 || phases[0].end.After(phases[1].start) {
+					t.Fatalf("expected ordered test and cleanup phases: %+v", phases)
+				}
+				for _, phase := range phases {
+					if phase.start.After(phase.end) {
+						t.Fatalf("phase has negative duration: %+v", phase)
+					}
+				}
+				gatherer := &Gatherer{}
+				bodyRequest := frontendRequest{Timestamp: start.Add(4 * time.Minute)}
+				if tc.hasBodyRequest && (!gatherer.requestInPhase(bodyRequest, phases[0]) || gatherer.requestInPhase(bodyRequest, phases[1])) {
+					t.Fatalf("timestamped body request must remain in test phase: %+v", phases)
+				}
+				cleanupRequest := frontendRequest{Timestamp: cleanup}
+				if gatherer.requestInPhase(cleanupRequest, phases[0]) || !gatherer.requestInPhase(cleanupRequest, phases[1]) {
+					t.Fatalf("cleanup boundary request must belong only to cleanup phase: %+v", phases)
+				}
+			})
+		}
 	}
 }

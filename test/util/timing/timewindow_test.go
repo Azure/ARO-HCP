@@ -559,7 +559,7 @@ func TestDeriveSetupTestBoundary(t *testing.T) {
 				{Name: "Lease identity container", StartedAt: "2025-06-01T10:01:00Z", FinishedAt: "2025-06-01T10:02:00Z"},
 			},
 			wantSetupFinish: "2025-06-01T10:02:00Z",
-			wantTestStart:   "",
+			wantTestStart:   "2025-06-01T10:02:00Z",
 		},
 		{
 			name: "only test steps",
@@ -583,7 +583,7 @@ func TestDeriveSetupTestBoundary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotSetup, gotTest := deriveSetupTestBoundary(tt.steps)
+			gotSetup, gotTest := deriveSetupTestBoundary(tt.steps, time.Time{}, time.Time{})
 
 			if tt.wantSetupFinish == "" {
 				if !gotSetup.IsZero() {
@@ -675,5 +675,107 @@ func TestLoadTestTimingInfoFullLifecycleBoundary(t *testing.T) {
 				t.Fatalf("cleanup and query end must stay distinct: %+v", info)
 			}
 		})
+	}
+}
+
+func TestLoadTestTimingInfoPreCleanupBoundaries(t *testing.T) {
+	t.Parallel()
+	start := mustParseTime(t, "2026-10-30T10:00:00.123456789Z")
+	cleanup := start.Add(10 * time.Minute)
+	step := func(name string, from, to time.Duration) StepTimingMetadata {
+		return StepTimingMetadata{Name: name, StartedAt: start.Add(from).Format(time.RFC3339Nano), FinishedAt: start.Add(to).Format(time.RFC3339Nano)}
+	}
+	for _, tc := range []struct {
+		name           string
+		steps          []StepTimingMetadata
+		setupFinish    time.Time
+		testStart      time.Time
+		hasBodyRequest bool
+	}{
+		{name: "no spans", testStart: start, hasBodyRequest: true},
+		{
+			name: "cleanup only",
+			steps: []StepTimingMetadata{
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			testStart: start, hasBodyRequest: true,
+		},
+		{
+			name: "setup and cleanup only",
+			steps: []StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Delete resource group", 10*time.Minute, 11*time.Minute),
+				step("Release identity container", 11*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(2 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "body span crosses cleanup",
+			steps: []StepTimingMetadata{
+				step("Lease identity container", 0, 2*time.Minute),
+				step("Create cluster", 3*time.Minute, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: start.Add(2 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+		{
+			name: "setup span crosses cleanup",
+			steps: []StepTimingMetadata{
+				step("Lease identity container", 0, 11*time.Minute),
+				step("Delete resource group", 10*time.Minute, 12*time.Minute),
+			},
+			setupFinish: cleanup, testStart: cleanup,
+		},
+		{
+			name: "setup overlaps body",
+			steps: []StepTimingMetadata{
+				step("Lease identity container", 0, 5*time.Minute),
+				step("Create cluster", 3*time.Minute, 9*time.Minute),
+			},
+			setupFinish: start.Add(3 * time.Minute), testStart: start.Add(3 * time.Minute), hasBodyRequest: true,
+		},
+	} {
+		for _, fullLifecycle := range []bool{false, true} {
+			mode := "legacy"
+			if fullLifecycle {
+				mode = "full lifecycle"
+			}
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				dir := t.TempDir()
+				metadata := SpecTimingMetadata{
+					Identifier: []string{"boundary-test"},
+					StartedAt:  start.Format(time.RFC3339Nano),
+					FinishedAt: cleanup.Format(time.RFC3339Nano),
+					Steps:      tc.steps,
+				}
+				finish := cleanup
+				if fullLifecycle {
+					metadata.CleanupStartedAt = cleanup.Format(time.RFC3339Nano)
+					finish = cleanup.Add(2 * time.Minute)
+					metadata.FinishedAt = finish.Format(time.RFC3339Nano)
+				}
+				writeYAML(t, filepath.Join(dir, "timing-metadata-boundary.yaml"), metadata)
+				got, err := LoadTestTimingInfo(ctxWithLogger(t), dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				info := got["boundary-test"]
+				if !info.SetupFinishTime.Equal(tc.setupFinish) || !info.TestStartTime.Equal(tc.testStart) || !info.CleanupStartTime.Equal(cleanup) {
+					t.Fatalf("unexpected phase boundaries: %+v", info)
+				}
+				if info.TestStartTime.Before(info.StartTime) || info.TestStartTime.After(info.CleanupStartTime) ||
+					(!info.SetupFinishTime.IsZero() && (info.SetupFinishTime.Before(info.StartTime) || info.SetupFinishTime.After(info.TestStartTime))) {
+					t.Fatalf("phase boundaries must stay ordered: %+v", info)
+				}
+				if !info.EndTime.Equal(finish.Add(endGracePeriodDuration)) {
+					t.Fatalf("query end must use recorded finish without reconstructing cleanup: %v", info.EndTime)
+				}
+				bodyRequest := start.Add(4 * time.Minute)
+				if tc.hasBodyRequest && (bodyRequest.Before(info.TestStartTime) || !bodyRequest.Before(info.CleanupStartTime)) {
+					t.Fatalf("test window excludes timestamped body request at %v: %+v", bodyRequest, info)
+				}
+			})
+		}
 	}
 }

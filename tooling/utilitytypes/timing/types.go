@@ -44,6 +44,8 @@ type StepTimingMetadata struct {
 	Name string `json:"name"`
 	// Kind identifies an operation for duration summaries without parsing its label.
 	Kind string `json:"kind,omitempty"`
+	// Outcome is the operation's result, independent of the enclosing spec; empty means unknown.
+	Outcome string `json:"outcome,omitempty"`
 	// Incomplete marks a phase interrupted before its callback returned.
 	Incomplete bool `json:"incomplete,omitempty"`
 	// StartedAt is the time at which the step started, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00

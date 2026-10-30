@@ -726,11 +726,11 @@ func (tc *perItOrDescribeTestContext) resourceGroupHasSystemProtectedDenyAssignm
 // 1. delete all HCP clusters via the RP and wait for success
 // 2. wait for any managed resource groups to be deleted
 // 3. delete the resource group
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) (operationErr error) {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime, operationErr)
 	}()
 
 	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
@@ -817,11 +817,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 //  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
 //     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
 //  2. deletes the parent resource group itself.
-func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) (operationErr error) {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime, operationErr)
 	}()
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -1514,13 +1514,22 @@ func (tc *perItOrDescribeTestContext) RecordKnownDeployment(resourceGroup, deplo
 	})
 }
 
-// RecordTestStep records an observed operation without assigning an aggregate operation kind.
+// RecordTestStep records a generic span without assigning an operation kind or outcome.
 func (tc *perItOrDescribeTestContext) RecordTestStep(name string, startTime, finishTime time.Time) {
-	tc.RecordTestOperation("", name, startTime, finishTime)
+	tc.recordTestSpan("", name, "", startTime, finishTime)
 }
 
-// RecordTestOperation records an observed operation with an explicit kind for reporting.
-func (tc *perItOrDescribeTestContext) RecordTestOperation(kind, name string, startTime, finishTime time.Time) {
+// RecordTestOperation records an operation's kind and returned error independently of the spec outcome.
+func (tc *perItOrDescribeTestContext) RecordTestOperation(kind, name string, startTime, finishTime time.Time, operationErr error) {
+	outcome := timing.OutcomeSucceeded
+	if operationErr != nil {
+		outcome = timing.OutcomeFailed
+	}
+	tc.recordTestSpan(kind, name, outcome, startTime, finishTime)
+}
+
+// Records an observed span unless its enclosing timing artifact is already finalized.
+func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string, startTime, finishTime time.Time) {
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()
 	if tc.timingFinalized {
@@ -1529,6 +1538,7 @@ func (tc *perItOrDescribeTestContext) RecordTestOperation(kind, name string, sta
 	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
 		Kind:       kind,
 		Name:       name,
+		Outcome:    outcome,
 		StartedAt:  startTime.Format(time.RFC3339Nano),
 		FinishedAt: finishTime.Format(time.RFC3339Nano),
 	})
