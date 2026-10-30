@@ -159,6 +159,10 @@ github.com/Azure/ARO-Tools/tools/secret-sync
 github.com/Azure/ARO-Tools/tools/secret-sync/config
 github.com/Azure/ARO-Tools/tools/secret-sync/populate
 github.com/Azure/ARO-Tools/tools/secret-sync/register
+# github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd
+## explicit; go 1.25.0
+github.com/Azure/ARO-Tools/tools/stackctl/cmd/deletestack
+github.com/Azure/ARO-Tools/tools/stackctl/pkg/stack
 # github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd
 ## explicit; go 1.25.0
 github.com/Azure/ARO-Tools/tools/yamlwrap

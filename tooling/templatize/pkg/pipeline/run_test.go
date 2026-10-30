@@ -1184,6 +1184,34 @@ func TestStepContextTimeout(t *testing.T) {
 		_, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
 		assert.Error(t, err)
 	})
+
+	t.Run("arm stack delete 60m is not capped at the default", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 60*time.Minute, d)
+	})
+
+	t.Run("arm stack delete unset defaults to 30m", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("arm stack create ignores timeout", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("invalid arm stack delete duration", func(t *testing.T) {
+		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "soon"})
+		assert.ErrorContains(t, err, "ARM stack delete step timeout")
+	})
+
+	t.Run("non-positive arm stack delete duration", func(t *testing.T) {
+		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "0s"})
+		assert.ErrorContains(t, err, "must be positive")
+	})
 }
 
 func TestWaitForRetry(t *testing.T) {
