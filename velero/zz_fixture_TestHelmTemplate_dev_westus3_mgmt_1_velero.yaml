@@ -329,6 +329,37 @@ spec:
     - action: replace
       replacement: service
       targetLabel: microsoft_metrics_include_label
+    metricRelabelings:
+    # Route schedule-derived Velero metrics to the HCP Azure Monitor Workspace.
+    # Velero labels every schedule-derived series with `schedule`, whose value is
+    # "<hostedClusterNamespace>-<cadence>" (backend/pkg/controllers/cluster/
+    # backups/schedule.go). The HCP namespace is ocm-<env>-<id> and neither <env>
+    # nor <id> contains a dash, so the two dash-separated segments after "ocm-"
+    # reconstruct the namespace exactly, independent of the cadence suffix
+    # (6-hourly/daily/weekly/10min/keyrotation-<date>).
+    #
+    # Setting `namespace` is all that is needed to move these series: the
+    # remoteWrite rules in observability/prometheus/deploy/templates/prometheus.yaml
+    # keep namespace=~ocm-<env> on the HCP workspace and drop it from the services
+    # workspace, so no change is required there. Series without a schedule label
+    # (velero_backup_total, velero_backup_location_status_gauge, server/repo/
+    # node-agent metrics, `up`) do not match and stay in the services workspace.
+    - action: replace
+      sourceLabels: [__name__, schedule]
+      separator: ;
+      regex: 'velero_[^;]+;(ocm-[^-]+-[^-]+)-.+'
+      targetLabel: namespace
+      replacement: '${1}'
+    # Rename the same schedule-derived series velero_* -> velero_hcp_* so the
+    # HCP-workspace copies are unambiguously the per-HCP ones. Runs after the
+    # namespace rewrite but still matches the original velero_ name (that step
+    # rewrote only the namespace label, not __name__).
+    - action: replace
+      sourceLabels: [__name__, schedule]
+      separator: ;
+      regex: 'velero_([^;]+);ocm-[^-]+-[^-]+-.+'
+      targetLabel: __name__
+      replacement: 'velero_hcp_${1}'
 ---
 # Source: velero-hcp-cli/templates/volumesnapshotclass.yaml
 apiVersion: snapshot.storage.k8s.io/v1
