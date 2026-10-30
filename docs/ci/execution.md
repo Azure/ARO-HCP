@@ -317,6 +317,21 @@ For every environment, each test or spec that creates Azure resources gets its o
 
 For tests that create HCP clusters, the RP creates the cluster resource back into that test's resource group. Not every test reaches this point; negative and validation tests may only exercise API behavior without creating a cluster.
 
+### Run Cost Attribution
+
+In DEV, a Prow job that opts in tags the resource groups it creates with `jobID.aro-hcp-ci.redhat.com=<BUILD_ID>`. Cost Management tag inheritance on the E2E subscriptions then applies that tag to the usage records of everything inside those groups, so one filter shows a job's spend across subscriptions:
+
+- opting in means setting `RUN_COST_TAG_VALUE` in the job's openshift/release configuration; the literal `BUILD_ID` resolves to this job's Prow build ID (ci-operator configuration cannot expand `$(BUILD_ID)` itself). Jobs that do not set the variable are never tagged
+- the config override generator (`aro-hcp-tests infra build-config-override`, sourced through `hack/ci/build-config-override.sh`) adds the tag to the service and management AKS cluster tags, replacing the tag defaults ci00/ci01 otherwise inherit from `config/config.yaml`; AKS copies them onto each node resource group
+- `hack/ci/provision-environment.sh` resolves the same `RUN_COST_TAG_VALUE` and passes `--resource-group-tags` to templatize, which applies the tags to the resource groups the run creates or reuses
+- the E2E framework tags each test resource group at creation
+
+HCP clusters' RP-managed resource groups are not tagged: the RP creates them without tags, so their worker spend is not yet attributed to a job.
+
+Shared resources such as the leased identity pools, global Key Vault, and registries are never tagged with a job ID.
+
+The deprovision step also uses the tag to find an aborted job's test resource groups (`cleanup resource-groups --job-id`).
+
 ### Cleanup Handoff
 
 Once a test has created resources, cleanup responsibility moves into one of three deliberately different paths:

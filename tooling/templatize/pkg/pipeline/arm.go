@@ -96,7 +96,7 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 
 func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, DetailsProducer, error) {
 	// Ensure resourcegroup exists
-	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
+	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist, options.ResourceGroupTags)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
@@ -356,7 +356,11 @@ type deploymentInputs struct {
 	RetryAttempt    int
 }
 
-// computeResourceGroupTags determines the final tags for a resource group based on existing tags and persist settings.
+// computeResourceGroupTags determines the final tags for a resource group.
+//
+// extraTags are the desired tags for this deployment, such as the run cost
+// tag: they are applied in full, overwriting matching keys in any casing and
+// adding keys the group did not carry before.
 //
 // Persist tag rules:
 // 1. If persist tag already exists and is "true", it must be preserved (safety: never remove protection)
@@ -364,13 +368,26 @@ type deploymentInputs struct {
 // 3. If persist is false and persist tag doesn't exist or isn't "true", don't add it
 //
 // This function is pure and easily testable - it only depends on its inputs.
-func computeResourceGroupTags(existingTags map[string]*string, persist bool) map[string]*string {
+func computeResourceGroupTags(existingTags map[string]*string, extraTags map[string]string, persist bool) map[string]*string {
 	// Start with a copy of existing tags to avoid modifying the original
 	var resultTags map[string]*string
 	if existingTags != nil {
 		resultTags = maps.Clone(existingTags)
 	} else {
-		resultTags = make(map[string]*string)
+		resultTags = make(map[string]*string, len(extraTags))
+	}
+
+	// Apply the extra tags: they are the desired values, so overwrite matching
+	// keys in any casing and add keys that are not present yet.
+	for key, value := range extraTags {
+		existingKey := key
+		for candidate := range resultTags {
+			if strings.EqualFold(candidate, key) {
+				existingKey = candidate
+				break
+			}
+		}
+		resultTags[existingKey] = to.Ptr(value)
 	}
 
 	// Check current persist tag value
@@ -391,12 +408,19 @@ func computeResourceGroupTags(existingTags map[string]*string, persist bool) map
 	return resultTags
 }
 
-func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armresources.ResourceGroupsClient, region, rgName string, persist bool) error {
+// ensureResourceGroupExists creates the resource group if it is missing. extraTags
+// are applied in full in both cases; the persist tag is reconciled separately.
+func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armresources.ResourceGroupsClient, region, rgName string, persist bool, extraTags map[string]string) error {
 	rg, err := resourceGroupClient.Get(ctx, rgName, nil)
+	var responseErr *azcore.ResponseError
+	if err != nil && (!errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusNotFound) {
+		// Only a missing group may be created: a create on an existing group would
+		// replace its tags with this run's tags.
+		return fmt.Errorf("failed to get resource group: %w", err)
+	}
 	if err != nil {
 		// Resource group doesn't exist - create it
-		// We don't have any existing tags, so pass an empty map instead of nil for clarity.
-		tags := computeResourceGroupTags(map[string]*string{}, persist)
+		tags := computeResourceGroupTags(nil, extraTags, persist)
 		resourceGroup := armresources.ResourceGroup{
 			Location: to.Ptr(region),
 			Tags:     tags,
@@ -406,8 +430,14 @@ func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armreso
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
-		// Resource group exists - only update tags if they changed
-		tags := computeResourceGroupTags(rg.Tags, persist)
+		// Resource group exists - only update tags if they changed. A group
+		// without any tags normalizes to an empty map so the comparison below
+		// sees the tags it would gain.
+		existingTags := rg.Tags
+		if existingTags == nil {
+			existingTags = map[string]*string{}
+		}
+		tags := computeResourceGroupTags(existingTags, extraTags, persist)
 		if !maps.EqualFunc(rg.Tags, tags, func(a, b *string) bool {
 			if a == nil && b == nil {
 				return true

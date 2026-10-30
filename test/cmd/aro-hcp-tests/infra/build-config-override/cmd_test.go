@@ -41,7 +41,7 @@ func clearEnvironment(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES",
+		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES", "BUILD_ID", "RUN_COST_TAG_VALUE",
 		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
@@ -233,19 +233,21 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			if err := os.WriteFile(path, []byte("previous"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"--shared-dir", shared, "--deploy-env", "dev"}
+			args := []string{"--shared-dir", shared}
 			switch failure {
 			case "invalid-input":
 				t.Setenv("BACKEND_IMAGE", "not-a-digest")
+				args = append(args, "--deploy-env", "dev")
 			case "unknown-image":
 				t.Setenv("UNSUPPORTED_IMAGE", "registry.example/unsupported@sha256:1234")
+				args = append(args, "--deploy-env", "dev")
 			case "missing-catalog":
 				t.Setenv(leaseenv.MSIMockSP, "missing")
-				args = append(args, "--source-dir", t.TempDir())
+				args = append(args, "--deploy-env", "dev", "--source-dir", t.TempDir())
 			case "publication":
-				args = append(args, "--output-file", shared)
+				args = append(args, "--deploy-env", "dev", "--output-file", shared)
 			case "extra-argument":
-				args = append(args, "unexpected")
+				args = append(args, "--deploy-env", "dev", "unexpected")
 			case "missing-output":
 				args = []string{"--deploy-env", "dev"}
 			}
@@ -257,6 +259,67 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunCostTag(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv(leaseenv.MSIContainers, "leased")
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"sentinel resolves build ID", map[string]string{"RUN_COST_TAG_VALUE": "BUILD_ID", "BUILD_ID": "1234567"}, "1234567"},
+		{"explicit value", map[string]string{"RUN_COST_TAG_VALUE": "nightly-2026.10.28"}, "nightly-2026.10.28"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shared := t.TempDir()
+			t.Setenv("DEPLOY_ENV", "ci01")
+			t.Setenv("SHARED_DIR", shared)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			if _, err := execute(); err != nil {
+				t.Fatal(err)
+			}
+			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "ci01")
+			for _, kind := range []string{"svc", "mgmt"} {
+				aks := defaults[kind].(map[string]any)["aks"].(map[string]any)
+				want := "clusterType=" + kind + "-cluster,jobID.aro-hcp-ci.redhat.com=" + tc.want
+				if tags := aks["tags"]; tags != want {
+					t.Fatalf("%s aks tags = %#v, want %q", kind, tags, want)
+				}
+			}
+			// The tag is never handed through a file: the provisioning shell
+			// reads RUN_COST_TAG_VALUE from the same environment.
+			if _, err := os.Stat(filepath.Join(shared, "run-cost-tag.env")); !os.IsNotExist(err) {
+				t.Fatalf("run cost tag file published: %v", err)
+			}
+		})
+	}
+	t.Run("no opt-in", func(t *testing.T) {
+		shared := t.TempDir()
+		t.Setenv("DEPLOY_ENV", "ci01")
+		t.Setenv("SHARED_DIR", shared)
+		t.Setenv("BUILD_ID", "1234567")
+		if _, err := execute(); err != nil {
+			t.Fatal(err)
+		}
+		override, err := os.ReadFile(filepath.Join(shared, "config-override.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(override, []byte("jobID")) {
+			t.Fatalf("run cost tag in override without opt-in: %s", override)
+		}
+	})
+	t.Run("sentinel without build ID", func(t *testing.T) {
+		t.Setenv("DEPLOY_ENV", "ci01")
+		t.Setenv("RUN_COST_TAG_VALUE", "BUILD_ID")
+		if stdout, err := execute(); err == nil || stdout != "" {
+			t.Fatalf("stdout = %q, err = %v; want failure", stdout, err)
+		}
+	})
 }
 
 // Run the actual command implementation in a child process for the sourced
@@ -331,6 +394,18 @@ unset ARO_HCP_TESTS_BINARY
 source "$1"
 [[ -f "$OVERRIDE_CONFIG_FILE" ]]
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example registry.example" ]]'
+export DEPLOY_ENV=ci01 BUILD_ID=1234567 RUN_COST_TAG_VALUE=BUILD_ID
+source "$1"
+grep -q 'jobID.aro-hcp-ci.redhat.com=1234567' "$OVERRIDE_CONFIG_FILE"
+# The tag is never handed through a file: provision-environment.sh reads
+# RUN_COST_TAG_VALUE from the same environment.
+[[ ! -e "${SHARED_DIR}/run-cost-tag.env" ]]
+unset RUN_COST_TAG_VALUE
+source "$1"
+if grep -q jobID "$OVERRIDE_CONFIG_FILE"; then
+    cat "$OVERRIDE_CONFIG_FILE"
+    exit 21
+fi
 `, "adapter-test", adapter)
 	command.Dir = checkout
 	var stderr bytes.Buffer
