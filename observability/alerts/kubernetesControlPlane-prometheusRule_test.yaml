@@ -38,6 +38,73 @@ tests:
         component: kubernetes-infrastructure
         severity: warning
       exp_annotations:
-        description: Pod hcp/kube-apiserver has been in a non-ready state for longer than 5 minutes.
+        description: Pod hcp/kube-apiserver has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
         summary: Pod hcp/kube-apiserver has been in a non-ready state for more than 5 minutes.
+- name: Not-ready pod in a young ocm namespace does not alert during bootstrap grace period
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-young",pod="capi-provider-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-young",pod="capi-provider-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  # In promtool, time() at eval_time Nm = N * 60 seconds (promtool starts at Unix epoch 0).
+  # Namespace created 1800s after epoch: age stays under 1800s until eval_time 60m.
+  - series: 'kube_namespace_created{namespace="ocm-young",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "1800+0x44"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: KubePodNotReady
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: KubePodNotReady
+    exp_alerts: []
+- name: Not-ready pod in a mature ocm namespace alerts after the bootstrap grace period
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-mature",pod="capi-provider-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x44"
+  - series: 'kube_pod_owner{namespace="ocm-mature",pod="capi-provider-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x44"
+  # Namespace created at epoch 0: age exceeds 1800s from eval_time 30m onward,
+  # so the alert fires once the 5-minute for-duration is met after that.
+  - series: 'kube_namespace_created{namespace="ocm-mature",cluster="mgmt-1",job="kube-state-metrics"}'
+    values: "0+0x44"
+  alert_rule_test:
+  - eval_time: 34m
+    alertname: KubePodNotReady
+    exp_alerts: []
+  - eval_time: 36m
+    alertname: KubePodNotReady
+    exp_alerts:
+    - exp_labels:
+        namespace: ocm-mature
+        pod: capi-provider-1
+        cluster: mgmt-1
+        component: kubernetes-infrastructure
+        severity: warning
+      exp_annotations:
+        description: Pod ocm-mature/capi-provider-1 has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
+        summary: Pod ocm-mature/capi-provider-1 has been in a non-ready state for more than 5 minutes.
+- name: Age gate does not suppress ocm pods when namespace age metric is absent
+  interval: 1m
+  input_series:
+  - series: 'kube_pod_status_phase{namespace="ocm-nometric",pod="capi-provider-1",cluster="mgmt-1",job="kube-state-metrics",prometheus="prometheus/prometheus",phase="Pending"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{namespace="ocm-nometric",pod="capi-provider-1",cluster="mgmt-1",prometheus="prometheus/prometheus",owner_kind="ReplicaSet"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: KubePodNotReady
+    exp_alerts:
+    - exp_labels:
+        namespace: ocm-nometric
+        pod: capi-provider-1
+        cluster: mgmt-1
+        component: kubernetes-infrastructure
+        severity: warning
+      exp_annotations:
+        description: Pod ocm-nometric/capi-provider-1 has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
+        summary: Pod ocm-nometric/capi-provider-1 has been in a non-ready state for more than 5 minutes.

@@ -62,13 +62,13 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         }
         annotations: {
           correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
-          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
-          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
+          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.'
+          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp'
+        expression: 'sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1689,6 +1689,46 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         expression: 'count by (cluster, region) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource podReadiness 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'pod-readiness'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubePodNotReadyWidespread'
+        enabled: true
+        labels: {
+          component: 'kubernetes-infrastructure'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubePodNotReadyWidespread/{{ $labels.cluster }}'
+          description: 'Pods have been in a non-ready state across {{ $value }} mature namespaces on cluster {{ $labels.cluster }} for longer than 5 minutes, which indicates an environment-wide disruption rather than a fault in a single workload.'
+          info: 'Pods have been in a non-ready state across {{ $value }} mature namespaces on cluster {{ $labels.cluster }} for longer than 5 minutes, which indicates an environment-wide disruption rather than a fault in a single workload.'
+          summary: 'Pods not ready across multiple mature namespaces at once.'
+          title: 'Pods not ready across multiple mature namespaces at once.'
+        }
+        expression: 'count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
