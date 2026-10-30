@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -50,6 +51,9 @@ type Inputs struct {
 	ARMHelperLeases              []string
 	MSIContainers                string
 	InfrastructureIdentityBundle string
+	AMDABTest                    string
+	AMDABArm                     string
+	Location                     string
 }
 
 type Paths struct {
@@ -75,6 +79,28 @@ var imageComponents = [...]struct{ environment, component string }{
 	{"KUBE_APPLIER_IMAGE", "kubeApplier"},
 	{"EXPORTER_IMAGE", "customExporter"},
 }
+
+// AMDABTestEnv enables the AMD management-worker experiment on CI runs
+// (AROSLSRE-1840). It is declared by the openshift/release provision step and
+// defaults to unset, which leaves the Intel baseline untouched.
+const AMDABTestEnv = "AMD_AB_TEST"
+
+// AMDABArmEnv selects the management-worker arm when the experiment is
+// enabled: "amd" provisions the AMD SKU and "intel" keeps the baseline as a
+// paired control run (AROSLSRE-1840).
+const AMDABArmEnv = "AMD_AB_ARM"
+
+const (
+	// amdABVMSize is the AMD candidate for the CI management workers; the
+	// Intel baseline SKU stays configured in config/config.yaml.
+	amdABVMSize = "Standard_D16ads_v6"
+	amdArmAMD   = "amd"
+	amdArmIntel = "intel"
+)
+
+// amdABRegions lists the locations where the AMD arm may run; every other
+// location's Dadv6 family quota is below CI scale (AROSLSRE-1840).
+var amdABRegions = map[string]bool{"westus3": true}
 
 var (
 	resourceGroupName = regexp.MustCompile(`^[A-Za-z0-9._()-]*[A-Za-z0-9_()-]$`)
@@ -110,6 +136,15 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.RunCostTagValue = value
 		case "CI_RP_ALLOWED_SOURCE":
 			input.CIRPAllowedSource = value
+		case AMDABTestEnv:
+			input.AMDABTest = value
+		case AMDABArmEnv:
+			input.AMDABArm = value
+		case "LOCATION":
+			// The provision wrapper resolves LOCATION from SELECTED_LOCATION
+			// before deploying with --region ${LOCATION}, so it is the region
+			// the management cluster actually lands in.
+			input.Location = value
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -250,6 +285,14 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 			"userAgentPool": map[string]interface{}{"minCount": 1},
 		}}
 	}
+	arm, err := resolveAMDABArm(input)
+	if err != nil {
+		return Result{}, err
+	}
+	if arm == amdArmAMD {
+		// Merged into, not replacing, the healthcheck minCount sizing above.
+		setDefault(defaults, amdABVMSize, "mgmt", "aks", "userAgentPool", "vmSize")
+	}
 
 	runCostTag, err := resolveRunCostTag(input)
 	if err != nil {
@@ -334,6 +377,51 @@ func setDefault(defaults map[string]interface{}, value string, path ...string) {
 		current = next
 	}
 	current[path[len(path)-1]] = value
+}
+
+// resolveAMDABArm selects the management-worker arm when the AMD experiment
+// is enabled (AROSLSRE-1840). AMD_AB_ARM carries the selection: "amd" is
+// only valid in regions with raised Dadv6 quota and fails the provision
+// elsewhere instead of silently downgrading, while "intel" is valid
+// everywhere and serves as a paired control run. An unset or false
+// experiment applies no override.
+func resolveAMDABArm(input Inputs) (string, error) {
+	enabled, err := amdExperimentEnabled(input.AMDABTest)
+	if err != nil {
+		return "", err
+	}
+	arm := strings.TrimSpace(input.AMDABArm)
+	if !enabled {
+		if arm != "" {
+			return "", fmt.Errorf("%s requires %s to be enabled", AMDABArmEnv, AMDABTestEnv)
+		}
+		return "", nil
+	}
+	switch arm {
+	case "":
+		return "", fmt.Errorf("%s is required when %s is enabled", AMDABArmEnv, AMDABTestEnv)
+	case amdArmIntel:
+		return amdArmIntel, nil
+	case amdArmAMD:
+		if !amdABRegions[input.Location] {
+			return "", fmt.Errorf("%s=%s is not allowed in location %q: the AMD arm requires a region with raised Dadv6 quota", AMDABArmEnv, arm, input.Location)
+		}
+		return amdArmAMD, nil
+	default:
+		return "", fmt.Errorf("%s must be %q or %q, got %q", AMDABArmEnv, amdArmAMD, amdArmIntel, input.AMDABArm)
+	}
+}
+
+func amdExperimentEnabled(flag string) (bool, error) {
+	flag = strings.TrimSpace(flag)
+	if flag == "" {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(flag)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean, got %q", AMDABTestEnv, flag)
+	}
+	return enabled, nil
 }
 
 func decodeYAML(data []byte, out interface{}) error {
