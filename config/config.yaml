@@ -27,6 +27,7 @@ defaults:
   environmentName: "{{ .ctx.environment }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
+  aprRG: "{{ .ctx.region }}-alert-processing-rules"
   cloud: "{{ .ev2.cloudName }}"
   azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneLiveCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
@@ -1346,6 +1347,7 @@ clouds:
           enabled: true
           environmentName: "dev"
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      aprRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-alert-processing-rules
       global:
         rg: global
         subscription:
@@ -1585,6 +1587,7 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
+          aprRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-alert-processing-rules
           mgmt:
             aks:
               systemAgentPool:

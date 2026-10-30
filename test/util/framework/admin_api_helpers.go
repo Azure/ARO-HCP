@@ -40,7 +40,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/test/util/config"
 )
 
 const (
@@ -621,10 +620,11 @@ type AlertProcessingRuleRequest struct {
 	ResourceFilter    string   `json:"resourceFilter,omitempty"`
 	StartTime         string   `json:"startTime"`
 	EndTime           string   `json:"endTime"`
-	Description       string   `json:"description,omitempty"`
-	IncidentReference string   `json:"incidentReference,omitempty"`
+	Description       string   `json:"description"`
+	IncidentReference string   `json:"incidentReference"`
 	Enabled           *bool    `json:"enabled,omitempty"`
-	Scopes            []string `json:"scopes"`
+	AmwScopes         []string `json:"amwScopes"`
+	AdditionalScopes  []string `json:"additionalScopes,omitempty"`
 }
 
 // AlertProcessingRuleSummary is the response from the alert processing rules API.
@@ -641,45 +641,9 @@ type AlertProcessingRuleSummary struct {
 }
 
 // AlertProcessingRuleListResponse is the response from the list alert processing rules API.
+// Unwanted dependencies are avoided by duplicating this contract.
 type AlertProcessingRuleListResponse struct {
 	Value []AlertProcessingRuleSummary `json:"value"`
-}
-
-// GetServicesAMWResourceID constructs the services Azure Monitor Workspace resource ID
-func (tc *perItOrDescribeTestContext) GetServicesAMWResourceID(ctx context.Context) (string, error) {
-	serviceConfig, err := config.GetServiceConfig()
-	if err != nil {
-		return "", fmt.Errorf("failed to load service config: %w", err)
-	}
-
-	// The admin API's configured AMW lives in the regional/infrastructure
-	// subscription the service was deployed into, NOT the customer/hosted-clusters
-	// subscription returned by tc.SubscriptionID. Resolve that subscription by
-	// display name so the scope matches what the admin API was configured with.
-	clientFactory, err := tc.GetARMSubscriptionsClientFactory()
-	if err != nil {
-		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
-	}
-	svcSubscriptionName, err := config.GetStringByPath(serviceConfig, "svc.subscription.key")
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve svc.subscription.key: %w", err)
-	}
-	subscriptionID, err := GetSubscriptionID(ctx, clientFactory.NewClient(), svcSubscriptionName)
-	if err != nil {
-		return "", err
-	}
-
-	regionRG, err := config.GetStringByPath(serviceConfig, "regionRG")
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve regionRG: %w", err)
-	}
-
-	svcWorkspaceName, err := config.GetStringByPath(serviceConfig, "monitoring.svcWorkspaceName")
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve monitoring.svcWorkspaceName: %w", err)
-	}
-
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", subscriptionID, regionRG, svcWorkspaceName), nil
 }
 
 // CreateAlertProcessingRule creates an alert processing rule via the admin API.

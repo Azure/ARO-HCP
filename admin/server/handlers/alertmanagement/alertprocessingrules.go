@@ -19,8 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -65,17 +63,17 @@ func NewAlertProcessingRuleGetHandler(client *armalertprocessingrules.Client, re
 type AlertProcessingRulePutHandler struct {
 	client         *armalertprocessingrules.Client
 	resourceGroup  string
-	amwResourceIds []string
+	amwResourceIds map[string]string
 }
 
-func NewAlertProcessingRulePutHandler(client *armalertprocessingrules.Client, resourceGroup string, amwResourceIds []string) *AlertProcessingRulePutHandler {
+func NewAlertProcessingRulePutHandler(client *armalertprocessingrules.Client, resourceGroup string, svcAmwResourceId string, hcpAmwResourceId string) *AlertProcessingRulePutHandler {
 	h := &AlertProcessingRulePutHandler{
 		client:         client,
 		resourceGroup:  resourceGroup,
-		amwResourceIds: make([]string, len(amwResourceIds)),
+		amwResourceIds: make(map[string]string),
 	}
-	copy(h.amwResourceIds, amwResourceIds)
-	slices.Sort(h.amwResourceIds)
+	h.amwResourceIds[svcAmwKey] = svcAmwResourceId
+	h.amwResourceIds[hcpAmwKey] = hcpAmwResourceId
 	return h
 }
 
@@ -120,14 +118,16 @@ type AlertProcessingRulePutRequest struct {
 	// suffix). Both required.
 	StartTime string `json:"startTime"`
 	EndTime   string `json:"endTime"`
-	// Description and/or IncidentReference document why the rule exists. At least one
-	// is required.
-	Description       string `json:"description,omitempty"`
-	IncidentReference string `json:"incidentReference,omitempty"`
+	// Description of the alert processing rule, required.
+	Description string `json:"description"`
+	// IncidentReference for the alert processing rule, required.
+	IncidentReference string `json:"incidentReference"`
 	// Enabled defaults to true when omitted.
 	Enabled *bool `json:"enabled,omitempty"`
-	// Scopes this rule should apply to, must include at least one known AMW
-	Scopes []string `json:"scopes"`
+	// AmwScopes the alert processing rule should apply to. Valid values are `services` or `hcps`.
+	AmwScopes []string `json:"amwScopes"`
+	// AdditionalScopes this rule should apply to beyond the AMW.
+	AdditionalScopes []string `json:"additionalScopes"`
 }
 
 const (
@@ -148,6 +148,10 @@ const (
 
 	// maxPutBodyBytes is a defense-in-depth bound against oversized bodies.
 	maxPutBodyBytes int64 = 1 << 20 // 1 MiB
+
+	// well-known keys passed via PUT request to indicate the scope to apply an alert processing rule to.
+	svcAmwKey = "services"
+	hcpAmwKey = "hcps"
 )
 
 func (h *AlertProcessingRuleListHandler) ServeHTTP(w http.ResponseWriter, request *http.Request) error {
@@ -200,14 +204,30 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
 			"\"startTime\" and \"endTime\" are required")
 	}
-	if body.Description == "" && body.IncidentReference == "" {
+	if body.Description == "" {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
-			"at least one of \"description\" or \"incidentReference\" is required")
+			"\"description\" is required")
 	}
-	scopes, err := h.validateAmwScopes(body.Scopes)
+	if body.IncidentReference == "" {
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+			"\"incidentReference\" is required")
+	}
+	if len(body.AmwScopes) == 0 {
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+			"at least one AMW scope is required: %s, %s", svcAmwKey, hcpAmwKey)
+	}
+	scopes, err := h.validateAmwScopes(body.AdditionalScopes)
 	if err != nil {
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
 			"Invalid scope(s) in request: %s", err)
+	}
+	for _, amwScope := range body.AmwScopes {
+		scope, ok := h.amwResourceIds[amwScope]
+		if !ok {
+			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "",
+				"%s is not a valid AMW scope, valid scopes are: %s, %s", amwScope, svcAmwKey, hcpAmwKey)
+		}
+		scopes = append(scopes, scope)
 	}
 
 	// Match the named alert rule, and only while firing (AC: resolved alerts are
@@ -233,9 +253,7 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 	}
 
 	tags := map[string]string{aroHCPPurposeTagKey: aroHCPPurposeTagValue}
-	if body.IncidentReference != "" {
-		tags[incidentTagKey] = body.IncidentReference
-	}
+	tags[incidentTagKey] = body.IncidentReference
 
 	enabled := true
 	if body.Enabled != nil {
@@ -258,9 +276,7 @@ func (h *AlertProcessingRulePutHandler) ServeHTTP(w http.ResponseWriter, request
 			},
 		},
 	}
-	if body.Description != "" {
-		rule.Properties.Description = to.Ptr(body.Description)
-	}
+	rule.Properties.Description = to.Ptr(body.Description)
 
 	result, err := h.client.CreateOrUpdate(ctx, h.resourceGroup, name, rule, nil)
 	if err != nil {
@@ -325,8 +341,8 @@ func summarizeRule(rule *armalertprocessingrules.AlertProcessingRule) AlertProce
 	return out
 }
 
-// validateAmwScopes validates that the provided scopes are parseable ARM resource
-// ids, and that at least one of the scopes matches a preconfigured AMW resource id.
+// validateAmwScopes validates that the additional scopes are parseable ARM resource
+// ids.
 //
 // The vast majority of our alerts are Prometheus rule groups. Any alert processing
 // rules for these alerts must be scoped to the AMW that contains the alerts to
@@ -334,7 +350,6 @@ func summarizeRule(rule *armalertprocessingrules.AlertProcessingRule) AlertProce
 func (h *AlertProcessingRulePutHandler) validateAmwScopes(scopes []string) ([]string, error) {
 	parsedScopes := make([]string, 0, len(scopes))
 	errs := make([]error, 0)
-	hasAtLeastOneAmwScope := false
 	for _, scope := range scopes {
 		parsed, err := azcorearm.ParseResourceID(scope)
 		if err != nil {
@@ -343,16 +358,6 @@ func (h *AlertProcessingRulePutHandler) validateAmwScopes(scopes []string) ([]st
 		}
 		canonical := parsed.String()
 		parsedScopes = append(parsedScopes, canonical)
-		if h.matchesConfiguredAmw(canonical) {
-			hasAtLeastOneAmwScope = true
-		}
-	}
-
-	if !hasAtLeastOneAmwScope {
-		msg := "at least one of these scopes is required: %s; got: %s"
-		configScopes := strings.Join(h.amwResourceIds, ",")
-		userScopes := strings.Join(parsedScopes, ",")
-		errs = append(errs, fmt.Errorf(msg, configScopes, userScopes))
 	}
 
 	if len(errs) > 0 {
@@ -360,18 +365,6 @@ func (h *AlertProcessingRulePutHandler) validateAmwScopes(scopes []string) ([]st
 	}
 
 	return parsedScopes, nil
-}
-
-// matchesConfiguredAmw reports whether scope refers to one of the pre-configured
-// AMW resource IDs. ARM resource IDs are case-insensitive, so the comparison uses
-// strings.EqualFold rather than an exact lookup.
-func (h *AlertProcessingRulePutHandler) matchesConfiguredAmw(scope string) bool {
-	for _, amw := range h.amwResourceIds {
-		if strings.EqualFold(amw, scope) {
-			return true
-		}
-	}
-	return false
 }
 
 func derefString(s *string) string {
