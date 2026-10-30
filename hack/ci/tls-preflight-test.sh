@@ -28,6 +28,19 @@ source "${ROOT}/hack/ci/tls-preflight.sh"
 
 DATA="${ROOT}/hack/testdata/tls-preflight"
 FAILURES=0
+TEMP_FILES=()
+trap 'rm -f "${TEMP_FILES[@]}"' EXIT
+
+# mktemp registered for removal on exit, so a failed run leaves nothing in
+# /tmp either. The name is assigned by printf -v rather than by command
+# substitution: inside a subshell the array append would be lost and the
+# file would leak.
+new_temp_file() {
+  local var="$1" file
+  file=$(mktemp)
+  TEMP_FILES+=("$file")
+  printf -v "$var" '%s' "$file"
+}
 
 check() {
   local got="$1" want="$2" label="$3"
@@ -100,8 +113,7 @@ check "$got" "panic" "classifier: real AROSLSRE-2481 panic output is detected"
 got=$(classify_result 0 "$DATA/http-success.txt")
 check "$got" "pass" "classifier: TLS 1.3 server response passes"
 
-first_pull=$(mktemp)
-trap 'rm -f "$first_pull"' EXIT
+new_temp_file first_pull
 printf 'Trying to pull candidate image...\n' >"$first_pull"
 cat "$DATA/http-success.txt" >>"$first_pull"
 got=$(classify_result 0 "$first_pull")
@@ -131,8 +143,7 @@ check "$got" "harness-error" "classifier: unknown flag is a harness error"
 # A docker/podman pull failure contains bare HTTP status words ("403
 # Forbidden"); those must not be reported as a pass. Only kubectl-worded
 # errors or exit 0 decide a pass.
-pull_words=$(mktemp)
-trap 'rm -f "$pull_words"' EXIT
+new_temp_file pull_words
 sed 's/error: You must be logged in to the server (Unauthorized)/Unable to find image: 403 Forbidden/' \
   "$DATA/http-error.txt" >"$pull_words"
 got=$(classify_result 125 "$pull_words")
