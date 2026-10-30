@@ -1726,7 +1726,7 @@ resource svcPodReadiness 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Pods not ready across multiple mature namespaces at once.'
           title: 'Pods not ready across multiple mature namespaces at once.'
         }
-        expression: 'count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp and on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) < time() - 1800))) >= 3'
+        expression: 'count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
