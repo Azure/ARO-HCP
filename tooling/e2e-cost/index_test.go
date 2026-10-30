@@ -72,7 +72,7 @@ func TestRenderViewerSharesReportAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := out.String()
-	for _, want := range []string{"function initCostReport(data)", reportCSS[:200], `id="licenses" type="application/json"`, `fetchJSON("manifest.json")`} {
+	for _, want := range []string{"function initCostReport(data)", reportCSS[:200], `id="licenses" type="application/json"`, `fetchJSON("manifest.json")`, `id="nav-overall"`, `id="nav-runs"`, "const renderOverall", "const renderRuns"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("viewer missing %q", want[:min(len(want), 60)])
 		}

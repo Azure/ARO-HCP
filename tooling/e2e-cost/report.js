@@ -7,7 +7,12 @@ function initCostReport(data) {
   const resources = groups.flatMap(group => (group.resources || []).map(resource => ({resource, group})));
   const byAnchor = new Map(resources.map(entry => [entry.resource.anchor, entry]));
   const known = value => value || "Unknown";
-  const usd = value => "$" + value.toFixed(4);
+  // Group thousands so a report total reads as $1,263.5800, not $1263.5800.
+  const usd = value => {
+    const [whole, fraction] = value.toFixed(4).split(".");
+    const sign = whole.startsWith("-") ? "-" : "";
+    return "$" + sign + (sign ? whole.slice(1) : whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + fraction;
+  };
   const node = (tag, text, parent, className) => {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;

@@ -155,7 +155,7 @@ The daily flow reports every e2e-parallel build that started on one UTC day,
 across presubmit, periodic, and postsubmit jobs in every environment:
 
 ```bash
-go build -o . ./cmd/e2e-cost-runs ./cmd/e2e-cost-gather ./cmd/e2e-cost-render ./cmd/e2e-cost-index
+go build -o . ./cmd/e2e-cost-runs ./cmd/e2e-cost-gather ./cmd/e2e-cost-render ./cmd/e2e-cost-index ./cmd/e2e-cost-costs
 DAY=2026-10-19; mkdir -p snapshots site/$DAY billing-cache
 
 ./e2e-cost-runs --day "$DAY" |
@@ -164,6 +164,7 @@ DAY=2026-10-19; mkdir -p snapshots site/$DAY billing-cache
     ./e2e-cost-render --input "snapshots/$id.json" --format json --output "site/$DAY/$id.json.gz"'
 
 ./e2e-cost-index --day "$DAY" --snapshots snapshots --dir "site/$DAY" --manifest site/manifest.json --site-index site/index.html
+./e2e-cost-costs --tenant-id <tenant-uuid> --monthly-budget-usd 400000 --output site/costs.json
 ```
 
 `site/` is a static site to serve as-is over HTTPS: one viewer page (`index.html`),
@@ -196,6 +197,58 @@ infrastructure and test resources. Builds against persistent stage, prod, and
 integration environments (`aro-hcp-test-persistent`) report only their test
 resources; the shared environment is not attributed to runs. Periodic builds
 record only their branch, so their commit is shown as unknown.
+
+## Composite Subscription Costs
+
+The site has two views. **Aggregate spend** charts the whole spend picture: amortized
+monthly and daily cost across every subscription the E2E environments run in, with
+the current month's projection against the monthly budget. **E2E runs** lists the
+daily per-run reports. One command rebuilds the overall view from Cost Management and
+writes `site/costs.json` beside the day index:
+
+```bash
+./e2e-cost-costs --tenant-id 64dc69e4-d083-49fc-9569-ebece1dd1408 \
+  --monthly-budget-usd 400000 --output site/costs.json
+```
+
+`--subscriptions` charts an explicit list instead; without it, every enabled
+subscription in `--tenant-id` is discovered through ARM, so a new E2E subscription
+joins the chart without a code change. A subscription whose queries fail is listed
+as an error diagnostic and left out of the totals, which marks the page a known
+subtotal rather than publishing a partial figure as complete.
+
+Each subscription costs four Cost Management Query API calls: grouped by service and
+usage type, and by region, at monthly and daily granularity. A query may group by two
+dimensions at once, so those responses also supply the per-subscription stack-by
+choice — summing a subscription's own service rows yields its total for the period —
+without a separate ungrouped query. One Forecast API call per subscription covers the
+unbilled rest of the current month. A cost query that loses its connection is retried
+three times, since dropping it would remove a subscription's series from the page. No
+Cost Details downloads, Key Vault, or database are involved.
+
+All eight chart variants (two granularities by the four stack-by choices) are
+precomputed into `costs.json`, so the page switches datasets instead of refetching.
+Each variant keeps the eight largest groups as their own series and combines the rest
+into Other. Monthly charts trim leading periods before collection began; the daily
+charts cover the last three calendar months including the current one. Hovering a bar
+is the accessible path: the tooltip lists every series, the actual total, and the
+forecast.
+
+The rest of the current month is Azure's own forecast, not a local guess. The forecast
+endpoint is throttled far below the Query API and answers 429 without a retry-after
+header, so its calls are serialized and paced twelve seconds apart instead of bursting
+alongside the per-subscription queries. A subscription whose forecast fails keeps its
+billed totals, reports a warning, and leaves the month marked as a floor: the page says
+how many subscriptions returned a forecast rather than presenting a partial forecast as
+complete.
+
+The page judges the projection against `--monthly-budget-usd`, and the chart draws that
+budget as its only reference line. The trailing three-month average is a summary
+figure, not a chart overlay. The attributed-versus-total share on the **E2E runs** view
+compares each day's per-run attribution with the same day's daily total; per-run billing
+windows overlap, so the denominator is never a sum of runs. Shared infrastructure,
+persistent environments, and unmatched resources remain in the total, which makes that
+share a floor.
 
 ## Attribution
 

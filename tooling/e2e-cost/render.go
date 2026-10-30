@@ -98,6 +98,33 @@ type costReport struct {
 	Script                  template.JS
 }
 
+// formatUSD renders a dollar amount with four decimals and grouped thousands, so
+// a large total reads as $1,263.5800 instead of $1263.5800. Non-finite values
+// keep their plain form.
+func formatUSD(v float64) string {
+	text := fmt.Sprintf("%.4f", v)
+	whole, fraction, ok := strings.Cut(text, ".")
+	if !ok {
+		return "$" + text
+	}
+	sign := ""
+	if strings.HasPrefix(whole, "-") {
+		sign, whole = "-", whole[1:]
+	}
+	var b strings.Builder
+	b.WriteString("$")
+	b.WriteString(sign)
+	for i := 0; i < len(whole); i++ {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			b.WriteString(",")
+		}
+		b.WriteByte(whole[i])
+	}
+	b.WriteString(".")
+	b.WriteString(fraction)
+	return b.String()
+}
+
 // Render writes a self-contained, offline report. Collection diagnostics are
 // report content, not render failures; invalid snapshot data is a render failure.
 func Render(w io.Writer, snapshot *Snapshot) error {
@@ -107,7 +134,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	}
 	view.Runtime, view.CSS, view.Script = template.JS(echartsRuntime), template.CSS(reportCSS), template.JS(reportScript)
 	tmpl, err := template.New("report").Funcs(template.FuncMap{
-		"usd": func(v float64) string { return fmt.Sprintf("$%.4f", v) },
+		"usd": formatUSD,
 		"utc": func(t time.Time) string {
 			if t.IsZero() {
 				return "Unavailable"
@@ -359,7 +386,7 @@ func newCostReport(snapshot *Snapshot) (*costReport, error) {
 	if !view.SubscriptionMode && view.HasCharges && !job.InfraStartedAt.IsZero() && !job.InfraEndedAt.IsZero() && job.InfraEndedAt.After(job.InfraStartedAt) {
 		rate := view.Net / job.InfraEndedAt.Sub(job.InfraStartedAt).Hours()
 		if !math.IsInf(rate, 0) && !math.IsNaN(rate) {
-			view.InfraRate = fmt.Sprintf("$%.4f", rate)
+			view.InfraRate = formatUSD(rate)
 		}
 	}
 	chart := charts.NewTreeMap()

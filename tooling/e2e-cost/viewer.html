@@ -6,12 +6,33 @@
 <title>E2E cost reports</title>
 <style>
 {{.CSS}}
-.site{display:flex;min-height:100vh}.site-nav{flex:0 0 232px;box-sizing:border-box;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--paper);border-right:1px solid var(--line);padding:24px 14px;font-size:13px}.site-nav>a{display:block;font-weight:700;color:var(--ink);text-decoration:none;margin:0 6px 14px}.site-nav ol{list-style:none;margin:0;padding:0}.site-nav li a{display:flex;justify-content:space-between;gap:8px;padding:6px;border-radius:4px;color:var(--ink);text-decoration:none}.site-nav li a:hover{background:#eef3f4}.site-nav li a[aria-current]{background:#e2eef0;font-weight:650}.site-nav small{font-variant-numeric:tabular-nums}.site-main{flex:1;min-width:0}
+.site{display:flex;min-height:100vh}.site-nav{flex:0 0 232px;box-sizing:border-box;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--paper);border-right:1px solid var(--line);padding:24px 14px;font-size:13px}.site-nav .brand{display:block;font-weight:700;color:var(--ink);text-decoration:none;margin:0 6px 18px}.site-nav .nav-link{display:flex;align-items:center;gap:9px;padding:7px 6px;border-radius:4px;color:var(--ink);text-decoration:none;font-weight:600}.site-nav .nav-link svg{flex:0 0 16px;width:16px;height:16px;color:var(--muted);stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.site-nav .nav-link:hover{background:#eef3f4}.site-nav .nav-link[aria-current]{background:#e2eef0;color:var(--accent)}.site-nav .nav-link[aria-current] svg{color:var(--accent)}.site-nav .nav-children{list-style:none;margin:2px 0 18px 14px;padding:2px 0 0 12px;border-left:1px solid var(--line)}.site-nav li a{display:flex;justify-content:space-between;gap:8px;padding:6px;border-radius:4px;color:var(--ink);text-decoration:none}.site-nav li a:hover{background:#eef3f4}.site-nav li a[aria-current]{background:#e2eef0;font-weight:650}.site-nav small{font-variant-numeric:tabular-nums}.site-main{flex:1;min-width:0}
 @media(max-width:900px){.site{display:block}.site-nav{position:static;height:auto;max-height:40vh;border-right:0;border-bottom:1px solid var(--line)}}
+/* fit-view keeps a view inside one laptop screen: the page itself never
+   scrolls, while the chart and long tables scroll or shrink inside their panel. */
+body.fit-view .site{height:100vh;height:100dvh;min-height:0}
+body.fit-view .site-main{display:flex;min-height:0}
+body.fit-view main#view{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;padding-bottom:20px}
+body.fit-view main#view>header{flex:0 0 auto;margin-bottom:12px}
+body.fit-view main#view>section.panel{flex:0 0 auto;margin:10px 0;padding:14px 16px}
+body.fit-view .summary{gap:10px 28px}body.fit-view .metric strong{font-size:22px}
+body.fit-view main#view>.coverage{flex:0 0 auto;margin:12px 0 0}
+body.fit-view main#view>section.grow{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin:12px 0 20px}
+body.fit-view .grow>.table-wrap{flex:1 1 auto;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#c3cfd4 transparent}
+body.fit-view .grow>.table-wrap thead th{position:sticky;top:0;background:var(--paper);z-index:1}
+body.fit-view .grow .costs-chart{height:auto;flex:1 1 auto;min-height:200px}
+@media(max-width:900px),(max-height:600px){body.fit-view .site{height:auto}body.fit-view main#view{height:auto;overflow:visible}}
+.costs-head{display:flex;align-items:center;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin:0 0 14px}.costs-head h2{margin:0}.costs-controls{display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;margin:0}.segmented{display:inline-flex;border:1px solid #8a9ca4;border-radius:4px;overflow:hidden}.segmented button{border:0;background:var(--paper);padding:7px 14px;font:inherit;cursor:pointer;color:var(--ink)}.segmented button+button{border-left:1px solid #8a9ca4}.segmented button[aria-pressed=true]{background:#e2eef0;font-weight:650}.costs-controls select{font:inherit;padding:7px 10px;border:1px solid #8a9ca4;border-radius:4px;background:var(--paper);color:var(--ink)}.costs-chart{height:360px;width:100%}.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:650;color:#fff}.summary .pill{color:#fff}.pill.good{background:#2f7d46}.pill.warning{background:#a85d00}.pill.bad{background:#b3261e}.pill.unknown{background:#6b7280}.coverage{margin:16px 0 0;padding:12px 14px;border:1px solid var(--line);border-radius:4px;background:#f8fafb}.coverage p{margin:0 0 8px}.meter{height:8px;background:#e3e8ea;border-radius:4px;overflow:hidden}.meter>span{display:block;height:100%;background:var(--accent)}.coverage small{display:block;margin-top:8px}
+@media(max-width:640px){.costs-chart{height:300px}}
 </style>
 </head>
 <body><div class="site">
-<nav class="site-nav" aria-label="Report days"><a href="?">E2E cost reports</a><ol id="days"></ol></nav>
+<nav class="site-nav" aria-label="Reports">
+  <a class="brand" href="?view=overall">E2E cost reports</a>
+  <a id="nav-overall" class="nav-link" href="?view=overall"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20v-8M10 20V4M16 20v-6M2 20h20"/></svg>Aggregate spend</a>
+  <a id="nav-runs" class="nav-link" href="?view=runs"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg>E2E runs</a>
+  <ol id="days" class="nav-children" aria-label="E2E run days"></ol>
+</nav>
 <div class="site-main"><main id="view"><p class="muted">Loading…</p></main></div>
 </div>
 <script>{{.Runtime}}</script>
@@ -23,10 +44,28 @@
   const params = new URLSearchParams(location.search);
   const day = params.get("day") || "";
   const run = params.get("run") || "";
+  // The site has two top-level views: the composite cost picture and the list
+  // of e2e runs. A day or run opens a report under the runs view.
+  const section = day || params.get("view") === "runs" ? "runs" : "overall";
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&#34;", "'": "&#39;"}[c]));
   const safeURL = value => /^https:\/\//i.test(value || "") ? value : "";
-  const usd = value => "$" + Number(value || 0).toFixed(4);
-  const usd2 = value => "$" + Number(value || 0).toFixed(2);
+  // usdFixed keeps the caller's precision and groups thousands, so a day total
+  // reads as $9,027.24 rather than $9027.24.
+  const usdFixed = (value, digits) => {
+    const [whole, fraction] = Number(value || 0).toFixed(digits).split(".");
+    const sign = whole.startsWith("-") ? "-" : "";
+    const grouped = (sign ? whole.slice(1) : whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return "$" + sign + grouped + (fraction === undefined ? "" : "." + fraction);
+  };
+  const usd = value => usdFixed(value, 4);
+  const usd2 = value => usdFixed(value, 2);
+  // usdCompact rounds for chart labels and headlines: $12k, $1.2M.
+  const usdCompact = value => {
+    const v = Number(value || 0);
+    if (Math.abs(v) >= 1000000) return "$" + (v / 1000000).toFixed(1) + "M";
+    if (Math.abs(v) >= 1000) return "$" + Math.round(v / 1000) + "k";
+    return "$" + Math.round(v);
+  };
   const known = value => value || "Unknown";
   const utc = value => !value || value.startsWith("0001-") ? "Unavailable" : value.replace("T", " ").replace(/(\.\d+)?Z$/, "") + " UTC";
   const clock = value => !value || value.startsWith("0001-") ? "Unavailable" : value.slice(11, 16) + " UTC";
@@ -45,11 +84,15 @@
     return JSON.parse(new TextDecoder().decode(bytes));
   };
   const unavailable = (title, detail) => {
+    document.body.classList.remove("fit-view");
     view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>' + esc(title) + '</h1></header>' +
       '<section class="panel warning"><p>' + esc(detail) + '</p></section>';
   };
 
   const renderNav = manifest => {
+    // A specific day or run highlights its own row; the section link is current
+    // only on the section's own page.
+    if (!day) document.getElementById("nav-" + section).setAttribute("aria-current", "page");
     const list = document.getElementById("days");
     list.replaceChildren();
     for (const entry of manifest.days || []) {
@@ -68,27 +111,245 @@
     }
   };
 
-  const renderHome = manifest => {
-    document.title = "E2E cost reports";
+  // costPeriodLabel shortens a chart period for the x axis.
+  const costPeriodLabel = (granularity, period) => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const parts = String(period).split("-");
+    if (granularity === "daily") return parts[1] + "-" + parts[2];
+    return months[Number(parts[1]) - 1] + " '" + parts[0].slice(2);
+  };
+
+  // costsSummary leads with the projected month, the reference it is judged
+  // against, and the trailing average.
+  const costsSummary = costs => {
+    const o = costs.overview || {};
+    const budget = Number(costs.budgetUSD || 0);
+    const ratio = Number(o.projectionRatio || 0);
+    const statusLabel = {good: "On track", warning: "Close to budget", bad: "Over budget", unknown: "No reference"}[o.status] || "No reference";
+    let comparison = "";
+    if (o.status && o.status !== "unknown") {
+      comparison = (ratio > 0 ? (ratio * 100).toFixed(1) + "% over" : (-ratio * 100).toFixed(1) + "% under") +
+        (budget > 0 ? " budget" : " the trailing average");
+    }
+    const month = new Date(costs.month + "-01T00:00:00Z").toLocaleString("en-US", {month: "long", year: "numeric", timeZone: "UTC"});
+    return '<section class="panel" aria-label="Projected month"><h2>Projected ' + esc(month) + '</h2><div class="summary">' +
+      '<div class="metric"><span>Projected month</span><strong>' + usdCompact(o.projectedUSD) + '</strong>' +
+        '<span class="pill ' + esc(o.status || "unknown") + '">' + esc(statusLabel) + '</span>' +
+        (comparison ? ' <small class="muted">' + esc(comparison) + '</small>' : '') + '</div>' +
+      '<div class="metric"><span>Month to date</span><strong>' + usdCompact(o.monthToDateUSD) + '</strong><small class="muted">' + usd2(o.monthToDateUSD) + '</small></div>' +
+      '<div class="metric"><span>Forecast, rest of month</span><strong>' + usdCompact(o.forecastRemainingUSD) + '</strong></div>' +
+      (budget > 0 ? '<div class="metric"><span>Monthly budget</span><strong>' + usdCompact(budget) + '</strong></div>' : '') +
+      (o.trailingAverageMonths ? '<div class="metric"><span>' + esc(o.trailingAverageMonths) + '-month average</span><strong>' + usdCompact(o.trailingAverageUSD) + '</strong></div>' : '') +
+      '</div>' + (Number(o.forecastSubscriptions ?? 0) < (costs.subscriptions || []).length
+        ? '<p class="muted" style="margin-top:12px">Azure returned a forecast for ' + esc(o.forecastSubscriptions ?? 0) + ' of ' +
+          esc((costs.subscriptions || []).length) + ' subscriptions, so the rest of ' + esc(month) + ' is a floor.</p>'
+        : '') + '</section>';
+  };
+
+  // costsChartPanel holds the chart and its controls; initCosts fills it in.
+  const costsChartPanel = costs => {
+    const options = (costs.groupings || []).map(g => '<option value="' + esc(g.value) + '">' + esc(g.label) + '</option>').join("");
+    return '<section class="panel grow" aria-label="Monthly and daily spend">' +
+      '<div class="costs-head"><h2>Azure spend, all charted subscriptions</h2>' +
+      '<div class="costs-controls"><div class="segmented" role="group" aria-label="Granularity">' +
+      '<button type="button" data-granularity="monthly" aria-pressed="true">Monthly</button>' +
+      '<button type="button" data-granularity="daily" aria-pressed="false">Daily</button></div>' +
+      '<label for="costs-stack" style="margin:0">Stack by</label>' +
+      '<select id="costs-stack">' + options + '</select></div></div>' +
+      '<div id="costs-chart" class="costs-chart" role="img" aria-label="Stacked bars of amortized Azure cost with Azure forecast for the rest of the current month and reference lines; every figure is also in the tooltip"></div>' +
+      '<p class="muted">Amortized USD from Azure Cost Management. The pale segment is Azure\'s forecast for the rest of the month; the dashed line is the monthly budget.</p>' +
+      (costs.incomplete ? '<p class="badge">Known subtotal: some subscriptions could not be queried</p>' : '') +
+      '</section>';
+  };
+
+  // costsCoverage compares the day views' attributed cost with the total spend
+  // on the same day, which comes from the daily series. Per-run billing windows
+  // overlap, so the denominator must be the daily total, never a sum of runs.
+  const costsCoverage = (costs, manifest) => {
+    const chart = (costs.charts || {}).daily && costs.charts.daily.subscription;
+    if (!chart) return "";
+    const totals = new Map();
+    for (const series of chart.series || []) {
+      (series.values || []).forEach((value, index) => {
+        const period = chart.periods[index];
+        totals.set(period, (totals.get(period) || 0) + Number(value || 0));
+      });
+    }
+    const entry = (manifest.days || []).find(d => (totals.get(d.day) || 0) > 0 && d.netUSD > 0);
+    if (!entry) return "";
+    const total = totals.get(entry.day);
+    const share = Math.max(0, Math.min(100, (entry.netUSD / total) * 100));
+    return '<div class="coverage"><p><strong>' + esc(share.toFixed(0)) + '% of ' + esc(entry.day) + ' spend is attributed to runs</strong> — ' +
+      usdCompact(entry.netUSD) + ' of ' + usdCompact(total) + '.</p>' +
+      '<div class="meter" role="img" aria-label="' + esc(share.toFixed(0)) + ' percent of the day attributed"><span style="width:' + esc(share.toFixed(1)) + '%"></span></div>' +
+      '<small>Attribution covers the resource groups a run provisions; shared infrastructure, persistent environments, and unmatched resources stay in the total. ' +
+      esc(entry.incomplete) + ' of ' + esc(entry.runs) + ' runs are known subtotals, so this share is a floor.</small></div>';
+  };
+
+  const costsDiagnostics = costs => {
+    const errors = (costs.diagnostics || []).filter(d => d.severity === "error");
+    if (!errors.length) return "";
+    return '<section class="panel warning" aria-label="Cost collection diagnostics"><h2>Cost collection diagnostics</h2><ul class="diagnostics">' +
+      errors.map(d => '<li><strong>' + esc(d.code) + '</strong> [' + esc(d.scope) + ']: ' + esc(d.message) + '</li>').join("") + '</ul></section>';
+  };
+
+  // initCosts draws the selected chart. Both granularities and all stack-by
+  // groupings are precomputed in costs.json, so switching never refetches.
+  const initCosts = (costs) => {
+    const host = document.getElementById("costs-chart");
+    const select = document.getElementById("costs-stack");
+    const buttons = [...document.querySelectorAll("[data-granularity]")];
+    if (!host || !select || !window.echarts) return;
+    const palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#86bcb6"];
+    // forecastSeries labels the stacked segment for the rest of the month.
+    const forecastSeries = "Forecast";
+    const chart = echarts.init(host, null, {renderer: "canvas"});
+    const stackOptions = new URLSearchParams(location.search);
+    let granularity = stackOptions.get("granularity") === "daily" ? "daily" : "monthly";
+    let grouping = (costs.groupings || []).some(g => g.value === stackOptions.get("stack")) ? stackOptions.get("stack") : "subscription";
+
+    const draw = () => {
+      const data = (costs.charts[granularity] || {})[grouping];
+      if (!data) return;
+      const labels = data.periods.map(p => costPeriodLabel(granularity, p));
+      const series = data.series.map((entry, index) => ({
+        name: entry.name,
+        type: "bar",
+        stack: "cost",
+        barCategoryGap: granularity === "daily" ? "20%" : "35%",
+        itemStyle: {color: entry.other ? "#9ca3af" : palette[index % palette.length]},
+        emphasis: {focus: "series"},
+        data: entry.values.map(v => Math.round(v * 100) / 100)
+      }));
+      // The only reference line is the budget; the trailing average stays a
+      // summary figure and is not overlaid on the chart.
+      const references = (data.references || []).filter(r => r.kind === "budget");
+      const referenceMax = references.reduce((max, r) => Math.max(max, r.valueUSD), 0);
+      // The forecast series is named after the constant so the tooltip can
+      // separate it from the billed series by name.
+      series.push({
+        name: forecastSeries,
+        type: "bar",
+        stack: "cost",
+        itemStyle: {color: "rgba(148,163,184,0.35)", borderColor: "#94a3b8", borderWidth: 1},
+        data: (data.forecastUSD || []).map(v => v > 0 ? Math.round(v * 100) / 100 : "-"),
+        markLine: references.length ? {
+          symbol: ["none", "none"],
+          silent: true,
+          data: references.map(r => ({
+            yAxis: Math.round(r.valueUSD),
+            name: r.label,
+            lineStyle: {color: "#ef4444", type: "dashed", width: 1},
+            label: {
+              show: true,
+              position: "insideEndTop",
+              color: "#fff",
+              backgroundColor: "#ef4444",
+              borderRadius: 3,
+              fontSize: 11,
+              fontWeight: "bold",
+              formatter: " " + r.label + " "
+            }
+          }))
+        } : undefined
+      });
+      chart.setOption({
+        animation: false,
+        grid: {left: 8, right: 16, top: 18, bottom: 8, containLabel: true},
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {type: "shadow"},
+          formatter: items => {
+            const rows = [];
+            let actual = 0, forecast = 0;
+            for (const item of items) {
+              const value = Number(item.value) || 0;
+              if (!value) continue;
+              if (item.seriesName === forecastSeries) { forecast += value; continue; }
+              actual += value;
+              rows.push({marker: item.marker, name: item.seriesName, value});
+            }
+            rows.sort((a, b) => b.value - a.value);
+            let html = "<b>" + esc(items[0].axisValue) + "</b>";
+            for (const row of rows) html += "<br/>" + row.marker + esc(row.name) + ": " + usdCompact(row.value);
+            html += "<br/><b>Actual: " + usdCompact(actual) + "</b>";
+            if (forecast > 0) html += "<br/>Forecast: " + usdCompact(forecast) + "<br/><b>Projected: " + usdCompact(actual + forecast) + "</b>";
+            return html;
+          }
+        },
+        xAxis: {type: "category", data: labels, axisLabel: {hideOverlap: true, color: "#536872"}},
+        yAxis: {
+          type: "value",
+          splitNumber: 3,
+          max: value => Math.max(value.max, referenceMax) * 1.08,
+          axisLabel: {showMaxLabel: false, color: "#536872", formatter: usdCompact},
+          splitLine: {lineStyle: {color: "rgba(113,113,122,0.2)"}}
+        },
+        series
+      }, true);
+      for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.granularity === granularity));
+      select.value = grouping;
+      const query = new URLSearchParams();
+      query.set("view", "overall");
+      if (granularity !== "monthly") query.set("granularity", granularity);
+      if (grouping !== "subscription") query.set("stack", grouping);
+      history.replaceState(null, "", "?" + query.toString());
+    };
+
+    for (const button of buttons) button.addEventListener("click", () => { granularity = button.dataset.granularity; draw(); });
+    select.addEventListener("change", () => { grouping = select.value; draw(); });
+    window.addEventListener("resize", () => chart.resize());
+    draw();
+    // The chart panel flexes to the viewport once the layout settles.
+    requestAnimationFrame(() => chart.resize());
+  };
+
+  // renderOverall is the aggregate picture: the projected month and the
+  // charted spend across every e2e subscription.
+  const renderOverall = (costs) => {
+    document.body.classList.add("fit-view");
+    document.title = "Aggregate spend | E2E cost reports";
+    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>Aggregate Azure spend</h1>' +
+      '<p class="muted">Amortized Azure spend across the ' + esc((costs.subscriptions || []).length) + ' charted subscriptions, with Azure\'s forecast for the rest of the month. Per-run attribution is on the <a href="?view=runs">E2E runs</a> view.</p></header>' +
+      costsSummary(costs) + costsChartPanel(costs) + costsDiagnostics(costs);
+    initCosts(costs);
+  };
+
+  const renderOverallUnavailable = detail => {
+    document.body.classList.remove("fit-view");
+    document.title = "Aggregate spend | E2E cost reports";
+    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>Aggregate Azure spend</h1></header>' +
+      '<section class="panel warning"><h2>Composite costs are unavailable</h2><p>' + esc(detail) + '</p>' +
+      '<p>Per-run reports are still listed on the <a href="?view=runs">E2E runs</a> view.</p></section>';
+  };
+
+  // renderRuns lists the published days and how much of each day's total spend
+  // the runs explain.
+  const renderRuns = (manifest, costs) => {
     const days = manifest.days || [];
-    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>E2E cost reports</h1>' +
-      '<p class="muted">Daily per-run amortized Azure cost for ARO HCP e2e builds across environments. Each day is collected a few days after it ends, once most billing has arrived.</p></header>' +
-      '<section class="panel" aria-label="Days">' + (days.length ? '<div class="table-wrap"><table><thead><tr><th>Day (UTC)</th><th>Runs</th><th>Incomplete</th><th>Net USD</th></tr></thead><tbody>' +
+    document.body.classList.add("fit-view");
+    document.title = "E2E runs | E2E cost reports";
+    view.innerHTML = '<header><p class="eyebrow">ARO HCP / E2E cost reports</p><h1>E2E runs by day</h1>' +
+      '<p class="muted">Daily per-run amortized Azure cost for ARO HCP e2e builds across environments. Each day is collected a few days after it ends, once most billing has arrived. The whole-budget picture is on the <a href="?view=overall">Aggregate spend</a> view.</p></header>' +
+      (costs ? costsCoverage(costs, manifest) : '') +
+      '<section class="panel grow" aria-label="Days">' +
+      (days.length ? '<p class="muted">One row per UTC day. The table lists every e2e-parallel build that started that day with its attributed cost.</p><div class="table-wrap"><table><thead><tr><th>Day (UTC)</th><th>Runs</th><th>Incomplete</th><th>Net USD</th></tr></thead><tbody>' +
         days.map(d => '<tr><td><a href="?day=' + encodeURIComponent(d.day) + '">' + esc(d.day) + '</a></td><td>' + esc(d.runs) + '</td><td>' + esc(d.incomplete) + '</td><td class="money">' + usd2(d.netUSD) + '</td></tr>').join("") +
         '</tbody></table></div>' : '<p>No days published yet.</p>') + '</section>';
   };
 
   const renderDay = index => {
+    document.body.classList.add("fit-view");
     document.title = "E2E costs | " + index.day;
     const s = index.summary || {};
     const runs = index.runs || [];
-    view.innerHTML = '<header><p class="eyebrow"><a href="?">ARO HCP / E2E cost reports</a></p><h1>E2E runs started ' + esc(index.day) + ' (UTC)</h1>' +
+    view.innerHTML = '<header><p class="eyebrow"><a href="?view=runs">ARO HCP / E2E runs</a></p><h1>E2E runs started ' + esc(index.day) + ' (UTC)</h1>' +
       '<p class="muted">Per-run amortized Azure cost for ARO HCP e2e builds. Shared infrastructure is excluded; stage and prod runs test persistent environments, so only their test resources are reported. Billing is provisional and can arrive late.</p></header>' +
       '<section class="panel" aria-label="Day summary"><div class="summary">' +
       '<div class="metric"><span>Runs</span><strong>' + esc(s.runs) + '</strong></div>' +
       '<div class="metric"><span>Net cost' + (s.incomplete ? ' (known subtotal)' : '') + '</span><strong>' + usd2(s.netUSD) + '</strong></div>' +
       (s.incomplete ? '<div class="metric"><span>Incomplete runs</span><strong>' + esc(s.incomplete) + '</strong></div>' : '') +
-      '</div></section><section class="panel" aria-label="Runs"><h2>Runs, most expensive first</h2>' +
+      '</div></section><section class="panel grow" aria-label="Runs"><h2>Runs, most expensive first</h2>' +
       (runs.length ? '<div class="table-wrap"><table><thead><tr><th>Run</th><th>Job</th><th>PR</th><th>Started</th><th>Result</th><th>Infra USD</th><th>Tests USD</th><th>Net USD</th></tr></thead><tbody>' +
         runs.map(r => '<tr><td><a href="?day=' + encodeURIComponent(index.day) + '&amp;run=' + encodeURIComponent(r.buildID) + '">' + esc(r.buildID) + '</a>' +
           (r.complete ? '' : ' <span class="badge">Known subtotal</span>') +
@@ -101,6 +362,7 @@
   // renderReport reproduces report.html's job-mode markup, then mounts the
   // shared interactive script, so a run looks the same as its single-file report.
   const renderReport = (d, licenses) => {
+    document.body.classList.remove("fit-view");
     const j = d.job || {};
     document.title = "E2E cost report | " + (j.name || "");
     const diagnostic = (x, severity) => '\n<li><strong>' + (severity ? esc(x.severity) + ' / ' : '') + esc(x.code) + '</strong>' + (x.scope ? ' [' + esc(x.scope) + ']' : '') + ': ' + esc(x.message) + '</li>';
@@ -152,7 +414,18 @@
       if (!day) return unavailable("E2E cost reports", "No published days could be loaded (" + error.message + ").");
     }
     renderNav(manifest);
-    if (!day) return renderHome(manifest);
+    if (!day) {
+      let costs = null, failure = "";
+      try {
+        costs = await fetchJSON("costs.json");
+      } catch (error) {
+        // The composite page is refreshed beside the day index; a missing or
+        // failed costs.json must not hide the published runs.
+        failure = error.message;
+      }
+      if (section === "overall") return costs ? renderOverall(costs) : renderOverallUnavailable("costs.json could not be loaded (" + failure + ").");
+      return renderRuns(manifest, costs);
+    }
     if (!validDay || (run && !validRun)) return unavailable("Report unavailable", "The requested day or run is not valid.");
     try {
       if (!run) return renderDay(await fetchJSON(day + "/index.json"));

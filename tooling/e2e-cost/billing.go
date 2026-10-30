@@ -360,10 +360,22 @@ func billingWait(ctx context.Context, header string, fallback time.Duration) err
 }
 
 func billingRequest(ctx context.Context, client *http.Client, credential azcore.TokenCredential, method, target, body string, authenticated bool) (*http.Response, error) {
+	return billingRequestAttempts(ctx, client, credential, method, target, body, authenticated, 4)
+}
+
+// errBillingTransport marks a connection-level failure. Its details are
+// deliberately withheld because http.Client errors embed URLs, including
+// download SAS credentials, so callers can only test for this sentinel.
+var errBillingTransport = errors.New("billing HTTP request failed or was cancelled; endpoint and response details omitted")
+
+// billingRequestAttempts bounds how many times a throttled request is retried.
+// Cost Management Query API calls share a low tenant-wide quota, so they ask for
+// more attempts than the report generator needs.
+func billingRequestAttempts(ctx context.Context, client *http.Client, credential azcore.TokenCredential, method, target, body string, authenticated bool, attempts int) (*http.Response, error) {
 	if !billingURL(target, authenticated) {
 		return nil, errors.New("rejected untrusted billing endpoint")
 	}
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		if ctx.Err() != nil {
 			return nil, errors.New("billing request cancelled or timed out")
 		}
@@ -381,15 +393,14 @@ func billingRequest(ctx context.Context, client *http.Client, credential azcore.
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			// http.Client errors embed URLs, including download SAS credentials.
-			return nil, errors.New("billing HTTP request failed or was cancelled; endpoint and response details omitted")
+			return nil, errBillingTransport
 		}
 		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusServiceUnavailable {
 			return resp, nil
 		}
 		resp.Body.Close()
-		if attempt == 3 {
-			return nil, fmt.Errorf("billing HTTP %d after four attempts", resp.StatusCode)
+		if attempt == attempts-1 {
+			return nil, fmt.Errorf("billing HTTP %d after %d attempts", resp.StatusCode, attempts)
 		}
 		if err := billingWait(ctx, billingRetryAfter(resp.Header), time.Second<<attempt); err != nil {
 			return nil, err
