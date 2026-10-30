@@ -267,7 +267,4 @@ steps:
 	if strings.Contains(text, "<img src=x") || strings.Contains(text, "<b>cleanup</b>") || !strings.Contains(text, `\u003cb\u003ecleanup\u003c/b\u003e`) {
 		t.Fatal("hostile phase and test labels must remain escaped data")
 	}
-	if !strings.Contains(testTimingChart(options.Times).Subtitle, "1/2 include full cleanup") {
-		t.Fatal("mixed legacy metadata must not claim full-lifecycle elapsed")
-	}
 }

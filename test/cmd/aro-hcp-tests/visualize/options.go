@@ -379,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// TestTimingChart sorts tests chronologically and renders lifecycle, phase, operation, and gap rows in two series.
+// TestTimingChart renders theme-aware lifecycle, phase, operation, and gap rows in two series.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -429,7 +429,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Value: float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
 			ItemStyle: &opts.ItemStyle{
 				Color:       colors[identifier],
-				BorderColor: "black",
 				BorderWidth: 1,
 			},
 		})
@@ -441,7 +440,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			style := &opts.ItemStyle{Color: colors[identifier]}
 			switch row.Kind {
 			case "phase":
-				style.BorderColor = "black"
 				style.BorderWidth = 1
 				style.Opacity = opts.Float(0.45)
 			case "gap":
@@ -465,7 +463,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:      "ARO HCP End-to-End Test Timing",
+			Title:      "Test timing",
 			Subtitle:   lifecycleSubtitle(times, endTime.Sub(startTime)),
 			TitleStyle: &opts.TextStyle{Align: "left"},
 			TextAlign:  "left",
@@ -505,6 +503,27 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	waterfall.AddJSFuncStrs(
 		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({xAxis: {axisLabel: {formatter: `+millisecondAxisFormatter(startTime.Format(time.RFC3339Nano))+`}}, tooltip: {confine: true, formatter: `+testTimingTooltipFormatter+`}});`),
 		opts.FuncOpts(`window.addEventListener('resize', () => {`+render.EchartsInstancePlaceholder+`.resize();});`),
+		opts.FuncOpts(`(() => {
+			const chart = `+render.EchartsInstancePlaceholder+`;
+			const applyTheme = () => {
+				const style = getComputedStyle(document.body);
+				const color = style.color;
+				chart.setOption({
+					backgroundColor: 'transparent',
+					textStyle: {color},
+					title: {textStyle: {color}, subtextStyle: {color}},
+					xAxis: {axisLabel: {color}, axisLine: {lineStyle: {color}}, splitLine: {lineStyle: {color, opacity: 0.15}}},
+					tooltip: {backgroundColor: style.backgroundColor, borderColor: color, textStyle: {color}},
+					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
+					series: [{}, {itemStyle: {borderColor: color}}]
+				});
+			};
+			applyTheme();
+			window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+			new MutationObserver(applyTheme).observe(document.documentElement, {
+				attributes: true, attributeFilter: ['class', 'style', 'data-darkreader-scheme']
+			});
+		})();`),
 	)
 
 	return waterfall

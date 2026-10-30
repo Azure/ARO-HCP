@@ -333,6 +333,7 @@ The report shows full test intervals, separate lifecycle phases and nested
 operation steps. Gray intervals identify work without a named operation span.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
+The compact summary and chart follow the browser's light/dark color scheme.
 
 The summary reports means and sample counts for recorded cluster creation,
 nodepool creation, cluster deletion, resource-group cleanup and full cleanup.

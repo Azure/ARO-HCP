@@ -59,9 +59,9 @@ func lifecycleSubtitle(times []TestInfo, elapsed time.Duration) string {
 		}
 	}
 	if full == len(times) {
-		return fmt.Sprintf("Test lifecycle elapsed: %s (includes cleanup; excludes Prow build/pre/post)", elapsed)
+		return fmt.Sprintf("Test elapsed: %s (including cleanup)", elapsed)
 	}
-	return fmt.Sprintf("Recorded test envelope: %s (%d/%d include full cleanup; legacy intervals may end early; excludes Prow build/pre/post)", elapsed, full, len(times))
+	return fmt.Sprintf("Recorded: %s (%d/%d with full cleanup)", elapsed, full, len(times))
 }
 
 // ClipSpan intersects a recorded interval with its enclosing test or phase interval.
@@ -198,7 +198,7 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 		{Name: timing.KindCreateNodePool},
 		{Name: timing.KindDeleteCluster},
 		{Name: timing.KindResourceGroupCleanup},
-		{Name: "Full cleanup (harvest, debug, deletion, purge, identity release)"},
+		{Name: "Full cleanup"},
 	}}
 	for _, item := range times {
 		if hasFullLifecycle(item) {
@@ -264,13 +264,19 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 	return summary
 }
 
-var summaryTemplate = template.Must(template.New("lifecycle-summary").Parse(`<section style="font:14px sans-serif;padding:16px;max-width:1000px;margin:auto">
-<h2>Successful-test operation averages</h2>
-<p>Only final outcome <code>passed</code> contributes: {{.Passed}} passed tests. Excluded tests: {{.Failed}} failed/panicked, {{.TimedOut}} timed out, {{.Unknown}} unknown outcome, {{.Other}} other outcomes.</p>
-<p>Full lifecycle metadata: {{.Full}} tests; legacy/unknown cleanup coverage: {{.Legacy}} tests. The chart measures the recorded test envelope, not Prow build/pre/post time. Historical intervals can end before cleanup.</p>
-<table style="border-collapse:collapse;text-align:left" cellpadding="6"><thead><tr><th>Operation</th><th>Mean</th><th>Samples</th><th>Incomplete spans excluded</th></tr></thead><tbody>{{range .Rows}}<tr><td>{{.Name}}</td><td>{{.Mean}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Resource-group cleanup includes contained resources and purge. Categories are independent, not additive: full cleanup includes harvest/debug and nested deletion work. Each complete provisioning, deletion or resource-group cleanup operation with outcome <code>succeeded</code> contributes one sample, even when its interval overlaps another operation. No-wait cluster-creation requests measure submission only and are excluded from provisioning averages. Failed and unknown operation outcomes remain visible but never contribute operation averages, including expected rejections in passing tests. Missing kinds or outcomes in legacy artifacts are not inferred from labels or the enclosing test.</p>
-<p>Outlined test bars show recorded start → finish; translucent phase bars do not count as operation coverage. Gray bars explicitly show untracked time after taking the union of operation intervals, clipped to phase/test boundaries. Incomplete spans are labeled and never contribute successful samples.</p>
+var summaryTemplate = template.Must(template.New("lifecycle-summary").Parse(`<style>
+:root { color-scheme: light dark; }
+body { margin: 0; color: CanvasText; background: Canvas; }
+.timing-summary { font: 14px/1.5 sans-serif; padding: 16px; max-width: 1000px; margin: auto; }
+.timing-summary h2 { font-size: 18px; margin: 0 0 8px; }
+.timing-summary p { margin: 8px 0; }
+.timing-summary table { width: 100%; border-collapse: collapse; text-align: left; }
+.timing-summary th, .timing-summary td { padding: 6px 8px; border-bottom: 1px solid GrayText; }
+</style><section class="timing-summary">
+<h2>Operation averages</h2>
+<p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
+<table><thead><tr><th>Operation</th><th>Average</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr><td>{{.Name}}</td><td>{{.Mean}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
+<p>Outline: test · Shaded: phase · Gray: untracked work.</p>
 </section>`))
 
 // LifecycleSummaryHTML renders an escaped, visible summary above the timing chart.
