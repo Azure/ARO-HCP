@@ -351,7 +351,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx
 // Functions from deployment_helper.go
 // ========================================================================
 
-// CreateHCPClusterFromParam20240610 creates a cluster and records its provisioning duration.
+// CreateHCPClusterFromParam20240610 records submission or provisioning time according to whether it waits for completion.
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
@@ -369,7 +369,11 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestOperation(timing.KindCreateCluster, fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime, operationErr)
+		kind, format := timing.KindCreateCluster, "Deploy HCP cluster %s/%s"
+		if timeout <= 0 {
+			kind, format = timing.KindCreateClusterRequest, "Submit HCP cluster %s/%s"
+		}
+		tc.RecordTestOperation(kind, fmt.Sprintf(format, resourceGroupName, clusterName), startTime, finishTime, operationErr)
 	}()
 
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())

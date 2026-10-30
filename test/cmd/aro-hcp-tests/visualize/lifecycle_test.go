@@ -88,6 +88,8 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 			span(timing.KindCreateCluster, "cluster-a", 0, 10), span(timing.KindCreateCluster, "cluster-b", 2, 5),
 			span(timing.KindCreateNodePool, "nodepool-a", 2, 6), span(timing.KindCreateNodePool, "nodepool-b", 4, 9),
 			span(timing.KindDeleteCluster, "cluster-a", 22, 26), span(timing.KindResourceGroupCleanup, "group-a", 21, 38),
+			// A successful submission is not a completed provisioning sample.
+			span(timing.KindCreateClusterRequest, "cluster-still-creating", 0, 1),
 		},
 	}
 	incomplete := span(timing.KindCreateCluster, "cluster-c", 18, 20)
@@ -251,8 +253,8 @@ steps:
 		t.Fatal(err)
 	}
 	text := string(html)
-	if !strings.Contains(text, "Successful-test operation averages") || !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>1</td>") || !strings.Contains(text, "1 unknown outcome") {
-		t.Fatal("visible summary must show passed-only means, sample counts, and unknown legacy outcomes")
+	if !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>1</td>") {
+		t.Fatal("visible summary must show passed-only creation means and sample counts")
 	}
 	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")

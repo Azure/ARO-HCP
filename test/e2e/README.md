@@ -345,6 +345,11 @@ successful operations remain separate samples. Resource-group cleanup includes
 contained resources and purge, so categories are independent and must not be
 added together.
 
+Cluster creation with a nonpositive timeout does not wait for provisioning. Its
+`create-cluster-request` span measures submission and the initial status poll,
+not resource readiness. It remains visible on the timeline but is excluded from
+creation averages, even when both the request and the test pass.
+
 Historical metadata remains readable, but its missing cleanup intervals and
 unknown outcomes are labeled rather than reconstructed. Regenerate a report with:
 

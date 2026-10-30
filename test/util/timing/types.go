@@ -28,6 +28,7 @@ type Resource = utilitytiming.Resource
 // Operation kinds keep duration summaries independent of human-readable labels.
 const (
 	KindCreateCluster        = "create-cluster"
+	KindCreateClusterRequest = "create-cluster-request"
 	KindCreateNodePool       = "create-nodepool"
 	KindDeleteCluster        = "delete-cluster"
 	KindResourceGroupCleanup = "resource-group-cleanup"

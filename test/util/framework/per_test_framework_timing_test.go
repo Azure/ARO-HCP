@@ -39,6 +39,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -159,7 +163,7 @@ func TestTimingPhasesRetainInterruptedBoundaries(t *testing.T) {
 }
 
 func TestFrameworkTimingLifecycle(t *testing.T) {
-	for _, scenario := range []string{"success", "expected-rejection", "body-failure", "cleanup-failure", "cleanup-timeout"} {
+	for _, scenario := range []string{"success", "expected-rejection", "no-wait-create", "body-failure", "cleanup-failure", "cleanup-timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			if retained := os.Getenv("ARO_HCP_TIMING_SMOKE_ARTIFACTS"); retained != "" {
@@ -172,7 +176,7 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 			cmd.Env = append(os.Environ(), "ARO_HCP_TIMING_SMOKE_CHILD="+scenario, "ARO_HCP_TIMING_SMOKE_ROOT="+root)
 			output, err := cmd.CombinedOutput()
 			require.NoError(t, ctx.Err(), "child exceeded its deterministic deadline: %s", output)
-			if scenario == "success" || scenario == "expected-rejection" {
+			if scenario == "success" || scenario == "expected-rejection" || scenario == "no-wait-create" {
 				require.NoError(t, err, "%s", output)
 			} else {
 				var exitError *exec.ExitError
@@ -226,6 +230,17 @@ func TestFrameworkTimingLifecycle(t *testing.T) {
 				require.Equal(t, timing.OutcomeSucceeded, operations[1].Outcome)
 				require.Contains(t, operations[0].Name, "rejected")
 				require.Contains(t, operations[1].Name, "accepted")
+			}
+			if scenario == "no-wait-create" {
+				var requests []timing.StepTimingMetadata
+				for _, step := range metadata.Steps {
+					require.NotEqual(t, timing.KindCreateCluster, step.Kind, "acceptance must not be recorded as completed provisioning")
+					if step.Kind == timing.KindCreateClusterRequest {
+						requests = append(requests, step)
+						require.Equal(t, timing.OutcomeSucceeded, step.Outcome, "only the request, not provisioning, has succeeded")
+					}
+				}
+				require.Len(t, requests, 5, "all five API versions must retain their request spans")
 			}
 			require.Contains(t, stepNames, "Controlled teardown")
 			require.Contains(t, stepNames, "Delete created resources")
@@ -301,6 +316,9 @@ func TestFrameworkTimingLifecycleChild(t *testing.T) {
 			if scenario == "body-failure" {
 				ginkgo.Fail("intentional body failure")
 			}
+			if scenario == "no-wait-create" {
+				exerciseNoWaitClusterTiming(tc)
+			}
 			if scenario == "expected-rejection" {
 				// Exercise the public framework wrapper and SDK HTTP transport, not a manually recorded span.
 				options := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
@@ -360,6 +378,67 @@ func TestFrameworkTimingLifecycleChild(t *testing.T) {
 	_, err := tc.azureLogFile.WriteString("must be closed")
 	if !errors.Is(err, os.ErrClosed) {
 		t.Errorf("Azure log was not closed after teardown: %v", err)
+	}
+}
+
+// ExerciseNoWaitClusterTiming leaves each real SDK operation InProgress after its sole status poll.
+func exerciseNoWaitClusterTiming(tc *perItOrDescribeTestContext) {
+	options := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
+	var methods []string
+	options.Transport = &fakeTransport{do: func(req *http.Request) (*http.Response, error) {
+		methods = append(methods, req.Method)
+		status, body := http.StatusOK, `{"status":"InProgress"}`
+		header := make(http.Header)
+		header.Set("Content-Type", "application/json")
+		switch req.Method {
+		case http.MethodPut:
+			status = http.StatusCreated
+			body = `{"name":"no-wait","location":"uksouth","properties":{"provisioningState":"Creating"}}`
+			header.Set("Azure-AsyncOperation", req.URL.Scheme+"://"+req.URL.Host+"/operations/no-wait")
+		case http.MethodGet:
+			if req.URL.Path != "/operations/no-wait" {
+				return nil, errors.New("unexpected result fetch before provisioning completed")
+			}
+		default:
+			return nil, errors.New("unexpected request in no-wait timing regression")
+		}
+		return &http.Response{
+			StatusCode: status, Header: header,
+			Body: io.NopCloser(strings.NewReader(body)), Request: req,
+		}, nil
+	}}
+	var err error
+	tc.clientFactory20240610, err = hcpsdk20240610preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	tc.clientFactory20251223, err = hcpsdk20251223preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	tc.clientFactory20260630, err = hcpsdk20260630preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	tc.clientFactory20260901, err = hcpsdk20260901preview.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	tc.clientFactory20261001, err = hcpsdk20261001.NewClientFactory(fakeSubscriptionID, tc.perBinaryInvocationTestContext.azureCredentials, options)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	ctx, logger := context.Background(), logr.Discard()
+	for _, create := range []func() error{
+		func() error {
+			return tc.CreateHCPClusterFromParam20240610(ctx, logger, "rg", ClusterParams20240610{ClusterName: "no-wait", OpenshiftVersionId: "4.21"}, 0)
+		},
+		func() error {
+			return tc.CreateHCPClusterFromParam20251223(ctx, logger, "rg", ClusterParams20251223{ClusterName: "no-wait", OpenshiftVersionId: "4.21"}, nil, 0)
+		},
+		func() error {
+			return tc.CreateHCPClusterFromParam20260630(ctx, logger, "rg", ClusterParams20260630{ClusterName: "no-wait", OpenshiftVersionId: "4.21"}, nil, 0)
+		},
+		func() error {
+			return tc.CreateHCPClusterFromParam20260901(ctx, logger, "rg", ClusterParams20260901{ClusterName: "no-wait", OpenshiftVersionId: "4.21"}, nil, 0)
+		},
+		func() error {
+			return tc.CreateHCPClusterFromParam20261001(ctx, logger, "rg", ClusterParams20261001{ClusterName: "no-wait", OpenshiftVersionId: "4.21"}, nil, 0)
+		},
+	} {
+		methods = nil
+		gomega.Expect(create()).To(gomega.Succeed())
+		gomega.Expect(methods).To(gomega.Equal([]string{http.MethodPut, http.MethodGet}), "no-wait must not wait for or fetch a completed cluster")
 	}
 }
 
