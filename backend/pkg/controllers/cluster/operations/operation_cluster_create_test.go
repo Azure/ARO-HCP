@@ -1433,6 +1433,21 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			succeeded: true,
 		},
 		{
+			name: "missing condition does not undo a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+			},
+			succeeded: true,
+		},
+		{
+			name: "unknown condition does not undo a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "Unknown"}},
+			},
+			succeeded: true,
+		},
+		{
 			name: "later update failure does not undo a successful first sync",
 			status: secretsyncv1alpha1.SecretSyncStatus{
 				LastSuccessfulSyncTime: &syncedAt,

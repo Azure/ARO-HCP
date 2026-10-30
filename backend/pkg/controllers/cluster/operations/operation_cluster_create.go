@@ -482,9 +482,8 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
-// the ingress wildcard certificate's SecretSync has synced at least once and reports
-// a known SecretUpdated status (True or False). Later failures do not undo this
-// creation milestone; this is not a current provider-health check.
+// the ingress wildcard certificate's SecretSync records a successful sync.
+// Later failures do not undo this creation milestone; conditions are diagnostic only.
 //
 // With secrets-store-sync-controller v0.0.6, SecretCreated is no longer written;
 // successful creates and updates use SecretUpdated=True with reason SecretUpToDate.
@@ -544,12 +543,9 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 
 	// A later failure does not invalidate the initial sync. In v0.0.6,
 	// unchanged-data recovery can leave SecretUpdated=False after a prior failure.
-	updatedCondition := meta.FindStatusCondition(secretSync.Status.Conditions, "SecretUpdated")
-	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() &&
-		updatedCondition != nil &&
-		(updatedCondition.Status == metav1.ConditionTrue || updatedCondition.Status == metav1.ConditionFalse) {
-		if updatedCondition.Status == metav1.ConditionFalse {
-			logger.Info("ingress SecretSync previously synced; latest update condition is false", "secretSync.Status.Conditions", secretSync.Status.Conditions)
+	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() {
+		if !meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretUpdated") {
+			logger.Info("ingress SecretSync previously synced; latest update condition is not true", "secretSync.Status.Conditions", secretSync.Status.Conditions)
 		}
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
