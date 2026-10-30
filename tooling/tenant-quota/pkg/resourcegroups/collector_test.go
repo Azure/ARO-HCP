@@ -60,10 +60,10 @@ func testConfig(subs ...config.SubscriptionConfig) *config.Config {
 		},
 		Tenants: []config.TenantConfig{
 			{
-				TenantID:                 "test-tenant",
-				ServicePrincipalClientId: "test-sp",
-				KeyVaultSecretName:       "test-secret",
-				Subscriptions:            subs,
+				TenantID:                       "test-tenant",
+				ClientIDKeyVaultSecretName:     "test-sp",
+				ClientSecretKeyVaultSecretName: "test-secret",
+				Subscriptions:                  subs,
 			},
 		},
 	}
@@ -311,9 +311,9 @@ func TestCollectAll_SkipsTenantWithoutSubscriptions(t *testing.T) {
 		},
 		Tenants: []config.TenantConfig{
 			{
-				TenantID:                 "test-tenant",
-				ServicePrincipalClientId: "test-sp",
-				KeyVaultSecretName:       "test-secret",
+				TenantID:                       "test-tenant",
+				ClientIDKeyVaultSecretName:     "test-sp",
+				ClientSecretKeyVaultSecretName: "test-secret",
 			},
 		},
 	}
