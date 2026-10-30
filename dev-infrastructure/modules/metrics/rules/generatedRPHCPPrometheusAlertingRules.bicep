@@ -215,7 +215,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful 6-hourly backup in over 13h on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful 6-hourly backup in over 13h on {{ $labels.cluster }}'
         }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))) > 13 * 3600'
+        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"} and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)))) > 13 * 3600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -245,7 +245,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful daily backup in over 49h on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful daily backup in over 49h on {{ $labels.cluster }}'
         }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))) > 49 * 3600'
+        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"} and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)))) > 49 * 3600'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -275,7 +275,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful weekly backup in over 337h on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful weekly backup in over 337h on {{ $labels.cluster }}'
         }
-        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))) > 337 * 3600'
+        expression: '(time() - min by (cluster, region) (max by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"} and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)))) > 337 * 3600'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -305,7 +305,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful backup timestamp after 12h of observed 6-hourly schedule status on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful backup timestamp after 12h of observed 6-hourly schedule status on {{ $labels.cluster }}'
         }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0'
+        expression: 'count by (cluster, region) (((group by (cluster, schedule, namespace, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"})) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-6-hourly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}))[12h:1m]) >= 716)) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -335,7 +335,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful backup timestamp after 48h of observed daily schedule status on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful backup timestamp after 48h of observed daily schedule status on {{ $labels.cluster }}'
         }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0'
+        expression: 'count by (cluster, region) (((group by (cluster, schedule, namespace, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"})) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-daily"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}))[2d:5m]) >= 574)) > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -365,7 +365,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'at least one HostedCluster has no successful backup timestamp after 336h of observed weekly schedule status on {{ $labels.cluster }}'
           title: 'at least one HostedCluster has no successful backup timestamp after 336h of observed weekly schedule status on {{ $labels.cluster }}'
         }
-        expression: 'count by (cluster, region) ((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0'
+        expression: 'count by (cluster, region) (((group by (cluster, schedule, namespace, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"})) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) and on (cluster, schedule) (count_over_time((group by (cluster, schedule, region) (velero_hcp_backup_last_status{schedule=~".+-weekly"}) unless on (cluster, schedule) group by (cluster, schedule, region) (velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}))[2w:15m]) >= 1341)) > 0'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -407,7 +407,7 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Velero backup failure rate above SLO (>0.5%) on {{ $labels.cluster }}'
           title: 'Velero backup failure rate above SLO (>0.5%) on {{ $labels.cluster }}'
         }
-        expression: '((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5'
+        expression: '((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) / ((sum by (cluster, region) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) + (sum by (cluster, region) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0)) or 0 * sum by (cluster, region) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))))) < 0.995 and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0))) >= 5'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -449,7 +449,7 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Velero backup p99 duration above SLO (>20m) on {{ $labels.cluster }}'
           title: 'Velero backup p99 duration above SLO (>20m) on {{ $labels.cluster }}'
         }
-        expression: '(histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))) >= 5'
+        expression: '(histogram_quantile(0.99, sum by (cluster, le, region) (rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0))) > 1200) and on (cluster) sum by (cluster, region) (max without (prometheus_replica) (increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h]) and on (cluster, namespace) max by (cluster, namespace, region) (hostedClusterAPI_deletion_timestamp_seconds == 0))) >= 5'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -494,6 +494,48 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
         expression: '(avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[12h:1m]) < 0.1 * avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m])) and avg_over_time((sum by (cluster, region) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[5m]))))[1d:1m]) > 0'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpBackupSloGateHealthAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_backup_slo_gate_health_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyBackupDeletionGaugeAbsent'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '3'
+          slo: 'backup-availability'
+        }
+        annotations: {
+          correlationId: 'userJourneyBackupDeletionGaugeAbsent/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} exports velero backup-schedule metrics but no hostedClusterAPI_deletion_timestamp_seconds series. The backup SLO alerts gate on that gauge and fail closed, so they are currently blind on this cluster. Check kube-state-metrics health and the metric\'s relabeling/routing to the HCP workspace. Until this clears, backup failures on this cluster will not alert.'
+          info: 'Management cluster {{ $labels.cluster }} exports velero backup-schedule metrics but no hostedClusterAPI_deletion_timestamp_seconds series. The backup SLO alerts gate on that gauge and fail closed, so they are currently blind on this cluster. Check kube-state-metrics health and the metric\'s relabeling/routing to the HCP workspace. Until this clears, backup failures on this cluster will not alert.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
+          summary: 'deletion-timestamp gauge missing while velero backups are reported on {{ $labels.cluster }}'
+          title: 'deletion-timestamp gauge missing while velero backups are reported on {{ $labels.cluster }}'
+        }
+        expression: 'group by (cluster, region) (velero_hcp_backup_last_status{schedule=~".+-(6-hourly|daily|weekly)"}) unless on (cluster) group by (cluster, region) (hostedClusterAPI_deletion_timestamp_seconds)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

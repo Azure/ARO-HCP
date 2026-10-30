@@ -90,6 +90,16 @@ spec:
     # breaching) is mathematically redundant here - both windows would always
     # read the same current lag value. Each cadence gets one absolute
     # threshold, not a second confirmation window.
+    #
+    # Deletion gate: a HostedCluster marked for deletion keeps velero exporting the
+    # frozen velero_hcp_backup_last_successful_timestamp (an instant-vector lookup
+    # only looks ~5m back, so a growing lag means the series is still being scraped,
+    # not read from history), so the lag grows past the threshold and would fire even
+    # though the cluster is going away. Each timestamp is gated on a live,
+    # not-marked-for-deletion HostedCluster (hostedClusterAPI_deletion_timestamp_seconds
+    # == 0) before the min/max. Once the cluster is fully gone velero stops exporting
+    # and the series goes stale on its own. See the full rationale on
+    # userJourneyBackupErrors.
     - alert: userJourneyBackupAvailability6Hourly
       expr: |
         (
@@ -98,6 +108,7 @@ spec:
           min by (cluster) (
             max by (cluster, schedule) (
               velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+              and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
             )
           )
         )
@@ -120,6 +131,7 @@ spec:
           min by (cluster) (
             max by (cluster, schedule) (
               velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
+              and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
             )
           )
         )
@@ -142,6 +154,7 @@ spec:
           min by (cluster) (
             max by (cluster, schedule) (
               velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
+              and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
             )
           )
         )
@@ -199,13 +212,17 @@ spec:
       expr: |
         count by (cluster) (
           (
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_status{schedule=~".+-6-hourly"}
+            (
+              group by (cluster, schedule, namespace) (
+                velero_hcp_backup_last_status{schedule=~".+-6-hourly"}
+              )
+              unless on (cluster, schedule)
+              group by (cluster, schedule) (
+                velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
+              )
             )
-            unless on (cluster, schedule)
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_successful_timestamp{schedule=~".+-6-hourly"}
-            )
+            and on (cluster, namespace)
+            max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
           )
           and on (cluster, schedule) (
             count_over_time(
@@ -235,13 +252,17 @@ spec:
       expr: |
         count by (cluster) (
           (
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_status{schedule=~".+-daily"}
+            (
+              group by (cluster, schedule, namespace) (
+                velero_hcp_backup_last_status{schedule=~".+-daily"}
+              )
+              unless on (cluster, schedule)
+              group by (cluster, schedule) (
+                velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
+              )
             )
-            unless on (cluster, schedule)
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_successful_timestamp{schedule=~".+-daily"}
-            )
+            and on (cluster, namespace)
+            max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
           )
           and on (cluster, schedule) (
             count_over_time(
@@ -271,13 +292,17 @@ spec:
       expr: |
         count by (cluster) (
           (
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_status{schedule=~".+-weekly"}
+            (
+              group by (cluster, schedule, namespace) (
+                velero_hcp_backup_last_status{schedule=~".+-weekly"}
+              )
+              unless on (cluster, schedule)
+              group by (cluster, schedule) (
+                velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
+              )
             )
-            unless on (cluster, schedule)
-            group by (cluster, schedule) (
-              velero_hcp_backup_last_successful_timestamp{schedule=~".+-weekly"}
-            )
+            and on (cluster, namespace)
+            max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
           )
           and on (cluster, schedule) (
             count_over_time(
@@ -349,39 +374,80 @@ spec:
     # schedule name contains "-keyrotation-") would count toward the same
     # fleet-wide ratio as the recurring-cadence SLI, even though they aren't
     # part of the user-journey cadence this alert tracks.
+    #
+    # Deletion gate (ARO-30442 / ARO-30446): a backup that races an HCP deletion
+    # finishes failed/partial, and velero's recorded counter samples stay in the 6h
+    # rate() window even after the Schedule and HostedCluster are deleted, so the
+    # breach does not age out when the cluster goes away. (The Availability signal is
+    # the marked-for-deletion case instead: velero keeps exporting the frozen
+    # last-successful timestamp.) Each completed-outcome counter here - and the
+    # freshness timestamps (Availability), the NeverSucceeded breach indicator, and
+    # both volume floors - is therefore counted only while a matching HostedCluster
+    # is still present AND not marked for deletion:
+    #   `and on (cluster, namespace) max by (cluster, namespace)
+    #        (hostedClusterAPI_deletion_timestamp_seconds == 0)`
+    # The gauge (kube-state-metrics hostedClusterAPI_deletion_timestamp_seconds,
+    # exposed on management clusters) is 0 while the HostedCluster is live, >0 once
+    # marked for deletion, and absent once the CR is removed, so `== 0` excludes both
+    # the marked-for-deletion and deleted phases. Both the gauge and the velero_hcp_*
+    # series carry namespace=ocm-<env>-<id> and evaluate in this HCP workspace, so the
+    # join is a direct `on (cluster, namespace)` - no label_replace bridge is needed.
+    # The `or 0 * attempt` zero-fill guards stay ungated (they contribute 0
+    # regardless), and userJourneyBackupTraffic stays ungated (a fleet-wide
+    # attempt-rate collapse is not any single HC's problem). Trade-off: if KSM/the
+    # gauge is unavailable the gate drops everything and these alerts go quiet -
+    # acceptable because KSM loss is independently alarmed.
     - alert: userJourneyBackupErrors
       expr: |
         (
           (
-            sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+            sum by (cluster) (
+              rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+              and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+            )
             or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
           )
           /
           (
             (
-              sum by (cluster) (rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+              sum by (cluster) (
+                rate(velero_hcp_backup_success_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+                and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+              )
               or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
             )
             +
             (
-              sum by (cluster) (rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+              sum by (cluster) (
+                rate(velero_hcp_backup_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+                and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+              )
               or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
             )
             +
             (
-              sum by (cluster) (rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+              sum by (cluster) (
+                rate(velero_hcp_backup_partial_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+                and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+              )
               or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
             )
             +
             (
-              sum by (cluster) (rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+              sum by (cluster) (
+                rate(velero_hcp_backup_validation_failure_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+                and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+              )
               or 0 * sum by (cluster) (rate(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
             )
           )
         ) < 0.995
         and on (cluster)
         sum by (cluster) (
-          max without (prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h]))
+          max without (prometheus_replica) (
+            increase(velero_hcp_backup_attempt_total{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+            and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
+          )
         ) >= 5
       for: 30m
       labels:
@@ -410,6 +476,10 @@ spec:
     # deduped with `max without`, because histogram_quantile only depends
     # on relative bucket proportions, so a uniform duplication factor
     # across all buckets does not shift the computed quantile.
+    #
+    # Deletion gate: the bucket rates and the completed-backup volume floor are
+    # gated on a live HostedCluster the same way as userJourneyBackupErrors (see
+    # that comment).
     - alert: userJourneyBackupLatency
       expr: |
         (
@@ -417,6 +487,7 @@ spec:
             0.99,
             sum by (cluster, le) (
               rate(velero_hcp_backup_duration_seconds_bucket{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+              and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
             )
           ) > 1200
         )
@@ -424,6 +495,7 @@ spec:
         sum by (cluster) (
           max without (prometheus_replica) (
             increase(velero_hcp_backup_duration_seconds_count{schedule=~".+-(6-hourly|daily|weekly)"}[6h])
+            and on (cluster, namespace) max by (cluster, namespace) (hostedClusterAPI_deletion_timestamp_seconds == 0)
           )
         ) >= 5
       for: 15m
@@ -493,3 +565,40 @@ spec:
         summary: "Velero backup attempts collapsed below 10% of 1d baseline on {{ $labels.cluster }}"
         description: "Velero backup attempt rate on management cluster {{ $labels.cluster }} is below 10% of its 1-day average, sustained across a 12h window for 1h. Likely a global/per-cluster backup-schedule pause (check backend.backupScheduleState and per-cluster admin API state before paging further), the Backup Schedule Controller stuck, or kube-applier delivery broken - not an individual HC's problem."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
+  - name: arohcp_backup_slo_gate_health_alerts
+    labels:
+      component: slo
+    rules:
+    # Gate-health canary for the deletion gate above. Every schedule-scoped alert
+    # in this file is gated on hostedClusterAPI_deletion_timestamp_seconds and fails
+    # closed: if that gauge disappears while velero keeps reporting (a kube-state-
+    # metrics scrape outage, a relabel/CRS-config regression, or these rules rolling
+    # out ahead of the mgmt Prometheus KSM chart), all the gated alerts go silent
+    # with nothing else firing. This alert is the independent signal for that: a
+    # management cluster that still exports velero backup-schedule series but has NO
+    # deletion-timestamp gauge at all.
+    #
+    # Deliberately CLUSTER-level (not per namespace): a single HostedCluster being
+    # deleted legitimately loses its own gauge series while velero's lingers, but the
+    # management cluster keeps exporting gauges for its other live HCs, so `unless on
+    # (cluster)` still finds a gauge and does not fire. Only a cluster-wide gauge
+    # outage - the systemic failure this guards against - trips it. for: 1h tolerates
+    # rollout ordering and transient KSM scrape gaps before paging.
+    - alert: userJourneyBackupDeletionGaugeAbsent
+      expr: |
+        group by (cluster) (
+          velero_hcp_backup_last_status{schedule=~".+-(6-hourly|daily|weekly)"}
+        )
+        unless on (cluster)
+        group by (cluster) (
+          hostedClusterAPI_deletion_timestamp_seconds
+        )
+      for: 1h
+      labels:
+        severity: "3"
+        slo: backup-availability
+      annotations:
+        summary: "deletion-timestamp gauge missing while velero backups are reported on {{ $labels.cluster }}"
+        description: "Management cluster {{ $labels.cluster }} exports velero backup-schedule metrics but no hostedClusterAPI_deletion_timestamp_seconds series. The backup SLO alerts gate on that gauge and fail closed, so they are currently blind on this cluster. Check kube-state-metrics health and the metric's relabeling/routing to the HCP workspace. Until this clears, backup failures on this cluster will not alert."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupDeletionGaugeAbsent/{{ $labels.cluster }}"
