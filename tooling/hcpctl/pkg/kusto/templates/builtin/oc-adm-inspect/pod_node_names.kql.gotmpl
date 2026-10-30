@@ -1,0 +1,16 @@
+{{- /*
+Every unique node a pod ran on in this namespace during the window. Unlike
+resource_snapshots.kql.gotmpl this does not reduce to the object's state at
+TimestampMax: it scans every Pod snapshot recorded in the window, so pods that
+completed and were deleted before TimestampMax still contribute their node.
+Used to find which Node objects to collect alongside a namespace's resources.
+*/ -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where namespace == '{{.Namespace}}'
+| where objectKind == 'Pod'
+| extend nodeName = tostring(object.spec.nodeName)
+| where isnotempty(nodeName)
+| distinct nodeName
+| order by nodeName asc
