@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/go-logr/logr"
@@ -214,30 +215,31 @@ func kqlPreview(kql string) string {
 // in memory, keyed by the KQL query string. This avoids re-running identical
 // queries across validation and hydration rounds. Only successful results are
 // cached; errors are always retried against the underlying client.
+// Cache access is synchronized, but calls to the underlying client may run
+// concurrently, including concurrent misses for the same query.
 type CachingKustoClient struct {
 	delegate KustoClient
-	cache    map[string]*tabular.Table
+	cache    sync.Map // string -> *tabular.Table
 }
 
 // NewCachingKustoClient wraps the given client with an in-memory query cache.
 func NewCachingKustoClient(delegate KustoClient) *CachingKustoClient {
 	return &CachingKustoClient{
 		delegate: delegate,
-		cache:    make(map[string]*tabular.Table),
 	}
 }
 
 // Query returns a cached result for the given KQL if available, otherwise
 // delegates to the underlying client and caches a successful result.
 func (c *CachingKustoClient) Query(ctx context.Context, kqlQuery string) (*tabular.Table, error) {
-	if table, ok := c.cache[kqlQuery]; ok {
-		return table, nil
+	if table, ok := c.cache.Load(kqlQuery); ok {
+		return table.(*tabular.Table), nil
 	}
 	table, err := c.delegate.Query(ctx, kqlQuery)
 	if err != nil {
 		return nil, err
 	}
-	c.cache[kqlQuery] = table
+	c.cache.Store(kqlQuery, table)
 	return table, nil
 }
 
