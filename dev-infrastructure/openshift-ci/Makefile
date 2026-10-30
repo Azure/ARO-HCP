@@ -10,7 +10,7 @@ PLATFORM ?= "linux/amd64"
 GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
 
 VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION BICEP_VERSION
-NESTED_PODMAN_VERSION_ARGS = GOTESTSUM_VERSION ENVTEST_VERSION ENVTEST_K8S_VERSION
+NESTED_PODMAN_VERSION_ARGS = GOTESTSUM_VERSION ENVTEST_VERSION
 
 .PHONY: verify verify-nested-podman build test build-nested-podman test-nested-podman test-nested-podman-runtime update-tool-versions
 
@@ -41,7 +41,7 @@ verify: verify-nested-podman ## Verify versions are consistent across config fil
 	fi
 	@echo "  bicep      $(BICEP_VERSION) OK"
 
-verify-nested-podman: ## Verify helper and asset pins match the source-free image defaults
+verify-nested-podman: ## Verify helper pins match the source-free image defaults
 	@$(foreach v,$(NESTED_PODMAN_VERSION_ARGS),\
 		actual=$$(grep -oP 'ARG $(v)=\K\S*' Dockerfile.nested-podman); \
 		if [ "$$actual" != "$($(v))" ]; then \
@@ -82,12 +82,6 @@ test-nested-podman: $(if $(filter true,$(IN_CONTAINER)),verify-nested-podman,bui
 		gotestsum --version; \
 		go version -m "$$(command -v gotestsum)" | grep -E "^[[:space:]]+mod[[:space:]]+gotest[.]tools/gotestsum[[:space:]]+v$(subst .,[.],$(GOTESTSUM_VERSION))[[:space:]]"; \
 		go version -m "$$(command -v setup-envtest)" | grep -E "^[[:space:]]+mod[[:space:]]+sigs[.]k8s[.]io/controller-runtime/tools/setup-envtest[[:space:]]+$(subst .,[.],$(ENVTEST_VERSION))[[:space:]]"; \
-		setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_PREBUILT_BIN_DIR" list; \
-		assets=$$(setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_PREBUILT_BIN_DIR" use "$(ENVTEST_K8S_VERSION)" -p path); \
-		test "$$(readlink -f "$$ENVTEST_PREBUILT_ASSETS")" = "$$assets"; \
-		test "$$(cat "$$ENVTEST_PREBUILT_BIN_DIR/version")" = "$(ENVTEST_K8S_VERSION)"; \
-		test "$$("$$assets/kube-apiserver" --version)" = "Kubernetes v$(ENVTEST_K8S_VERSION)"; \
-		"$$assets/etcd" --version; "$$assets/kubectl" version --client; \
 		export GOPATH=/opt/app-root; \
 		d=$$(mktemp -d); cd "$$d"; \
 		go mod init smoke.example.com/nonroot; \

@@ -78,13 +78,11 @@ class InventoryTests(unittest.TestCase):
         (ci / "versions.mk").write_text(
             "PROMTOOL_VERSION ?= 3.2.1\nBICEP_VERSION ?= 0.48.1\n"
             "GOTESTSUM_VERSION ?= 1.13.0\n"
-            "ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d\n"
-            "ENVTEST_K8S_VERSION ?= 1.34.1\n")
+            "ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d\n")
         (ci / "Dockerfile").write_text("ARG PROMTOOL_VERSION=3.2.1\nARG BICEP_VERSION=0.48.1\n")
         (ci / "Dockerfile.nested-podman").write_text(
             "ARG GOTESTSUM_VERSION=1.13.0\n"
-            "ARG ENVTEST_VERSION=v0.0.0-20260125163108-a19ec76a3c5d\n"
-            "ARG ENVTEST_K8S_VERSION=1.34.1\n")
+            "ARG ENVTEST_VERSION=v0.0.0-20260125163108-a19ec76a3c5d\n")
         self.config = {
             "pins": {}, "modules": {},
             "releases": {

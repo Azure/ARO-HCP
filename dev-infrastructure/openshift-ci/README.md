@@ -18,7 +18,7 @@ The `Dockerfile` in this directory defines the base image used in our release co
 - **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.26-openshift-4.22`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
 - **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
 - **Bicep**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
-- **Integration helpers**: `gotestsum` is pinned in `versions.mk` and `Dockerfile.nested-podman`. `setup-envtest` and the Kubernetes assets use compatibility pins in the same files; update those deliberately when the supported Kubernetes/controller-runtime versions change.
+- **Integration helpers**: `gotestsum` and `setup-envtest` are pinned in `versions.mk` and `Dockerfile.nested-podman`. Update the `setup-envtest` compatibility pin deliberately; the Kubernetes asset version remains in the root `Makefile`.
 - **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
 When updating versions:
@@ -85,16 +85,11 @@ no direct package RPM URLs or per-architecture checksums are maintained.
 Signature verification and package installation failures fail the build rather
 than publishing an incomplete toolchain.
 
-The image also provides pinned `gotestsum`, `setup-envtest`, and native-architecture
-envtest binaries. `ENVTEST_PREBUILT_ASSETS=/opt/envtest/assets` identifies the
-read-only image cache without setting `KUBEBUILDER_ASSETS` or overriding the
-source's required `ENVTEST_K8S_VERSION`. The runner reuses cached assets when
-the actual Kubernetes binary version matches. If the source requests another
-version, it retains `make envtest-setup` and its writable local cache, so version
-updates can pass before the new image is published. Explicitly supplied
-`KUBEBUILDER_ASSETS` still fail on invalid or mismatched binaries.
-Runtime phase timings are written beside the integration test artifacts in
-`integration-phase-timings.log`.
+The image provides natively compiled, pinned `gotestsum` and `setup-envtest`
+helpers in `/opt/app-root/bin`. Integration tests retain the existing
+`make envtest-setup` bootstrap: the root `Makefile` selects Kubernetes 1.34.1
+and downloads its binaries into the writable `bin/envtest` directory.
+Kubernetes binaries are not baked into the image.
 
 Local builds pull from `quay-proxy.ci.openshift.org` and require
 [CI registry access](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci).
@@ -112,8 +107,8 @@ make test-nested-podman-runtime
 
 To smoke-test an already-built image in CI without starting an outer container,
 run `make test-nested-podman IN_CONTAINER=true` from this directory as the image's
-default user. This checks the pinned helper modules, offline envtest asset
-selection, actual Kubernetes/etcd binaries, and non-root Go compilation/install.
+default user. This checks the actual pinned helper module identities and
+non-root Go compilation/install.
 
 Both tests use the image's default user without a runtime user override.
 The tools test asserts UID 1000 and checks that Go can compile, test,

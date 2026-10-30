@@ -17,8 +17,7 @@
 # Checks the latest stable GitHub release for release-tracked tools pinned in
 # versions.mk and rewrites each pin and its owning Dockerfile ARG.
 # Add each release-tracked tool's repository and Dockerfile to the maps below.
-# ENVTEST_VERSION and ENVTEST_K8S_VERSION are manual compatibility pins; see
-# versions.mk before changing them.
+# ENVTEST_VERSION is a manual compatibility pin; see versions.mk before changing it.
 # Pass *_VERSION variable names to update only those tools; omit them to check all.
 # --metadata-json reports the upstream mapping without fetching or changing pins.
 

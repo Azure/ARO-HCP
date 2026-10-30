@@ -56,8 +56,8 @@ test-unit: envtest-setup test-infrastructure
 #
 # The first run downloads ~50MB; subsequent runs just print the cached path.
 ENVTEST_BIN_DIR ?= $(abspath bin/envtest)
+ENVTEST_K8S_VERSION ?= 1.34.1
 ENVTEST := $(GOBIN)/setup-envtest
-# Tool and Kubernetes versions are shared with the prebuilt CI image in versions.mk.
 
 $(ENVTEST):
 	GOBIN=$(GOBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
