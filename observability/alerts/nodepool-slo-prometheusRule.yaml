@@ -57,7 +57,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
@@ -67,6 +67,7 @@ spec:
         exclude_internal_subscriptions: "true"
         severity: "4"
       annotations:
+        correlationId: "NodePoolStuckOperation/{{ $labels.subscription_id }}/{{ $labels.resource_id }}"
         summary: "{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -128,7 +129,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        description: "More than 72% of completed node pool operations (create/update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
     - alert: userJourneyNodePoolErrors6h30m
