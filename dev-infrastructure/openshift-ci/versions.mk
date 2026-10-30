@@ -11,9 +11,9 @@
 #   gotestsum: https://github.com/gotestyourself/gotestsum/releases
 #   envtest:   https://github.com/kubernetes-sigs/controller-tools/releases
 #
-# ENVTEST_VERSION is the resolved release-0.22 setup-envtest revision matching
-# controller-runtime. It and ENVTEST_K8S_VERSION are compatibility pins, updated
-# deliberately with controller-runtime/Kubernetes rather than to upstream latest.
+# ENVTEST_VERSION pins the setup-envtest downloader independently of the runtime
+# library. Update it and ENVTEST_K8S_VERSION deliberately for the Kubernetes
+# versions covered by integration tests, rather than following upstream latest.
 
 BUILDER_IMAGE_TAG ?= $(shell yq '.build_root_image.tag' ../../.ci-operator.yaml)
 PROMTOOL_VERSION  ?= 3.15.1
