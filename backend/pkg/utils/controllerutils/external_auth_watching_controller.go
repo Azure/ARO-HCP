@@ -70,6 +70,8 @@ func NewExternalAuthWatchingController(
 
 	serviceProviderExternalAuthInformer, _ := informers.ServiceProviderExternalAuths()
 
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
 	err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
 	if err != nil {
 		panic(err)

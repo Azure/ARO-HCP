@@ -28,10 +28,8 @@ func registerClusterResourcesController() controllerconfig.ControllerRegistratio
 }
 
 func instantiateClusterResourcesController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	return NewClusterResourcesController(
 		controllerContext.ResourcesDBClient,
-		subscriptionLister,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,

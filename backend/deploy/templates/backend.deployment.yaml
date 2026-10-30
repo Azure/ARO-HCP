@@ -72,6 +72,15 @@ spec:
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
+        - "--orphaned-mrg-cleanup-running-mode={{ .Values.orphanedMRGCleanupRunningMode }}"
+        {{- if .Values.orphanedMRGCleanupTargetSubscriptionAFECFlags }}
+        - "--orphaned-mrg-cleanup-target-subscription-afec-flags"
+        - "{{ .Values.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"
+        {{- end }}
+        {{- if .Values.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}
+        - "--orphaned-mrg-cleanup-excluded-subscription-afec-flags"
+        - "{{ .Values.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}"
+        {{- end }}
        {{- if and .Values.miMock.certName (or .Values.miMock.clientId .Values.miMock.clientIdSecretName) (or .Values.miMock.principalId .Values.miMock.principalIdSecretName) .Values.miMock.tenantId
                   .Values.armPermissionsManagerIdentity.certName .Values.armPermissionsManagerIdentity.clientId .Values.armPermissionsManagerIdentity.tenantId
         }}

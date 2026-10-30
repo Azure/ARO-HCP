@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-services-recording-rules
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLI Recording Rules - services workspace (ARO-27787)
+  # ========================================
+  # Inputs come from the HyperShift Operator (namespace "hypershift"), which
+  # remote-write routes to the services workspace. The ServiceMonitor does not
+  # set honorLabels, so the HostedCluster namespace is exported_namespace.
+  # Every series is aggregated to cluster = one management cluster.
+  # max without(prometheus_replica) dedupes HA scrapes before summing.
+  groups:
+  - name: hypershift-operator-recording-rules
+    rules:
+    # Used by hypershiftOperatorIdle.
+    - record: hypershift:operator:reconcile:rate5m
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[5m])))

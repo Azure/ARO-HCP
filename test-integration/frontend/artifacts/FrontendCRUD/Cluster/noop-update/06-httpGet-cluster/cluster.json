@@ -29,6 +29,9 @@
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},
+		"dns": {
+			"baseDomainPrefix": "cluster"
+		},
 		"etcd": {
 			"dataEncryption": {
 				"customerManaged": {

@@ -2,7 +2,7 @@ ARG BUILDER_IMAGE_TAG=rhel-9-golang-1.26-openshift-4.22
 FROM registry.ci.openshift.org/ocp/builder:${BUILDER_IMAGE_TAG}
 
 # Tool versions - defaults here must be kept in sync with /versions.mk
-ARG PROMTOOL_VERSION=3.2.1
+ARG PROMTOOL_VERSION=3.15.1
 ARG BICEP_VERSION=0.48.1
 
 USER root

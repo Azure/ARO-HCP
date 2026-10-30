@@ -313,15 +313,19 @@ make run-image
 
 ### Add or reconcile a tenant service principal
 
-Use:
+The RedHat0 service principal (Graph `Organization.Read.All` consent, `Reader` on every `ci.<env>` subscription, Key Vault client secret) is managed declaratively by the privileged entrypoint; see [Dev-CI Topology](../../docs/ci/dev-ci-topology.md#the-privileged-entrypoint). Reconcile it as an OWNERS-group member with:
+
+```bash
+make dev-ci-privileged-local-run
+```
+
+The Microsoft test-tenant (`testTestAro`) service principal is the only one still managed imperatively:
 
 ```bash
 cd tooling/tenant-quota
-./scripts/manage-service-principals.sh --tenant redhat
+./scripts/manage-service-principals.sh --tenant test-tenant
 ./scripts/manage-service-principals.sh --list
 ```
-
-This script is the supported path for creating and reconciling the service principals, role assignments, and Key Vault secrets used by the exporter.
 
 After adding or changing a tenant:
 

@@ -81,6 +81,8 @@ func NewClusterWatchingController(
 	serviceProviderInformer, _ := informers.ServiceProviderClusters()
 	controller.clusterLister = clusterLister
 
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
 	err := clusterController.QueueForInformers(resyncDuration, clusterInformer)
 	if err != nil {
 		panic(err)

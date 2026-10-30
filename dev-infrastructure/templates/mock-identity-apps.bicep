@@ -53,6 +53,13 @@ module sharedApps '../modules/entra/app.bicep' = [
   }
 ]
 
+// Each pool entry is its own nested deployment in the target resource group
+// (counted against the 800 per-RG deployment history limit) and its own Graph
+// app+SP create. Bound concurrency instead of fanning out all entries at once.
+// ARM does not start later batches once a batch has failed, so the pipeline step
+// needs automatedRetry.maximumRetryCount >= ceil(size / batchSize) + 1 to create
+// a whole pool from scratch (each new batch fails once on Graph replication lag).
+@batchSize(25)
 module poolApps '../modules/entra/app.bicep' = [
   for i in range(0, poolSize): {
     name: 'mock-app-pool-${i}'
@@ -66,6 +73,7 @@ module poolApps '../modules/entra/app.bicep' = [
   }
 ]
 
+@batchSize(25)
 module armHelperPoolApps '../modules/entra/app.bicep' = [
   for i in range(0, armHelperPoolSize): {
     name: 'mock-app-arm-helper-pool-${i}'

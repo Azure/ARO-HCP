@@ -34,6 +34,7 @@
   tag: string,                       // fluentbit: tag routing identifier
   container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
 )
+with (docstring = "Structured logs and ARM request access logs from the ARO-HCP frontend (aro-hcp-frontend) pods, forwarded by arobit")
 
 .create-or-alter table frontendLogs ingestion json mapping 'ingestionMapping'
 ```

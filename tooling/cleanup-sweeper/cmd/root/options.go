@@ -25,71 +25,114 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/internal/version"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow"
+	certificatesworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/certificates"
 	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/resourcegroup"
 	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/shared"
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
-	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
-// WorkflowMode selects which cleanup workflow implementation to run.
-type WorkflowMode string
-
-const (
-	// WorkflowRGOrdered runs ordered per-resource-group cleanup.
-	WorkflowRGOrdered WorkflowMode = "rg-ordered"
-	// WorkflowSharedLeftovers runs cleanup for shared leftovers.
-	WorkflowSharedLeftovers WorkflowMode = "shared-leftovers"
-)
+// newRegistry builds the available workflows. Each command invocation needs its
+// own registry because workflows hold the state their options are bound to.
+func newRegistry() (*workflow.Registry, error) {
+	return workflow.NewRegistry(
+		resourcegroupworkflow.New(),
+		sharedworkflow.New(),
+		certificatesworkflow.New(),
+	)
+}
 
 // DefaultOptions returns the default CLI options.
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Workflow:    string(WorkflowRGOrdered),
+		Workflow:    resourcegroupworkflow.Name,
 		Wait:        true,
 		Parallelism: cleanuprunner.DefaultParallelism,
 	}
 }
 
-// BindOptions binds CLI flags into RawOptions.
-func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
-	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Subscription ID to clean.")
-	cmd.Flags().StringVar(&opts.PolicyFile, "policy", opts.PolicyFile, "Path to sweeper policy file (required for rg-ordered workflow).")
+// BindOptions binds CLI flags into RawOptions. The registry supplies the list of
+// workflows and the help for their --options.
+func BindOptions(opts *RawOptions, cmd *cobra.Command, registry *workflow.Registry) error {
+	opts.registry = registry
+	opts.flagChanged = cmd.Flags().Changed
 
-	cmd.Flags().StringVar(&opts.Workflow, "workflow", opts.Workflow, "Workflow to run: rg-ordered|shared-leftovers.")
+	cmd.Flags().StringVar(&opts.Workflow, "workflow", opts.Workflow, fmt.Sprintf("Workflow to run: %s.", strings.Join(registry.Names(), "|")))
+	cmd.Flags().StringVar(&opts.PolicyFile, "policy", opts.PolicyFile, "Path to the policy file of the selected workflow (required by the rg-ordered and certificates workflows, each of which has its own policy document).")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, fmt.Sprintf("Preview only; discover and report what would be deleted (default: %t).", opts.DryRun))
-	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for long-running deletions to complete.")
 	cmd.Flags().IntVar(&opts.Parallelism, "parallelism", opts.Parallelism, "Maximum parallel deletions per step.")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, "Overall timeout, including discovery and all Azure requests (default: none; 30m for the certificates workflow).")
+	cmd.Flags().StringArrayVar(&opts.Options, "options", opts.Options, "Workflow option as <workflow>.<key>=<value>; repeatable. Only options of the selected workflow are accepted (see below).")
 
-	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "Explicit resource group target (repeatable). Optional; when omitted, rg-ordered discovery rules drive candidate selection.")
-
+	// Deprecated aliases for options that used to be flags of every workflow.
+	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "")
+	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "")
+	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "")
+	for name, replacement := range map[string]string{
+		"subscription-id": "--options=<workflow>.subscription-id=<id>",
+		"resource-group":  "--options=rg-ordered.resource-group=<name>",
+		"wait":            "--options=<workflow>.wait=<bool>",
+	} {
+		if err := cmd.Flags().MarkDeprecated(name, "use "+replacement); err != nil {
+			return fmt.Errorf("failed to deprecate --%s: %w", name, err)
+		}
+	}
 	return nil
 }
 
 // RawOptions contains CLI flags before validation and normalization.
 type RawOptions struct {
-	SubscriptionID string
-	PolicyFile     string
-
 	Workflow    string
+	PolicyFile  string
 	DryRun      bool
-	Wait        bool
 	Parallelism int
+	Timeout     time.Duration
+	// Options are the --options entries, each <workflow>.<key>=<value>.
+	Options []string
 
+	// Deprecated aliases, applied as options of the selected workflow before the
+	// explicit --options entries.
+	SubscriptionID string
 	ResourceGroups []string
+	Wait           bool
+
+	registry *workflow.Registry
+	// flagChanged reports whether a flag was set explicitly on the command line.
+	// It is nil for options not bound to a command, where nothing counts as set.
+	flagChanged func(name string) bool
+}
+
+func (o *RawOptions) changed(name string) bool {
+	return o.flagChanged != nil && o.flagChanged(name)
+}
+
+// legacyEntries translates the deprecated flags into options of the selected
+// workflow. Blank resource groups are ignored, as they always were.
+func (o *RawOptions) legacyEntries() []string {
+	var entries []string
+	if o.SubscriptionID != "" {
+		entries = append(entries, fmt.Sprintf("%s.subscription-id=%s", o.Workflow, o.SubscriptionID))
+	}
+	for _, resourceGroup := range o.ResourceGroups {
+		if trimmed := strings.TrimSpace(resourceGroup); trimmed != "" {
+			entries = append(entries, fmt.Sprintf("%s.resource-group=%s", o.Workflow, trimmed))
+		}
+	}
+	if o.changed("wait") {
+		entries = append(entries, fmt.Sprintf("%s.wait=%t", o.Workflow, o.Wait))
+	}
+	return entries
 }
 
 type validatedOptions struct {
-	*RawOptions
-
-	workflow WorkflowMode
-	policy   *policy.Policy
+	workflow workflow.Workflow
+	common   workflow.Common
 }
 
 // ValidatedOptions wraps options that passed validation.
@@ -99,24 +142,9 @@ type ValidatedOptions struct {
 
 type completedOptions struct {
 	AzureCredential azcore.TokenCredential
-	// GraphCredential is used exclusively for Microsoft Graph directory reads
-	// by the shared-leftovers workflow. It defaults to AzureCredential unless a
-	// dedicated Graph identity is supplied via the GRAPH_AZURE_* environment
-	// variables.
-	GraphCredential azcore.TokenCredential
-	Policy          *policy.Policy
 
-	Workflow WorkflowMode
-
-	SubscriptionID string
-	PolicyFile     string
-	ReferenceTime  time.Time
-
-	DryRun      bool
-	Wait        bool
-	Parallelism int
-
-	ResourceGroups sets.Set[string]
+	Workflow workflow.Workflow
+	Common   workflow.Common
 }
 
 // Options contains completed runtime options after validation and completion.
@@ -124,90 +152,55 @@ type Options struct {
 	*completedOptions
 }
 
-// Validate validates and normalizes raw CLI options.
+// Validate validates the common options, applies the selected workflow's
+// options and lets the workflow validate them.
 func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
-	if o.SubscriptionID == "" {
-		return nil, fmt.Errorf("--subscription-id is required")
+	registry := o.registry
+	if registry == nil {
+		var err error
+		if registry, err = newRegistry(); err != nil {
+			return nil, err
+		}
+	}
+	selected, err := registry.Get(o.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("--workflow: %w", err)
 	}
 	if o.Parallelism < 1 {
 		return nil, fmt.Errorf("--parallelism must be >= 1, got %d", o.Parallelism)
 	}
+	if o.Timeout < 0 {
+		return nil, fmt.Errorf("--timeout must not be negative, got %s", o.Timeout)
+	}
 
-	workflow, err := parseWorkflowMode(o.Workflow)
-	if err != nil {
+	entries := append(o.legacyEntries(), o.Options...)
+	if err := registry.ApplyOptions(o.Workflow, entries); err != nil {
+		return nil, fmt.Errorf("--options: %w", err)
+	}
+
+	common := workflow.Common{
+		DryRun:      o.DryRun,
+		Parallelism: o.Parallelism,
+		Timeout:     o.Timeout,
+		PolicyFile:  strings.TrimSpace(o.PolicyFile),
+	}
+	if err := selected.Validate(common); err != nil {
 		return nil, err
 	}
-	normalizedResourceGroups := setFromTrimmed(o.ResourceGroups)
-
-	pol := &policy.Policy{}
-	if workflow == WorkflowRGOrdered {
-		if o.PolicyFile == "" {
-			return nil, fmt.Errorf("--policy is required for rg-ordered workflow")
-		}
-
-		loadedPolicy, err := policy.Load(o.PolicyFile)
-		if err != nil {
-			return nil, err
-		}
-		if err := loadedPolicy.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid --policy content: %w", err)
-		}
-		pol = loadedPolicy
-	}
-
-	if workflow == WorkflowSharedLeftovers {
-		if normalizedResourceGroups.Len() > 0 {
-			return nil, fmt.Errorf("rg-ordered selectors are not allowed for shared-leftovers workflow")
-		}
-	}
-
-	return &ValidatedOptions{
-		validatedOptions: &validatedOptions{
-			RawOptions: o,
-			workflow:   workflow,
-			policy:     pol,
-		},
-	}, nil
+	return &ValidatedOptions{validatedOptions: &validatedOptions{workflow: selected, common: common}}, nil
 }
 
 // Complete resolves validated options into runtime dependencies.
 func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
-	subscriptionID := strings.TrimSpace(o.SubscriptionID)
-	policyFile := strings.TrimSpace(o.PolicyFile)
-	referenceTime := time.Now().UTC()
-
-	resourceGroups := setFromTrimmed(o.ResourceGroups)
-
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
-
-	// Only the shared-leftovers workflow performs Microsoft Graph directory
-	// reads, so resolve the (optionally dedicated) Graph credential only then.
-	// This keeps a partial GRAPH_AZURE_* configuration from failing workflows
-	// that never touch Graph (for example, rg-ordered).
-	var graphCred azcore.TokenCredential = cred
-	if o.workflow == WorkflowSharedLeftovers {
-		graphCred, err = newGraphCredential(cred)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &Options{
 		completedOptions: &completedOptions{
 			AzureCredential: cred,
-			GraphCredential: graphCred,
-			Policy:          o.policy,
 			Workflow:        o.workflow,
-			SubscriptionID:  subscriptionID,
-			PolicyFile:      policyFile,
-			ReferenceTime:   referenceTime,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
-			ResourceGroups:  resourceGroups,
+			Common:          o.common,
 		},
 	}, nil
 }
@@ -224,11 +217,10 @@ func (o *Options) Run(ctx context.Context) error {
 		"prowJob", os.Getenv("JOB_NAME"),
 		"prowBuildID", os.Getenv("BUILD_ID"),
 		"prowJobID", os.Getenv("PROW_JOB_ID"),
-		"workflow", o.Workflow,
-		"dryRun", o.DryRun,
-		"subscriptionID", o.SubscriptionID,
-		"policy", o.PolicyFile,
-	)
+		"workflow", o.Workflow.Name(),
+		"dryRun", o.Common.DryRun,
+		"policy", o.Common.PolicyFile,
+	).WithValues(o.Workflow.LogValues()...)
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			switch setting.Key {
@@ -238,89 +230,17 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	}
 	ctx = logr.NewContext(ctx, logger)
+	if o.Common.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.Common.Timeout)
+		defer cancel()
+	}
 	logger.Info("Starting cleanup-sweeper")
 
-	switch o.Workflow {
-	case WorkflowRGOrdered:
-		err := resourcegroupworkflow.Run(ctx, resourcegroupworkflow.RunOptions{
-			SubscriptionID:  o.SubscriptionID,
-			AzureCredential: o.AzureCredential,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
-			ResourceGroups:  o.ResourceGroups,
-			Policy:          o.Policy.RGOrdered,
-			ReferenceTime:   o.ReferenceTime,
-		})
-		if err != nil {
-			return err
-		}
-	case WorkflowSharedLeftovers:
-		err := sharedworkflow.Run(ctx, sharedworkflow.RunOptions{
-			SubscriptionID:  o.SubscriptionID,
-			AzureCredential: o.AzureCredential,
-			GraphCredential: o.GraphCredential,
-			DryRun:          o.DryRun,
-			Wait:            o.Wait,
-			Parallelism:     o.Parallelism,
-		})
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported workflow %q", o.Workflow)
+	if err := o.Workflow.Run(ctx, o.Common, o.AzureCredential); err != nil {
+		return err
 	}
 
 	logger.Info("Completed cleanup-sweeper")
 	return nil
-}
-
-// Returns the credential used for Microsoft Graph directory
-// reads. When the GRAPH_AZURE_TENANT_ID, GRAPH_AZURE_CLIENT_ID and
-// GRAPH_AZURE_CLIENT_SECRET environment variables are all set, a dedicated
-// client-secret credential is built for that identity (allowing directory read
-// permissions to be supplied by a different service principal than the one used
-// for ARM). Otherwise it falls back to the provided ARM credential.
-func newGraphCredential(fallback azcore.TokenCredential) (azcore.TokenCredential, error) {
-	tenantID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_TENANT_ID"))
-	clientID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_ID"))
-	clientSecret := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_SECRET"))
-
-	if tenantID == "" && clientID == "" && clientSecret == "" {
-		return fallback, nil
-	}
-	if tenantID == "" || clientID == "" || clientSecret == "" {
-		return nil, fmt.Errorf("GRAPH_AZURE_TENANT_ID, GRAPH_AZURE_CLIENT_ID and GRAPH_AZURE_CLIENT_SECRET must all be set to use a dedicated Graph credential")
-	}
-
-	cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dedicated Graph credential: %w", err)
-	}
-	return cred, nil
-}
-
-// Parses a supported cleanup workflow.
-func parseWorkflowMode(raw string) (WorkflowMode, error) {
-	switch WorkflowMode(raw) {
-	case WorkflowRGOrdered:
-		return WorkflowRGOrdered, nil
-	case WorkflowSharedLeftovers:
-		return WorkflowSharedLeftovers, nil
-	default:
-		return "", fmt.Errorf("--workflow must be one of: %s, %s", WorkflowRGOrdered, WorkflowSharedLeftovers)
-	}
-}
-
-// Collects nonempty, trimmed selectors.
-func setFromTrimmed(values []string) sets.Set[string] {
-	result := sets.New[string]()
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		result.Insert(trimmed)
-	}
-	return result
 }

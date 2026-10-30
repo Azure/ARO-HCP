@@ -114,6 +114,11 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 			}
 		}()
 		envVars["AZURE_CONFIG_DIR"] = stepConfigDir
+		// Every `az` invocation spawns a detached background process that uploads telemetry and
+		// keeps writing into the config directory (logs/, telemetry/) after the step returns. That
+		// races with the cleanup above ("directory not empty"). The directory is private and
+		// discarded, so there is nothing to collect; disable telemetry so no such process exists.
+		envVars["AZURE_CORE_COLLECT_TELEMETRY"] = "false"
 	}
 
 	cmd := createCommand(ctx, s.Command, workingDir, envVars)

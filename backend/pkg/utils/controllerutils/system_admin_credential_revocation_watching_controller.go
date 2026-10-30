@@ -72,6 +72,8 @@ func NewSystemAdminCredentialRevocationWatchingController(
 	if backendInformers != nil {
 		revocationInformer, revocationLister := backendInformers.SystemAdminCredentialRevocations()
 		systemAdminCredentialRevocationSyncer.credentialRevocationLister = revocationLister
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		err := controller.QueueForInformers(resyncDuration, revocationInformer)
 		if err != nil {
 			panic(err) // coding error

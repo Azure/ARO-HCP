@@ -31,7 +31,7 @@ for deterministic `all`-mode validation with a fake API and real namespace/helpe
 
 `swiftRecorder.enabled` defaults to `true` in every environment; router checks
 always run with it. Startup capture defaults to `slow`, except ephemeral
-`ci00`/`ci01` use `all`. Source-image selection and pins are unchanged; deployment
+`ci00`/`ci01`/`ci02` use `all`. Source-image selection and pins are unchanged; deployment
 requires a repo-built image override. Defaults alone do not deploy anything.
 
 After reviewing the [permissions and rollout prerequisites](../docs/swift-recorder-deployment.md),

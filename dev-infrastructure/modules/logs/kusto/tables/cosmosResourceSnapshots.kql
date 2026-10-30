@@ -12,6 +12,7 @@
   resourceID: string,
   content: dynamic
 )
+with (docstring = "Periodic snapshots of Cosmos DB resource documents emitted by the backend, frontend and fleet controllers, forwarded by arobit")
 
 .create-or-alter table cosmosResourceSnapshots ingestion json mapping 'ingestionMapping'
 ```

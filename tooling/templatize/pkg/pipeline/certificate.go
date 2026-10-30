@@ -47,7 +47,7 @@ const (
 
 var validContentTypes = []string{"x-pkcs12"}
 
-var jobOwnedCertificateName = regexp.MustCompile(`^(?:(?:frontend|admin-api|sessiongate)-cert-(ci00|ci01)|maestro-server)-j[0-9]{7}$`)
+var jobOwnedCertificateName = regexp.MustCompile(`^(?:(?:frontend|admin-api|sessiongate)-cert-(ci00|ci01|ci02)|maestro-server)-j[0-9]{7}$`)
 
 // certificatePolicy builds a Key Vault certificate policy matching the sdp-pipelines wire format.
 func certificatePolicy(commonName, contentType, san, issuer string) azcertificates.CertificatePolicy {
@@ -84,7 +84,7 @@ func certificatePolicy(commonName, contentType, san, issuer string) azcertificat
 // effectiveCertificatePolicy also reports whether the certificate is transient CI-owned.
 func effectiveCertificatePolicy(options *StepRunOptions, vaultBaseURL, certificateName, commonName, contentType, san, issuer string) (azcertificates.CertificatePolicy, bool) {
 	policy := certificatePolicy(commonName, contentType, san, issuer)
-	if options.Cloud != "dev" || (options.Environment != "ci00" && options.Environment != "ci01") {
+	if options.Cloud != "dev" || (options.Environment != "ci00" && options.Environment != "ci01" && options.Environment != "ci02") {
 		return policy, false
 	}
 	match := jobOwnedCertificateName.FindStringSubmatch(certificateName)

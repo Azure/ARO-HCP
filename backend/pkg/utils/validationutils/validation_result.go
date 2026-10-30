@@ -30,7 +30,32 @@ const (
 	passedRetryBase = 12 * time.Hour
 	// jitterFactor is the maxFactor passed to wait.Jitter; 0.5 means up to +50% of the base.
 	jitterFactor = 0.5
+	// maxNonPassedRetryDelay is the longest delay FailedValidation, UnknownValidation, and
+	// SkippedValidation schedule before the next run (nonpassedRetryBase plus maximum jitter).
+	maxNonPassedRetryDelay = time.Duration(float64(nonpassedRetryBase) * (1 + jitterFactor))
 )
+
+// NonPassedRetryDelay returns the jittered retry delay FailedValidation, UnknownValidation, and
+// SkippedValidation use, in [nonpassedRetryBase, maxNonPassedRetryDelay]. Jitter avoids retry storms.
+func NonPassedRetryDelay() time.Duration {
+	return wait.Jitter(nonpassedRetryBase, jitterFactor)
+}
+
+const (
+	// ValidationProbeRewriteInterval throttles how often a still-failing validation rewrites its probe
+	// time, so a continuously failing validation does not turn every retry into a Cosmos write.
+	ValidationProbeRewriteInterval = 2 * time.Minute
+
+	// ValidationProbeFreshnessWindow bounds how old a validation's recorded probe (the start time of
+	// its most recent conclusive Failed run, stored in ServiceProviderCluster.Status.ValidationProbeTimes)
+	// may be while its False condition still counts toward terminally failing a create or update
+	// operation. A probe older than this means no recent failure has been confirmed. Unbounded
+	// runs can exceed this window, in which case the operation waits for a completed result or
+	// its overall completion deadline rather than failing on stale evidence.
+	ValidationProbeFreshnessWindow = 8 * time.Minute
+)
+
+const _ uint64 = uint64(ValidationProbeRewriteInterval - 1)
 
 // OutcomeType discriminates which validation outcome payload is populated.
 type OutcomeType string

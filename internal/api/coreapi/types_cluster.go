@@ -32,7 +32,8 @@ type Cluster struct {
 
 	TrackedResource
 
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync
+	// CustomerProperties contains the customer's desired cluster configuration.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
 	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
@@ -89,7 +90,8 @@ var _ CosmosPersistable = &Cluster{}
 type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync (BaseDomainPrefix only)
+	// DNS contains the short cluster name used within its allocated base domain.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	DNS CustomerDNSProfile `json:"dns,omitempty"`
 	// Written by: Frontend PUT Cluster (Create)
 	Network NetworkProfile `json:"network,omitempty"`
@@ -208,12 +210,15 @@ type VersionProfile struct {
 
 // CustomerDNSProfile represents the DNS configuration of the cluster.
 type CustomerDNSProfile struct {
+	// BaseDomainPrefix is the short OpenShift cluster name inside its allocated DNS domain.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
 }
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
-	// Written by: ClusterPropertiesSync
+	// BaseDomain is the exclusively claimed DNS suffix used by all cluster endpoints.
+	// Written by: ClusterDNSAllocation, ClusterDNSBackfill
 	BaseDomain string `json:"baseDomain,omitempty"`
 }
 

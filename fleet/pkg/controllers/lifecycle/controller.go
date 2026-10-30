@@ -39,6 +39,7 @@ type lifecycleSyncer struct {
 
 func NewManagementClusterLifecycleController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
@@ -48,11 +49,14 @@ func NewManagementClusterLifecycleController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		ManagementClusterLifecycleControllerName,
+		stampInformer,
+		fleetcontrollers.DefaultInformerResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

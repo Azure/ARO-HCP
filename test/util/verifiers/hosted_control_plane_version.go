@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/ginkgo/v2"
@@ -27,11 +29,73 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/test/util/framework"
 )
+
+// shortImageDigest keeps release-image references readable while preserving enough of the digest
+// to distinguish two payloads for the same OpenShift version.
+func shortImageDigest(image string) string {
+	if image == "" {
+		return ""
+	}
+	if _, digest, found := strings.Cut(image, "@sha256:"); found {
+		return "sha256:" + digest[:min(len(digest), 12)]
+	}
+	return image[strings.LastIndex(image, "/")+1:]
+}
+
+// renderClusterVersionHistory preserves the timestamps and release image needed to tell a stalled
+// upgrade from a slow one.
+func renderClusterVersionHistory(history []configv1.UpdateHistory) string {
+	if len(history) == 0 {
+		return "<empty>"
+	}
+	entries := make([]string, 0, len(history))
+	for _, historyEntry := range history {
+		entry := fmt.Sprintf("%s=%s", historyEntry.Version, historyEntry.State)
+		if !historyEntry.StartedTime.IsZero() {
+			entry += " started=" + historyEntry.StartedTime.UTC().Format(time.RFC3339)
+		}
+		if historyEntry.CompletionTime != nil && !historyEntry.CompletionTime.IsZero() {
+			entry += " completed=" + historyEntry.CompletionTime.UTC().Format(time.RFC3339)
+		}
+		if image := shortImageDigest(historyEntry.Image); image != "" {
+			entry += " image=" + image
+		}
+		entries = append(entries, entry)
+	}
+	return strings.Join(entries, "; ")
+}
+
+// renderClusterVersionProgress reports how far through the rollout the ClusterVersion Operator is.
+func renderClusterVersionProgress(conditions []configv1.ClusterOperatorStatusCondition) string {
+	for _, condition := range conditions {
+		if condition.Type == configv1.OperatorProgressing {
+			return fmt.Sprintf("Progressing=%s: %s", condition.Status, condition.Message)
+		}
+	}
+	return ""
+}
+
+// clusterVersionSummary is the diagnostic line logged while polling and appended to failures.
+func clusterVersionSummary(status configv1.ClusterVersionStatus) string {
+	summary := "history is " + renderClusterVersionHistory(status.History)
+	if progress := renderClusterVersionProgress(status.Conditions); progress != "" {
+		summary += "; " + progress
+	}
+	return summary
+}
+
+// withClusterVersionSummary ensures every y- and z-stream verdict reports the state it judged.
+func withClusterVersionSummary(status configv1.ClusterVersionStatus, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w; %s", err, clusterVersionSummary(status))
+}
 
 type verifyHostedControlPlaneZStreamUpgradeOnly struct {
 	initialVersion string
@@ -58,7 +122,7 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+		"history", clusterVersionSummary(clusterVersion.Status))
 
 	uniqueVersionSet := map[string]bool{}
 	var uniqueVersions []string
@@ -66,14 +130,17 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	for _, history := range clusterVersion.Status.History {
 		historyVersion, err := semver.ParseTolerant(history.Version)
 		if err != nil {
-			return fmt.Errorf("parse version %q in history: %w", history.Version, err)
+			return withClusterVersionSummary(clusterVersion.Status,
+				fmt.Errorf("parse version %q in history: %w", history.Version, err))
 		}
 		if historyVersion.Major != initialSemver.Major || historyVersion.Minor != initialSemver.Minor {
-			return fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
-				historyVersion.String(), v.initialVersion, initialSemver.Major, initialSemver.Minor)
+			return withClusterVersionSummary(clusterVersion.Status,
+				fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
+					historyVersion.String(), v.initialVersion, initialSemver.Major, initialSemver.Minor))
 		}
 		if historyVersion.LT(initialSemver) {
-			return fmt.Errorf("downgrade unexpected: version %q is less than initial %q", historyVersion.String(), initialSemver.String())
+			return withClusterVersionSummary(clusterVersion.Status,
+				fmt.Errorf("downgrade unexpected: version %q is less than initial %q", historyVersion.String(), initialSemver.String()))
 		}
 		if historyVersion.EQ(initialSemver) {
 			sawInitial = true
@@ -87,17 +154,20 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 		}
 	}
 	if !sawInitial {
-		return fmt.Errorf("install version %q not found in clusterversion/version status.history; cannot confirm the z-stream upgrade started from it", v.initialVersion)
+		return withClusterVersionSummary(clusterVersion.Status,
+			fmt.Errorf("install version %q not found in clusterversion/version status.history; cannot confirm the z-stream upgrade started from it", v.initialVersion))
 	}
 	if !sawUpgrade {
-		return fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q", v.initialVersion)
+		return withClusterVersionSummary(clusterVersion.Status,
+			fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q", v.initialVersion))
 	}
 	// The automated z-stream upgrade must move the control plane off the pinned install version, so
 	// the history must contain at least two unique versions: the install version and the latest
 	// z-stream it was upgraded to.
 	if len(uniqueVersions) < 2 {
-		return fmt.Errorf("expected at least 2 unique versions in clusterversion/version status.history (install %q plus the auto-upgraded z-stream), got %d: %v",
-			v.initialVersion, len(uniqueVersions), uniqueVersions)
+		return withClusterVersionSummary(clusterVersion.Status,
+			fmt.Errorf("expected at least 2 unique versions in clusterversion/version status.history (install %q plus the auto-upgraded z-stream), got %d: %v",
+				v.initialVersion, len(uniqueVersions), uniqueVersions))
 	}
 	return nil
 }
@@ -132,7 +202,7 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 	}
 
 	ginkgo.GinkgoLogr.Info("clusterversion status after y-stream upgrade",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+		"history", clusterVersionSummary(clusterVersion.Status))
 
 	parsedPreviousMinor := metadataapi.Must(semver.ParseTolerant(v.previousMinor))
 	parsedTargetMinor := metadataapi.Must(semver.ParseTolerant(v.targetMinor))
@@ -144,7 +214,8 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 		}
 		version, err := semver.ParseTolerant(historyEntry.Version)
 		if err != nil {
-			return fmt.Errorf("parse clusterversion history version %q: %w", historyEntry.Version, err)
+			return withClusterVersionSummary(clusterVersion.Status,
+				fmt.Errorf("parse clusterversion history version %q: %w", historyEntry.Version, err))
 		}
 		if version.Major == parsedPreviousMinor.Major && version.Minor == parsedPreviousMinor.Minor {
 			previousMinorFound = true
@@ -154,10 +225,12 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 		}
 	}
 	if !previousMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in previous minor %q", v.previousMinor)
+		return withClusterVersionSummary(clusterVersion.Status,
+			fmt.Errorf("clusterversion status.history has no version in previous minor %q", v.previousMinor))
 	}
 	if !targetMinorFound {
-		return fmt.Errorf("clusterversion status.history has no version in target minor %q", v.targetMinor)
+		return withClusterVersionSummary(clusterVersion.Status,
+			fmt.Errorf("clusterversion status.history has no version in target minor %q", v.targetMinor))
 	}
 	return nil
 }
@@ -186,9 +259,8 @@ func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, ad
 		return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
 	}
 	if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
-		ginkgo.GinkgoLogr.Info("kube-apiserver ServerVersion unchanged from pre-upgrade",
-			"preUpgrade", v.preUpgrade, "postUpgrade", postUpgrade)
-		return fmt.Errorf("kube-apiserver ServerVersion not updated (unchanged from pre-upgrade)")
+		return fmt.Errorf("expected the kube-apiserver ServerVersion to change from the pre-upgrade %q, still observing %q",
+			v.preUpgrade.GitVersion, postUpgrade.GitVersion)
 	}
 	return nil
 }

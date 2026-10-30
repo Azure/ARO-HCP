@@ -1,15 +1,40 @@
+# Paths are relative to the repository-root build context.
 **
-!image-environment
-!internal/
-!test-integration/
-!test/sdk/
-!frontend/
 
-# https://github.com/containers/podman/discussions/22910
-# !image-environment
-# !internal/go.*
-# !internal/**/*.go
-# !test/sdk/**/go.*
-# !frontend/go.*
-# !frontend/Makefile
-# !frontend/**/*.go
+# Copy the complete workspace so every go.work module and local import exists.
+!go.work
+!vendor/**
+!admin/**
+!backend/**
+!dev-infrastructure/scripts/**
+!fleet/**
+!frontend/**
+!hack/**
+!internal/**
+!kube-applier/**
+!mgmt-agent/**
+!sessiongate/**
+!swift-recorder/**
+!test/**
+!test-integration/**
+!tooling/**
+
+# Never reuse host build outputs in a container build.
+frontend/aro-hcp-frontend
+backend/aro-hcp-backend
+sessiongate/bin
+admin/aro-hcp-admin
+admin/aro-hcp-admin-cli
+mgmt-agent/bin
+fleet/fleet
+kube-applier/kube-applier
+swift-recorder/bin
+tooling/hcpctl/hcpctl
+tooling/aro-hcp-exporter/aro-hcp-exporter
+tooling/tenant-quota/tenant-quota-collector
+test/aro-hcp-tests
+test/prow-job-executor
+tooling/bin
+tooling/hcpctl/dist
+tooling/hcpctl/hcpctl.exe
+tooling/hcpctl/hcpctl-arm64.exe

@@ -21,7 +21,9 @@
 				"state": "Disabled"
 			},
 			"cryptoRestrictions": "None",
-			"dns": {},
+			"dns": {
+				"baseDomainPrefix": "cluster"
+			},
 			"etcd": {
 				"dataEncryption": {
 					"customerManaged": {

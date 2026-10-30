@@ -32,6 +32,7 @@ The following additional tools are also required:
 
 - GNU Make 4.x or newer - macOS's bundled GNU Make 3.81 fails with "multiple target patterns" at `test/Makefile:77`. Install with `brew install make` and use `gmake`, or put `$(brew --prefix make)/libexec/gnubin` first on `PATH`.
 - `kubectl` at the latest version - use `az aks install-cli` to add this to your system
+- Standalone `bicep` at the version pinned in [`dev-infrastructure/openshift-ci/versions.mk`](../dev-infrastructure/openshift-ci/versions.mk). Install the matching binary from the [Bicep releases](https://github.com/Azure/bicep/releases) on `PATH`, or pass `BICEP=/path/to/bicep` to Make. Infrastructure `fmt` and `lint` use this binary directly without Azure CLI authentication; `NPROC` controls their parallelism.
 
 All other tools should be transparently installed by the `make` targets that require them - if you find any missing dependencies, please send a pull request to make sure that the next person to onboard doesn't hit any issues!
 

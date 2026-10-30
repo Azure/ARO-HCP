@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"time"
 
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -68,7 +66,7 @@ func NewBackupScheduleController(
 
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	applyDesireInformer, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &backupScheduleSyncer{
@@ -96,15 +94,8 @@ func NewBackupScheduleController(
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
-	if kubeApplierInformers != nil {
-		// React to ApplyDesire creation so that a missing ReadDesire can be
-		// created promptly rather than waiting for the next resync cycle.
-		// NewClusterWatchingController only wires ReadDesires (which carry
-		// kube-applier status), so we add the ApplyDesire informer here.
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err)
-		}
-	}
+	// NewClusterWatchingController already watches ApplyDesire changes with no
+	// resync. Resync cluster keys once, not once for every input.
 
 	return controller
 }
@@ -147,7 +138,6 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	hostedClusterNamespace := cachedServiceProviderCluster.Status.HostedClusterNamespace
 	controlPlaneNamespace := cachedServiceProviderCluster.Status.ControlPlaneNamespace
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	clusterPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
 
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, cachedServiceProviderCluster.Status.ManagementClusterResourceID)
 	if kubeApplierClient == nil {
@@ -188,28 +178,26 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		}
 	}
 
+	// The ARM override can lift the deployment-wide pause, but never the
+	// per-cluster admin API pause; see BackupConfig.SchedulePaused.
+	paused := c.backupConfig.SchedulePaused(
+		cachedServiceProviderCluster.Spec.BackupScheduleState,
+		cachedCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride,
+	)
+
 	configSchedules := c.backupConfig.Schedules()
-	schedules := make([]*velerov1.Schedule, 0, len(configSchedules))
+	applyDesireNames := make(map[string]bool, len(configSchedules))
 	for _, scheduleConfig := range configSchedules {
-		paused := c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled || clusterPaused
 		schedule := NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
-		schedules = append(schedules, schedule)
-	}
-
-	// Build every ApplyDesire up front, then hand the built desires to the
-	// create-or-update pass. Building and create-or-update stay separate steps.
-	applyDesires, err := buildApplyDesiresFromSchedules(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, managementClusterResourceID, schedules)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build ApplyDesires: %w", err))
-	}
-
-	if err := c.createOrUpdateDesires(ctx, key, applyDesires, applyDesireCRUD, readDesireCRUD); err != nil {
-		return err
-	}
-
-	applyDesireNames := make(map[string]bool, len(applyDesires))
-	for _, applyDesire := range applyDesires {
-		applyDesireNames[applyDesire.ResourceID.Name] = true
+		desire, err := buildApplyDesireFromSchedule(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, backupApplyDesireName(scheduleConfig.Name), managementClusterResourceID, schedule)
+		if err != nil {
+			return err
+		}
+		err = c.createOrUpdateDesire(ctx, key, desire, applyDesireCRUD, readDesireCRUD)
+		if err != nil {
+			return err
+		}
+		applyDesireNames[desire.ResourceID.Name] = true
 	}
 
 	if requeue, err := c.deleteStaleApplyDesires(ctx, key, applyDesireCRUD, applyDesireNames); requeue || err != nil {
@@ -278,45 +266,24 @@ func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controlleru
 	return nil
 }
 
-// createOrUpdateDesires reconciles the backup-schedule ApplyDesires (and their
-// paired ReadDesires). The backups package builds its own desires (see
-// buildApplyDesiresFromSchedules / buildReadDesireFromApplyDesire): the
-// ApplyDesires are built by the caller, this method builds every paired
-// ReadDesire up front, and only then hands the fully-formed desires to the
-// shared kubeapplierhelpers ensure helpers, which consult the informer listers,
-// compare with JSON-aware equality, and write only on drift. Keeping the build
-// and create-or-update work in separate passes (rather than one combined loop)
-// mirrors the original structure. All desires are cluster-scoped and carry the
-// schedule tag so the stale-cleanup and deletion paths can find them.
-func (c *backupScheduleSyncer) createOrUpdateDesires(
+// create or update applyDesire and make sure an associated up-to-date read desire exists
+func (c *backupScheduleSyncer) createOrUpdateDesire(
 	ctx context.Context,
 	key controllerutils.HCPClusterKey,
-	applyDesires []*kubeapplierapi.ApplyDesire,
+	applyDesire *kubeapplierapi.ApplyDesire,
 	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 ) error {
-	// Build phase: construct the paired ReadDesire for every ApplyDesire before
-	// touching the store.
-	readDesires := make([]*kubeapplierapi.ReadDesire, 0, len(applyDesires))
-	for _, applyDesire := range applyDesires {
-		readDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire)
-		if err != nil {
-			return err
-		}
-		readDesires = append(readDesires, readDesire)
+	readDesire, err := buildReadDesireFromApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire)
+	if err != nil {
+		return err
 	}
 
-	// Ensure phase: create-or-update the built desires. ReadDesires first so a
-	// schedule's status is observed as soon as its ApplyDesire lands.
-	for _, readDesire := range readDesires {
-		if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, readDesire); err != nil {
-			return err
-		}
+	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readDesireCRUD, c.readDesireLister, readDesire); err != nil {
+		return err
 	}
-	for _, applyDesire := range applyDesires {
-		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, applyDesire); err != nil {
-			return err
-		}
+	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyDesireCRUD, c.applyDesireLister, applyDesire); err != nil {
+		return err
 	}
 	return nil
 }

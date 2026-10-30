@@ -214,3 +214,42 @@ func TestPolicyValidate_RejectsInvalidRules(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_RejectsUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	for name, doc := range map[string]string{
+		"top-level": `
+rgOrdered:
+  excludedResourceGroup: [keep]
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}}
+`,
+		"rule": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}, olderThen: 1h}
+`,
+		"match": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {nameRegx: "^x$"}}
+`,
+		"conditions": `
+rgOrdered:
+  discovery:
+    rules:
+    - {action: skip, match: {any: true}, conditions: {managedByAlve: true}}
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Load(writeTemp(t, doc)); err == nil || !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("error = %v, want unknown field", err)
+			}
+		})
+	}
+}

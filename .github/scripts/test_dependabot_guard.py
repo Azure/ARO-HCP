@@ -49,7 +49,7 @@ def changed_file(filename, before, after, status="modified"):
     }
 
 
-def open_pr(number=7689, title="Human toolchain update"):
+def open_pr(number=7689, title="Owned security dependency update"):
     return {"number": number, "title": title, "body": "", "base": "main"}
 
 
@@ -106,6 +106,16 @@ class MetadataPreflightTests(TestCase):
 
 
 class CreateGuardTests(TestCase):
+    def setUp(self):
+        # The overlap unit fixtures provide inventory first, then file responses.
+        # Real API discovery and identity gates are exercised by the CLI tests.
+        inventory = patch.object(
+            guard, "owned_inventory",
+            side_effect=lambda repo: guard.gh_lines("owned-security-inventory", ".[]"),
+        )
+        inventory.start()
+        self.addCleanup(inventory.stop)
+
     def assert_deferred_noop(self, output):
         self.assertEqual(len(output["items"]), 1)
         noop = output["items"][0]
@@ -123,7 +133,7 @@ class CreateGuardTests(TestCase):
         self.assertEqual(output["items"][0]["title"], "github.com/gofiber/fiber/v2 to 2.52.14")
 
     @patch.object(guard, "gh_lines")
-    def test_7689_go_directive_update_does_not_block_fiber(self, gh):
+    def test_go_directive_update_in_owned_pr_does_not_block_fiber(self, gh):
         before = "module example.com/service\n\ngo 1.26.0\n\nrequire github.com/gofiber/fiber/v2 v2.52.0\n"
         gh.side_effect = [
             [open_pr()],
@@ -373,15 +383,6 @@ class CreateGuardTests(TestCase):
         output = {"items": [create_item()]}
         guard.guard_create(output, "Azure/ARO-HCP")
         self.assert_deferred_noop(output)
-
-    @patch.object(guard, "gh_lines")
-    def test_non_main_pr_is_ignored(self, gh):
-        gh.return_value = [{**open_pr(), "base": "release"}]
-        item = create_item()
-        output = {"items": [item]}
-        guard.guard_create(output, "Azure/ARO-HCP")
-        self.assertEqual(output["items"], [item])
-        gh.assert_called_once()
 
     @patch.object(guard, "gh_lines")
     def test_api_failures_remain_failures(self, gh):
@@ -640,6 +641,280 @@ class CreateGuardTests(TestCase):
             written = json.loads(path.read_text())["items"]
             self.assertEqual([item["type"] for item in written], ["create_pull_request", "noop"])
             self.assertEqual(written[0]["data"]["package_family"], "typespec")
+
+
+class OwnedInventoryCliTests(TestCase):
+    """Exercise both actual CLIs with a deny-by-default, offline gh fixture."""
+
+    REPO = "Azure/ARO-HCP"
+    ISSUES = f"repos/{REPO}/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100"
+    PULLS = f"repos/{REPO}/pulls"
+    GH = r'''
+import json
+import os
+import sys
+from pathlib import Path
+
+arguments = sys.argv[1:]
+with Path(os.environ["GUARD_GH_CALLS"]).open("a") as calls:
+    calls.write(json.dumps(arguments) + "\n")
+responses = json.loads(Path(os.environ["GUARD_GH_RESPONSES"]).read_text())
+endpoint = arguments[-1] if arguments else ""
+if "--jq" in arguments:
+    endpoint = arguments[arguments.index("--jq") - 1]
+response = responses.get(endpoint)
+if response is None:
+    sys.exit("Unexpected API endpoint: " + endpoint)
+if endpoint.endswith("/files?per_page=100"):
+    expected = ["api", "--paginate", endpoint, "--jq",
+                ".[] | {filename, previous_filename, status, patch, additions, deletions}"]
+elif "/issues?state=open&creator=" in endpoint:
+    expected = ["api", "--paginate", "--slurp", endpoint]
+else:
+    expected = ["api", endpoint]
+if arguments != expected:
+    sys.exit("Unexpected API arguments: " + repr(arguments))
+if response.get("returncode"):
+    sys.exit(response["returncode"])
+if "raw" in response:
+    sys.stdout.write(response["raw"])
+elif "pages" in response:
+    print(json.dumps(response["pages"]))
+elif endpoint.endswith("/files?per_page=100"):
+    for item in response["body"]:
+        print(json.dumps(item))
+else:
+    print(json.dumps(response["body"]))
+'''
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="security-owned-guard-")
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        # Flat safe-output record shape and structured data from run 40594645177.
+        self.proposal = {
+            "type": "create_pull_request", "branch": "fix/undici-7.30.1",
+            "title": "undici to 7.30.1",
+            "body": "Update the transitive undici override and lockfile.",
+            "data": {
+                "ecosystem": "npm", "manifests": ["api/package.json"],
+                "package_family": "undici", "target_version": "7.30.1",
+            },
+        }
+        self.responses = {self.ISSUES: {"pages": [[]]}}
+        gh = self.directory / "gh"
+        gh.write_text(f"#!{sys.executable}\n{self.GH}")
+        gh.chmod(0o755)
+
+    def pr(self, number=42, **overrides):
+        pr = {
+            "number": number, "state": "open", "draft": False,
+            "title": "fix(deps): undici to 7.30.1", "body": "",
+            "user": {"login": "aro-hcp-robot[bot]"},
+            "head": {"ref": "fix/undici-7.30.1", "sha": "a" * 40,
+                     "repo": {"full_name": self.REPO}},
+            "base": {"ref": "main", "repo": {"full_name": self.REPO}},
+            "labels": [{"name": "agentic-dependabot"}],
+            "pull_request": {"url": f"https://api.github.com/{self.PULLS}/{number}"},
+        }
+        pr.update(overrides)
+        return pr
+
+    def inventory(self, *prs):
+        self.responses[self.ISSUES] = {"pages": [list(prs)]}
+
+    def detail(self, pr, **overrides):
+        self.responses[f"{self.PULLS}/{pr['number']}"] = {"body": {**pr, **overrides}}
+
+    def run_cli(self, command="create", output=None):
+        path = self.directory / "agent_output.json"
+        original = json.dumps(output or {"items": [self.proposal]}, indent=1) + "\n"
+        path.write_text(original)
+        responses = self.directory / "responses.json"
+        responses.write_text(json.dumps(self.responses))
+        calls = self.directory / "calls.jsonl"
+        calls.write_text("")
+        environment = {
+            **os.environ, "PATH": f"{self.directory}:{os.environ['PATH']}",
+            "GUARD_GH_RESPONSES": str(responses), "GUARD_GH_CALLS": str(calls),
+        }
+        arguments = [command, self.REPO] if command == "inventory" else [command, str(path), self.REPO]
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("dependabot_guard.py")), *arguments],
+            env=environment, cwd=self.directory, capture_output=True, text=True,
+        )
+        recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+        return result, path.read_text(), original, recorded
+
+    def assert_allowed(self):
+        result, written, _, calls = self.run_cli()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(written), {"items": [self.proposal]})
+        return calls
+
+    def assert_failed_closed(self, command="create"):
+        result, written, original, calls = self.run_cli(command)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(written, original)
+        if command == "inventory":
+            self.assertEqual(result.stdout, "")
+        return calls
+
+    def test_human_prettier_spectral_and_typespec_never_fetch_detail_or_files(self):
+        # Their shared-manifest diffs include both uncertain npm context and real
+        # undici changes. Neither can veto publication because ownership is absent.
+        self.inventory(*[
+            self.pr(number, user={"login": "human"}, title=title,
+                    labels=[{"name": "agentic-dependabot"}])
+            for number, title in (
+                (7593, "chore(deps): bump prettier"),
+                (7347, "chore(deps): bump spectral"),
+                (7037, "chore(deps): bump spectral"),
+                (7460, "fix(deps): typespec with transitive undici"),
+            )
+        ])
+        self.assertEqual(self.assert_allowed(), [
+            ["api", "--paginate", "--slurp", self.ISSUES],
+        ])
+
+    def test_native_dependabot_unrelated_bot_workflow_and_non_pr_are_ignored(self):
+        issue = self.pr(46)
+        del issue["pull_request"]
+        self.inventory(
+            self.pr(42, user={"login": "dependabot[bot]"}),
+            self.pr(43, labels=[], title="Automated - Update component image digests"),
+            self.pr(44, labels=[], body="<!-- gh-aw-workflow-id: tooling-update -->"),
+            self.pr(45, labels=[], body=guard.WORKFLOW_MARKER, title="Other workflow"),
+            issue,
+        )
+        self.assertEqual(self.assert_allowed(), [
+            ["api", "--paginate", "--slurp", self.ISSUES],
+        ])
+
+    def test_inventory_emits_exact_preflight_shape_and_is_read_only(self):
+        pr = self.pr(body=None, draft=True)
+        self.inventory(pr)
+        self.detail(pr)
+        result, written, original, calls = self.run_cli("inventory")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(written, original)
+        self.assertEqual(json.loads(result.stdout), [{
+            "number": 42, "title": pr["title"], "body": "",
+            "head": "fix/undici-7.30.1", "head_repo": self.REPO, "base": "main",
+            "sha": "a" * 40, "draft": True, "author": "aro-hcp-robot[bot]",
+            "labels": ["agentic-dependabot"],
+        }])
+        self.assertEqual(calls, [
+            ["api", "--paginate", "--slurp", self.ISSUES], ["api", f"{self.PULLS}/42"],
+        ])
+
+    def test_exact_runtime_marker_recognizes_prelabel_owned_pr(self):
+        pr = self.pr(labels=[], body=f"Remediation\n{guard.WORKFLOW_MARKER}\n")
+        self.inventory(pr)
+        self.detail(pr)
+        result, _, _, _ = self.run_cli("inventory")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([pr["number"] for pr in json.loads(result.stdout)], [42])
+        for body in (
+            "<!-- gh-aw-workflow-id: dependabot-remediation-extra -->",
+            "<!-- gh-aw-workflow-id: another-workflow -->",
+            f"quoted {guard.WORKFLOW_MARKER}",
+        ):
+            with self.subTest(body=body):
+                self.inventory(self.pr(labels=[], body=body))
+                self.assertEqual(self.assert_allowed(), [
+                    ["api", "--paginate", "--slurp", self.ISSUES],
+                ])
+
+    def test_owned_real_overlap_defers_but_unrelated_package_does_not(self):
+        pr = self.pr()
+        self.inventory(pr)
+        self.detail(pr)
+        before = npm_manifest({"undici": "7.24.4", "fast-uri": "3.1.8"})
+        files = f"{self.PULLS}/42/files?per_page=100"
+        for package, version, deferred in (("undici", "7.24.4", True), ("fast-uri", "3.1.8", False)):
+            with self.subTest(package=package):
+                self.responses[files] = {"body": [
+                    changed_file("api/package.json", before, before.replace(version, "9.0.0")),
+                ]}
+                result, written, _, calls = self.run_cli()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(written)["items"][0]["type"],
+                                 "noop" if deferred else "create_pull_request")
+                self.assertEqual([call[2] for call in calls if "--jq" in call], [files])
+
+    def test_owned_partial_npm_context_defers_without_vetoing_other_groups(self):
+        pr = self.pr()
+        self.inventory(pr)
+        self.detail(pr)
+        self.responses[f"{self.PULLS}/42/files?per_page=100"] = {"body": [{
+            "filename": "api/package.json", "status": "modified",
+            "patch": '@@ -20 +20 @@\n-    "prettier": "3.6.2"\n+    "prettier": "3.6.3"',
+        }]}
+        result, written, _, _ = self.run_cli(output={"items": [self.proposal, go_item()]})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([item["data"]["ecosystem"] for item in json.loads(written)["items"]], ["go"])
+
+    def test_closed_other_base_and_fresh_unowned_prs_are_ignored(self):
+        for overrides in (
+            {"state": "closed"}, {"base": {"ref": "release"}},
+            {"user": {"login": "human"}}, {"labels": [], "body": ""},
+        ):
+            with self.subTest(overrides=overrides):
+                pr = self.pr()
+                self.inventory(pr)
+                self.detail(pr, **overrides)
+                calls = self.assert_allowed()
+                self.assertEqual(len(calls), 2)
+        self.inventory(self.pr(state="closed"))
+        self.assertEqual(len(self.assert_allowed()), 1)
+
+    def test_recorded_flat_proposal_serializes_same_batch_manifest(self):
+        sibling = create_item(family="fast-uri")
+        sibling["data"]["target_version"] = "3.1.9"
+        result, written, _, calls = self.run_cli(output={"items": [self.proposal, sibling]})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(written), {"items": [self.proposal]})
+        self.assertIn("same-batch manifest conflict", result.stderr)
+        self.assertEqual(calls, [["api", "--paginate", "--slurp", self.ISSUES]])
+
+    def test_malformed_owned_metadata_fails_closed_for_both_clis(self):
+        for command in ("create", "inventory"):
+            for overrides in (
+                {"number": 43}, {"draft": None}, {"labels": None}, {"body": []},
+                {"head": None}, {"head": {"ref": "fix/x", "sha": "bad", "repo": {"full_name": self.REPO}}},
+                {"head": {"ref": "fix/x", "sha": "a" * 40, "repo": {"full_name": "fork/ARO-HCP"}}},
+                {"base": {"ref": "main", "repo": {"full_name": "fork/ARO-HCP"}}},
+            ):
+                with self.subTest(command=command, overrides=overrides):
+                    pr = self.pr()
+                    self.inventory(pr)
+                    self.detail(pr, **overrides)
+                    self.assert_failed_closed(command)
+
+    def test_inventory_pages_api_errors_and_invalid_json_fail_closed(self):
+        for command in ("create", "inventory"):
+            for response in (
+                {"returncode": 1}, {"raw": "not json"}, {"pages": []},
+                {"pages": [None]}, {"pages": [[self.pr(), self.pr()]]},
+                {"pages": [[self.pr(labels=None)]]},
+            ):
+                with self.subTest(command=command, response=response):
+                    self.responses = {self.ISSUES: response}
+                    self.assert_failed_closed(command)
+            pr = self.pr()
+            self.inventory(pr)
+            self.responses[f"{self.PULLS}/42"] = {"returncode": 1}
+            self.assert_failed_closed(command)
+
+    def test_paginated_inventory_keeps_every_owned_pr(self):
+        first, second = self.pr(42), self.pr(43)
+        self.responses[self.ISSUES] = {"pages": [[first], [second]]}
+        self.detail(first)
+        self.detail(second)
+        result, _, _, _ = self.run_cli("inventory")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([pr["number"] for pr in json.loads(result.stdout)], [42, 43])
 
 
 class RetestGuardTests(TestCase):

@@ -27,7 +27,7 @@ func NewCommand() (*cobra.Command, error) {
 	opts := DefaultValidationOptions()
 	cmd := &cobra.Command{
 		Use:           "validate",
-		Short:         "Validate configurations and pipeline configuration references.",
+		Short:         "Validate configurations, pipeline references, and Helm deployment compatibility.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {

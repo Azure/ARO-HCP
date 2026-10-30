@@ -48,7 +48,7 @@ data:
     coredns = ""
     cadvisor = ""
     kubeproxy = ""
-    apiserver = ""
+    apiserver = "apiserver_validating_admission_policy_check_total"
     kubestate = ""
     nodeexporter = ""
     windowsexporter = ""

@@ -31,7 +31,7 @@ CLI_SOURCES = $(shell find client -name '*.go' -o -name 'go.mod' -o -name 'go.su
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(ADMIN_API_SOURCES)
+$(BINARY): $(ADMIN_API_SOURCES) force-go-build
 	cd server && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
@@ -127,5 +127,9 @@ allow-istio-ingress-from-current-ip:
 build-cli: $(CLI_BINARY)
 .PHONY: build-cli
 
-$(CLI_BINARY): $(CLI_SOURCES)
+$(CLI_BINARY): $(CLI_SOURCES) force-go-build
 	cd client && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

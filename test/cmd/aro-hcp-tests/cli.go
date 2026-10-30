@@ -221,8 +221,8 @@ func setupCli() (*cobra.Command, error) {
 
 		// AddSpecs copies specs into a new backing array (ext.specs), so the
 		// scheduler must be wired against ext.GetSpecs() rather than the local
-		// specs slice above — otherwise the demand-based sort in
-		// configureMIScheduler reorders a slice run-suite/run-test never reads.
+		// specs slice above — otherwise configureMIScheduler mutates a slice
+		// run-suite/run-test never reads.
 		initMIScheduler(ext.GetSpecs(), miSchedulerConfig{
 			pooledIdentitiesEnabled: pooledIdentitiesEnabled,
 			containerCount:          containerCount,

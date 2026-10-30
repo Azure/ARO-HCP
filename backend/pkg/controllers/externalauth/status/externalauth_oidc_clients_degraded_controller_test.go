@@ -209,7 +209,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			expectNoWrite:               true,
 		},
 		{
-			name: "no clients defined -> OIDCClientsDegraded=False",
+			name: "no clients defined - OIDCClientsDegraded=False",
 			externalAuth: newTestExternalAuthForDegraded(func(ea *coreapi.ExternalAuth) {
 				ea.Properties.Clients = nil
 			}),
@@ -223,7 +223,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			expectCondition: &expectedCondition{
 				status:  metav1.ConditionFalse,
 				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-				message: coreapi.ExternalAuthMessageAllOperational,
+				message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 			},
 		},
 		{
@@ -250,7 +250,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			expectCondition: &expectedCondition{
 				status:  metav1.ConditionFalse,
 				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-				message: coreapi.ExternalAuthMessageAllOperational,
+				message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 			},
 		},
 		{
@@ -650,7 +650,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			expectCondition: &expectedCondition{
 				status:  metav1.ConditionFalse,
 				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-				message: coreapi.ExternalAuthMessageAllOperational,
+				message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 			},
 		},
 		{
@@ -662,7 +662,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 					Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 					Status:  metav1.ConditionFalse,
 					Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-					Message: coreapi.ExternalAuthMessageAllOperational,
+					Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 				}}
 			}),
 			hostedCluster: &v1beta1.HostedCluster{
@@ -724,7 +724,7 @@ func TestExternalAuthOIDCClientsDegradedController_SyncOnce(t *testing.T) {
 			expectCondition: &expectedCondition{
 				status:  metav1.ConditionFalse,
 				reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-				message: coreapi.ExternalAuthMessageAllOperational,
+				message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 			},
 		},
 		{

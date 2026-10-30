@@ -66,7 +66,48 @@ Please follow these guidelines when contributing to ARO HCP:
   in the Jira card. Please, also include all design documents and slack discussion in the Jira. This will
   help others to understand the context and decisions made.
 
+Use `make generate` to regenerate mocks, the nonlocal E2E specification list, and
+deepcopy code. Generation finishes with one `all-tidy` pass for module and
+workspace dependencies, Go formatting, and license headers. `make deepcopy`
+retains the same finishing checks when only deepcopy generation is needed.
+Both `make verify-deepcopy` and `make verify-generate` run complete generation
+before checking for uncommitted changes; `make verify` shares that generation pass.
+
 Please note, that you might be asked to comply with these guidelines before your PR is accepted.
+
+## Go dependencies
+
+After adding or updating a Go dependency, run `make vendor` from the repository
+root. This tidies each module, synchronizes the workspace, and regenerates both
+the root `vendor/` tree and the isolated `image-sync/oc-mirror/acrauth/vendor/`
+tree. Commit both vendor trees together with changes to `go.work`, `go.mod`, and
+`go.sum` files. Do not edit vendored source directly.
+
+Stage generated dependencies with `git add -f vendor/ image-sync/oc-mirror/acrauth/vendor/`:
+some upstream packages include `.gitignore` files that would otherwise hide parts
+of the generated trees.
+
+Run `make verify-vendor` to compare the vendor trees with freshly generated
+copies without overwriting local changes. Dependency maintenance and verification
+may need network access to populate the Go module cache.
+
+Generated SDK modules under `test/sdk/` remain outside the workspace to preserve
+their independent Go and dependency versions. Their existing local replacements
+are copied into the root vendor tree; run `make vendor` after changing or
+regenerating SDK source. The `acrauth` module also remains outside the workspace
+to isolate its Azure SDK versions; run its standalone Go commands with
+`GOWORK=off`.
+
+Workspace service images use the repository root as their build context, including
+`tooling/aro-hcp-exporter`. Each `Dockerfile.dockerignore` includes `go.work`, the
+root vendor tree, and the complete workspace source directories. Keep these
+allowlists in sync when adding a new workspace directory. Builders use `-mod=vendor` with
+`GOPROXY=off`; regenerate vendor before building after dependency changes.
+
+Local binary targets invoke `go build` on every request so Go's build cache can
+track changes in shared modules, vendored dependencies, and embedded files.
+Repository formatting, license updates, and YAML wrapping skip vendor directories
+to preserve upstream contents.
 
 ## Pull Request Standards
 
@@ -96,7 +137,8 @@ All pull requests must follow these standards. Reviewers will check for complian
 - Lead with motivation and business context, then briefly describe the technical approach.
 
 ### 4. Link to Relevant Ticket or Issue
-- Every PR must reference its tracking ticket (Jira, GitHub Issue).
+- PRs authored by `aro-hcp-robot[bot]` do not require a separate Jira or GitHub tracking issue. The bot PR itself tracks the automated change, including dependency, component, image and tool updates. This exception does not waive CI, security checks or substantive code review.
+- All other PRs must reference their tracking ticket (Jira, GitHub Issue) or explain why no ticket is needed.
 - Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
 - If no ticket exists, create one first or explain why in the PR body.
 

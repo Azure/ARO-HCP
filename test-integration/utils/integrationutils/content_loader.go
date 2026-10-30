@@ -17,6 +17,7 @@ package integrationutils
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -38,29 +39,58 @@ type DocumentLister interface {
 	ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error)
 }
 
+func listAllContainerDocuments(containers map[string][]*cosmosstorageutils.TypedDocument) []*cosmosstorageutils.TypedDocument {
+	var documents []*cosmosstorageutils.TypedDocument
+	for _, container := range containers {
+		documents = append(documents, container...)
+	}
+	return documents
+}
+
 // CosmosContentLoader implements ContentLoader and DocumentLister using a real Cosmos DB container.
 type CosmosContentLoader struct {
-	container *azcosmos.ContainerClient
+	resourcesContainer *azcosmos.ContainerClient
+	fleetContainer     *azcosmos.ContainerClient
 }
 
 // NewCosmosContentLoader creates a new CosmosContentLoader from a Cosmos container.
-func NewCosmosContentLoader(container *azcosmos.ContainerClient) *CosmosContentLoader {
-	return &CosmosContentLoader{container: container}
+func NewCosmosContentLoader(resourcesContainer, fleetContainer *azcosmos.ContainerClient) *CosmosContentLoader {
+	return &CosmosContentLoader{resourcesContainer: resourcesContainer, fleetContainer: fleetContainer}
 }
 
 // LoadContent loads a single JSON document into Cosmos DB.
 func (c *CosmosContentLoader) LoadContent(ctx context.Context, content []byte) error {
-	return LoadCosmosContent(ctx, c.container, content)
+	return LoadCosmosContent(ctx, c.resourcesContainer, c.fleetContainer, content)
 }
 
 // ListAllDocuments returns all documents in the Cosmos container.
 func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
+	containers, err := c.ListDocumentsByContainer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return listAllContainerDocuments(containers), nil
+}
+
+func (c *CosmosContentLoader) ListDocumentsByContainer(ctx context.Context) (map[string][]*cosmosstorageutils.TypedDocument, error) {
+	results := map[string][]*cosmosstorageutils.TypedDocument{}
+	for name, container := range map[string]*azcosmos.ContainerClient{"Resources": c.resourcesContainer, "Fleet": c.fleetContainer} {
+		documents, err := listCosmosContainerDocuments(ctx, container)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list %s documents: %w", name, err)
+		}
+		results[name] = documents
+	}
+	return results, nil
+}
+
+func listCosmosContainerDocuments(ctx context.Context, container *azcosmos.ContainerClient) ([]*cosmosstorageutils.TypedDocument, error) {
 	querySQL := "SELECT * FROM c"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{},
 	}
 
-	queryPager := c.container.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+	queryPager := container.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
 	var results []*cosmosstorageutils.TypedDocument
 	for queryPager.More() {

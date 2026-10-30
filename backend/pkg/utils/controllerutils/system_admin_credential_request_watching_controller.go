@@ -77,6 +77,8 @@ func NewSystemAdminCredentialRequestWatchingController(
 	if backendInformers != nil {
 		credentialRequestInformer, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
 		systemAdminCredentialRequestSyncer.credentialRequestLister = credentialRequestLister
+		// Resync only the key resource so each key is resynced once per interval,
+		// not once for every input. Use 0 (no resync) for all other watches.
 		err := controller.QueueForInformers(resyncDuration, credentialRequestInformer)
 		if err != nil {
 			panic(err) // coding error

@@ -21,8 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -33,8 +31,6 @@ import (
 func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	t.Parallel()
 
-	const unexpectedKubeAPIServerDNSName = "api.unexpected.example.com"
-
 	testCases := []struct {
 		name               string
 		existingCluster    *coreapi.Cluster
@@ -44,6 +40,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		expectedBaseDomain string
 		expectedAPIURL     string
 		expectedIssuerURL  string
+		expectedError      string
 	}{
 		{
 			name: "sync cluster properties from HostedCluster ReadDesire when they differ from cache",
@@ -52,7 +49,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			}),
 			readDesire:         newTestHostedClusterReadDesire(t),
 			expectedConsoleURL: testConsoleURL,
-			expectedBaseDomain: testBaseDomain,
+			expectedBaseDomain: "",
 			expectedAPIURL:     testAPIURL,
 			expectedIssuerURL:  testIssuerURL,
 		},
@@ -83,16 +80,6 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			existingCluster: newTestCluster(testClusterName),
 			readDesire:      nil,
 		},
-		{
-			name: "error when KubeAPIServerDNSName does not match base domain prefix",
-			existingCluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
-				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
-			}),
-			readDesire: newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
-				hc.Spec.KubeAPIServerDNSName = unexpectedKubeAPIServerDNSName
-			}),
-			wantErr: true,
-		},
 	}
 
 	for _, tc := range testCases {
@@ -121,13 +108,12 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), unexpectedKubeAPIServerDNSName)
-				assert.Contains(t, err.Error(), "api."+testBaseDomainPrefix+".")
+				assert.Contains(t, err.Error(), tc.expectedError)
 
 				unchangedCluster, getErr := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, tc.existingCluster.Name)
 				require.NoError(t, getErr)
 				assert.Empty(t, unchangedCluster.ServiceProviderProperties.Console.URL)
-				assert.Empty(t, unchangedCluster.ServiceProviderProperties.DNS.BaseDomain)
+				assert.Equal(t, tc.existingCluster.ServiceProviderProperties.DNS.BaseDomain, unchangedCluster.ServiceProviderProperties.DNS.BaseDomain)
 				assert.Empty(t, unchangedCluster.ServiceProviderProperties.API.URL)
 				assert.Empty(t, unchangedCluster.ServiceProviderProperties.Platform.IssuerURL)
 				return

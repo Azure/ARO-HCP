@@ -80,132 +80,114 @@ Because of that, it is more tolerant than per-test cleanup:
 
 CI service certificates live in the shared `aro-hcp-dev-svc-kv` vault, in the
 `global` resource group. Regional `templatize` teardown deliberately excludes
-that group: it also contains long-lived services and shared credentials. Do not
-enable global RG deletion to remove individual job certificates. Teardown starts
-RG deletion asynchronously, and certificate steps reference runtime vault outputs,
-so the periodic backstop handles these leftovers independently of the topology
-cleanup rather than assuming its consumers have already disappeared.
+that group because it contains long-lived services and shared credentials. Do not
+enable global resource-group deletion to clean up individual certificates.
 
-For new `dev/ci00` and `dev/ci01` runs, `templatize` uses an explicit
+For new `dev/ci00`, `dev/ci01` and `dev/ci02` runs, `templatize` uses an explicit
 `EmailContacts` lifetime action instead of `AutoRenew` for job-named frontend,
 admin API, sessiongate, and Maestro server certificates in that shared vault.
 Validity remains six months. Changing only this lifetime action updates an
 existing CI certificate policy without issuing another version. Persistent
 environments, public cloud, shared identities, and other vaults retain their
-existing renewal behavior. This prevents new disposable certificates from
-incurring recurring renewals but does not clean up the legacy backlog by itself.
+existing renewal behavior.
 
-The dedicated backstop is:
+Manual certificate sweeps use the policy in
+`tooling/cleanup-sweeper/certificates.policy.yaml`. Start with a dry run:
 
 ```bash
-# Read-only rehearsal with an existing developer login:
-AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
-  go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run --min-age=168h --max-deletions=1000 --max-purges=1000 \
-    --workers=2 --timeout=30m
-
-# Apply only after reviewing candidates and confirming the fixed DEV scope:
-AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
-  go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run=false --min-age=168h --max-deletions=1000 --max-purges=1000 \
-    --workers=2 --timeout=30m
-
-# Purge legacy tombstones without resuming active-certificate deletion:
-AZURE_CONFIG_DIR="$HOME/.azure-redhat" AZURE_TOKEN_CREDENTIALS=AzureCLICredential \
-  go run ./tooling/cleanup-sweeper ci-certificates \
-    --dry-run=false --delete-active=false --purge-deleted=true \
-    --max-purges=1000 --workers=2 --timeout=30m
+AZURE_TOKEN_CREDENTIALS=dev \
+  go run ./tooling/cleanup-sweeper --workflow=certificates \
+    --dry-run=true --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
+    --options=certificates.max-deletions=1000 \
+    --options=certificates.max-purges=1000 \
+    --parallelism=2 --timeout=30m
 ```
 
-The command defaults to dry-run and has no vault or subscription override. It
-targets only `aro-hcp-dev-svc-kv` and checks resource groups in both DEV
-infrastructure subscriptions, `1d3378d3-5a3f-4712-85a1-2485495dfc4b` and
-`0ef1ad54-9296-44cd-9600-5dc8e9a74034`. Certificate metadata access and RG read
-access to both are required when `--delete-active=true`; purge-only mode skips
-active-certificate and RG-owner inventory. Apply additionally needs certificate
-delete and/or purge access for the enabled actions. No Graph credential or
-private key/secret reads are required.
+To apply the current policy after reviewing the dry-run output:
 
-Deletion requires all of the following:
+```bash
+AZURE_TOKEN_CREDENTIALS=dev \
+  go run ./tooling/cleanup-sweeper --workflow=certificates \
+    --dry-run=false --policy=tooling/cleanup-sweeper/certificates.policy.yaml \
+    --options=certificates.max-deletions=1000 \
+    --options=certificates.max-purges=1000 \
+    --parallelism=2 --timeout=30m
+```
 
-- An exact `frontend-cert`, `admin-api-cert`, or `sessiongate-cert` name followed
-  by `-(prow|ci00|ci01)-jNNNNNNN`, or `maestro-server-jNNNNNNN`. Legacy `prow`
-  names are intentionally included in backlog cleanup.
-- Neither `persist=true` nor `doNotDelete=true`. Personal, shared DEV, CSPR, and
-  mock-identity certificate names do not match. Placeholder suffixes `0000000`
-  through `0000099` and fixture suffix `7654321` are always protected.
-- Both latest-version creation and update timestamps strictly older than the
-  cutoff (seven days by default; the minimum supported threshold is 24 hours).
-  Renewal or recent reuse postpones cleanup by another grace period. This is
-  deliberately more conservative than first-version age and avoids enumerating
-  version histories for tens of thousands of certificates. Normal CI jobs
-  finish within three hours, leaving a wide margin before eligibility.
-- No RG containing that exact job token in either subscription, including RGs
-  still being deleted. Any incomplete/failed RG inventory aborts deletion.
-- Unchanged, still-eligible latest certificate metadata immediately before delete,
-  with owner inventory refreshed before apply and no more than 30 seconds old.
-  If certificate revalidation takes longer than that, the attempt fails without
-  deleting and the certificate is retried by a later hourly run.
+The `certificates` workflow requires `--policy`. Like every workflow it applies
+changes unless `--dry-run=true` is passed, so always start with a dry run.
+Workflow-specific settings are passed as `--options=<workflow>.<key>=<value>`;
+for this workflow they are `delete-active`, `purge-deleted`, `max-deletions` and
+`max-purges`, and `cleanup-sweeper --help` lists the options of every workflow.
+It has no subscription or resource-group settings: the policy's `vaultURL` is
+the only vault it touches, and nothing overrides it. (The former
+`--subscription-id`, `--resource-group` and `--wait` flags still work for the
+other workflows as deprecated aliases of `--options=<workflow>.subscription-id`,
+`.resource-group` and `.wait`.) Policy rules are
+first-match-wins; unmatched certificates are retained. Delete eligibility also
+requires that no tag listed in the policy's mandatory `protectedTags` is present
+(`persist: "true"` in the shipped policy) and that both latest-version
+timestamps are older than the rule's retention.
 
-Active and deleted certificate inventories continue requesting Key Vault pages
-until they fill their mutation budgets or exhaust the corresponding inventory.
-`--max-deletions` bounds selected active-certificate mutations, not metadata
-inspection. `--max-purges` is shared by immediate purges after active deletion
-and previously deleted tombstones. When both actions are enabled, purge capacity
-is reserved for each selected active certificate and only the remainder is
-available for deleted-certificate selection. Ineligible and live-owned objects
-do not consume either mutation budget. This prevents a stable prefix of recent
-or protected names from starving eligible certificates later in Key Vault's
-ordered inventory.
-The default 1,000-certificate budgets also comfortably exceed the normal daily
-creation rate of roughly 1,000 CI jobs per month.
-Every delete still uses a fresh owner revalidation through the shared 30-second
-guard. Discovery can inspect the full active or deleted inventory when too few
-eligible objects exist, so the overall timeout remains the read-cost and runtime
-bound while the mutation flags independently cap destructive operations.
-`--delete-active` and `--purge-deleted` independently enable the two actions,
-allowing tombstones to be remediated without resuming active-certificate
-cleanup. The command emits JSON candidate and summary logs.
+Apply revalidates certificate metadata immediately before deletion. Rules with
+owner-resource-group guards require a fresh inventory across the subscriptions
+listed in `ownerInventory.subscriptions`. They are named by display name and
+resolved to IDs at run time, which keeps subscription IDs out of the repository;
+a name that is unknown or ambiguous aborts the run before any change. The
+workflow emits structured candidate and summary logs. Pass `--parallelism=2`
+(the root default is four) to limit Key Vault and Resource Manager throttling,
+and `--timeout` to bound the run (30 minutes when unset for this workflow).
 
-Active candidates are soft-deleted as complete certificate objects, including
-all versions and their policy; backing certificate material can become
-unavailable. When purge is enabled, each successful soft-delete waits up to 30
-seconds for the corresponding tombstone, revalidates it, and purges it
-immediately. The configurable `--workers` pool bounds concurrent delete/purge
-chains and defaults to two to limit Key Vault and Resource Manager throttling.
-Owner inventory refreshes are serialized and shared by the workers, while each
-certificate still rejects an inventory older than 30 seconds immediately before
-delete.
+Certificate metadata access is required for discovery. Apply also requires
+certificate delete and purge permissions for the enabled actions. No Graph
+credential or private-key/secret reads are required.
 
-Deleted candidates must match the same exact transient CI naming
-policy, retain no protected tag or placeholder suffix, provide consistent
-certificate and recovery IDs, and report a recovery level containing
-`Purgeable`. Their deletion and scheduled-purge timestamps are required and
-revalidated immediately before purge. Tombstones do not use the age or live-RG
-guards: the certificate is already unavailable, and retaining the tombstone only
-reserves a reusable seven-digit job name. Purge is irreversible and requires
-certificate purge permission.
+Candidate discovery follows the first matching rule in
+`tooling/cleanup-sweeper/certificates.policy.yaml`; unmatched certificates are
+retained. Certificates carrying a `protectedTags` tag are never selected by any
+rule (the list is mandatory; tag keys and values compare case-insensitively),
+and all delete rules require both latest-version creation and update timestamps
+older than the configured retention. The owner
+guard is mandatory: every delete rule must set `ownerResourceGroupAbsent: true`
+(with a named `ownerCaptureGroup`), which requires no matching resource group in
+any owner inventory subscription, or explicitly opt out with
+`allowWithoutOwnerGuard: true`. The captured owner must be a single token: the
+owner inventory splits resource group names on every character that is not a
+letter or digit, so a capture such as `west-us3` could never be found and the
+certificate is retained instead. Name patterns must match the whole name, which
+validation enforces for every alternative (`^a$|^b$` is accepted, `^a|b$` is
+not). The policy file is parsed strictly, so a misspelled key fails instead of
+silently dropping a safeguard, and protected tag keys that differ only in case
+are rejected as ambiguous. Job placeholder
+and fixture certificates (`j0000000`-`j0000099`, `j7654321`) are protected by
+the first rule of the policy file, which is a `skip` rule; keep it first when
+editing. Incomplete owner inventory or uncertain certificate metadata favors
+retention.
 
-The command never issues separate key or secret delete calls. Failed deletes and
-purges are reported together at the end. If a tombstone does not appear within
-30 seconds, the process is interrupted, or immediate purge fails, a later run
-rediscovers and retries that tombstone after repeating safety checks. Certificate
-provisioning does not recover soft-deleted certificates; successful cleanup must
-purge their names so a later job can create a new certificate. Individual
-failures do not fail the command when at least one certificate was deleted,
-purged, or already absent; the command fails when every attempted change failed.
+The sweeper continues paging through Key Vault inventory until mutation budgets
+are filled or the inventory is exhausted. `max-deletions` bounds active
+certificate mutations, not metadata inspection; each deleted active certificate
+is purged immediately when purging is enabled. `max-purges` independently
+bounds the previously deleted certificates (tombstones) purged, so a run can
+purge up to `max-deletions + max-purges` certificates. Tombstones are
+selected by the same rules and protected tags but are not subject to retention
+or the owner guard: the certificate is already deleted, and a lingering
+tombstone only blocks reuse of its name. Ineligible objects do not consume
+either budget. The overall timeout
+limits discovery and apply runtime. The workflow emits structured candidate and summary
+logs.
 
-Azure does not provide an atomic owner-check/certificate-delete operation, so
-concurrent reuse of a seven-digit job suffix remains a race. The age guard, recent
-metadata revalidation, cross-subscription owner veto, and protected placeholders
-reduce that risk; a live owner or uncertain metadata always favors retention.
+Active certificates are deleted as complete certificate objects, including all
+versions and their policy; backing certificate material can become unavailable.
+Apply revalidates certificate metadata immediately before deletion. When the
+policy uses owner-resource-group guards, owner inventory is refreshed before
+apply and must be no more than 30 seconds old.
 
-The former companion `openshift/release` periodic job
-`delete-expired-dev-ci-certificates` ran this command hourly with explicit apply,
-seven-day age, and a 1,000-certificate cap. It is currently disabled while the
-service-certificate lifecycle is being revised. The reusable step defaults to
-dry-run and forces dry-run for rehearsals/non-periodic invocations. No certificate
-deletions or purges are performed by unit tests.
+The command never issues separate key or secret delete calls. Failures are
+reported at the end. Azure does not provide an atomic owner-check/certificate-
+delete operation, so concurrent resource-group creation remains a race; age
+checks, metadata revalidation, owner guards, and protected tags reduce that risk.
+Unit tests do not perform certificate mutations.
 
 ```mermaid
 ---
@@ -306,7 +288,7 @@ find the decision and job metadata. Azure does not guarantee that every header
 appears in Activity Log, and empty response ID fields mean Azure did not return
 them. A shared caller identity or user agent alone does not identify the process.
 Missing or incomplete historical sweeper logs cannot prove that the sweeper did
-not issue a request. The dedicated `ci-certificates` data-plane command and
+not issue a request. The data-plane `certificates` workflow and
 other cleanup programs are outside this ARM audit path.
 
 #### Resource-group policy
@@ -323,7 +305,7 @@ Azure does not set that tag by default. Subscriptions where `rg-ordered` should 
 
 Because the `createdAt` tag is required for every `action: delete` rule, this policy is a hard per-subscription prerequisite: `rg-ordered` must not be enabled in a subscription (including the INT, STG, and PROD e2e subscriptions) until the `createdAt` policy is assigned there. The sweeper only requires a parseable `createdAt` tag, so groups created before the policy was assigned are not candidates until the tag is present (either stamped by the policy on new groups or backfilled onto existing ones, for example via policy remediation). Until the policy is in place, only `shared-leftovers` is safe to run in that subscription, since it does not delete resource groups.
 
-For the DEV e2e/customer subscriptions (`.ci.dev.e2eSubscriptions`), this policy is assigned declaratively by the dev-ci pipeline: `dev-infrastructure/templates/createdat-rg-tag-policy.bicep` fans the subscription-scoped definition + assignment out to each e2e subscription, wired as the `createdat-rg-tag-policy` step in `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`. That step lives in the privileged dev-ci tree because writing policy definitions/assignments needs `Microsoft.Authorization/policy*/write`, which the unattended Contributor bot lacks; run it with `make dev-ci-privileged-local-run` as an OWNERS member. For one-off or non-dev subscriptions, `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` creates or updates the same definition and assignment imperatively.
+For the DEV and STG e2e/customer subscriptions (`.ci.dev.e2eSubscriptions` and `.ci.stg.e2eSubscriptions`), this policy is assigned declaratively by the dev-ci pipeline: `dev-infrastructure/templates/createdat-rg-tag-policy.bicep` fans the subscription-scoped definition + assignment out to each e2e subscription, wired as the `createdat-rg-tag-policy` step in `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`. That step lives in the privileged dev-ci tree because writing policy definitions/assignments needs `Microsoft.Authorization/policy*/write`, which the unattended Contributor bot lacks; run it with `make dev-ci-privileged-local-run` as an OWNERS member. For one-off or other environments' subscriptions, `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` creates or updates the same definition and assignment imperatively.
 
 > **Keep the rule body in sync.** The policy rule is expressed in two places: `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` (used by the imperative script) and, mirrored inline, in `dev-infrastructure/templates/createdat-rg-tag-policy-subscription.bicep` (used by the declarative dev-ci path). Both use the same definition/assignment resource names so they converge on one policy, but the rule body itself is duplicated: any change to the `if`/`then`/`[utcNow()]` logic must be applied to both files.
 

@@ -674,8 +674,11 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	}
 
 	// Cluster Service rejects an empty DomainPrefix string.
-	if cluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
+	if len(cluster.CustomerProperties.DNS.BaseDomainPrefix) != 0 {
 		clusterBuilder.DomainPrefix(cluster.CustomerProperties.DNS.BaseDomainPrefix)
+	}
+	if len(cluster.ServiceProviderProperties.DNS.BaseDomain) != 0 {
+		clusterBuilder.DNS(arohcpv1alpha1.NewDNS().BaseDomain(cluster.ServiceProviderProperties.DNS.BaseDomain))
 	}
 
 	return clusterBuilder, azureBuilder, nil

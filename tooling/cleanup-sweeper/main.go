@@ -42,7 +42,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd.TraverseChildren = true
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		ctx = logr.NewContext(ctx, createLogger(logVerbosity))

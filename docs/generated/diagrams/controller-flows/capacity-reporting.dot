@@ -1,0 +1,34 @@
+digraph capacity_reporting {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.6", fontname="DejaVu Sans", fontsize=18, labelloc=t, dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  label="Capacity reporting · observed populations, not desired sizing";
+  cache [label="Node / Pod / Namespace / HCP / HC caches\nALL synced before collection", fillcolor="#fff0da", color="#b27624"];
+  metrics [label="Metrics API\nlive cluster-wide PodMetrics", fillcolor="#fff0da", color="#b27624"];
+  collect [label="capacity-reporting\nimmediate pass, then every 30s\n25s collection budget"];
+  nodes [label="Worker nodes by SKU\nonly Ready nodes add allocatable"];
+  totals [label="HCP namespace populations\noverall and Available=True\ndeduplicate namespaces per population"];
+  sizes [label="Optional observed-size buckets\nHCP annotation -> cached HC label\nnonempty / lowercase / valid / not default"];
+  buckets [label="Per size: readyResources + readyCount\nresources: ready namespaces\ncount: distinct case-sensitive ready ARM IDs"];
+  report [label="CapacityReport cluster · status SSA\natomic hostedControlPlanes\nresources / readyResources / size buckets\nlegacy usage/requested = overall totals\nReportCurrent=True + LastReportedAt", fillcolor="#e4f2e5", color="#4c8053"];
+  failure [label="Collection failure\npreserve prior payload / absent fields / timestamp\nReportCurrent=False", fillcolor="#fbe8e5", color="#a64f43"];
+  mirror [label="ReadDesireKubernetesController\nmirror report into Cosmos"];
+  scheduling [label="Fleet CapacityReportingController\nlegacy totals + ready/not-ready ID lists\nmirror even stale; mark freshness separately"];
+  average [label="HCPResourceRequirementsController\ncurrent reports with ready IDs only\nlegacy totals / ready-ID count\nnew ready-only and size totals NOT consumed"];
+  cache -> collect [label="cached inputs"];
+  metrics -> collect [label="container usage"];
+  collect -> nodes [label="role=worker + SKU"];
+  collect -> totals [label="Pending/Running requests; returned metrics\nSWIFT NIC usage = requested"];
+  collect -> sizes [label="observed association; never desired size"];
+  totals -> buckets [label="ready workload by attributed size"];
+  sizes -> buckets [label="invalid/missing attribution omitted\noverall accounting retained"];
+  nodes -> report [label="per-SKU capacity"];
+  totals -> report [label="zero maps for empty populations\nARM IDs not required for resource totals"];
+  buckets -> report [label="sorted buckets; not exhaustive\nno ready HCP: zero totals/count"];
+  collect -> failure [label="collection error"];
+  report -> mirror [label="observed content"];
+  failure -> mirror [label="stale retained content", style=dashed, color="#857456"];
+  mirror -> scheduling [label="legacy scheduling inputs"];
+  mirror -> average [label="legacy sample inputs"];
+  failure -> collect [label="next periodic pass", style=dashed, color="#857456", constraint=false];
+}

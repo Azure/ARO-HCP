@@ -321,3 +321,61 @@ func TestValidationResult_ToCondition(t *testing.T) {
 		})
 	}
 }
+
+func TestValidationProbeRewriteIntervalFitsFreshnessWindow(t *testing.T) {
+	assert.Positive(t, ValidationProbeRewriteInterval, "rewrite interval must be positive")
+	assert.Greater(t, ValidationProbeFreshnessWindow, ValidationProbeRewriteInterval+maxNonPassedRetryDelay,
+		"the freshness window must allow a retry after the rewrite interval")
+	assert.Equal(t, 90*time.Second, maxNonPassedRetryDelay, "maxNonPassedRetryDelay must match nonpassedRetryBase plus maximum jitter")
+}
+
+// TestValidationProbeAgeStaysFreshOnSchedule checks short, regular retries. Longer runs
+// may outlive the freshness window, deferring terminal failure until a check completes.
+func TestValidationProbeAgeStaysFreshOnSchedule(t *testing.T) {
+	type run struct {
+		delayBefore time.Duration
+		duration    time.Duration
+	}
+	repeat := func(n int, r run) []run {
+		runs := make([]run, n)
+		for i := range runs {
+			runs[i] = r
+		}
+		return runs
+	}
+
+	tests := []struct {
+		name string
+		runs []run
+	}{
+		{
+			name: "short runs with the maximum retry delay",
+			runs: repeat(10, run{maxNonPassedRetryDelay + time.Second, time.Second}),
+		},
+		{
+			name: "short runs with the minimum retry delay",
+			runs: repeat(10, run{nonpassedRetryBase + time.Second, time.Second}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var now, storedProbe time.Duration
+			hasProbe := false
+			for i, r := range tt.runs {
+				now += r.delayBefore
+				start := now
+				now += r.duration
+
+				if hasProbe {
+					assert.LessOrEqual(t, now-storedProbe, ValidationProbeFreshnessWindow,
+						"run %d completes at %s with a probe from %s, older than the freshness window", i, now, storedProbe)
+				}
+				if !hasProbe || now-storedProbe >= ValidationProbeRewriteInterval {
+					storedProbe = start
+					hasProbe = true
+				}
+			}
+		})
+	}
+}

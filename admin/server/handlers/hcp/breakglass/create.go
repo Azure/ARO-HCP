@@ -24,11 +24,11 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/set"
 
-	hcphelpers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	sessiongateapiv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
@@ -46,17 +46,17 @@ var groupRewriteMap = map[string]string{
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionCreationHandler struct {
 	resourcesDBClient       corecosmosstorage.ResourcesDBClient
-	csClient                ocm.ClusterServiceClientSpec
+	fleetDBClient           fleetcosmosstorage.FleetDBClient
 	sessionClient           sessiongatev1alpha1.SessionInterface
 	AllowedBreakglassGroups set.Set[string]
 	MinSessionTTL           time.Duration
 	MaxSessionTTL           time.Duration
 }
 
-func NewHCPBreakglassSessionCreationHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
+func NewHCPBreakglassSessionCreationHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
 	return &HCPBreakglassSessionCreationHandler{
 		resourcesDBClient:       resourcesDBClient,
-		csClient:                csClient,
+		fleetDBClient:           fleetDBClient,
 		sessionClient:           sessionClient,
 		MinSessionTTL:           minSessionTTL,
 		MaxSessionTTL:           maxSessionTTL,
@@ -71,23 +71,29 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
 	}
 
-	// get HCP details
-	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	serviceProviderCluster, err := h.resourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(request.Context(), coreapi.ServiceProviderClusterResourceName)
 	if err != nil {
-		return fmt.Errorf("failed to get HCP from database: %w", err)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return coreapi.NewResourceNotFoundError(resourceID)
+		}
+		return fmt.Errorf("failed to get service provider cluster: %w", err)
 	}
-
-	if hcp.ServiceProviderProperties.ClusterServiceID == nil {
-		return fmt.Errorf("cluster has no ClusterServiceID")
+	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
+	if managementClusterResourceID == nil {
+		return fmt.Errorf("cluster has no management cluster placement")
 	}
-	clusterHypershiftDetails, err := h.csClient.GetClusterHypershiftDetails(request.Context(), *hcp.ServiceProviderProperties.ClusterServiceID)
+	if serviceProviderCluster.Status.ControlPlaneNamespace == "" {
+		return fmt.Errorf("cluster has no control plane namespace")
+	}
+	managementCluster, err := h.fleetDBClient.Stamps().ManagementClusters(managementClusterResourceID.Parent.Name).Get(request.Context(), managementClusterResourceID.Name)
 	if err != nil {
-		return hcphelpers.ClusterServiceError(err, "hypershift details")
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeNotFound, "", "management cluster not found in fleet inventory")
+		}
+		return fmt.Errorf("failed to get management cluster from fleet inventory: %w", err)
 	}
-
-	provisionShard, err := h.csClient.GetClusterProvisionShard(request.Context(), *hcp.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return hcphelpers.ClusterServiceError(err, "provision shard")
+	if managementCluster.Status.AKSResourceID == nil {
+		return fmt.Errorf("management cluster has no AKS resource ID")
 	}
 
 	group, ttl, err := h.validateSessionParameters(request)
@@ -112,11 +118,11 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 		Spec: sessiongateapiv1alpha1.SessionSpec{
 			TTL: metav1.Duration{Duration: ttl},
 			ManagementCluster: sessiongateapiv1alpha1.ManagementCluster{
-				ResourceID: provisionShard.AzureShard().AksManagementClusterResourceId(),
+				ResourceID: managementCluster.Status.AKSResourceID.String(),
 			},
 			HostedControlPlane: sessiongateapiv1alpha1.HostedControlPlane{
 				ResourceID: resourceID.String(),
-				Namespace:  clusterHypershiftDetails.HCPNamespace(),
+				Namespace:  serviceProviderCluster.Status.ControlPlaneNamespace,
 			},
 			AccessLevel: sessiongateapiv1alpha1.AccessLevel{
 				Group: group,

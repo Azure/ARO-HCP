@@ -15,8 +15,10 @@
 package testrunner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,6 +33,8 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -131,6 +135,63 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
 }
 
+// daemonSetUpdateStrategyExceptions lists DaemonSets that deliberately roll
+// with a maxUnavailable other than the standard 100%, keyed by
+// namespace/name. Every entry needs a reason here.
+//
+// kube-system/set-kubelet-parameters-for-scale restarts kubelet on the host
+// as part of its rollout, so it rolls at 25% to bound concurrent kubelet
+// restarts to a quarter of the worker pool; 100% would restart every kubelet
+// on a management cluster at once. See 25f2cf4f0 and the rollout notes in
+// mgmt-fixes/README.md.
+var daemonSetUpdateStrategyExceptions = map[string]string{
+	"kube-system/set-kubelet-parameters-for-scale": "25%",
+}
+
+func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
+	t.Helper()
+
+	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+	for {
+		var obj struct {
+			Kind     string `json:"kind"`
+			Metadata struct {
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+			Spec struct {
+				UpdateStrategy struct {
+					Type          string `json:"type"`
+					RollingUpdate struct {
+						MaxUnavailable any `json:"maxUnavailable"`
+					} `json:"rollingUpdate"`
+				} `json:"updateStrategy"`
+			} `json:"spec"`
+		}
+
+		err := decoder.Decode(&obj)
+		if err == io.EOF {
+			break
+		}
+		if !assert.NoError(t, err) {
+			continue
+		}
+
+		if obj.Kind != "DaemonSet" {
+			continue
+		}
+
+		expected, ok := daemonSetUpdateStrategyExceptions[obj.Metadata.Namespace+"/"+obj.Metadata.Name]
+		if !ok {
+			expected = "100%"
+		}
+		if obj.Spec.UpdateStrategy.Type != "RollingUpdate" ||
+			fmt.Sprint(obj.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable) != expected {
+			t.Errorf("DaemonSet %s/%s must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=%s", obj.Metadata.Namespace, obj.Metadata.Name, expected)
+		}
+	}
+}
+
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, internal.TestDataFromChartDir))
 	if err != nil {
@@ -204,6 +265,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 					t.Error(v)
 				}
 
+				validateDaemonSetUpdateStrategies(t, manifest)
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future

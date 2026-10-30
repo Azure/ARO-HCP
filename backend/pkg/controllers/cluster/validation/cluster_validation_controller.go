@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -78,6 +79,14 @@ type clusterValidationSyncer struct {
 	// policy in trackConsecutiveUnknowns, which avoids flapping a cluster's validation status
 	// to Unknown on a transient blip.
 	consecutiveUnknownCounts *lru.Cache
+
+	// probeWriteTimes records, per HCPClusterKey, when the syncer last successfully wrote that
+	// validation's probe time, so the rewrite throttle in shouldRewriteProbe can be anchored on
+	// actual write moments rather than on run start times.
+	probeWriteTimes *lru.Cache
+
+	// clock provides the time recorded in Status.ValidationProbeTimes and the run duration metric.
+	clock utilsclock.PassiveClock
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -106,6 +115,8 @@ func NewNamedClusterValidationController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		validation:                   validation,
 		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
+		probeWriteTimes:              lru.New(consecutiveUnknownCountsCacheCapacity),
+		clock:                        utilsclock.RealClock{},
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -155,25 +166,36 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
+	if _, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName); cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
+	probeStartTime := c.clock.Now()
 	result := c.validation.Validate(ctx, subscription, existingCluster)
 	if err := result.Validate(); err != nil {
 		return utils.TrackError(fmt.Errorf("validation %s returned invalid ValidationResult: %w", c.validation.Name(), err))
 	}
+	validationRunDuration.WithLabelValues(c.validation.Name(), string(result.Outcome.Type)).Observe(c.clock.Since(probeStartTime).Seconds())
+
+	// Read the ServiceProviderCluster only after the validation returns: a run can take a while, and
+	// basing the write on a copy taken before it would make optimistic-concurrency conflicts (and the
+	// resulting lost result) more likely.
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 
 	if result.Outcome.Type != validationutils.OutcomeTypePassed {
 		logger.Info("Validation outcome", "validation", c.validation.Name(), "result", result)
@@ -195,15 +217,51 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		}
 	}
 
+	// Record when the last conclusive Failed run started, independently of
+	// whether the stored condition changed. The conditions' LastTransitionTime
+	// only advances on outcome changes, so it cannot distinguish "failed and
+	// recently re-confirmed" from "failed but not re-checked lately"; the
+	// operation controllers use these probe times to make that distinction
+	// before failing a create or update terminally. The start time is used
+	// because it is the earliest moment the run could have observed Azure, so
+	// it never overstates how fresh the evidence is.
+	// A still-failing validation rewrites its probe at most once per
+	// ValidationProbeRewriteInterval, measured from the last successful write
+	// (see shouldRewriteProbe), so that every retry does not become a Cosmos
+	// write; a missing probe is always written. Passed and Skipped outcomes drop
+	// the probe alongside the failure it described. Unknown outcomes neither
+	// refresh nor drop it: refreshing would defeat the consecutive-Unknown write
+	// suppression above, and a probe that goes stale during an Unknown streak
+	// correctly keeps the operation non-terminal.
+	probeRewritten := false
+	switch result.Outcome.Type {
+	case validationutils.OutcomeTypeFailed:
+		storedProbe := replacement.Status.ValidationProbeTimes[c.validation.Name()]
+		if storedProbe.IsZero() || c.shouldRewriteProbe(key, storedProbe.Time) {
+			if replacement.Status.ValidationProbeTimes == nil {
+				replacement.Status.ValidationProbeTimes = map[string]metav1.Time{}
+			}
+			replacement.Status.ValidationProbeTimes[c.validation.Name()] = metav1.NewTime(probeStartTime)
+			probeRewritten = true
+		}
+	case validationutils.OutcomeTypePassed, validationutils.OutcomeTypeSkipped:
+		delete(replacement.Status.ValidationProbeTimes, c.validation.Name())
+	}
+
 	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+			c.handleConflictRequeue(key, result)
 			return nil
 		}
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
+		if probeRewritten {
+			// Record the write moment only after it actually landed, so a rewrite lost to a
+			// precondition conflict does not push the next one out by a full interval.
+			c.probeWriteTimes.Add(key, c.clock.Now())
 		}
 	}
 
@@ -217,6 +275,28 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	return nil
+}
+
+// handleConflictRequeue schedules the next run after this run's result was lost to a concurrent
+// ServiceProviderCluster write. The informer re-triggers the key after such a conflict; a cooldown
+// keeps that re-trigger from immediately repeating the validation's Azure calls. The cooldown is
+// capped at the non-passed retry delay because the result was not persisted: applying a Passed
+// result's long cooldown here would leave a recovered validation reporting False, and its operation
+// Provisioning, for up to passedRetryBase plus jitter. A delayed requeue is always scheduled so the
+// lost result is recomputed even if the informer event was already consumed.
+func (c *clusterValidationSyncer) handleConflictRequeue(key controllerutils.HCPClusterKey, result validationutils.ValidationResult) {
+	if result.EarliestRetryAfter == nil {
+		return
+	}
+
+	retryAfter := validationutils.NonPassedRetryDelay()
+	if *result.EarliestRetryAfter < retryAfter {
+		retryAfter = *result.EarliestRetryAfter
+	}
+	c.retryCooldownChecker.SetCooldown(key, retryAfter)
+	if c.enqueueAfter != nil {
+		c.enqueueAfter.EnqueueAfter(key, retryAfter+time.Second)
+	}
 }
 
 // handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a
@@ -248,6 +328,21 @@ func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKe
 // transient blip: a persistent Unknown streak is still allowed to overwrite the stored condition once it
 // exceeds maxConsecutiveUnknownsBeforeWrite, and a Passed/Failed result (consecutiveUnknowns == 0) always
 // overwrites immediately, resetting the streak.
+// shouldRewriteProbe reports whether a still-failing run may rewrite its probe time. The
+// throttle is anchored on the last successful probe write, not on the stored probe's run
+// start: the write lands when a run completes, so anchoring on the run start lets runs
+// with alternating durations rewrite more often than ValidationProbeRewriteInterval (a
+// 59s run followed by 1s runs can rewrite every retry delay plus one second). When no
+// write is on record — after a syncer restart or leader change — the stored probe's age
+// is used as a fallback: it is necessary but not sufficient for the interval to have
+// elapsed since the write, so at most one rewrite per restart can land early.
+func (c *clusterValidationSyncer) shouldRewriteProbe(key controllerutils.HCPClusterKey, storedProbe time.Time) bool {
+	if lastWrite, ok := c.probeWriteTimes.Get(key); ok {
+		return c.clock.Since(lastWrite.(time.Time)) >= validationutils.ValidationProbeRewriteInterval
+	}
+	return c.clock.Since(storedProbe) >= validationutils.ValidationProbeRewriteInterval
+}
+
 func (c *clusterValidationSyncer) shouldWriteCondition(previousCondition *metav1.Condition, consecutiveUnknowns int) bool {
 	return previousCondition == nil || consecutiveUnknowns == 0 || consecutiveUnknowns > maxConsecutiveUnknownsBeforeWrite
 }

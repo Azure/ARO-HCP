@@ -109,17 +109,13 @@ func TestPinSkipsMatchingCredential(t *testing.T) {
 }
 
 func TestPinReplacesAndVerifiesCredential(t *testing.T) {
-	oldInterval := verificationInterval
-	verificationInterval = time.Millisecond
-	t.Cleanup(func() { verificationInterval = oldInterval })
-
 	apps := &fakeApplications{
 		applications: map[string]*Application{
 			"app": {ID: "object-id", AppID: "client-id"},
 		},
 		getResults: map[string][]*Application{},
 	}
-	pinner := NewPinner(&fakeCertificates{values: map[string][]byte{"cert": []byte("certificate")}}, apps)
+	pinner := NewPinner(&fakeCertificates{values: map[string][]byte{"cert": []byte("certificate")}}, apps, WithVerificationInterval(time.Millisecond))
 
 	err := pinner.Pin(context.Background(), []Binding{{ApplicationDisplayName: "app", CertificateName: "cert"}}, Options{Timeout: time.Second})
 	require.NoError(t, err)

@@ -56,23 +56,12 @@ build-nested-podman: ## Build the source-free nested Podman CI image
 
 ##@ Test
 
-test: build ## Build and smoke-test all tools in the image
-	$(CONTAINER_ENGINE) run --rm $(IMAGE_NAME) bash -c '\
-		echo "=== Tool Versions ===" && \
-		echo "Go:        $$(go version)" && \
-		echo "Azure CLI: $$(az version -o tsv 2>/dev/null | head -1)" && \
-		echo "Bicep:     $$(bicep --version 2>&1)" && \
-		echo "kubectl:   $$(kubectl version --client 2>&1 | head -1)" && \
-		echo "kubelogin: $$(kubelogin --version 2>&1 | head -2)" && \
-		echo "oc:        $$(oc version --client 2>&1 | head -1)" && \
-		echo "promtool:  $$(promtool --version 2>&1 | head -1)" && \
-		echo "make:      $$(make --version | head -1)" && \
-		echo "git:       $$(git --version)" && \
-		echo "helm:      $$(helm version --short 2>&1)" && \
-		echo "yq:        $$(yq --version 2>&1)" && \
-		echo "jq:        $$(jq --version 2>&1)" && \
-		echo "oras:      $$(oras version 2>&1 | head -1)" && \
-		echo "=== All tools OK ==="'
+test: $(if $(filter true,$(IN_CONTAINER)),verify,build) ## Build and smoke-test tools, or test the current CI image with IN_CONTAINER=true
+ifeq ($(IN_CONTAINER),true)
+	bash smoke-test.sh
+else
+	$(CONTAINER_ENGINE) run --rm -i $(IMAGE_NAME) bash -s < smoke-test.sh
+endif
 
 test-nested-podman: build-nested-podman ## Smoke-test nested Podman tools and non-root Go builds
 	$(CONTAINER_ENGINE) run --rm --entrypoint /bin/bash \

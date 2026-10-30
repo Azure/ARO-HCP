@@ -17,12 +17,62 @@ package agent
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
+
+// Exercise runtime startup: a client can construct successfully even when the
+// SDK defaults to an embedded runtime that hcpctl does not bundle.
+func TestCopilotStartsInstalledCLI(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake runtime uses a POSIX shell")
+	}
+	for _, useOverride := range []bool{false, true} {
+		name := "PATH"
+		if useOverride {
+			name = "COPILOT_CLI_PATH"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			marker := filepath.Join(dir, "started")
+			cliName := "copilot"
+			if useOverride {
+				cliName = "custom-copilot"
+			}
+			cliPath := filepath.Join(dir, cliName)
+			if err := os.WriteFile(cliPath, []byte("#!/bin/sh\nprintf started > \"$COPILOT_RUNTIME_TEST_MARKER\"\nexit 1\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", dir)
+			t.Setenv("COPILOT_RUNTIME_TEST_MARKER", marker)
+			t.Setenv("COPILOT_CLI_PATH", "")
+			t.Setenv("COPILOT_SDK_DEFAULT_CONNECTION", "")
+			if useOverride {
+				t.Setenv("COPILOT_CLI_PATH", cliPath)
+			}
+			client, err := NewCopilotClient(&AgentConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = client.Stop() })
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if err := client.inner.Start(ctx); err == nil {
+				t.Fatal("fake CLI should exit before completing the handshake")
+			}
+			if _, err := os.Stat(marker); err != nil {
+				t.Fatalf("installed CLI was not started: %v", err)
+			}
+		})
+	}
+}
 
 type tokenCredentialFunc func(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error)
 

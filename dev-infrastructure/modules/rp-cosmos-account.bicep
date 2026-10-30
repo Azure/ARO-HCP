@@ -18,9 +18,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
       }
     }
     consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-      maxIntervalInSeconds: 5
-      maxStalenessPrefix: 100
+      defaultConsistencyLevel: 'Strong'
     }
     databaseAccountOfferType: 'Standard'
     disableLocalAuth: disableLocalAuth

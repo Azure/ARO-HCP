@@ -16,6 +16,7 @@ package validate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,7 +107,7 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 		}
 	}
 
-	tables, err := showTables(ctx, logger, client, database)
+	tables, err := tablesWithDocstring(ctx, logger, client, database)
 	if err != nil {
 		return fmt.Errorf("listing tables: %w", err)
 	}
@@ -160,7 +161,7 @@ func checkScriptResults(dataset v1.Dataset) error {
 	return nil
 }
 
-func showTables(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database string) ([]string, error) {
+func tablesWithDocstring(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database string) ([]string, error) {
 	logQuery(logger, database, ".show tables")
 	dataset, err := client.Mgmt(ctx, database, kql.New(".show tables"))
 	if err != nil {
@@ -168,18 +169,31 @@ func showTables(ctx context.Context, logger logr.Logger, client *azkustodata.Cli
 	}
 	logDataset(logger, dataset)
 
+	allErrors := make([]error, 0)
+
 	var tables []string
 	for _, table := range dataset.Tables() {
 		for _, row := range table.Rows() {
 			name, err := row.StringByName("TableName")
 			if err != nil {
+				allErrors = append(allErrors, fmt.Errorf("getting table name: %w", err))
 				continue
 			}
-			tables = append(tables, name)
+			docstring, err := row.StringByName("DocString")
+			if err != nil {
+				allErrors = append(allErrors, fmt.Errorf("getting docstring: %w", err))
+				continue
+			}
+			if docstring != "" {
+				logger.V(1).Info("DocString", "table", name, "docstring", docstring)
+				tables = append(tables, name)
+			} else {
+				allErrors = append(allErrors, fmt.Errorf("table %s has no DocString", name))
+			}
 		}
 	}
 
-	return tables, nil
+	return tables, errors.Join(allErrors...)
 }
 
 func unsafeStmt(cmd string) *kql.Builder {

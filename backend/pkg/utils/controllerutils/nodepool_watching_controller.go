@@ -80,6 +80,8 @@ func NewNodePoolWatchingController(
 	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
 	controller.nodePoolLister = nodePoolLister
 
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
 	err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer)
 	if err != nil {
 		panic(err)

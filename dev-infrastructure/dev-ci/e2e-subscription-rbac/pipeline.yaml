@@ -1,80 +1,100 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
-# Reconciles the CI bot Entra identities: the ci-bot-identity step creates the
-# bot Entra applications and service principals, and the ci-bot-secret-* steps
-# mint their client secrets. These are Entra directory-object writes, so this is
-# a privileged pipeline that the unattended dev-ci postsubmit never runs.
+# Reconciles the CI bot and tenant-quota collector Entra identities: the
+# *-identity steps create the Entra applications and service principals, and the
+# *-secret(s) steps grant admin consent and ensure the client secret, client ID
+# and tenant ID exist in the opstool Key Vault (entra-app-credentials
+# ensure-secret). These are Entra directory-object writes, so this is a
+# privileged pipeline that the unattended dev-ci postsubmit never runs.
+#
+# This entrypoint runs locally under the invoking OWNERS member's Azure CLI
+# credentials; the shellIdentity values below are placeholders. The caller must
+# be able to write secrets in the opstool Key Vault and to manage the
+# applications and grant admin consent in Entra.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tool_dir=../../../tooling/entra-app-credentials
+    tmp="$(mktemp "${tool_dir}/entra-app-credentials.XXXXXX")"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" "${tool_dir}"
+    chmod 0755 "${tmp}"
+    mv "${tmp}" "${tool_dir}/entra-app-credentials"
+    trap - EXIT
 resourceGroups:
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: global-identity
-    action: ARM
-    template: ../../templates/output-opstool-global-identity.bicep
-    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
   - name: ci-bot-identity
     action: ARM
     template: ../../templates/ci-bot-identity.bicep
     parameters: ../../configurations/ci-bot-identity.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-  - name: ci-bot-secret-int
+  - name: ci-bot-secrets
     action: Shell
-    command: ./ci-bot-ensure-secret.sh
-    workingDir: ../../scripts
+    command: |
+      ./tooling/entra-app-credentials/entra-app-credentials ensure-secret \
+        --vault-url "${VAULT_URL}" \
+        --grant-consent \
+        --mapping "${DEV_APP_NAME};ci-bot-dev-client-secret" \
+        --mapping "${INT_APP_NAME};ci-bot-int-client-secret" \
+        --mapping "${STG_APP_NAME};ci-bot-stg-client-secret" \
+        --mapping "${PROD_APP_NAME};ci-bot-prod-client-secret"
+    workingDir: ../../..
     shellIdentity:
-      input:
-        resourceGroup: ci-bots
-        step: global-identity
-        name: globalMSIId
+      value: unused-by-templatize
     variables:
-    - name: APP_NAME
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      value: 'https://{{ .opstool.keyVault.name }}.vault.azure.net'
+    - name: DEV_APP_NAME
+      configRef: ci.dev.bot.applicationName
+    - name: INT_APP_NAME
       configRef: ci.int.bot.applicationName
-    - name: ENV_NAME
-      value: int
-    - name: KEY_VAULT_NAME
-      configRef: opstool.keyVault.name
-    dependsOn:
-    - resourceGroup: ci-bots
-      step: ci-bot-identity
-  - name: ci-bot-secret-stg
-    action: Shell
-    command: ./ci-bot-ensure-secret.sh
-    workingDir: ../../scripts
-    shellIdentity:
-      input:
-        resourceGroup: ci-bots
-        step: global-identity
-        name: globalMSIId
-    variables:
-    - name: APP_NAME
+    - name: STG_APP_NAME
       configRef: ci.stg.bot.applicationName
-    - name: ENV_NAME
-      value: stg
-    - name: KEY_VAULT_NAME
-      configRef: opstool.keyVault.name
-    dependsOn:
-    - resourceGroup: ci-bots
-      step: ci-bot-identity
-  - name: ci-bot-secret-prod
-    action: Shell
-    command: ./ci-bot-ensure-secret.sh
-    workingDir: ../../scripts
-    shellIdentity:
-      input:
-        resourceGroup: ci-bots
-        step: global-identity
-        name: globalMSIId
-    variables:
-    - name: APP_NAME
+    - name: PROD_APP_NAME
       configRef: ci.prod.bot.applicationName
-    - name: ENV_NAME
-      value: prod
-    - name: KEY_VAULT_NAME
-      configRef: opstool.keyVault.name
     dependsOn:
     - resourceGroup: ci-bots
       step: ci-bot-identity
+# Tenant-quota collector (RedHat0) Entra application, its Graph admin consent
+# (Organization.Read.All), and its Key Vault secrets. The Reader role
+# assignments live in E2ESubscriptionRBACGrants.
+- name: tenant-quota
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: tenant-quota-identity
+    action: ARM
+    template: ../../templates/tenant-quota-identity.bicep
+    parameters: ../../configurations/tenant-quota-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: tenant-quota-secret
+    action: Shell
+    command: |
+      ./tooling/entra-app-credentials/entra-app-credentials ensure-secret \
+        --vault-url "${VAULT_URL}" \
+        --grant-consent \
+        --mapping "${APP_NAME};${SECRET_NAME}"
+    workingDir: ../../..
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      value: 'https://{{ .opstool.keyVault.name }}.vault.azure.net'
+    - name: APP_NAME
+      configRef: opstool.tenantQuota.tenants.redHat0.applicationName
+    - name: SECRET_NAME
+      configRef: opstool.tenantQuota.tenants.redHat0.keyVaultSecretName
+    dependsOn:
+    - resourceGroup: tenant-quota
+      step: tenant-quota-identity

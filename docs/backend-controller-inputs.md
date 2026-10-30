@@ -1,11 +1,18 @@
 # Backend controller input interests
 
 Audited against `3b3a5248bd` plus the interest registrations in this change.
-This inventory covers all **75 constructor sites** in `backend/pkg/controllers`
+This inventory covers all **74 constructor sites** in `backend/pkg/controllers`
 that wrap a watching controller, including the named validation factories.
 Operation controllers and the custom orphan/mismatch sweep loops do not expose
 `AddInterestingResource` and are outside this filter inventory; their behavior
 remains in [the controller catalog](generated/service-provider-control-flow.md#2-complete-controller-catalog).
+
+The orphaned MRG path uses a custom [ManagedResourceGroupWatching controller](../backend/pkg/utils/controllerutils/managed_resource_group_watching_controller.go)
+that watches `Subscription(*)` and lists Azure resource groups. Its
+[processor](../backend/pkg/controllers/cluster/deletion/orphaned_managed_resource_group_controller.go)
+reads the subscription and checks `Cluster(*)` through the lister and Cosmos
+before treating an MRG as orphaned. Neither component registers
+`AddInterestingResource` inputs, so this path is outside the table below.
 
 Each concrete constructor explicitly registers its Cosmos resource inputs.
 The shared wrappers still impose no default interests. Inputs include existence
@@ -100,7 +107,6 @@ and source/handler readiness are standard across all generic watch APIs.
 | [SystemAdminCredentialRevocationMarkRequests](../backend/pkg/controllers/cluster/credentialrevocation/creation/revocation_mark_requests.go) | `SystemAdminCredentialRevocation(*)`, `SystemAdminCredentialRequest(*)` | Lists every credential request, skipping those already marked for deletion; the clock supplies the deletion timestamp. |
 | [SystemAdminCredentialRevocationCompletion](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_completion.go) | `SystemAdminCredentialRevocation(*)`, `SystemAdminCredentialRevocationScopedReadDesire(SystemAdminCredentialRevocationDesireName)` | Reads the fixed revocation mirror and revocation state. |
 | [SystemAdminCredentialRevocationDeletion](../backend/pkg/controllers/cluster/credentialrevocation/deletion/revocation_deletion.go) | `SystemAdminCredentialRevocation(*)`, `ServiceProviderCluster(default)`, `SystemAdminCredentialRevocationScopedApplyDesire(*)`, `SystemAdminCredentialRevocationScopedReadDesire(*)` | Lists every child desire for teardown; parent placement selects the kube-applier DB. |
-| [CleanOrphanedClusterManagedResourceGroup](../backend/pkg/controllers/cluster/deletion/clean_orphaned_cluster_managed_resource_group_controller.go) | `Subscription(*)`, `Cluster(*)` | Lists all clusters in the subscription and polls Azure managed resource groups. |
 | [ClusterChildResourcesCleanupController](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) | `Cluster(*)`, `ServiceProviderCluster(default)`, `NodePool(*)`, `ExternalAuth(*)`, `SystemAdminCredentialRequest(*)`, `SystemAdminCredentialRevocation(*)`, `ClusterScopedManagementClusterContent(*)`, `ClusterScopedApplyDesire(*)`, `ClusterScopedReadDesire(*)` | Waits for all node pools, external auths and credentials/revocations; sweeps arbitrary cluster children and desires, excluding controller status. |
 | [ClusterClusterServiceDeleteDispatch](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go) | `Cluster(*)` | Cluster Service deletion and elapsed-time gate. |
 | [ClusterDeletionClusterServiceIDClearer](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_id_clearer.go) | `Cluster(*)` | Polls Cluster Service cluster disappearance. |

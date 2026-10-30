@@ -20,7 +20,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -96,15 +95,11 @@ func TestGraphClientRejectsDuplicateDisplayNames(t *testing.T) {
 }
 
 func TestGraphClientRetriesApplicationPropagation(t *testing.T) {
-	oldInterval := retryInterval
-	retryInterval = time.Millisecond
-	t.Cleanup(func() { retryInterval = oldInterval })
-
 	api := &fakeGraphAPI{listResults: [][]graphmodels.Applicationable{
 		nil,
 		{newGraphApplication("object-id", "", "app")},
 	}}
-	client := newGraphClient(api)
+	client := newGraphClient(api, WithRetryInterval(time.Millisecond))
 
 	_, err := client.FindApplication(context.Background(), "app")
 	require.NoError(t, err)
@@ -129,10 +124,6 @@ func TestGraphClientDelegatesReplacement(t *testing.T) {
 }
 
 func TestGraphClientRetriesNotFound(t *testing.T) {
-	oldInterval := retryInterval
-	retryInterval = time.Millisecond
-	t.Cleanup(func() { retryInterval = oldInterval })
-
 	notFound := kiotaabstractions.NewApiError()
 	notFound.SetStatusCode(http.StatusNotFound)
 
@@ -141,7 +132,7 @@ func TestGraphClientRetriesNotFound(t *testing.T) {
 		getErrs:     []error{notFound, nil},
 		getResult:   newGraphApplication("object-id", "client-id", "app"),
 	}
-	client := newGraphClient(api)
+	client := newGraphClient(api, WithRetryInterval(time.Millisecond))
 
 	err := client.ReplaceKeyCredentials(context.Background(), "object-id", "cert", []byte("certificate"))
 	require.NoError(t, err)
@@ -151,31 +142,6 @@ func TestGraphClientRetriesNotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "object-id", application.ID)
 	assert.Empty(t, api.getErrs)
-}
-
-func TestClassifyGraphErrorOnlyRetriesNotFoundAndNetworkErrors(t *testing.T) {
-	for _, statusCode := range []int{
-		http.StatusBadRequest,
-		http.StatusTooManyRequests,
-		http.StatusInternalServerError,
-		http.StatusBadGateway,
-		http.StatusServiceUnavailable,
-		http.StatusGatewayTimeout,
-	} {
-		apiError := kiotaabstractions.NewApiError()
-		apiError.SetStatusCode(statusCode)
-		assert.Same(t, apiError, classifyGraphError(apiError))
-	}
-
-	notFound := kiotaabstractions.NewApiError()
-	notFound.SetStatusCode(http.StatusNotFound)
-	var transient *transientError
-	require.ErrorAs(t, classifyGraphError(notFound), &transient)
-	assert.Same(t, notFound, transient.err)
-
-	networkError := &net.DNSError{Err: "temporary failure", IsTemporary: true}
-	require.ErrorAs(t, classifyGraphError(networkError), &transient)
-	assert.Same(t, networkError, transient.err)
 }
 
 func TestNormalizeCustomKeyIdentifier(t *testing.T) {

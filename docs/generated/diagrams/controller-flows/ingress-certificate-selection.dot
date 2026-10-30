@@ -1,0 +1,25 @@
+digraph ingress_certificate_selection {
+  graph [rankdir=TB, bgcolor="white", pad=0.3, nodesep=0.4, ranksep=0.65, fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Ingress certificates · legacy suppression and external ownership", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  manifests [label="Cluster Service manifests\nlegacy objects still emitted\nseparate dedicated KAS ownership", fillcolor="#fff0da", color="#b27624"];
+  gate [label="ClusterResources\ncase-insensitive match: four legacy names\nNO AFEC, version or prior-selection gate\nNO ConfigMap certificate-name rewrite"];
+  keep [label="Pre-existing legacy desires remain\nManagedCluster + DefaultIngressConfigMap\n+ default-ingress SecretSync / SecretProviderClass\nexcluded from live stale-desire cleanup", fillcolor="#e4f2e5", color="#4c8053"];
+  remove [label="Omit four manifests for every subscription\nno new legacy desires or reassertion"];
+  teardown [label="Whole-cluster deletion chain\nexplicit Delete intents + observed completion"];
+  apply [label="ApplyDesireController\napply retained intent / execute Delete"];
+  acm [label="ACM ingress Policy + PlacementBinding retired\nno current delivery / renewal / reference enforcement\nold non-pruning policy did not intentionally delete Secrets\nretained material is not proof of validity or renewal", fillcolor="#eee7fb", color="#7b59a4"];
+  delivery [label="Independent dedicated ingress delivery\nIngressServingCertificateK8sResources\nsee serving-certificate panel"];
+  native [label="Secret-sync delivers provider certificate\nin HostedCluster namespace\nexternal HyperShift/HCCO consumes it\nbackend filtering does not prove consumer health", fillcolor="#fff0da", color="#b27624"];
+  note [label="No backend live guest-certificate observation here\nintent and external policy are not convergence proof\nARM create gates remain in convergence panel", fillcolor="#eee7fb", color="#7b59a4"];
+  manifests -> gate [label="classify each manifest"];
+  gate -> remove [label="recognized name"];
+  keep -> apply [label="previously stored intent", style=dashed];
+  teardown -> apply [label="Delete intents"];
+  apply -> teardown [label="confirmed deletion permits purge", style=dashed, color="#857456", constraint=false];
+  delivery -> native [label="separate SPC / SecretSync desires"];
+  { rank=same; manifests; keep; teardown; }
+  gate -> acm [style=invis];
+  remove -> note [style=invis];
+  apply -> delivery [style=invis];
+}

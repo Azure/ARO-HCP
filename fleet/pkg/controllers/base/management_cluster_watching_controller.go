@@ -105,6 +105,8 @@ func NewManagementClusterWatchingController(
 		name, fleetapi.ManagementClusterResourceType, mcSyncer, ReconcileTotal,
 	)
 
+	// Resync only management clusters so each key is resynced once per interval,
+	// not once for every input. All other watches must use 0 (no resync).
 	if err := mcController.QueueForInformers(resyncDuration, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}

@@ -45,6 +45,7 @@ func (i *informerWithSyncState) HasSynced() bool {
 func newFleetInformersWithSyncState(synced bool) *fleetInformers {
 	informer := &informerWithSyncState{synced: synced}
 	return &fleetInformers{
+		dnsClaimInformer:                    informer,
 		stampInformer:                       informer,
 		managementClusterInformer:           informer,
 		managementClusterSchedulingInformer: informer,
@@ -59,6 +60,7 @@ func TestFleetInformersHasSynced(t *testing.T) {
 		name        string
 		setUnsynced func(*fleetInformers)
 	}{
+		{"DNSClaims", func(informers *fleetInformers) { informers.dnsClaimInformer = unsyncedInformer }},
 		{"Stamps", func(informers *fleetInformers) { informers.stampInformer = unsyncedInformer }},
 		{"ManagementClusters", func(informers *fleetInformers) { informers.managementClusterInformer = unsyncedInformer }},
 		{"ManagementClusterSchedulings", func(informers *fleetInformers) {

@@ -26,6 +26,7 @@ import (
 type MockClusterValidation struct {
 	validationName string
 	result         validationutils.ValidationResult
+	validateFunc   func(ctx context.Context) validationutils.ValidationResult
 }
 
 var _ validationutils.ClusterValidation = (*MockClusterValidation)(nil)
@@ -72,8 +73,17 @@ func (m *MockClusterValidation) WithEarliestRetryAfter(d *time.Duration) *MockCl
 	return m
 }
 
+// WithValidateFunc configures the mock to delegate to fn, e.g. to block until the context is done.
+func (m *MockClusterValidation) WithValidateFunc(fn func(ctx context.Context) validationutils.ValidationResult) *MockClusterValidation {
+	m.validateFunc = fn
+	return m
+}
+
 func (m *MockClusterValidation) Name() string { return m.validationName }
 
-func (m *MockClusterValidation) Validate(_ context.Context, _ *coreapi.Subscription, _ *coreapi.Cluster) validationutils.ValidationResult {
+func (m *MockClusterValidation) Validate(ctx context.Context, _ *coreapi.Subscription, _ *coreapi.Cluster) validationutils.ValidationResult {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx)
+	}
 	return m.result
 }

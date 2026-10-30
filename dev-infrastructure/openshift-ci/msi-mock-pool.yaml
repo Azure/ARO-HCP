@@ -79,3 +79,123 @@ miMockPool:
     clientId: e636e609-8764-410f-868f-51a676e5aecf
     principalId: 12eafc4e-f869-4b62-8198-816b7d6d0876
     certName: msiMockPoolCert-19
+  aro-hcp-msi-mock-cs-sp-dev-20:
+    clientId: ba0e98d6-f3ce-461d-957f-5a597d5f5198
+    principalId: d0716542-ef97-46d6-b649-6a2e6d879126
+    certName: msiMockPoolCert-20
+  aro-hcp-msi-mock-cs-sp-dev-21:
+    clientId: 3dfaf3f5-6b6a-41af-bae5-e77000e0cb5b
+    principalId: a4b0a133-375b-4581-9c9a-7a6cade982d1
+    certName: msiMockPoolCert-21
+  aro-hcp-msi-mock-cs-sp-dev-22:
+    clientId: 3421d425-b166-42e5-9d4d-f4884b0a5022
+    principalId: 03e5c86f-d4ed-401e-ab8a-e32bba53a7ff
+    certName: msiMockPoolCert-22
+  aro-hcp-msi-mock-cs-sp-dev-23:
+    clientId: d4abb15a-1de8-4dca-b4d5-a7b2ef5f1ed2
+    principalId: c2e8a7f9-37ba-4fe3-bfa3-d6b41876b3a5
+    certName: msiMockPoolCert-23
+  aro-hcp-msi-mock-cs-sp-dev-24:
+    clientId: 55e3d539-bdef-48bc-b65f-5596be6b83bb
+    principalId: 0b25d0a8-0eb7-4362-968d-df3a5036dcbb
+    certName: msiMockPoolCert-24
+  aro-hcp-msi-mock-cs-sp-dev-25:
+    clientId: 2bda83bc-2ba1-4d2f-bcea-6b4a6a4c53dd
+    principalId: a60724bd-2247-4818-93b6-5b54f34bf36a
+    certName: msiMockPoolCert-25
+  aro-hcp-msi-mock-cs-sp-dev-26:
+    clientId: c26f95d3-87d5-46fa-b3bf-ea4761314224
+    principalId: 0ba04bbe-068d-4ef1-813f-643236f7ed34
+    certName: msiMockPoolCert-26
+  aro-hcp-msi-mock-cs-sp-dev-27:
+    clientId: 520cb8c8-adc9-4351-878a-89eb8ad1e17c
+    principalId: 0fe6c016-53fb-416e-9359-d5c20ce1969f
+    certName: msiMockPoolCert-27
+  aro-hcp-msi-mock-cs-sp-dev-28:
+    clientId: f9cbd57d-8c4f-4dd9-9d61-e1bfe44bb91e
+    principalId: b9578979-aab2-4539-a4fd-edc4766d5d36
+    certName: msiMockPoolCert-28
+  aro-hcp-msi-mock-cs-sp-dev-29:
+    clientId: 94ca683d-44d1-4e46-b1c5-3ca1fadd3691
+    principalId: 31777865-b83a-43b9-8f4a-4c5e849f8a5a
+    certName: msiMockPoolCert-29
+  aro-hcp-msi-mock-cs-sp-dev-30:
+    clientId: 9812f425-b082-443f-96ac-d955e1cc3345
+    principalId: 3996e871-9d8c-4863-9b56-cf4685281cdc
+    certName: msiMockPoolCert-30
+  aro-hcp-msi-mock-cs-sp-dev-31:
+    clientId: c6888295-5d31-41dc-9247-141e3c4f7130
+    principalId: bc043c4e-145a-4812-b61a-6928831db0ff
+    certName: msiMockPoolCert-31
+  aro-hcp-msi-mock-cs-sp-dev-32:
+    clientId: ec9eec4d-b5e3-465d-b1e2-ded89a62b832
+    principalId: 1d2f4929-515e-4e8d-8580-836e819f8d50
+    certName: msiMockPoolCert-32
+  aro-hcp-msi-mock-cs-sp-dev-33:
+    clientId: 89aa2710-c81e-4f30-a340-20221de33230
+    principalId: e590ff5d-c609-479d-b0a9-34111dfa6cd0
+    certName: msiMockPoolCert-33
+  aro-hcp-msi-mock-cs-sp-dev-34:
+    clientId: 67d6a1dc-4d86-48e9-82e4-2357eeeaf919
+    principalId: 58c1427a-0b70-4631-b2f0-9c3355cda795
+    certName: msiMockPoolCert-34
+  aro-hcp-msi-mock-cs-sp-dev-35:
+    clientId: 9a1ae3b6-b276-4d4b-af6f-dd1f7e1e948b
+    principalId: 7bb52124-2ba2-4723-8ef8-6072c050192e
+    certName: msiMockPoolCert-35
+  aro-hcp-msi-mock-cs-sp-dev-36:
+    clientId: 87f3fd15-1a76-4060-bfcb-e7042f2eafcd
+    principalId: 6eac724c-12a0-4ab4-a37c-30e5829494c4
+    certName: msiMockPoolCert-36
+  aro-hcp-msi-mock-cs-sp-dev-37:
+    clientId: bc46c371-313c-4c76-b07c-e081cdd6bf66
+    principalId: 1f5601f9-edfd-4d09-a629-26aa7e35f97b
+    certName: msiMockPoolCert-37
+  aro-hcp-msi-mock-cs-sp-dev-38:
+    clientId: a2098a15-5e91-4009-a960-2705b07855ab
+    principalId: 7c55c3ab-f893-4e61-94f9-dbea5869009d
+    certName: msiMockPoolCert-38
+  aro-hcp-msi-mock-cs-sp-dev-39:
+    clientId: c7e4fa90-11ee-4648-a2db-4e52c021970b
+    principalId: be50f54a-eed7-4018-8970-9e02727a6c20
+    certName: msiMockPoolCert-39
+  aro-hcp-msi-mock-cs-sp-dev-40:
+    clientId: 846bad47-8536-4681-b073-0d2becb75075
+    principalId: 75fba70f-2e7f-4e23-b969-b4fb6d482504
+    certName: msiMockPoolCert-40
+  aro-hcp-msi-mock-cs-sp-dev-41:
+    clientId: 5f6683f2-1094-487b-8a4d-ce79c958b99e
+    principalId: 4c7e4973-91d3-417c-b6ce-f584fc3c419e
+    certName: msiMockPoolCert-41
+  aro-hcp-msi-mock-cs-sp-dev-42:
+    clientId: eac779e3-a079-42f2-8c11-f8356a06b1e9
+    principalId: f0916b6b-4fcf-4b8b-b7f8-5a66898b1190
+    certName: msiMockPoolCert-42
+  aro-hcp-msi-mock-cs-sp-dev-43:
+    clientId: cefe8889-0aff-4c19-9044-e7d39cc4df44
+    principalId: 1432db27-310e-4d75-a715-ecc220153be6
+    certName: msiMockPoolCert-43
+  aro-hcp-msi-mock-cs-sp-dev-44:
+    clientId: 2bb270b0-7516-4c01-82f4-2e3be428733d
+    principalId: 5e5f1590-0420-4dae-86e6-34f156b45b49
+    certName: msiMockPoolCert-44
+  aro-hcp-msi-mock-cs-sp-dev-45:
+    clientId: 6275c179-56c9-486f-a01c-9a11dab6e0cd
+    principalId: cb77b007-bb6f-43a3-8450-473fd3c0164f
+    certName: msiMockPoolCert-45
+  aro-hcp-msi-mock-cs-sp-dev-46:
+    clientId: 528f3867-1aa6-4174-9765-2f2cbe0d7dcb
+    principalId: 5f05ff02-24e7-4504-b380-e73e86853df5
+    certName: msiMockPoolCert-46
+  aro-hcp-msi-mock-cs-sp-dev-47:
+    clientId: 227dc190-f706-4221-a633-0735eca3145e
+    principalId: 1868e77e-aae0-4284-940e-e4cd46ae5baa
+    certName: msiMockPoolCert-47
+  aro-hcp-msi-mock-cs-sp-dev-48:
+    clientId: 49a67a04-73f0-47e4-9d8f-1d2a9f2da244
+    principalId: ce7e4e97-9564-424d-890f-40c7c13e2477
+    certName: msiMockPoolCert-48
+  aro-hcp-msi-mock-cs-sp-dev-49:
+    clientId: 2b11cbc5-8371-4bcd-9c9f-938c9525161e
+    principalId: 07578fb3-abfb-4106-84ec-806aa7124d4b
+    certName: msiMockPoolCert-49

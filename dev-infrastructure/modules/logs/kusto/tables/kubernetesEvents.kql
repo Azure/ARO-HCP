@@ -25,6 +25,7 @@
   tag: string,                       // fluentbit: tag routing identifier
   containerStatusImageId: string     // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
 )
+with (docstring = "Kubernetes Event objects from service and management clusters (NOT from pods inside HCPs), forwarded by arobit")
 
 
 .create-or-alter table kubernetesEvents ingestion json mapping 'ingestionMapping'

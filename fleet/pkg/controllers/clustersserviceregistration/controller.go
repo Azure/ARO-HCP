@@ -74,11 +74,14 @@ func NewClustersServiceRegistrationController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		ClustersServiceRegistrationControllerName,
+		stampInformer,
+		fleetcontrollers.DefaultInformerResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer, stampInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

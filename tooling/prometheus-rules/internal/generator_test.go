@@ -846,7 +846,7 @@ func TestOptionsGenerate(t *testing.T) {
 											},
 											Annotations: map[string]string{
 												"summary":     "Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy",
-												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} on {{ $labels.cluster }} has issues",
 											},
 										},
 									},
@@ -868,6 +868,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
 		assert.Contains(t, generated, "title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy'")
+		assert.Contains(t, generated, "'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'")
 	})
 
 	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {
@@ -1404,6 +1405,15 @@ func TestParseToAzureDurationString(t *testing.T) {
 		{(*monitoringv1.Duration)(ptr.To("30s")), ptr.To("PT1M")}, // too short, gets default
 		{(*monitoringv1.Duration)(ptr.To("5m")), ptr.To("PT5M")},
 		{(*monitoringv1.Duration)(ptr.To("1h")), ptr.To("PT1H")},
+		{(*monitoringv1.Duration)(ptr.To("1h30m")), ptr.To("PT1H30M")},
+		// model.Duration.String() shortens exact-multiple-of-a-day/week values
+		// to "d"/"w" (e.g. "2d", "2w"). Neither "D" after "T" nor "W" at all
+		// is valid ISO 8601, so these must come out as hours, not day/week
+		// shorthand - regression coverage for that bug.
+		{(*monitoringv1.Duration)(ptr.To("48h")), ptr.To("PT48H")},
+		{(*monitoringv1.Duration)(ptr.To("336h")), ptr.To("PT336H")},
+		{(*monitoringv1.Duration)(ptr.To("24h")), ptr.To("PT24H")},
+		{(*monitoringv1.Duration)(ptr.To("168h")), ptr.To("PT168H")},
 	}
 
 	for _, tt := range tests {

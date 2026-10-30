@@ -160,8 +160,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 		if _, ok := readDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		scheduleName := strings.TrimPrefix(readDesire.ResourceID.Name, backup.BackupScheduleDesireNamePrefix)
-		detail := BackupScheduleDetail{Name: scheduleName}
+		detail := BackupScheduleDetail{Name: readDesire.Spec.TargetItem.Name}
 		if readDesire.Status.KubeContent != nil && readDesire.Status.KubeContent.Raw != nil {
 			var schedule velerov1api.Schedule
 			err := json.Unmarshal(readDesire.Status.KubeContent.Raw, &schedule)

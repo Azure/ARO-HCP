@@ -245,7 +245,7 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 			Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-			Message: coreapi.ExternalAuthMessageAllOperational,
+			Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 		}
 	}
 
@@ -278,7 +278,7 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 			Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
-			Message: coreapi.ExternalAuthMessageAllOperational,
+			Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
 		}
 	}
 
