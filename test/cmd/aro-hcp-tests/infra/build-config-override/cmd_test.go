@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Azure/ARO-HCP/test/pkg/configoverride"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -45,6 +46,7 @@ func clearEnvironment(t *testing.T) {
 		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
+		configoverride.AMDABTestEnv, configoverride.AMDABArmEnv, leaseenv.SelectedLocation, "LOCATION",
 	} {
 		t.Setenv(key, "")
 	}
@@ -221,6 +223,47 @@ func TestOutputPublication(t *testing.T) {
 	}
 	if writer.output.String() != "literal;$(false)\n" {
 		t.Fatalf("unexpected stdout: %q", writer.output.String())
+	}
+}
+
+func TestAMDABOverride(t *testing.T) {
+	for _, tc := range []struct {
+		name, flag, arm, location, wantErr string
+		wantVMSize                         bool
+	}{
+		{"amd arm", "true", "amd", "westus3", "", true},
+		{"intel arm keeps baseline", "true", "intel", "westus3", "", false},
+		{"arm missing", "true", "", "westus3", "AMD_AB_ARM is required", false},
+		{"experiment off", "", "", "westus3", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clearEnvironment(t)
+			shared := t.TempDir()
+			t.Setenv("SHARED_DIR", shared)
+			t.Setenv("DEPLOY_ENV", "ci01")
+			t.Setenv(configoverride.AMDABTestEnv, tc.flag)
+			t.Setenv(configoverride.AMDABArmEnv, tc.arm)
+			t.Setenv(leaseenv.SelectedLocation, tc.location)
+			if _, err := execute(); tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("execute error = %v, want it to mention %q", err, tc.wantErr)
+				}
+				return
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "ci01")
+			mgmt, _ := defaults["mgmt"].(map[string]any)
+			aks, _ := mgmt["aks"].(map[string]any)
+			pool, _ := aks["userAgentPool"].(map[string]any)
+			if tc.wantVMSize {
+				if pool["vmSize"] != "Standard_D16ads_v6" {
+					t.Fatalf("vmSize override = %#v, want Standard_D16ads_v6", pool)
+				}
+			} else if _, ok := pool["vmSize"]; ok {
+				t.Fatalf("unexpected vmSize override: %#v", pool)
+			}
+		})
 	}
 }
 
