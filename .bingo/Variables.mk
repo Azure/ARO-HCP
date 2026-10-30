@@ -107,9 +107,9 @@ $(YAMLFMT): $(BINGO_DIR)/yamlfmt.mod
 	@echo "(re)installing $(GOBIN)/yamlfmt-v0.16.0"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.16.0 "github.com/google/yamlfmt/cmd/yamlfmt"
 
-YQ := $(GOBIN)/yq-v4.44.5
+YQ := $(GOBIN)/yq-v4.54.1
 $(YQ): $(BINGO_DIR)/yq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yq-v4.44.5"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.44.5 "github.com/mikefarah/yq/v4"
+	@echo "(re)installing $(GOBIN)/yq-v4.54.1"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.54.1 "github.com/mikefarah/yq/v4"
 
