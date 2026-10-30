@@ -398,14 +398,104 @@
             },
             "bypassStackOutOfSyncError": {
               "type": "boolean"
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "createOrUpdate",
+                "delete"
+              ],
+              "description": "What the step does with the stack. 'createOrUpdate' (the default) deploys the template. 'delete' removes the stack named by deploymentStackNameForDelete and applies actionOnUnmanage to every resource it manages; it succeeds without changes when the stack does not exist."
+            },
+            "deploymentStackNameForDelete": {
+              "$ref": "#/definitions/value",
+              "description": "Name of the existing deployment stack to delete, exactly as Azure shows it. Only allowed with operation 'delete'."
+            },
+            "timeout": {
+              "$ref": "#/definitions/durationString",
+              "description": "Timeout for a delete. Only allowed with operation 'delete'."
+            },
+            "identityFrom": {
+              "$ref": "#/definitions/input",
+              "description": "Managed identity a delete runs with in Ev2. Only allowed with operation 'delete'."
             }
           },
           "required": [
-            "template",
-            "parameters",
             "deploymentLevel",
             "actionOnUnmanage"
           ]
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "delete"
+              }
+            },
+            "required": [
+              "operation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "deploymentLevel": {
+                "const": "ResourceGroup"
+              }
+            },
+            "required": [
+              "deploymentStackNameForDelete",
+              "identityFrom"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "template"
+                  ]
+                },
+                {
+                  "required": [
+                    "parameters"
+                  ]
+                },
+                {
+                  "required": [
+                    "variables"
+                  ]
+                },
+                {
+                  "required": [
+                    "bypassStackOutOfSyncError"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "template",
+              "parameters"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "deploymentStackNameForDelete"
+                  ]
+                },
+                {
+                  "required": [
+                    "timeout"
+                  ]
+                },
+                {
+                  "required": [
+                    "identityFrom"
+                  ]
+                }
+              ]
+            }
+          }
         }
       ]
     },
