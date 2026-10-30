@@ -64,7 +64,8 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
 // logged and appended when the poll times out. If the polling context ends, a check
 // error wrapping that context's error does not replace or re-log an earlier failure's
-// message. Both observed errors remain available for unwrapping.
+// message. Both observed errors remain available for unwrapping, and a cancellation that
+// lands between checks returns the retained observation together with the context's error.
 func pollUntilReady(
 	ctx context.Context,
 	name string,
@@ -81,6 +82,11 @@ func pollUntilReady(
 	logger := ginkgo.GinkgoLogr
 	var previousError string
 	var lastErr error
+	// lastErrLive records whether lastErr was observed while the poll context was
+	// still live — an observation that predates the context ending is paired with
+	// the context's error on a cancelled exit, while an error observed after the
+	// context ended is retained as the failure.
+	var lastErrLive bool
 	startTime := time.Now()
 
 	logger.Info("Verifier polling", "name", name, "timeout", timeout.String(), "interval", interval.String())
@@ -93,6 +99,7 @@ func pollUntilReady(
 		}
 		if lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 			lastErr = &pollObservationError{observation: lastErr, interruption: err}
+			lastErrLive = false
 			return false, nil
 		}
 		currentError := err.Error()
@@ -101,6 +108,7 @@ func pollUntilReady(
 			previousError = currentError
 		}
 		lastErr = err
+		lastErrLive = ctx.Err() == nil
 		return false, nil
 	})
 
@@ -112,10 +120,18 @@ func pollUntilReady(
 
 	if ctx.Err() != nil {
 		logVerifierTiming(name, "cancelled", elapsed)
-		if lastErr != nil {
+		switch {
+		case lastErr == nil:
+			return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
+		case lastErrLive:
+			// Cancellation landed between polls, after the check that recorded the
+			// observation: pair them (as the in-request interruption path does) so
+			// errors.Is(err, ctx.Err()) still identifies the cancellation.
+			return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond),
+				&pollObservationError{observation: lastErr, interruption: ctx.Err()})
+		default:
 			return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), lastErr)
 		}
-		return fmt.Errorf("%s cancelled after %s: %w", name, elapsed.Round(time.Millisecond), ctx.Err())
 	}
 
 	logVerifierTiming(name, "timed out", elapsed)
