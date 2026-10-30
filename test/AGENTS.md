@@ -238,6 +238,7 @@ Every test MUST include appropriate labels from these categories:
 - `labels.CoreInfraService`: Gates rollout of ARO-HCP components
 - `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
 - `labels.AllowRetry`: Marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue in an inline comment, and must be removed once the underlying issue is fixed.
+- `labels.ToBeFixed`: Marks a test that reproduces a known, unfixed bug (and is therefore expected to fail). Excluded from all other suites and collected exclusively by the `to-be-fixed/parallel` suite, so these expected failures do not pollute normal CI results. Used to verify a fix: the test flips from failing to passing once the bug is fixed. Temporary by design: every use must reference a tracking issue in an inline comment, and the label must be removed once the bug is fixed.
 
 ### Optional Environment Labels:
 - `labels.DevelopmentOnly`

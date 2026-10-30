@@ -334,7 +334,8 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 		"prod/parallel": 19, "prod/parallel/slow": 19,
 		"dev-cd-check/parallel": 20, "rp-api-compat-all/parallel": 24,
 		"rp-api-compat-all/parallel/slow": 24, "hypershift-presubmit/parallel": 24,
-		"upgrade/in-place": baseline["upgrade/in-place"].Parallelism,
+		"to-be-fixed/parallel": 24,
+		"upgrade/in-place":     baseline["upgrade/in-place"].Parallelism,
 	}
 	for name, want := range fallbacks {
 		if got := baseline[name].Parallelism; got != want {
@@ -367,7 +368,7 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 							want = 60
 						}
 						usesAcquired := strings.HasPrefix(name, "integration/") || strings.HasPrefix(name, "stage/") || strings.HasPrefix(name, "prod/") ||
-							strings.HasPrefix(name, "rp-api-compat-all/") || name == "hypershift-presubmit/parallel"
+							strings.HasPrefix(name, "rp-api-compat-all/") || name == "hypershift-presubmit/parallel" || name == "to-be-fixed/parallel"
 						if override == "unset" && lease == acquired && usesAcquired {
 							want = 2
 						}

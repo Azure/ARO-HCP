@@ -52,6 +52,13 @@ var (
 	// behavior. Selected by the hypershift-presubmit/parallel suite so that
 	// HyperShift presubmit PRs can run a targeted subset of ARO-HCP e2e tests.
 	HypershiftPresubmit = ginkgo.Label("Hypershift-Presubmit")
+	// ToBeFixed marks a test that reproduces a known bug. Tests with this label
+	// are excluded from all other suites (integration, stage, prod, dev, rp-api-compat,
+	// hypershift-presubmit, upgrade/in-place) and collected in the dedicated
+	// `to-be-fixed/parallel` suite to track fixing progress without polluting normal CI
+	// results. Temporary by design: every use must reference a tracking issue in an inline
+	// comment, and the label must be removed once the underlying bug is fixed.
+	ToBeFixed = ginkgo.Label("ToBeFixed")
 )
 
 var (

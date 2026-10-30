@@ -32,13 +32,21 @@ func slowTestsOnly(query string) string {
 	return fmt.Sprintf("(%s) && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
+func hypershiftPresubmitTestsOnly(query string) string {
+	return fmt.Sprintf("(%s) && labels.exists(l, l==\"%s\")", query, labels.HypershiftPresubmit[0])
+}
+
+func upgradeInPlaceTestsOnly(query string) string {
+	return fmt.Sprintf("(%s) && labels.exists(l, l==\"%s\")", query, labels.UpgradeInPlace[0])
+}
+
 // Register suite definitions with resolved worker counts and independent MI resource budgets.
 func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCount int, workers suiteConcurrency) {
 	// Remember that the label constants are (currently) slices, not items.
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -72,7 +80,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -105,7 +113,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -136,7 +144,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0])),
+			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0], labels.ToBeFixed[0])),
 		},
 		// Only an explicit user override replaces this specialized default.
 		Parallelism:   workers.resolve(20, false),
@@ -150,6 +158,11 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 	} else {
 		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
 	}
+
+	// Exclude ToBeFixed after the environment-dependent qualifier is fully
+	// constructed so the exclusion covers both sides of the DevelopmentOnly OR,
+	// keeping expected-failure tests out of the normal RP API compat suites.
+	rpApiCompatBaseQualifier = fmt.Sprintf(`(%s) && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.ToBeFixed[0])
 
 	rpApiCompatTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
@@ -169,11 +182,10 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	hypershiftPresubmitQuery := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.HypershiftPresubmit[0])
 	hypershiftPresubmitTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name:          "hypershift-presubmit/parallel",
-		Qualifiers:    []string{hypershiftPresubmitQuery},
+		Qualifiers:    []string{hypershiftPresubmitTestsOnly(fmt.Sprintf(`!labels.exists(l, l=="%s")`, labels.ToBeFixed[0]))},
 		Parallelism:   workers.resolve(24, true),
 		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
@@ -191,11 +203,26 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 	// queued participants.
 	upgradeInPlaceTimeout := 120 * time.Minute
 	ext.AddSuite(e.Suite{
-		Name: "upgrade/in-place",
-		Qualifiers: []string{
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
-		},
+		Name:        "upgrade/in-place",
+		Qualifiers:  []string{upgradeInPlaceTestsOnly(fmt.Sprintf(`!labels.exists(l, l=="%s")`, labels.ToBeFixed[0]))},
 		Parallelism: workers.resolve(upgradeInPlaceCount, false),
 		TestTimeout: &upgradeInPlaceTimeout,
+	})
+
+	// to-be-fixed/parallel collects tests marked ToBeFixed so they can be run as a
+	// group to track fixing progress without polluting other suites. UpgradeInPlace
+	// specs are excluded: they require the UpgradeCoordinator (started only for the
+	// upgrade/in-place suite), so running one through this ordinary parallel suite
+	// would fail in NewUpgradeBarrier with a RunID mismatch before reaching its
+	// assertions. By design a test is never both ToBeFixed and UpgradeInPlace; this
+	// exclusion keeps that invariant from silently breaking the suite.
+	toBeFixedQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.ToBeFixed[0], labels.UpgradeInPlace[0])
+	toBeFixedTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name:          "to-be-fixed/parallel",
+		Qualifiers:    []string{toBeFixedQuery},
+		Parallelism:   workers.resolve(24, true),
+		TestTimeout:   &toBeFixedTimeout,
+		ResourcePools: miPools,
 	})
 }
