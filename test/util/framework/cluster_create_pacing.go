@@ -403,11 +403,15 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 
 	// The refill-smoothing gate: once armed (the window has filled once), no
 	// start is admissible before NextAdmission. A malformed value disarms
-	// smoothing for this attempt; the trailing-window cap below still holds.
+	// smoothing for this attempt and is dropped rather than carried forward,
+	// so the gate re-arms predictably once the window next fills; the
+	// trailing-window cap below still holds.
 	nextAdmission := time.Time{}
 	if state.NextAdmission != "" {
 		if t, err := time.Parse(time.RFC3339, state.NextAdmission); err == nil {
 			nextAdmission = t
+		} else {
+			state.NextAdmission = ""
 		}
 	}
 

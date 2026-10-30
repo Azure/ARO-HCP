@@ -414,6 +414,56 @@ func TestClusterCreatePacerSmoothsRefillAfterBurst(t *testing.T) {
 	}
 }
 
+// TestClusterCreatePacerDropsMalformedNextAdmission checks that an unparseable
+// NextAdmission is dropped by the next admission write instead of being carried
+// forward until the window fills: smoothing stays disarmed for the attempt and
+// re-arms freshly once the window fills.
+func TestClusterCreatePacerDropsMalformedNextAdmission(t *testing.T) {
+	clock := newFakePacerClock()
+	pacer := newTestPacer(t, clusterCreatePacing{max: 3, window: time.Minute}, clock)
+
+	seeded, err := yaml.Marshal(clusterCreatePacingState{NextAdmission: "not-a-time"})
+	if err != nil {
+		t.Fatalf("marshaling seed state: %v", err)
+	}
+	if err := os.WriteFile(pacer.statePath, seeded, 0666); err != nil {
+		t.Fatalf("writing seed state: %v", err)
+	}
+
+	// Window capacity is free, so the start is admitted despite the malformed
+	// gate — and the write drops the malformed value rather than carrying it
+	// forward.
+	if err := pacer.pace(t.Context(), logr.Discard(), "cluster-a"); err != nil {
+		t.Fatalf("pace with malformed NextAdmission unexpected error: %v", err)
+	}
+	state, err := pacer.readState()
+	if err != nil {
+		t.Fatalf("reading pacing state: %v", err)
+	}
+	if state.NextAdmission != "" {
+		t.Errorf("NextAdmission = %q after admission, want the malformed value dropped", state.NextAdmission)
+	}
+
+	// Smoothing re-arms from the window filling, not from the dropped value:
+	// the third start fills the window and arms a fresh, parseable gate.
+	for _, name := range []string{"cluster-b", "cluster-c"} {
+		if err := pacer.pace(t.Context(), logr.Discard(), name); err != nil {
+			t.Fatalf("pace %s unexpected error: %v", name, err)
+		}
+	}
+	state, err = pacer.readState()
+	if err != nil {
+		t.Fatalf("reading pacing state after filling the window: %v", err)
+	}
+	armed, err := time.Parse(time.RFC3339, state.NextAdmission)
+	if err != nil {
+		t.Fatalf("NextAdmission = %q after the window filled, want a parseable timestamp: %v", state.NextAdmission, err)
+	}
+	if !armed.After(clock.Now()) {
+		t.Errorf("NextAdmission = %v, want a timestamp in the future", armed)
+	}
+}
+
 // gatedPacerSleep replaces a test pacer's sleep so a test can observe and
 // control the lock retry loop: every sleep signals entry, then blocks until
 // released (advancing the fake clock) or the context ends — real contention
