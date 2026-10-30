@@ -1,6 +1,10 @@
 ARG NESTED_PODMAN_IMAGE=quay-proxy.ci.openshift.org/ci/nested-podman:latest
 FROM ${NESTED_PODMAN_IMAGE}
 
+ARG GOTESTSUM_VERSION=1.13.0
+ARG ENVTEST_VERSION=v0.0.0-20260125163108-a19ec76a3c5d
+ARG ENVTEST_K8S_VERSION=1.34.1
+
 USER root
 
 RUN printf '%s\n' \
@@ -25,8 +29,26 @@ RUN printf '%s\n' \
 
 RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 
-# Integration jobs install Go tools into this GOPATH at runtime.
-RUN mkdir -p /opt/app-root && chmod 777 /opt/app-root
+# Build pinned helpers for the image's native architecture without source context
+# or retained module/build caches. Keep GOPATH writable for non-root CI jobs.
+RUN mkdir -p /opt/app-root/bin && chmod 777 /opt/app-root && \
+    export GOBIN=/opt/app-root/bin GOPATH=/tmp/ci-helper-build GOCACHE=/tmp/ci-helper-cache && \
+    go install gotest.tools/gotestsum@v${GOTESTSUM_VERSION} && \
+    go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION} && \
+    rm -rf /tmp/ci-helper-build /tmp/ci-helper-cache && \
+    chown 1000:0 /opt/app-root/bin && chmod 0775 /opt/app-root/bin
+
+# setup-envtest selects the native Linux architecture. Its versioned store stays
+# root-owned; the stable symlink and identity file are the runner's asset contract.
+RUN assets=$(/opt/app-root/bin/setup-envtest --bin-dir=/opt/envtest use "${ENVTEST_K8S_VERSION}" -p path) && \
+    ln -s "${assets}" /opt/envtest/assets && \
+    printf '%s\n' "${ENVTEST_K8S_VERSION}" > /opt/envtest/version && \
+    chmod -R a+rX,go-w /opt/envtest
+
+ENV PATH="${PATH}:/opt/app-root/bin" \
+    ENVTEST_ASSETS_VERSION="${ENVTEST_K8S_VERSION}" \
+    ENVTEST_BIN_DIR=/opt/envtest \
+    KUBEBUILDER_ASSETS=/opt/envtest/assets
 
 # ci-operator clones source into /go before the test commands set GOPATH.
 RUN mkdir -p /go && chown 1000:0 /go && chmod 0775 /go

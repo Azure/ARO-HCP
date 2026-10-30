@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./setup-env.mk
+include ./dev-infrastructure/openshift-ci/versions.mk
 include ./tooling/templatize/Makefile
 include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
@@ -54,12 +55,9 @@ test-unit: envtest-setup test-infrastructure
 # Use as:   KUBEBUILDER_ASSETS=$(make -s envtest-setup) go test ./...
 #
 # The first run downloads ~50MB; subsequent runs just print the cached path.
-ENVTEST_K8S_VERSION ?= 1.34.1
 ENVTEST_BIN_DIR ?= $(abspath bin/envtest)
 ENVTEST := $(GOBIN)/setup-envtest
-# setup-envtest's release branches mirror controller-runtime's; pin to the
-# branch matching the controller-runtime version we depend on.
-ENVTEST_VERSION ?= release-0.22
+# Tool and Kubernetes versions are shared with the prebuilt CI image in versions.mk.
 
 $(ENVTEST):
 	GOBIN=$(GOBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
