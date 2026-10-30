@@ -29,9 +29,7 @@ RUN printf '%s\n' \
 
 RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 
-# Build pinned helpers for the image's native architecture without source context
-# or retained module/build caches. Keep GOPATH writable for non-root CI jobs.
-# Isolate HOME too: Go telemetry must not create root-owned runtime config.
+# Keep root-run Go telemetry out of the runtime user's HOME.
 RUN mkdir -p /opt/app-root/bin && chmod 777 /opt/app-root && \
     export HOME=/tmp/ci-helper-home GOBIN=/opt/app-root/bin GOPATH=/tmp/ci-helper-build GOCACHE=/tmp/ci-helper-cache && \
     go install gotest.tools/gotestsum@v${GOTESTSUM_VERSION} && \
@@ -39,8 +37,6 @@ RUN mkdir -p /opt/app-root/bin && chmod 777 /opt/app-root && \
     rm -rf /tmp/ci-helper-build /tmp/ci-helper-cache "${HOME}" && \
     chown 1000:0 /opt/app-root/bin && chmod 0775 /opt/app-root/bin
 
-# setup-envtest selects the native Linux architecture. Its versioned store stays
-# root-owned; the stable symlink and identity file are the runner's asset contract.
 RUN export HOME=/tmp/ci-helper-home && \
     assets=$(/opt/app-root/bin/setup-envtest --bin-dir=/opt/envtest use "${ENVTEST_K8S_VERSION}" -p path) && \
     ln -s "${assets}" /opt/envtest/assets && \

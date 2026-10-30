@@ -21,7 +21,6 @@ fi
 
 echo "simulation temp dir=${ARTIFACT_DIR}"
 
-# Keep phase timings beside the existing JUnit and emulator artifacts.
 PHASE_TIMINGS="${ARTIFACT_DIR}/integration-phase-timings.log"
 TIMED_PHASE=""
 PHASE_START_SECONDS=0
@@ -72,16 +71,13 @@ export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
 #TODO these are sent over HTTP, so it's only safe because the emulator is personal and well-known.  Fix the trust before sending real creds
 export FRONTEND_COSMOS_KEY="${DEFAULT_COSMOS_KEY}"
 
-# Explicit assets must match the requested version. Image-cached assets are an
-# optimization: a different requested version uses the writable Makefile cache,
-# so version bumps do not depend on the shared image being published first.
+# User overrides must match exactly; image-cache misses keep the normal bootstrap.
 TIMED_PHASE="envtest-preparation"
 PHASE_START_SECONDS=${SECONDS}
 printf '%s phase=%s event=start\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${TIMED_PHASE}" | tee -a "${PHASE_TIMINGS}"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# Read only the shared inventory, avoiding unrelated root Makefile bootstrap
-# when the requested assets are already available.
+# Avoid root Makefile bootstrap on cache hits.
 EXPECTED_ENVTEST_VERSION="$(make --no-print-directory -s \
     -f "${REPO_ROOT}/dev-infrastructure/openshift-ci/versions.mk" \
     --eval='print-envtest-version:;@echo $(ENVTEST_K8S_VERSION)' print-envtest-version)"
