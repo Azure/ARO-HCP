@@ -31,19 +31,22 @@ RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 
 # Build pinned helpers for the image's native architecture without source context
 # or retained module/build caches. Keep GOPATH writable for non-root CI jobs.
+# Isolate HOME too: Go telemetry must not create root-owned runtime config.
 RUN mkdir -p /opt/app-root/bin && chmod 777 /opt/app-root && \
-    export GOBIN=/opt/app-root/bin GOPATH=/tmp/ci-helper-build GOCACHE=/tmp/ci-helper-cache && \
+    export HOME=/tmp/ci-helper-home GOBIN=/opt/app-root/bin GOPATH=/tmp/ci-helper-build GOCACHE=/tmp/ci-helper-cache && \
     go install gotest.tools/gotestsum@v${GOTESTSUM_VERSION} && \
     go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION} && \
-    rm -rf /tmp/ci-helper-build /tmp/ci-helper-cache && \
+    rm -rf /tmp/ci-helper-build /tmp/ci-helper-cache "${HOME}" && \
     chown 1000:0 /opt/app-root/bin && chmod 0775 /opt/app-root/bin
 
 # setup-envtest selects the native Linux architecture. Its versioned store stays
 # root-owned; the stable symlink and identity file are the runner's asset contract.
-RUN assets=$(/opt/app-root/bin/setup-envtest --bin-dir=/opt/envtest use "${ENVTEST_K8S_VERSION}" -p path) && \
+RUN export HOME=/tmp/ci-helper-home && \
+    assets=$(/opt/app-root/bin/setup-envtest --bin-dir=/opt/envtest use "${ENVTEST_K8S_VERSION}" -p path) && \
     ln -s "${assets}" /opt/envtest/assets && \
     printf '%s\n' "${ENVTEST_K8S_VERSION}" > /opt/envtest/version && \
-    chmod -R a+rX,go-w /opt/envtest
+    chmod -R a+rX,go-w /opt/envtest && \
+    rm -rf "${HOME}"
 
 ENV PATH="${PATH}:/opt/app-root/bin" \
     ENVTEST_ASSETS_VERSION="${ENVTEST_K8S_VERSION}" \
@@ -55,7 +58,10 @@ RUN mkdir -p /go && chown 1000:0 /go && chmod 0775 /go
 
 USER 1000
 
-# Fail the image build if the default user cannot prepare a source checkout.
+# Fail the image build if the default user cannot prepare a checkout or runtime config.
 RUN clone_root=$(mktemp -d /go/source-clone.XXXXXX) && \
     git init --quiet "${clone_root}/src/github.com/Azure/ARO-HCP" && \
-    rm -rf "${clone_root}"
+    rm -rf "${clone_root}" && \
+    mkdir -p "${HOME}/.config/containers" && \
+    config_probe=$(mktemp "${HOME}/.config/containers/.ci-permissions.XXXXXX") && \
+    rm -f "${config_probe}"
