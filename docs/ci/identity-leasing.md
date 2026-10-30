@@ -198,9 +198,7 @@ RG_SCOPE_COST   = 26   # unconditional + rbacScope=='resourceGroup' assignments
 RES_SCOPE_COST  = 41   # same, for rbacScope=='resource'
 RES_SCOPED_HCPS = 1    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
 
-identity_container_count = 58   # slot_assets.e2e_identities.resource_group_count in
-                                #   test/e2e-config/e2e-slots.yaml. Differs per pool
-                                #   (20, 25, 58 and 100), so run-cost is per pool too.
+identity_container_count = pool.slot_assets.e2e_identities.resource_group_count
 # identity_container_provisioning_count, when configured, controls physical
 # inventory only; it does not increase this leased ceiling or hcp-concurrency.
 
@@ -225,11 +223,9 @@ max-concurrency = floor((role-assignment-quota - 100) / run-cost)
 
 The 100 subtracted from quota is headroom reserved for other activity in the subscription and for any additional role assignments created by individual specs.
 
-For the current managed DEV pools, five 58-container slots have a configured
-worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
-Against the requested 8000-assignment quota, that leaves 385 assignments total,
-including the 100-assignment reserve and the subscription's persistent baseline.
-
+Read each pool's slot count and leased container budget from the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml) when calculating
+its quota cost. Do not reuse another pool's capacity or a fixed example count.
 
 Suite worker precedence is documented in the design's
 [leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
@@ -242,11 +238,10 @@ added to the E2E bicep — scale it across the slots that subscription configure
 ```text
 # Slots and their container counts come from test/e2e-config/e2e-slots.yaml.
 # Group pools by subscriptions.e2e first: several pools can share one
-# subscription and therefore one quota, so their costs add up. Today the INT
-# environment is the case that matters.
+# subscription and therefore one quota, so their costs add up.
 #
 # run-cost is per pool, not per subscription: it depends on
-# identity_container_count, which differs between pools (20, 25, 58 and 100).
+# identity_container_count, which can differ between pools.
 # Compute it separately for each pool rather than reusing one value.
 subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
 
@@ -362,13 +357,13 @@ aligned with the release-side Boskos inventory and job selectors.
 
 #### INT West US 3 Capacity And Rollout
 
-The canonical v2 catalog exposes 100 dedicated identity-container resource groups
-per slot through `slot_assets.e2e_identities.resource_group_count` in the `int`
-pool `westus3-shard0`. The physical provisioning target is also 100 through
-`identity_container_provisioning_count`. All physical containers are available
-to runtime leasing. `slot_count: 1` keeps a single Boskos job slot, so this sets
-capacity within one suite run, not the number of simultaneous CI jobs.
-All other pools retain their existing counts.
+The [canonical slot catalog](../../test/e2e-config/e2e-slots.yaml) is the source
+of truth for environment and pool names, subscriptions, placement, job-slot
+counts, leased identity-container budgets, physical provisioning targets, and
+VM-family policy. Read the `int` environment's West US 3 pool for its settings.
+
+Capacity-only changes belong in the catalog. Update this guide only when
+configuration semantics or operating procedures change.
 
 For suite worker precedence, see the design's
 [leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
@@ -382,41 +377,32 @@ derives its `mi-containers` capacity from the acquired entries in
 zero-demand specs consume no containers, and multi-container specs consume
 more than one unit of budget.
 
-Higher throughput requires quota-backed worker and helper SKU-family
-configuration. A planning estimate for 100 concurrently held one-container HCPs
-is `100 × 2 D8 = 1,600 worker CPUs` plus `100 × D2 = 200 helper CPUs`.
-This is not 100 job slots, a measured peak, or a physical capacity reservation;
-actual demand varies by selected specs.
-Confirm SKU-family quota and role-assignment headroom before rollout.
+Check regional and SKU-family vCPU quotas and role-assignment headroom against
+the selected tests' node shapes and peak simultaneous HCP demand. Derive that
+demand from the pool's leased budget and the tests' resource requirements,
+not from the physical inventory count or the number of workers alone.
 
-Before jobs acquire the expanded catalog, reconcile and validate the declared
-pool using the Make targets, which ensure the binary and embedded ARM templates
-reflect the source revision:
+Before jobs use a capacity change, follow
+[Reconcile And Validate An Identity Pool](#reconcile-and-validate-an-identity-pool)
+for the selected environment, pool, and subscription. Use the Make targets so
+the binary and embedded ARM templates reflect the source revision.
 
-```bash
-make -C test apply-pool-assets \
-  ENVIRONMENT=int ASSET=e2e_identities POOL=westus3-shard0 \
-  SUBSCRIPTION="ARO SRE Team - INT (EA Subscription 3)"
-make -C test validate-pool-assets \
-  ENVIRONMENT=int ASSET=e2e_identities POOL=westus3-shard0 \
-  SUBSCRIPTION="ARO SRE Team - INT (EA Subscription 3)"
-```
+Record reconciliation, quota, and validation observations in rollout/PR notes,
+not as permanent claims about live readiness in this guide. Whole-pool
+validation checks the physical provisioning target; admission and runtime
+leasing use the declared leased budget. Preserve the physical target during
+a leased-budget reduction unless the reserve inventory should be removed.
 
-Record the observed reconciliation and validation results in rollout/PR notes,
-not as a permanent claim that the live pool is ready. Apply and whole-pool
-validation use the physical provisioning count of 100; admission checks and
-runtime leasing use the full 100-container inventory. Keep the explicit physical
-count in the canonical catalog to preserve inventory during a leased-budget
-reduction. Boskos still leases one slot for this pool; no additional job-slot
-resources are introduced. Validate the release-side inventory and
-ensure persistent workflow steps source the slot runtime contract, mapping
-`SELECTED_LOCATION` to `LOCATION` and preserving `LEASED_MSI_CONTAINERS`.
+Validate the release-side Boskos inventory when job-slot names or counts
+change. Ensure persistent workflow steps source the slot runtime contract,
+mapping `SELECTED_LOCATION` to `LOCATION` and preserving
+`LEASED_MSI_CONTAINERS`.
 
-After rollout, inspect the acquired pool/region, the 100-entry exported container
-list, the effective worker concurrency (including CLI overrides), the
-`mi-containers=100` scheduler budget, and scheduler/lease timing in job artifacts.
-Explicit worker limits still cap concurrent specs independently of the leased
-identity-container budget.
+After rollout, compare the exported container list and the `mi-containers`
+scheduler budget with the selected pool's declared leased count. Inspect the
+effective worker concurrency, including CLI overrides, and scheduler/lease
+timing in job artifacts. Explicit worker limits cap concurrent specs
+independently of the leased identity-container budget.
 
 ### Operational Notes And Troubleshooting
 
