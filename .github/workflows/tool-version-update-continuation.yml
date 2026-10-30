@@ -1,4 +1,4 @@
-name: Continue agentic tool updates
+name: Continue agentic maintenance
 on:
   pull_request_target:
     types: [closed]
@@ -29,3 +29,48 @@ jobs:
         REPO: ${{ github.repository }}
       run: >-
         gh api --method POST "repos/$REPO/actions/workflows/tool-version-updates.lock.yml/dispatches" -f ref=main
+  continue-native-maintenance:
+    if: |-
+      github.event.action == 'closed' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.event.pull_request.head.repo.full_name == github.repository && (
+        github.event.pull_request.user.login == 'dependabot[bot]' || (
+          github.event.pull_request.user.login == 'aro-hcp-robot[bot]' &&
+          github.event.pull_request.merged == true &&
+          contains(github.event.pull_request.labels.*.name, 'agentic-dependency-upgrade') &&
+          contains(github.event.pull_request.body, '<!-- native-dependabot-maintenance:')
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+    - name: Verify the native lifecycle transition
+      id: transition
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        AUTHOR: ${{ github.event.pull_request.user.login }}
+        EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      run: |
+        set -euo pipefail
+        [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]]
+        if [[ "$AUTHOR" == 'aro-hcp-robot[bot]' ]]; then
+          echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        marker="<!-- native-dependabot-maintenance:close:$EXPECTED_HEAD:"
+        eligible=$(gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" |
+          jq -er --arg marker "$marker" 'any(.[][]; .user.login == "aro-hcp-robot[bot]" and (.body | startswith($marker)) and (.body | test("\\n/close\\s*$"))) | tostring')
+        echo "eligible=$eligible" >> "$GITHUB_OUTPUT"
+    - name: Continue the existing native agentic lifecycle on main
+      if: steps.transition.outputs.eligible == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: >-
+        gh api --method POST "repos/$REPO/actions/workflows/gh-aw-recompile.lock.yml/dispatches" -f ref=main

@@ -124,7 +124,7 @@ verify-tool-automation: $(JQ)
 .PHONY: verify-tool-automation
 
 verify-agentic-maintenance:
-	python3 -m unittest discover -s .github/scripts -p 'test_agentic_pr_maintenance.py'
+	python3 -m unittest discover -s .github/scripts -p 'test_*maintenance.py'
 .PHONY: verify-agentic-maintenance
 
 update: deepcopy json-format
