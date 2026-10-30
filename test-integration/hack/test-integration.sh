@@ -72,32 +72,43 @@ export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
 #TODO these are sent over HTTP, so it's only safe because the emulator is personal and well-known.  Fix the trust before sending real creds
 export FRONTEND_COSMOS_KEY="${DEFAULT_COSMOS_KEY}"
 
-# Explicit assets (including the image-baked /opt/envtest/assets) must match
-# the requested Kubernetes version. Never replace an invalid explicit path
-# with a download. With no assets supplied, preserve the local Makefile cache.
+# Explicit assets must match the requested version. Image-cached assets are an
+# optimization: a different requested version uses the writable Makefile cache,
+# so version bumps do not depend on the shared image being published first.
 TIMED_PHASE="envtest-preparation"
 PHASE_START_SECONDS=${SECONDS}
 printf '%s phase=%s event=start\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${TIMED_PHASE}" | tee -a "${PHASE_TIMINGS}"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# Read only the shared inventory, avoiding unrelated root Makefile bootstrap
+# when the requested assets are already available.
+EXPECTED_ENVTEST_VERSION="$(make --no-print-directory -s \
+    -f "${REPO_ROOT}/dev-infrastructure/openshift-ci/versions.mk" \
+    --eval='print-envtest-version:;@echo $(ENVTEST_K8S_VERSION)' print-envtest-version)"
+EXPLICIT_ASSETS=false
 if [ "${KUBEBUILDER_ASSETS+x}" = "x" ]; then
-    # Read only the shared version inventory; the root Makefile bootstraps
-    # unrelated tools before its targets and is deliberately skipped here.
-    EXPECTED_ENVTEST_VERSION="$(make --no-print-directory -s \
-        -f "${REPO_ROOT}/dev-infrastructure/openshift-ci/versions.mk" \
-        --eval='print-envtest-version:;@echo $(ENVTEST_K8S_VERSION)' print-envtest-version)"
+    EXPLICIT_ASSETS=true
+elif [ -n "${ENVTEST_PREBUILT_ASSETS:-}" ]; then
+    KUBEBUILDER_ASSETS="${ENVTEST_PREBUILT_ASSETS}"
+fi
+if [ "${KUBEBUILDER_ASSETS+x}" = "x" ]; then
     for binary in kube-apiserver etcd; do
-        if [ ! -x "${KUBEBUILDER_ASSETS}/${binary}" ]; then
-            echo "Error: explicit KUBEBUILDER_ASSETS must contain executable ${binary}: ${KUBEBUILDER_ASSETS}" >&2
+        if [ -z "${KUBEBUILDER_ASSETS}" ] || [ ! -x "${KUBEBUILDER_ASSETS}/${binary}" ]; then
+            echo "Error: envtest assets must contain executable ${binary}: ${KUBEBUILDER_ASSETS}" >&2
             exit 1
         fi
     done
     ACTUAL_ENVTEST_VERSION="$("${KUBEBUILDER_ASSETS}/kube-apiserver" --version)"
     if [ "${ACTUAL_ENVTEST_VERSION}" != "Kubernetes v${EXPECTED_ENVTEST_VERSION}" ]; then
-        echo "Error: explicit envtest assets report '${ACTUAL_ENVTEST_VERSION}', expected Kubernetes v${EXPECTED_ENVTEST_VERSION}" >&2
-        exit 1
+        if [ "${EXPLICIT_ASSETS}" = true ]; then
+            echo "Error: explicit envtest assets report '${ACTUAL_ENVTEST_VERSION}', expected Kubernetes v${EXPECTED_ENVTEST_VERSION}" >&2
+            exit 1
+        fi
+        echo "Cached envtest assets report '${ACTUAL_ENVTEST_VERSION}'; bootstrapping requested Kubernetes v${EXPECTED_ENVTEST_VERSION}"
+        unset KUBEBUILDER_ASSETS
     fi
-else
+fi
+if [ "${KUBEBUILDER_ASSETS+x}" != "x" ]; then
     KUBEBUILDER_ASSETS="$(make -C "${REPO_ROOT}" -s envtest-setup)"
 fi
 export KUBEBUILDER_ASSETS

@@ -47,8 +47,8 @@ RUN assets=$(/opt/app-root/bin/setup-envtest --bin-dir=/opt/envtest use "${ENVTE
 
 ENV PATH="${PATH}:/opt/app-root/bin" \
     ENVTEST_ASSETS_VERSION="${ENVTEST_K8S_VERSION}" \
-    ENVTEST_BIN_DIR=/opt/envtest \
-    KUBEBUILDER_ASSETS=/opt/envtest/assets
+    ENVTEST_PREBUILT_BIN_DIR=/opt/envtest \
+    ENVTEST_PREBUILT_ASSETS=/opt/envtest/assets
 
 # ci-operator clones source into /go before the test commands set GOPATH.
 RUN mkdir -p /go && chown 1000:0 /go && chmod 0775 /go

@@ -82,10 +82,10 @@ test-nested-podman: $(if $(filter true,$(IN_CONTAINER)),verify-nested-podman,bui
 		gotestsum --version; \
 		go version -m "$$(command -v gotestsum)" | grep -E "^[[:space:]]+mod[[:space:]]+gotest[.]tools/gotestsum[[:space:]]+v$(subst .,[.],$(GOTESTSUM_VERSION))[[:space:]]"; \
 		go version -m "$$(command -v setup-envtest)" | grep -E "^[[:space:]]+mod[[:space:]]+sigs[.]k8s[.]io/controller-runtime/tools/setup-envtest[[:space:]]+$(subst .,[.],$(ENVTEST_VERSION))[[:space:]]"; \
-		setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_BIN_DIR" list; \
-		assets=$$(setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_BIN_DIR" use "$(ENVTEST_K8S_VERSION)" -p path); \
-		test "$$(readlink -f "$$KUBEBUILDER_ASSETS")" = "$$assets"; \
-		test "$$(cat "$$ENVTEST_BIN_DIR/version")" = "$(ENVTEST_K8S_VERSION)"; \
+		setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_PREBUILT_BIN_DIR" list; \
+		assets=$$(setup-envtest --installed-only --use-env=false --bin-dir="$$ENVTEST_PREBUILT_BIN_DIR" use "$(ENVTEST_K8S_VERSION)" -p path); \
+		test "$$(readlink -f "$$ENVTEST_PREBUILT_ASSETS")" = "$$assets"; \
+		test "$$(cat "$$ENVTEST_PREBUILT_BIN_DIR/version")" = "$(ENVTEST_K8S_VERSION)"; \
 		test "$$("$$assets/kube-apiserver" --version)" = "Kubernetes v$(ENVTEST_K8S_VERSION)"; \
 		"$$assets/etcd" --version; "$$assets/kubectl" version --client; \
 		export GOPATH=/opt/app-root; \

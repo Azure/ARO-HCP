@@ -86,11 +86,13 @@ Signature verification and package installation failures fail the build rather
 than publishing an incomplete toolchain.
 
 The image also provides pinned `gotestsum`, `setup-envtest`, and native-architecture
-envtest binaries. `KUBEBUILDER_ASSETS=/opt/envtest/assets` selects the installed
-assets; `ENVTEST_ASSETS_VERSION` identifies the baked version without overriding
-the source's required `ENVTEST_K8S_VERSION`. The integration runner checks the
-actual Kubernetes binary version and fails on invalid or mismatched explicit
-assets. With `KUBEBUILDER_ASSETS` unset, local runs retain `make envtest-setup`.
+envtest binaries. `ENVTEST_PREBUILT_ASSETS=/opt/envtest/assets` identifies the
+read-only image cache without setting `KUBEBUILDER_ASSETS` or overriding the
+source's required `ENVTEST_K8S_VERSION`. The runner reuses cached assets when
+the actual Kubernetes binary version matches. If the source requests another
+version, it retains `make envtest-setup` and its writable local cache, so version
+updates can pass before the new image is published. Explicitly supplied
+`KUBEBUILDER_ASSETS` still fail on invalid or mismatched binaries.
 Runtime phase timings are written beside the integration test artifacts in
 `integration-phase-timings.log`.
 
