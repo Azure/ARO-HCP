@@ -44,6 +44,7 @@ class RepositoryFixture(unittest.TestCase):
         git(self.seed, "config", "user.email", "fixture@example.test")
         self.write("backend/go.mod", manifest(OLD))
         self.write("internal/go.mod", manifest(OLD))
+        self.write("backend/Dockerfile", "FROM example.invalid/base:1.0\n")
         self.write("vendor/example.com/library/library.go", "package library\nconst Version = 1\n")
         self.write("image-sync/oc-mirror/acrauth/vendor/example.com/library/library.go", "package library\nconst Version = 1\n")
         for prefix in native.VENDORS:
@@ -281,6 +282,35 @@ class RepositoryFixture(unittest.TestCase):
         request["source_prs"].append({"number": 2, "head_sha": second_sha})
         result = native.publish(REPO, request)
         self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
+
+    def test_go_publication_ignores_unrelated_modified_dockerfile(self):
+        self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        request = self.request()
+        result = native.publish(REPO, request)
+        self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
+        self.assertEqual(self.remote_git("show", result["head_sha"] + ":backend/go.mod"), manifest(NEW).strip())
+        self.assertEqual(self.remote_git("show", result["head_sha"] + ":backend/Dockerfile"),
+                         "FROM example.invalid/base:1.0")
+        self.assertEqual(self.pulls[2]["state"], "open")
+
+    def test_go_publication_does_not_infer_disjointness_from_docker_title(self):
+        self.source(2, "api/Makefile", "models:\n\t@echo changed\n")
+        self.pulls[2]["title"] = "chore(deps): bump Docker base image"
+        with self.assertRaisesRegex(ValueError, "unsupported/protected native source path"):
+            native.publish(REPO, self.request())
+        self.assertEqual(self.next_number, 100)
+
+    def test_go_publication_rejects_docker_sibling_with_go_changes(self):
+        self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        git(self.seed, "switch", self.pulls[2]["head"]["ref"])
+        self.write("internal/go.mod", manifest(NEW))
+        git(self.seed, "add", ".")
+        git(self.seed, "commit", "-m", "mixed native changes")
+        git(self.seed, "push", "origin", self.pulls[2]["head"]["ref"])
+        git(self.seed, "switch", "main")
+        with self.assertRaisesRegex(ValueError, "unsupported/protected native source path"):
+            native.publish(REPO, self.request())
+        self.assertEqual(self.next_number, 100)
 
     def test_prettier_publication_preserves_mixed_major_parent_scoped_overrides(self):
         manifest_before = {"devDependencies": {"prettier": "3.9.9"},
@@ -785,6 +815,98 @@ class EvidenceTests(unittest.TestCase):
         bad["overrides"]["@azure/ms-rest-js"] = {"scripts": {"install": "unsafe"}}
         with self.assertRaises(ValueError):
             native.changes("api/package.json", before, json.dumps(bad))
+
+    def test_generated_action_lock_requires_existing_source_coverage_for_admission(self):
+        source, lock = ".github/workflows/example.md", ".github/workflows/example.lock.yml"
+        metadata = ".github/aw/actions-lock.json"
+        old = "steps:\n  - uses: actions/checkout@" + "b" * 40 + "\n"
+        new = old.replace("b" * 40, PIN)
+        intents = native.changes(lock, old, new)
+        self.assertEqual(native.coverage_paths(intents), {source, lock, metadata})
+        files = {source: old, lock: new}
+        intent = {"ecosystem": "actions", "family": "actions/checkout", "intents": intents}
+        snap = {"pull": {"head": {"sha": PIN}}, "files": [{"filename": lock}]}
+        with patch.object(native, "tree_paths", side_effect=lambda *args: set(files)), \
+                patch.object(native, "main_sha", return_value=PIN), \
+                patch.object(native, "content", side_effect=lambda repo, sha, path: files[path]):
+            with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+                native.verify_coverage(intents, files.__getitem__, set(files))
+            with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+                native.admission_safe(REPO, snap, intent)
+            files[source] = new
+            native.verify_coverage(intents, files.__getitem__, set(files))
+            native.admission_safe(REPO, snap, intent)
+        with patch.object(native, "tree_paths", side_effect=[{lock}, set(files)]), \
+                patch.object(native, "main_sha", return_value=PIN), \
+                self.assertRaisesRegex(ValueError, "lost its existing source"):
+            native.admission_safe(REPO, snap, intent)
+        source_intents = native.changes(source, old, new)
+        files[lock] = old
+        with self.assertRaisesRegex(ValueError, "source/lock does not cover"):
+            native.verify_coverage(source_intents, files.__getitem__, set(files))
+
+    def test_generated_action_coverage_validates_source_tags_and_relevant_compiler_metadata(self):
+        source, lock = ".github/workflows/example.md", ".github/workflows/example.lock.yml"
+        metadata = ".github/aw/actions-lock.json"
+        old = "steps:\n  - uses: actions/checkout@" + "b" * 40 + "\n"
+        new = old.replace("b" * 40, PIN)
+        intents = native.changes(lock, old, new)
+        action = {"repo": "actions/checkout", "version": "v2.0.0", "sha": PIN}
+        historical = {"repo": "actions/checkout", "version": "v1.0.0", "sha": "b" * 40}
+        document = {"entries": {"actions/checkout@v2.0.0": action,
+                                "actions/checkout@v1.0.0": historical},
+                    "containers": {"fixed": {"digest": "unchanged"}}}
+        compiled = "# gh-aw-manifest: " + json.dumps({"version": 1, "actions": [action]}) + "\n" + new
+        files = {source: "steps:\n  - uses: actions/checkout@v2.0.0\n", lock: compiled,
+                 metadata: json.dumps(document)}
+        with patch.object(native, "api", return_value={"sha": PIN}):
+            native.verify_coverage(intents, files.__getitem__, set(files))
+            # Historical lock entries belonging to other consumers are not
+            # current references from this source/compiled workflow.
+            for path, stale in (
+                    (source, files[source].replace("v2.0.0", "v1.0.0")),
+                    (metadata, json.dumps(document).replace('"sha": "' + PIN, '"sha": "' + "b" * 40)),
+                    (metadata, json.dumps({"entries": {}})),
+                    (metadata, json.dumps({"entries": {"actions/checkout@v2.0.0": historical}})),
+                    (lock, compiled.replace('"sha": "' + PIN, '"sha": "' + "b" * 40))):
+                original = files[path]
+                files[path] = stale
+                with self.subTest(path=path, stale=stale), self.assertRaises(ValueError):
+                    native.verify_coverage(intents, files.__getitem__, set(files))
+                files[path] = original
+            with self.assertRaisesRegex(ValueError, "source tag lacks intended"):
+                native.verify_coverage(intents, files.__getitem__, set(files) - {metadata})
+            # A compiler-injected action can legitimately be absent from the
+            # editable source, but its compiled metadata still needs coverage.
+            files[source] = "permissions: read-all\n"
+            native.verify_coverage(intents, files.__getitem__, set(files))
+            files[source] = new
+            native.verify_coverage(intents, files.__getitem__, set(files))
+            files[metadata] = json.dumps(document).replace('"sha": "' + PIN, '"sha": "' + "b" * 40)
+            with self.assertRaisesRegex(ValueError, "compiler actions lock does not cover"):
+                native.verify_coverage(intents, files.__getitem__, set(files))
+        files[source] = "steps:\n  - uses: actions/checkout@v2.0.0\n"
+        files[metadata] = json.dumps(document)
+        with patch.object(native, "api", return_value={"sha": "f" * 40}), \
+                self.assertRaisesRegex(ValueError, "not the official intended"):
+            native.verify_coverage(intents, files.__getitem__, set(files))
+
+    def test_handwritten_action_yaml_does_not_require_generated_source_or_metadata_coverage(self):
+        old = "steps:\n  - uses: actions/checkout@" + "b" * 40 + "\n"
+        new = old.replace("b" * 40, PIN)
+        for suffix in (".yml", ".yaml"):
+            workflow = ".github/workflows/handwritten" + suffix
+            intents = native.changes(workflow, old, new)
+            files = {workflow: new, ".github/workflows/handwritten.md": old,
+                     ".github/aw/actions-lock.json": '{"entries":{"actions/checkout@v1.0.0":{}}}'}
+            snap = {"pull": {"head": {"sha": PIN}}, "files": [{"filename": workflow}]}
+            intent = {"ecosystem": "actions", "family": "actions/checkout", "intents": intents}
+            with self.subTest(suffix=suffix), \
+                    patch.object(native, "tree_paths", side_effect=lambda *args: set(files)), \
+                    patch.object(native, "main_sha", return_value=PIN), \
+                    patch.object(native, "content", side_effect=lambda repo, sha, path: files[path]):
+                native.verify_coverage(intents, files.__getitem__, set(files))
+                native.admission_safe(REPO, snap, intent)
 
     def test_npm_coverage_accepts_compatible_newer_stable_versions_not_downgrades(self):
         for actual, target in (("3.9.11", "3.9.10"), ("^1.18.0", "^1.17.0"), ("7.30.1", "^7.29.0")):

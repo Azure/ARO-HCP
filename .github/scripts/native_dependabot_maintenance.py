@@ -913,6 +913,61 @@ def preserve_npm_resolutions(old, new):
                 "npm regeneration downgrades an existing resolution or has unverifiable versions")
 
 
+def verify_action_coverage(item, reader, paths, available):
+    package, target = item["package"], item["target"]
+    lock_path = ".github/aw/actions-lock.json"
+    entries = {}
+    if available is not None and lock_path in available and any(path.endswith((".md", ".lock.yml")) for path in paths):
+        document = json.loads(reader(lock_path))
+        require(isinstance(document, dict) and isinstance(document.get("entries"), dict),
+                "invalid compiler actions lock")
+        entries = document["entries"]
+    references = set()
+    for path in paths:
+        text = reader(path)
+        pins = [pin for (_, repo), pin in action_versions(text).items() if repo == package]
+        # Compiler-injected actions need not occur in the editable source.
+        injected = item["manifest"].endswith(".lock.yml") and path.endswith(".md") and not pins
+        require(bool(pins) or injected, "live Actions source/lock does not cover target: " + path)
+        for pin in pins:
+            if pin == target:
+                continue
+            require(path.endswith(".md") and not SHA.fullmatch(pin),
+                    "live Actions source/lock does not cover target: " + path)
+            entry = entries.get(package + "@" + pin)
+            require(isinstance(entry, dict)
+                    and entry == {"repo": package, "version": pin, "sha": target},
+                    "live Actions source tag lacks intended compiler lock resolution: " + path)
+            official = api(f"repos/{upgrade_family('actions', package)}/commits/{quote(pin, safe='')}")
+            require(isinstance(official, dict) and official.get("sha") == target,
+                    "Actions source release is not the official intended commit")
+            references.add(pin)
+        if path.endswith(".lock.yml"):
+            prefix = "# gh-aw-manifest: "
+            headers = [line[len(prefix):] for line in text.splitlines() if line.startswith(prefix)]
+            require(len(headers) <= 1, "ambiguous compiler action inventory")
+            if headers:
+                manifest = json.loads(headers[0])
+                require(isinstance(manifest, dict) and isinstance(manifest.get("actions"), list)
+                        and all(isinstance(entry, dict) for entry in manifest["actions"]),
+                        "invalid compiler action inventory")
+                actions = [entry for entry in manifest["actions"] if entry.get("repo") == package]
+                require(bool(actions) and all(set(entry) == {"repo", "version", "sha"}
+                        and isinstance(entry["version"], str) and entry["version"]
+                        and entry["sha"] == target for entry in actions),
+                        "compiler action inventory does not cover target: " + path)
+                references.update(entry["version"] for entry in actions)
+    for key, entry in entries.items():
+        relevant = key.startswith(package + "@") or isinstance(entry, dict) and entry.get("repo") == package
+        if not relevant:
+            continue
+        require(isinstance(entry, dict) and set(entry) == {"repo", "version", "sha"}
+                and entry["repo"] == package and isinstance(entry["version"], str)
+                and key == package + "@" + entry["version"], "malformed relevant compiler action lock entry")
+        if not references or entry["version"] in references:
+            require(entry["sha"] == target, "compiler actions lock does not cover target: " + key)
+
+
 def verify_coverage(intents, reader, available=None):
     require(bool(intents), "missing coverage intent")
     for item in intents:
@@ -921,23 +976,25 @@ def verify_coverage(intents, reader, available=None):
             lock = paths[0][:-3] + ".lock.yml"
             require(lock in available, "live action source lacks compiled consumer coverage")
             paths.append(lock)
+        if item["ecosystem"] == "actions" and available is not None and paths[0].endswith(".lock.yml"):
+            source = paths[0][:-9] + ".md"
+            if source in available:
+                paths.append(source)
         if item["ecosystem"] == "actions" and available is not None and paths[0] not in available:
-            stem = re.sub(r"\.(?:yml|yaml)$", "", paths[0])
+            stem = paths[0][:-9] if paths[0].endswith(".lock.yml") else re.sub(r"\.(?:yml|yaml)$", "", paths[0])
             paths = [stem + ".md", stem + ".lock.yml"]
             require(all(path in available for path in paths),
                     "obsolete workflow has no live source and compiled replacement")
+        if item["ecosystem"] == "actions":
+            verify_action_coverage(item, reader, paths, available)
+            continue
         for path in paths:
             _, versions = version_map(path, reader(path))
             key = tuple(item["key"]) if isinstance(item["key"], list) else item["key"]
-            if item["ecosystem"] == "actions":
-                pins = [value for (_, package), value in versions.items() if package == item["package"]]
-                require(bool(pins) and all(pin == item["target"] for pin in pins),
-                        "live Actions source/lock does not cover target: " + path)
-            else:
-                require(version_covers(versions.get(key), item["target"]) if item["ecosystem"] == "go"
-                        else npm_covers(versions.get(key), item["target"],
-                                        resolved=PurePosixPath(path).name != "package.json"),
-                        "upgrade intent is not covered: " + path + " " + item["package"])
+            require(version_covers(versions.get(key), item["target"]) if item["ecosystem"] == "go"
+                    else npm_covers(versions.get(key), item["target"],
+                                    resolved=PurePosixPath(path).name != "package.json"),
+                    "upgrade intent is not covered: " + path + " " + item["package"])
         if item["ecosystem"] == "npm" and PurePosixPath(item["manifest"]).name == "package.json":
             lock_paths = set(item.get("lock_manifests", []))
             if available is not None:
@@ -963,6 +1020,7 @@ def coverage_paths(intents):
         if item["ecosystem"] == "actions":
             stem = path[:-9] if path.endswith(".lock.yml") else re.sub(r"\.(?:md|yml|yaml)$", "", path)
             paths.update((stem + ".md", stem + ".lock.yml"))
+            paths.add(".github/aw/actions-lock.json")
     return paths
 
 
@@ -1014,6 +1072,10 @@ def admission_safe(repo, snap, intent):
             if path.endswith(".md"):
                 lock = path[:-3] + ".lock.yml"
                 require(lock in paths, "native workflow source lacks regenerated compiler lock")
+            elif path.endswith(".lock.yml"):
+                source = path[:-9] + ".md"
+                require(source not in live or source in available,
+                        "native compiled workflow lost its existing source")
         verify_coverage(intent["intents"], lambda path: content(repo, head, path), available)
     else:
         for item in intent["intents"]:
@@ -1052,6 +1114,22 @@ def sources_group(repo, sources):
         if pull["number"] in selected:
             continue
         snap = snapshot(repo, pull["number"], pull["head"]["sha"])
+        # Only complete, unambiguous changed-file evidence can prove a sibling
+        # belongs to another ecosystem. Titles and branch names are untrusted.
+        ecosystems = set()
+        for file in snap["files"]:
+            path = safe_path(file.get("filename"))
+            name = PurePosixPath(path).name
+            ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
+                         "package.json": "npm", "package-lock.json": "npm",
+                         "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
+            if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
+                ecosystem = "actions"
+            if file.get("status") != "modified" or file.get("previous_filename"):
+                ecosystem = None
+            ecosystems.add(ecosystem)
+        if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
+            continue
         candidate = source_intent(repo, snap)
         require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
                 f"replacement omits current same-family/target native source #{pull['number']}")
