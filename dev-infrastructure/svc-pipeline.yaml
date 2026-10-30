@@ -424,6 +424,13 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  # Capture bootstrap revisions once so cluster retries retain the original intent.
+  - name: istio-bootstrap
+    action: ARM
+    template: templates/output-svc-istio-bootstrap.bicep
+    parameters: configurations/output-svc-istio-bootstrap.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -431,6 +438,11 @@ resourceGroups:
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: istioVersions
+      input:
+        resourceGroup: service
+        step: istio-bootstrap
+        name: istioVersions
     - name: globalMSIId
       input:
         resourceGroup: global
@@ -508,6 +520,7 @@ resourceGroups:
       - "conflicting operation in progress"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+      honorRetryBudgetWhenFailingFast: true
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh

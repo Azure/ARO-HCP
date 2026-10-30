@@ -15,14 +15,28 @@
 package pipeline
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func TestIsDeploymentActiveError(t *testing.T) {
@@ -233,6 +247,112 @@ func TestComputeResourceGroupTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := computeResourceGroupTags(tt.existingTags, tt.persist)
 			assert.Equal(t, tt.expectedTags, result, tt.description)
+		})
+	}
+}
+
+type staticARMParamsBuilder struct{}
+
+// BuildParams supplies a fixed compiled lookup template for deployment tests.
+func (staticARMParamsBuilder) BuildParams(context.Context, string) (string, string, error) {
+	return `{"resources":[],"outputs":{"istioVersions":{"type":"string","value":"[reference('cluster').istioVersions]"}}}`, `{"parameters":{}}`, nil
+}
+
+// TestDoWaitForDeploymentCaching exercises fresh lookups and ordinary deployment reuse.
+func TestDoWaitForDeploymentCaching(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		outputOnly bool
+		clearCache bool
+	}{
+		{name: "output-only refreshes with persistent cache", outputOnly: true},
+		{name: "output-only refreshes with ARM deployment history", outputOnly: true, clearCache: true},
+		{name: "ordinary deployment reuses persistent cache"},
+		{name: "ordinary deployment reuses ARM deployment history", clearCache: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := logr.NewContext(context.Background(), logr.Discard())
+			workDir, cacheDir := t.TempDir(), t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(workDir, "lookup.bicepparam"), []byte("using './lookup.bicep'\n"), 0600))
+
+			backendVersions := "asm-1-27"
+			deployments := map[string]string{}
+			var writes, reads int
+			transport := &fakeTransport{interceptor: func(req *http.Request) (*http.Response, error) {
+				status := http.StatusOK
+				var body string
+				switch req.Method {
+				case http.MethodGet:
+					reads++
+					var found bool
+					body, found = deployments[req.URL.Path]
+					if !found {
+						status = http.StatusNotFound
+						body = `{"error":{"code":"DeploymentNotFound","message":"Deployment not found"}}`
+					}
+				case http.MethodPut:
+					writes++
+					body = fmt.Sprintf(`{"id":%q,"name":%q,"properties":{"provisioningState":"Succeeded","outputs":{"istioVersions":{"type":"String","value":%q}}}}`, req.URL.Path, filepath.Base(req.URL.Path), backendVersions)
+					deployments[req.URL.Path] = body
+				default:
+					return nil, fmt.Errorf("unexpected deployment request: %s %s", req.Method, req.URL)
+				}
+				return &http.Response{
+					StatusCode: status,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			}}
+			client, err := armresources.NewDeploymentsClient("subscription", &fakeCredential{}, &azcorearm.ClientOptions{
+				ClientOptions: azcore.ClientOptions{
+					Transport: transport,
+					Retry:     policy.RetryOptions{MaxRetries: -1},
+				},
+			})
+			require.NoError(t, err)
+			step := &types.ARMStep{
+				StepMeta:        types.StepMeta{Name: "lookup", Action: "ARM"},
+				Parameters:      "lookup.bicepparam",
+				DeploymentLevel: "ResourceGroup",
+				OutputOnly:      tt.outputOnly,
+			}
+			var stamp graph.Stamp
+			run := func() *OutPutValue {
+				output, _, err := doWaitForDeployment(ctx, staticARMParamsBuilder{}, client, nil, "subscription", "service", stamp, "service-rg", step, workDir, cacheDir, configtypes.Configuration{}, 30, 0, false, NewExecutionState())
+				require.NoError(t, err)
+				value, err := output.GetValue("istioVersions")
+				require.NoError(t, err)
+				return value
+			}
+			first := run()
+			require.Equal(t, &OutPutValue{Type: "String", Value: "asm-1-27"}, first)
+			require.Equal(t, 1, writes)
+			readsAfterFirst := reads
+
+			if tt.clearCache {
+				entries, err := os.ReadDir(cacheDir)
+				require.NoError(t, err)
+				for _, entry := range entries {
+					require.NoError(t, os.Remove(filepath.Join(cacheDir, entry.Name())))
+				}
+			}
+			// An existing cluster or canary must no longer receive bootstrap revisions.
+			backendVersions = ""
+			second := run()
+			if tt.outputOnly {
+				assert.Equal(t, &OutPutValue{Type: "String", Value: ""}, second)
+				assert.Equal(t, 2, writes)
+				assert.Len(t, deployments, 2, "fresh lookups must not reuse a content-addressed deployment")
+			} else {
+				assert.Equal(t, first, second)
+				assert.Equal(t, 1, writes)
+				if tt.clearCache {
+					assert.Greater(t, reads, readsAfterFirst, "ARM deployment history remains reusable")
+				} else {
+					assert.Equal(t, readsAfterFirst, reads, "persistent cache avoids another ARM request")
+				}
+			}
 		})
 	}
 }

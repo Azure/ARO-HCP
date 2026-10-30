@@ -165,7 +165,8 @@ func portalDeploymentURI(subscriptionID, resourceGroup, deploymentName string) s
 	return "https://ms.portal.azure.com/#view/Microsoft_Azure_Resources/DeploymentDetails.MenuView/~/overview/id/" + url.PathEscape(resourceID)
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
+// Deploy ARM inputs, refreshing output-only lookups on each invocation.
+func doWaitForDeployment(ctx context.Context, bicepClient bicepParamsBuilder, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -194,6 +195,11 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		ResourceGroup:   rgName,
 		DeploymentLevel: step.DeploymentLevel,
 		RetryAttempt:    retryAttempt,
+	}
+
+	// Refresh live lookups instead of reusing cached outputs or deployments.
+	if step.OutputOnly {
+		stepCacheDir = ""
 	}
 
 	digest, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, stepCacheDir)
