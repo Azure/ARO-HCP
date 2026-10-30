@@ -25,7 +25,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
 )
 
 type controllerArtifactTransport func(*http.Request) (*http.Response, error)
