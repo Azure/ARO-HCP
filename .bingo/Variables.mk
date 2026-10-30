@@ -53,11 +53,11 @@ $(DEEPCOPY_GEN): $(BINGO_DIR)/deepcopy-gen.mod
 	@echo "(re)installing $(GOBIN)/deepcopy-gen-v0.34.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=deepcopy-gen.mod -o=$(GOBIN)/deepcopy-gen-v0.34.3 "k8s.io/code-generator/cmd/deepcopy-gen"
 
-GOIMPORTS := $(GOBIN)/goimports-v0.26.0
+GOIMPORTS := $(GOBIN)/goimports-v0.52.0
 $(GOIMPORTS): $(BINGO_DIR)/goimports.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/goimports-v0.26.0"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.26.0 "golang.org/x/tools/cmd/goimports"
+	@echo "(re)installing $(GOBIN)/goimports-v0.52.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.52.0 "golang.org/x/tools/cmd/goimports"
 
 GOJQ := $(GOBIN)/gojq-v0.12.17
 $(GOJQ): $(BINGO_DIR)/gojq.mod
