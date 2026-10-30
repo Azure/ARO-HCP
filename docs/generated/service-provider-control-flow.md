@@ -4,16 +4,21 @@ This reference covers every concrete controller in the current checkout: backend
 fleet, kube-applier, management-agent, sessiongate, and shared informer management.
 It maps their inputs, decisions and effects across Cosmos DB, Azure, Cluster Service
 and Kubernetes. The source revision for this reconciliation is
-`648c715954d29f7a179c73f2c2636fe12f30fdbd` (pinned). Controller, endpoint,
+`51e15f0ab91d1d7ef71d202d7bb41c67ec69d578` (pinned). Controller, endpoint,
 instrumentation, shared-field ownership and lifecycle-edge contracts are reconciled
 at this revision. Ingress filtering is unconditional for the four legacy ACM wiring names,
 while existing desires remain until whole-cluster teardown; intent and external convergence remain
 distinct throughout the reference and diagrams.
+The review covers all 149 concrete controller entries, endpoint/admission and
+storage helpers, shared ownership, and all nine primary and nine focused diagrams.
+Fleet registration retirement is included: the catalog excludes the removed Maestro
+controller, readiness uses the two active conditions, and shard registration no
+longer depends on Maestro identity or endpoints.
 The checked-in Maestro-agent deployment is disabled by default. Manifest
 delivery is documented through ClusterResources and kube-applier, without making
-a running work-agent a prerequisite for control-plane convergence. Maestro
-consumer registration, legacy cleanup gates and SSA field-manager compatibility
-remain distinct contracts; see [manifest delivery boundaries](#manifest-delivery-boundaries).
+a running work-agent a prerequisite for control-plane convergence. Fleet Maestro
+consumer registration is retired; legacy cleanup gates and SSA field-manager
+compatibility remain distinct contracts; see [manifest delivery boundaries](#manifest-delivery-boundaries).
 No live Azure or Kubernetes resources were contacted. The following baselines describe earlier
 updates, not additional source revisions imported into this inventory.
 
@@ -26,8 +31,9 @@ counts and exclusions are listed in the controller catalog. Certificate delivery
 includes a renamed ingress runtime identity. Subsequent source changes include DNS
 claim lifecycle controllers, external-auth CA validity, frontend last-node-pool
 safeguards and backup overrides, and admin breakglass reads through Fleet inventory.
-The admin management-cluster projection also exposes configured kube-applier Cosmos
-autoscale maximum throughput. The histories below are provenance, not alternate
+The [admin management-cluster projection](../../admin/server/handlers/stamp/managementcluster.go)
+also exposes configured kube-applier Cosmos autoscale maximum throughput; it no
+longer exposes Maestro consumer name, REST URL or gRPC target. The histories below are provenance, not alternate
 runtime behavior or additional controllers.
 
 Historical source review revision: `09f1fd39bcde35748b73693bd7322c8637900744`;
@@ -609,6 +615,26 @@ returned object, not stored identity state. Shared
 the configured audit client after request handling; send errors are logged and
 do not roll back or change the response.
 
+#### API routing and authentication boundaries
+
+[Frontend routing](../../frontend/pkg/frontend/routes.go) applies API-version and
+[subscription-state checks](../../frontend/pkg/frontend/middleware_validatesubscription.go)
+to resource routes; subscription PUT has a separate middleware chain. Registered
+subscriptions permit operations; Warned/Suspended permit only GET and DELETE,
+while Unregistered/Deleted are rejected. These state checks and operation-result
+visibility checks are not bearer-token verification.
+
+[Admin routing](../../admin/server/server/admin.go) installs audit and
+[client-principal middleware](../../admin/server/middleware/ga_calling_identity.go)
+before matching API routes; health endpoints bypass that chain. The principal
+middleware requires the forwarded principal-name header, but currently permits a
+missing principal type; parsing these headers is not JWT validation. The checked-in
+[frontend](../../frontend/deploy/templates/ext-authz.authorizationpolicy.yaml) and
+[admin](../../admin/deploy/templates/ext-authz.authorizationpolicy.yaml) Helm policies
+enable Istio CUSTOM external authorization only when `mise.deploy` is true, excluding
+`/metrics`. These are source-level routing/configuration contracts, not verification
+of a live gateway or a claim that forwarded headers authenticate themselves.
+
 #### Configured audit forwarding
 
 Both [frontend startup](../../frontend/cmd/cmd.go) and
@@ -1184,7 +1210,7 @@ until backend processing clears it.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.BackupScheduleState` (returned as schedule state; defaults to `Enabled` if empty)</li><li>`Status.ManagementClusterResourceID` (precondition: must not be nil)</li></ul> |
-| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Tags[backupschedule]` (filter), `ResourceID.Name` (schedule prefix stripped)</li><li>`Status.KubeContent` (Velero `Schedule.Status.LastBackup`, `Status.Phase` and **`Spec.Paused`**)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Tags[backupschedule]` (filter), `Spec.TargetItem.Name` (schedule name)</li><li>`Status.KubeContent` (Velero `Schedule.Status.LastBackup`, `Status.Phase` and **`Spec.Paused`**)</li></ul> |
 
 No writes to Cosmos Resources container.
 
@@ -1408,7 +1434,7 @@ not an additional controller in the census.
 
 ## 2. Complete Controller Catalog
 
-The catalog contains **150 concrete controller entries**: 121 backend instances, 11 fleet controllers,
+The catalog contains **149 concrete controller entries**: 121 backend instances, 10 fleet controllers,
 three kube-applier controller types, 12 management-agent controllers/watchers,
 two sessiongate controllers and one shared union-informer controller. Dynamic
 validation and metrics instances are listed individually; dynamically created
@@ -1417,7 +1443,7 @@ controllers remain in the inventory. External operators are boundaries, not coun
 as in-repo controllers. Generic watching/operation wrappers, HTTP servers, informer
 factories, leader election and Prometheus collectors are infrastructure rather than
 additional business controllers.
-This is an inventory count, not a claim that 150 goroutines run in each deployment:
+This is an inventory count, not a claim that 149 goroutines run in each deployment:
 feature gates can suppress launches, the shared union type runs in two services,
 and the kube-applier read-controller type can have multiple runtime instances.
 The four [frontend admission informers](#admission-caches-and-startup) are likewise
@@ -1433,7 +1459,7 @@ entries are expanded again in the lifecycle catalog).
 |---|---|
 | Backend zones | Billing 2; cluster 72; clusterresources 1; cosmosmigration 2; datadump 1; external auth 14; metrics 6; mismatch 3; node pool 19: **120**. Validation and metrics runtime instances are counted separately. |
 | Backend supporting controller | Azure SKU cached reader: **1**. Union informer management is counted once in the shared row, not again here. |
-| Fleet | **11** service-specific entries; the twelfth launch entry is the shared union controller. Node-pool planning is feature-gated. |
+| Fleet | **10** service-specific entries; the eleventh launch entry is the shared union controller. Node-pool planning is feature-gated. Maestro consumer registration is retired. |
 | Kube-applier | **3** controller types: ApplyDesire, read-informer manager and dynamically instantiated Kubernetes reader. Desire-metric collectors are instrumentation, not additional reconcilers. |
 | Management-agent | **12** controller/watcher types, including optional KSM, AMA network policy and monitor translation. |
 | Sessiongate | **2** controllers; servers, proxy handlers and leader election are excluded. |
@@ -3368,13 +3394,13 @@ The [resource-state handler](../../backend/pkg/controllers/metrics/resource_metr
 
 Fleet uses the same generic [registration type](../../internal/controllerregistry/registry.go)
 as the backend, with a Fleet-specific [controller context](../../fleet/pkg/controllers/controllerconfig/context.go).
-The [registry](../../fleet/pkg/manager/controller_registry.go) contains twelve entries,
+The [registry](../../fleet/pkg/manager/controller_registry.go) contains eleven entries,
 including the shared union kube-applier informer controller, counted only once in
-the cross-service census rather than again among the 11 Fleet-specific entries. The node-pool entry
+the cross-service census rather than again among the 10 Fleet-specific entries. The node-pool entry
 is enabled only when a profile is configured. Registration constructs controllers
 before leader election; the leader callback starts Fleet informers, waits for the
 Stamp and ManagementCluster caches, then launches registered controllers.
-Clusters Service registration, Maestro registration, and node-pool controllers
+Clusters Service registration and node-pool controllers
 use four workers; union informer management uses two; the other entries use one.
 HCP resource requirements and AMW scaling retain their own polling loops through
 the `SingleWorker` adapter. The union informer controller is constructed once in
@@ -3392,21 +3418,15 @@ does not establish a new external-resource readiness gate.
 
 [Source](../../fleet/pkg/controllers/clustersserviceregistration/controller.go) · **Trigger:** Management-cluster and Stamp informers; stamp key, 5m resync, four workers. Unchanged-event cooldown is 10s until cached Ready=True (also on lookup failure), then 5m.
 
-Live-reads the management cluster and cached parent Stamp; missing either waits. External registration requires `Approved=True`. Requires AKS resource ID and Maestro consumer name even when adopting a shard. A recorded shard is GET-verified against case-insensitive AKS ID and exact consumer name; 404 or identity mismatch errors rather than recreating it. Without a recorded ID, scans all shards: partial matches and duplicates error, a unique full match is adopted, otherwise POSTs. [Creation helpers](../../fleet/pkg/controllers/clustersserviceregistration/provision_shard.go) additionally require public DNS zone, both hosted-cluster vault URLs, secrets-vault managed-identity client ID, Maestro REST/gRPC endpoints, region and valid scheduling policy. Existing shards receive **only status** updates: Schedulable→active, Unschedulable→maintenance; unknown policy errors. The POST builder omits status; the controller checks the returned shard and may issue a separate status PATCH before recording the created ID.
+Live-reads the management cluster and cached parent Stamp; missing either waits. External registration requires `Approved=True`. Requires AKS resource ID even when adopting a shard. A recorded shard is GET-verified against case-insensitive AKS ID; 404 or identity mismatch errors rather than recreating it. Without a recorded ID, scans all shards by case-insensitive AKS ID: duplicate matches error, a unique match is adopted, otherwise POSTs. Maestro consumer identity is neither required nor compared. [Creation helpers](../../fleet/pkg/controllers/clustersserviceregistration/provision_shard.go) additionally require public DNS zone, both hosted-cluster vault URLs, secrets-vault managed-identity client ID, region and valid scheduling policy; no Maestro consumer or REST/gRPC endpoint is sent. Existing shards receive **only status** updates: Schedulable→active, Unschedulable→maintenance; unknown policy errors. The POST builder omits status; the controller checks the returned shard and may issue a separate status PATCH before recording the created ID.
 
 Writes `Status.ClusterServiceProvisionShardID` after successful reconciliation and `ClustersServiceRegistered` using [SetRegistrationCondition](../../fleet/pkg/controllers/base/registration_condition.go). Registration is sticky: success sets True/Registered; later errors (including an unapproved Stamp) retain True with reason CheckFailed, while initial failures set False/RegistrationFailed. Same status/reason suppresses message-only changes. Changed management-cluster state is replaced before returning any reconciliation error; unapproved Stamp itself returns no error. Thus True is not proof that current external checks pass.
-
-#### MaestroRegistrationController
-
-[Source](../../fleet/pkg/controllers/maestroregistration/controller.go) · **Trigger:** Management-cluster and Stamp informers; stamp key, 5m resync, four workers. Same registration-aware unchanged-event cooldown as Clusters Service registration.
-
-Live-reads the management cluster and cached Stamp; missing either waits. With `Approved=True`, creates a client from the recorded Maestro REST URL, searches for the recorded consumer name and POSTs only if absent. The [consumer adapter](../../fleet/pkg/controllers/maestroregistration/consumer_client.go) validates DNS-1123 names before constructing its search and accepts the first returned match; it does not detect duplicate matches or reconcile existing consumer attributes. Writes only the `MaestroRegistered` condition, not the consumer name or endpoint. Uses the same sticky registration condition and no-op persistence rules as Clusters Service registration; ordinary external errors are persisted then returned for retry. An unapproved Stamp updates the condition without calling Maestro or returning a sync error.
 
 #### ManagementClusterLifecycleController
 
 [Source](../../fleet/pkg/controllers/lifecycle/controller.go) · [Registration](../../fleet/pkg/controllers/lifecycle/registration.go) · **Trigger:** Stamp and management-cluster informers mapped to a stamp key; 5m Stamp resync, zero management-cluster resync, one worker. The registration-aware cooldown is 10s until cached Ready=True (also on cache lookup failure), then 5m.
 
-Reads the management cluster live; missing documents are a no-op. Aggregates `ClustersServiceRegistered`, `MaestroRegistered` and `SharedIngressAvailable` into `ManagementCluster.Status.Conditions[Ready]`. Preserves existing Ready until all three conditions exist; thereafter True requires all three True, otherwise Ready becomes False. It checks status, not registration reason: sticky True/CheckFailed registrations can still satisfy this gate. Replaces changed management-cluster state with ETag protection. Placement consumes Ready. No Azure mutation.
+Reads the management cluster live; missing documents are a no-op. Removes the retired `MaestroRegistered` condition, then aggregates only `ClustersServiceRegistered` and `SharedIngressAvailable` into `ManagementCluster.Status.Conditions[Ready]`. Preserves existing Ready until both active conditions exist; thereafter True requires both True, otherwise Ready becomes False. Legacy-condition removal is persisted even while an active condition is missing and Ready is preserved. It checks status, not registration reason: a sticky True/CheckFailed registration can still satisfy this gate. Replaces changed management-cluster state with ETag protection. Placement consumes Ready. No Azure or Maestro mutation.
 
 #### EnsureCapacityReadDesireController
 
@@ -3934,7 +3954,7 @@ metadata only, not an Azure throughput mutation.
 | AKS management-cluster agent pools / subscription quota | Fleet [NodePoolController](#nodepoolcontroller) **observes** and simulates proposed transitions | No ARM action execution or persisted capacity baseline. Only its inherited Fleet Controller health document is written; simulated success is not live capacity or workload readiness. |
 | OpenShift update graph | [ControlPlaneVersionBestVersionSelection](#controlplaneversionbestversionselection) **observes** | Selects the channel target in Fleet Cosmos; assignment writes provider intent, while Cluster Service and HyperShift execute upgrades. |
 | Cluster Service cluster/node pool/external auth | Create, update-dispatch, upgrade and delete-dispatch controllers call the external API | ID clearers observe 404; operation pollers observe completion. [ClusterServiceMatchingClusters](#clusterservicematchingclusters) also deletes aged, live-rechecked orphan clusters. |
-| Cluster Service provision shards / Maestro consumers | Fleet registration controllers ensure external registrations | Fleet management-cluster conditions record readiness for placement. Maestro/work-agent and HyperShift are external components, not repository controllers in this catalog. |
+| Cluster Service provision shards | Fleet ClustersServiceRegistrationController creates/adopts shards by AKS resource ID and reconciles scheduling status | Fleet readiness requires ClustersServiceRegistered and SharedIngressAvailable; Maestro consumer registration is retired. Legacy consumer deletion is not performed by this path. Maestro/work-agent and HyperShift remain external components, not repository controllers in this catalog. |
 | Cluster Service manifests / management-cluster Kubernetes objects | [ClusterResources](../../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) fetches resources and writes per-management-cluster ApplyDesires; [ApplyDesireController](../../kube-applier/pkg/controllers/apply_desire/controller.go) performs Kubernetes SSA/deletion | The [agent chart defaults](../../maestro/agent/deploy/values.yaml) and [pipeline values](../../maestro/agent/values.yaml) set `enabled: false`; the [deployment template](../../maestro/agent/deploy/templates/maestro-agent.deployment.yaml) is gated on this value. Do not insert a required Maestro/work-agent hop into this delivery path. ReadDesires and downstream controllers observe convergence separately. |
 | Kubernetes desired manifests | [ApplyDesireController](#applydesirecontroller) applies/deletes objects | Backend `ClusterResources`, backup and credential controllers write intent documents. An ApplyDesire **Delete request** executes a Kubernetes deletion; removal of the Cosmos intent alone does not. |
 | Guest ingress certificate Secret and default reference | External HyperShift/HCCO consumes dedicated certificate delivery; the [retired ACM policy and binding](../../acm/README.md#retired-ingress-certificate-policy) are no longer installed | ACM no longer supplies delivery/renewal through that policy. The retired policy used non-pruning behavior and no Secret owner reference; existing guest `cluster-ingress-cert`, hub source material and guest `default-ingress-cert` are not intentionally deleted by chart removal. Retention depends on external owners and namespace lifetime, and does not prove renewal, validity or consumer convergence. |
@@ -3994,7 +4014,7 @@ Initial desired-version assignment uses the requested channel's best version; SR
 
 ![Cluster create: fleet readiness and placement](diagrams/controller-flows/fleet-placement.png)
 
-[Shared-ingress observation](../../fleet/pkg/controllers/sharedingress/shared_ingress_reporting_controller.go) supplies the third condition required by [lifecycle readiness](../../fleet/pkg/controllers/lifecycle/controller.go). Missing registration/ingress conditions preserve the previous Ready value until all exist. A missing ReadDesire also leaves ingress status unchanged; populated content, not its Successful condition, supplies IP evidence.
+[Shared-ingress observation](../../fleet/pkg/controllers/sharedingress/shared_ingress_reporting_controller.go) supplies one of the two active conditions required by [lifecycle readiness](../../fleet/pkg/controllers/lifecycle/controller.go), alongside ClustersServiceRegistered. Missing registration/ingress conditions preserve the previous Ready value until both exist. A missing ReadDesire also leaves ingress status unchanged; populated content, not its Successful condition, supplies IP evidence.
 
 [Placement](../../backend/pkg/controllers/cluster/placement/placement_controller.go) requires schedulable policy, Ready and current capacity/scaling observations. It reserves capacity before writing Spec placement and CapacityAvailable together. No fit records False or Unknown and requeues after 29s. [OperationClusterCreate](../../backend/pkg/controllers/cluster/operations/operation_cluster_create.go) uses the overall create deadline to classify unresolved placement; this is not a separate placement timeout. The False/missing/Unknown paths in the graph apply only when no Spec placement was assigned.
 
@@ -4072,11 +4092,12 @@ but these observers do not implement or prove successful external creation.
 | ClusterResources → ApplyDesire → Kubernetes | The same implementation classifies returned manifests, applies ownership and unconditional legacy-ingress filters, and persists cluster- or node-pool-scoped desired objects. [ApplyDesireController](../../kube-applier/pkg/controllers/apply_desire/controller.go) performs server-side apply with the configured field manager; neither the manifest response nor persisted intent proves external convergence. Explicit Delete intent and observed deletion are distinct from dropping a desire document. |
 | Kubernetes → ReadDesire → backend observations | [ReadDesireKubernetesController](../../kube-applier/pkg/controllers/read_desire_kubernetes/controller.go) mirrors requested resources. [ActualHostedCluster](../../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go), version and operation controllers consume observations; their individual completion gates remain in the catalog and convergence panel. |
 | Maestro-agent deployment boundary | [Chart defaults](../../maestro/agent/deploy/values.yaml) and [pipeline values](../../maestro/agent/values.yaml) disable the agent. Its [Deployment](../../maestro/agent/deploy/templates/maestro-agent.deployment.yaml) and associated templates use `.Values.enabled`. This says nothing about an already-running or overridden deployment. The [configured Cluster Service image](../../config/config.yaml) selects the external build; its digest alone does not establish that build's implementation details. |
-| Retained Maestro contracts | [MaestroRegistrationController](../../fleet/pkg/controllers/maestroregistration/controller.go) still ensures the consumer for an approved Stamp; [fleet lifecycle](../../fleet/pkg/controllers/lifecycle/controller.go) still includes `MaestroRegistered` in Ready. [Child cleanup](../../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) still waits while `Status.MaestroReadonlyBundles` is nonempty. Neither contract proves an agent is deployed. |
+| Retired registration versus retained cleanup | The [Fleet registry](../../fleet/pkg/manager/controller_registry.go) no longer registers a Maestro consumer controller; [fleet lifecycle](../../fleet/pkg/controllers/lifecycle/controller.go) removes `MaestroRegistered` and excludes it from Ready aggregation. [Child cleanup](../../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) still waits while `Status.MaestroReadonlyBundles` is nonempty. That legacy cleanup gate does not prove an agent is deployed. |
 | SSA compatibility is not process liveness | [ClusterResources](../../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) and [KAS delivery](../../backend/pkg/controllers/cluster/k8sresources/kube_apiserver_serving_certificate_controller.go) retain field-manager compatibility. A `work-agent` field-manager string does not identify the process making the current Kubernetes request. |
 
-The agent disablement does not remove a repository controller from the census,
-remove the Maestro readiness condition, or bypass any ARM completion/cleanup gate.
+Agent disablement and Fleet registration retirement are separate changes. The
+retired Maestro controller is excluded from the census and its condition is removed;
+neither change bypasses ARM completion or the retained child-cleanup gate.
 Cluster Service, HyperShift and Kubernetes controllers remain external boundaries.
 
 ### Serving-certificate delivery
@@ -4155,7 +4176,7 @@ observations; normal assignment recomputes its decision inputs. An assigned vers
 is not upgrade completion, and automatic z-stream rollout creates no ARM operation.
 The external-convergence node does not require a deployed Maestro agent; the
 [manifest delivery panel](#manifest-delivery-boundaries) separates current
-kube-applier delivery from retained Maestro registration and compatibility state.
+kube-applier delivery from retired Maestro registration and retained compatibility state.
 
 ### Rollout catalog discovery and retirement
 
