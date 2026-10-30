@@ -533,21 +533,22 @@ record-services-override: $(YQ) $(ORAS)
 # Query ACR for the latest image digest of each service (no build/push)
 #
 latest-services-override: $(YQ)
-	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml &
-	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml &
-	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
-	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
-	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
-	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
-	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
-	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml &
-	wait
+	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
+	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
+	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
+	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
+	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C swift-recorder record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_swift-recorder-override.yaml
+	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
+	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
+	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_swift-recorder-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \

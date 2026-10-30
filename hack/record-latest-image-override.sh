@@ -27,7 +27,7 @@ DIGEST=$(az acr manifest list-metadata \
     --registry "$ACR_NAME" \
     --name "$REPOSITORY" \
     --orderby time_desc --top 1 \
-    --query '[0].digest' -o tsv)
+    --query '[0].digest' -o tsv | tr -d '\r')
 
 if [[ -z "$DIGEST" ]]; then
     echo "Error: no images found for ${REPOSITORY} in ${ACR_NAME}" >&2
