@@ -378,6 +378,7 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard2-slot
       slot_count: 3
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -390,6 +391,7 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard3-slot
       slot_count: 3
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -402,6 +404,7 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard4-slot
       slot_count: 3
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -414,6 +417,7 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard5-slot
       slot_count: 3
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
