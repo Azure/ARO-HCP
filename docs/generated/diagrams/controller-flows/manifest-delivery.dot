@@ -10,7 +10,7 @@ digraph manifest_delivery {
   read [label="ReadDesireKubernetesController\nrequested resource observation"];
   backend [label="ActualHostedCluster / version / operation controllers\nindependent observed-state and completion gates"];
   config [label="Maestro-agent chart + pipeline values\nenabled: false\nno mandatory work-agent delivery hop", fillcolor="#eee7fb", color="#7b59a4"];
-  legacy [label="Retained contracts, not delivery evidence\nMaestroRegistered still gates Fleet Ready\nMaestroReadonlyBundles still gate child cleanup", fillcolor="#eee7fb", color="#7b59a4"];
+  legacy [label="Retired registration / retained cleanup\nFleet removes MaestroRegistered; no Ready gate\nMaestroReadonlyBundles still gate child cleanup", fillcolor="#eee7fb", color="#7b59a4"];
   cs -> fetch [label="GetClusterResources response"];
   fetch -> intent [label="persist desired objects"];
   intent -> apply [label="informer events / reconcile"];
