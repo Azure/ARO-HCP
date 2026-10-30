@@ -165,6 +165,10 @@ func TestNodeRolloutConfig(t *testing.T) {
 	testrunner.RunTestNodeRolloutConfig(t, "settings.yaml")
 }
 
+func TestHelmOwnership(t *testing.T) {
+	testrunner.RunTestHelmOwnership(t, "settings.yaml")
+}
+
 func TestShoeboxForwardUsesMDSDCompatibleTimestamp(t *testing.T) {
 	fixture, err := os.ReadFile("../../observability/arobit/testdata/zz_fixture_TestHelmTemplate_helmtest_mdsd_and_kusto_enabled_mgmt.yaml")
 	if err != nil {
