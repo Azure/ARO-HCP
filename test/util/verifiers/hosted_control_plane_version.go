@@ -241,6 +241,57 @@ func VerifyHostedControlPlaneYStreamUpgrade(previousMinor, targetMinor string) H
 	return verifyHostedControlPlaneYStreamUpgrade{previousMinor: previousMinor, targetMinor: targetMinor}
 }
 
+type verifyHostedControlPlaneReachedVersion struct {
+	targetVersion string
+}
+
+func (v verifyHostedControlPlaneReachedVersion) Name() string {
+	return fmt.Sprintf("VerifyHostedControlPlaneReachedVersion(target=%s)", v.targetVersion)
+}
+
+func (v verifyHostedControlPlaneReachedVersion) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	target, err := semver.ParseTolerant(v.targetVersion)
+	if err != nil {
+		return fmt.Errorf("parse target version %q: %w", v.targetVersion, err)
+	}
+
+	configClient, err := configv1client.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
+		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+
+	for _, h := range clusterVersion.Status.History {
+		if len(h.Version) == 0 {
+			continue
+		}
+		parsed, parseErr := semver.ParseTolerant(h.Version)
+		if parseErr != nil {
+			continue
+		}
+		if parsed.EQ(target) {
+			return nil
+		}
+	}
+	return fmt.Errorf("version %s not found in clusterversion history", v.targetVersion)
+}
+
+// VerifyHostedControlPlaneReachedVersion returns a verifier that clusterversion status.history
+// contains an entry whose version exactly matches targetVersion. Unlike
+// VerifyHostedControlPlaneZStreamUpgradeOnly it does not require all history entries to share the
+// same major.minor, making it suitable after a y-stream upgrade where the history spans multiple
+// minors.
+func VerifyHostedControlPlaneReachedVersion(targetVersion string) HostedClusterVerifier {
+	return verifyHostedControlPlaneReachedVersion{targetVersion: targetVersion}
+}
+
 type verifyKubeAPIServerServerVersionUpgraded struct {
 	preUpgrade *version.Info
 }
