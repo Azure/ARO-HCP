@@ -148,6 +148,18 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+            - name: "deleting"
+              help: "HostedCluster deletion marker: deletionTimestamp as a unix timestamp, or 0 if not being deleted. A value > 0 indicates an active deletion."
+              # The deletionTimestamp is exposed as the gauge VALUE (unix time), not a label,
+              # to avoid per-timestamp label cardinality.
+              each:
+                type: Gauge
+                gauge:
+                  path: [metadata, deletionTimestamp]
+                  # nilIsZero keeps the series present (value 0) for non-deleting clusters.
+                  # Without it the KSM customResourceState gauge logs a "got nil while resolving
+                  # path" error for every non-deleting cluster on every scrape.
+                  nilIsZero: true
           - groupVersionKind:
               group: velero.io
               kind: "Backup"
