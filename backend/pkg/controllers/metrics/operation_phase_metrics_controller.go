@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -40,14 +41,12 @@ var operationMetricLabelNames = []string{"resource_id", "subscription_id", "reso
 // backend_resource_provision_state metric family.
 //
 // Multiple operations of the SAME type on the same ARM resource id
-// collapse to one series. On the AllOperations() informer's unordered
-// iteration (every relist / resync, or backend restart) whichever
-// same-type operation is processed last wins for that resource_id +
-// operation_type combination. Operations of DIFFERENT types (e.g. a
+// collapse to the newest retained operation by StartTime, with the Cosmos
+// document key breaking ties so unordered informer resyncs cannot roll
+// the gauges back to an older attempt. Operations of DIFFERENT types (e.g. a
 // completed "create" and an in-flight "delete") coexist independently
-// and do not clobber each other. When the last operation for a
-// resource ages out of the Cosmos TTL, Delete clears the gauge using
-// a refcount to avoid clobbering sibling operations' active series.
+// and do not clobber each other. Delete selects the newest surviving
+// sibling, or clears the gauges when no operations remain.
 type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
@@ -56,12 +55,18 @@ type operationPhaseMetricsHandler struct {
 	// A mutex would not help at higher threadiness because Sync's
 	// gauge delete-then-set is not atomic across Prometheus calls.
 	operationsBookkeeper map[string]operationIdentity // cosmosDocKey: identity (reverse lookup for Delete)
-	operationsCounter    map[operationIdentity]int    // identity: count of cosmos docs contributing to this gauge
+	operationsByIdentity map[operationIdentity]map[string]operationMetricState
 }
 
 type operationIdentity struct {
 	resourceID    string
 	operationType string
+}
+
+type operationMetricState struct {
+	labels             prometheus.Labels
+	startTime          time.Time
+	lastTransitionTime time.Time
 }
 
 // NewOperationPhaseMetricsHandler creates a metrics handler for operation metrics.
@@ -82,7 +87,7 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.O
 		// Pre-sized to steady-state: bounded by operations within
 		// the 7-day CosmosDB TTL per shard (~1k-2k entries, ~100 clusters).
 		operationsBookkeeper: make(map[string]operationIdentity, 2000),
-		operationsCounter:    make(map[operationIdentity]int, 2000),
+		operationsByIdentity: make(map[operationIdentity]map[string]operationMetricState, 2000),
 	}
 	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime)
 	return h
@@ -115,82 +120,71 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Ope
 		return
 	}
 
-	// Clear any previous series for this resource and operation type before writing
-	// the current labels. Phase is part of the metric identity, so updates would
-	// otherwise leave stale series behind for older phase values. We scope the
-	// deletion to resource_id + operation_type so that concurrent operations of
-	// different types (e.g. a completed "create" and an in-flight "delete") coexist
-	// without clobbering each other on informer relists.
 	opType := operationTypeMetricLabel(op.Request)
-	h.deleteByResourceIDAndOperationType(resourceID, opType)
-
-	labels := prometheus.Labels{
-		"resource_id":     resourceID,
-		"subscription_id": subscriptionID,
-		"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
-		"operation_type":  opType,
-		"phase":           phaseMetricLabel(op.Status),
-	}
-	h.phaseInfo.With(labels).Set(1.0)
-
-	if !op.StartTime.IsZero() {
-		h.startTime.With(labels).Set(float64(op.StartTime.Unix()))
-	}
-	if !op.LastTransitionTime.IsZero() {
-		h.lastTransitionTime.With(labels).Set(float64(op.LastTransitionTime.Unix()))
-	}
-	// Track this operation so Delete can resolve the Cosmos doc key back
-	// to the metric identity and decrement the refcount. The bookkeeper
-	// maps cosmosKey → identity; the counter tracks how many Cosmos docs
-	// contribute to each identity's gauge. See Delete for the cleanup path.
 	cosmosKey := resourceIDMetricLabel(op.GetResourceID())
-	newID := operationIdentity{
+	identity := operationIdentity{
 		resourceID:    resourceID,
 		operationType: opType,
 	}
-
-	if existingID, tracked := h.operationsBookkeeper[cosmosKey]; tracked {
-		// Re-sync: this cosmosKey was already seen in a previous Sync. If the identity hasn't changed, skip.
-		if existingID != newID {
-			// If ExternalID or Request changed, adjust the counts to keep the two maps consistent.
-			h.operationsCounter[existingID]--
-			if h.operationsCounter[existingID] <= 0 {
-				delete(h.operationsCounter, existingID)
-				h.deleteByResourceIDAndOperationType(existingID.resourceID, existingID.operationType)
-			}
-			h.operationsBookkeeper[cosmosKey] = newID
-			h.operationsCounter[newID]++
-		}
-	} else {
-		// First time seeing this cosmosKey
-		h.operationsBookkeeper[cosmosKey] = newID
-		h.operationsCounter[newID]++
+	if previous, tracked := h.operationsBookkeeper[cosmosKey]; tracked && previous != identity {
+		h.Delete(cosmosKey)
 	}
+	h.operationsBookkeeper[cosmosKey] = identity
+	if h.operationsByIdentity[identity] == nil {
+		h.operationsByIdentity[identity] = make(map[string]operationMetricState)
+	}
+	h.operationsByIdentity[identity][cosmosKey] = operationMetricState{
+		labels: prometheus.Labels{
+			"resource_id":     resourceID,
+			"subscription_id": subscriptionID,
+			"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
+			"operation_type":  opType,
+			"phase":           phaseMetricLabel(op.Status),
+		},
+		startTime:          op.StartTime,
+		lastTransitionTime: op.LastTransitionTime,
+	}
+	h.updateMetrics(identity)
 }
 
-// Delete clears gauge series when the last Cosmos operation document
-// for a (resourceID, operationType) pair expires. The controller
-// framework calls Delete with the lowercased Cosmos document id.
-// operationsBookkeeper resolves it to the metric identity, and
-// operationsCounter tracks how many documents still contribute.
-// When the count reaches zero, the gauge is safe to clear without
-// clobbering a sibling operation's active series.
 func (h *operationPhaseMetricsHandler) Delete(key string) {
 	identity, ok := h.operationsBookkeeper[key]
 	if !ok {
 		return
 	}
 	delete(h.operationsBookkeeper, key)
-	h.operationsCounter[identity]--
-	if h.operationsCounter[identity] <= 0 {
-		delete(h.operationsCounter, identity)
-		h.deleteByResourceIDAndOperationType(identity.resourceID, identity.operationType)
+	delete(h.operationsByIdentity[identity], key)
+	if len(h.operationsByIdentity[identity]) == 0 {
+		delete(h.operationsByIdentity, identity)
+	}
+	h.updateMetrics(identity)
+}
+
+func (h *operationPhaseMetricsHandler) updateMetrics(identity operationIdentity) {
+	var newest operationMetricState
+	var newestKey string
+	for key, candidate := range h.operationsByIdentity[identity] {
+		if newestKey == "" || candidate.startTime.After(newest.startTime) ||
+			(candidate.startTime.Equal(newest.startTime) && key > newestKey) {
+			newest, newestKey = candidate, key
+		}
+	}
+
+	h.deleteByResourceIDAndOperationType(identity.resourceID, identity.operationType)
+	if newestKey == "" {
+		return
+	}
+	h.phaseInfo.With(newest.labels).Set(1)
+	if !newest.startTime.IsZero() {
+		h.startTime.With(newest.labels).Set(float64(newest.startTime.Unix()))
+	}
+	if !newest.lastTransitionTime.IsZero() {
+		h.lastTransitionTime.With(newest.labels).Set(float64(newest.lastTransitionTime.Unix()))
 	}
 }
 
 // deleteByResourceIDAndOperationType clears all gauge series matching the
-// given resource_id + operation_type. Called by Sync (to clear stale phase
-// labels before re-emitting) and by Delete (when the refcount reaches zero).
+// given resource_id + operation_type before emitting the selected operation.
 func (h *operationPhaseMetricsHandler) deleteByResourceIDAndOperationType(resourceID, operationType string) {
 	if len(resourceID) == 0 {
 		return
