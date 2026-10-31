@@ -4,10 +4,12 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where cluster in ('{{ .ServiceClusterName }}'{{ range .ManagementClusterNames }}, '{{ . }}'{{ end }})
 {{- end }}
 | where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'csstatedump'
+| where log.controller_name == 'csstatedump' or log.snapshotType == 'clusterService'
 | where log.msg == 'cluster-service state dump'
-| where log.resource_group == '{{ .ResourceGroup }}'
-| where log.resource_name == '{{ .ClusterResourceName }}'
+// Prefer the returned object's identity: list calls may have no resource-scoped logger.
+| extend resourceGroup = coalesce(tostring(log.csCluster.azure.resource_group_name), tostring(log.resource_group)),
+         clusterName = coalesce(tostring(log.csCluster.azure.resource_name), extract(@'/hcpopenshiftclusters/([^/]+)', 1, tolower(tostring(log.hcp_cluster_name))), tostring(log.resource_name))
+| where resourceGroup =~ '{{ .ResourceGroup }}' and clusterName =~ '{{ .ClusterResourceName }}'
 | summarize csCluster=take_any(log.csCluster) by timestamp
 | sort by timestamp asc
 | project csCluster

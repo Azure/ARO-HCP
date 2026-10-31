@@ -14,7 +14,51 @@
 
 package datadumptogit
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestCSClientAndLegacySnapshots(t *testing.T) {
+	const clusterID = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"
+	const csID = "/api/aro_hcp/v1alpha1/clusters/cs-cluster"
+	for _, scope := range []string{"legacy", "cluster", "nodepool", "cluster list"} {
+		t.Run(scope, func(t *testing.T) {
+			entry := map[string]any{
+				"clusterServiceID": csID, "nodePoolClusterServiceID": csID + "/node_pools/np",
+				"resource_id": clusterID, "csCluster": map[string]any{"id": "cs-cluster"}, "csNodePool": map[string]any{"id": "np"},
+			}
+			if scope != "legacy" {
+				entry["snapshotType"] = "clusterService"
+			}
+			if scope == "nodepool" {
+				entry["resource_id"] = clusterID + "/nodePools/np"
+				entry["hcp_cluster_name"] = clusterID
+			}
+			if scope == "cluster list" {
+				delete(entry, "resource_id")
+				entry["csCluster"] = map[string]any{"id": "cs-cluster", "azure": map[string]any{
+					"subscription_id": "sub", "resource_group_name": "rg", "resource_name": "cluster",
+				}}
+			}
+			data, err := json.Marshal(entry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cluster, ok := parseCSClusterStateDump(string(data), "timestamp")
+			if !ok || cluster.RelativePath != csClusterStatePath(clusterID, csID) {
+				t.Fatalf("cluster snapshot placed incorrectly: %+v, accepted=%v", cluster, ok)
+			}
+			if scope == "cluster list" {
+				return
+			}
+			nodePool, ok := parseCSNodePoolStateDump(string(data), "timestamp")
+			if !ok || nodePool.RelativePath != csNodePoolStatePath(clusterID, csID+"/node_pools/np") {
+				t.Fatalf("node pool snapshot placed incorrectly: %+v, accepted=%v", nodePool, ok)
+			}
+		})
+	}
+}
 
 func TestParseCosmosResourceSnapshot(t *testing.T) {
 	line := `{"content":{"_ts":1788199837,"properties":{"cosmosMetadata":{"instanceVersion":2}}},"cosmosContainer":"resources","resourceID":"/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"}`
