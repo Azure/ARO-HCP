@@ -357,6 +357,11 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	parameters ClusterParams20240610,
 	timeout time.Duration,
 ) error {
+	// Pace the creation start before the per-call timeout is armed, so the
+	// wait consumes the spec's budget rather than ClusterCreationTimeout.
+	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, parameters.ClusterName); err != nil {
+		return err
+	}
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
@@ -1083,6 +1088,12 @@ func BeginCreateHCPCluster20240610(
 	clusterParams ClusterParams20240610,
 	location string,
 ) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	// Pace the creation start so the shared limiter also throttles the
+	// asynchronous creation path (used by tests that start several creates in
+	// parallel). A memoized no-op when the caller already paced this cluster.
+	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, hcpClusterName); err != nil {
+		return nil, err
+	}
 	cluster := BuildHCPClusterFromParams20240610(clusterParams, location)
 	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, "version", cluster.Properties.Version.ID, "channelGroup", cluster.Properties.Version.ChannelGroup)
 	createCtx, createAttempts := withRequestAttemptTracker(ctx)
@@ -1107,6 +1118,11 @@ func CreateHCPClusterAndWait20240610(
 	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
 	timeout time.Duration,
 ) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	// Pace the creation start before the per-call timeout is armed (a no-op
+	// when a CreateHCPClusterFromParam wrapper already paced this cluster).
+	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, hcpClusterName); err != nil {
+		return nil, err
+	}
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))

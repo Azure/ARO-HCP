@@ -85,6 +85,10 @@ var _ = Describe("Customer", func() {
 
 			By("starting HCP cluster creation asynchronously")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			// Pace the creation start on the unarmed context before arming the deployment timeout,
+			// so the wait consumes the spec's budget, not ClusterCreationTimeout.
+			err = framework.PaceHCPClusterCreateStart(ctx, GinkgoLogr, *resourceGroup.Name, clusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed while waiting for cluster-creation pacing of cluster %q", clusterName)
 			timeout := framework.ClusterCreationTimeout
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
