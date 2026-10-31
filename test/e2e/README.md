@@ -330,13 +330,15 @@ after teardown, including failed or timed-out cleanup. SDK logging stays open
 through teardown.
 
 The report shows full test intervals, separate lifecycle phases and nested
-operation steps. Gray intervals identify work without a named operation span.
+operation steps. Operation kinds use consistent colors in the chart and summary;
+gray intervals identify work without a named operation span.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
 The compact summary and chart follow the browser's light/dark color scheme.
 
-The summary reports means and sample counts for recorded cluster creation,
-nodepool creation, cluster deletion, resource-group cleanup and full cleanup.
+The summary reports minimum, mean and maximum durations plus sample counts for
+recorded cluster creation, nodepool creation, cluster deletion, resource-group
+cleanup and full cleanup. Row colors match the timing chart.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
 or unknown-outcome tests are excluded. Typed resource-operation averages also
 require an explicit successful operation outcome: failed attempts, including
