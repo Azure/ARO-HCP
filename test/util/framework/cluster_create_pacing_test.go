@@ -332,6 +332,44 @@ func TestClusterCreatePacerDoesNotCommitAdmissionPastDeadline(t *testing.T) {
 	}
 }
 
+// TestClusterCreatePacerDeadlineCrossedDuringLockAcquisition pins the gap
+// between lockState's deadline check and the admission read: the check runs
+// before the lock acquisitions, so the deadline can pass in between, and
+// capacity that ages out exactly then would be admitted and persisted past
+// the bound. tryRecordStart rechecks the deadline on the admission read and
+// fails open without recording.
+func TestClusterCreatePacerDeadlineCrossedDuringLockAcquisition(t *testing.T) {
+	clock := newFakePacerClock()
+	pacer := newTestPacer(t, clusterCreatePacing{max: 1, window: time.Minute}, clock)
+	base := clock.Now()
+
+	// The clock jumps past the pacing deadline only while the pacer holds the
+	// state flock — inside tryRecordStart's critical section, whose single
+	// clock read is the admission timestamp. Every earlier check (pace's loop
+	// check, lockState's retry-loop check) runs before the locks and still
+	// sees the base time, so the admission attempt is reached.
+	pacer.now = func() time.Time {
+		probe, err := os.OpenFile(pacer.lockPath, os.O_RDWR|os.O_CREATE, 0666)
+		if err != nil {
+			t.Errorf("opening pacing lock file from the fake clock: %v", err)
+			return base
+		}
+		defer probe.Close()
+		if err := filelock.TryLock(probe.Fd()); err == nil {
+			_ = filelock.Unlock(probe.Fd())
+			return base
+		}
+		return base.Add(maxClusterCreatePacingWait + time.Minute)
+	}
+
+	if err := pacer.pace(t.Context(), logr.Discard(), "cluster-a"); err != nil {
+		t.Fatalf("pace = %v, want nil (fail open when the deadline crosses during lock acquisition)", err)
+	}
+	if got := len(pacer.recordedStarts(t)); got != 0 {
+		t.Errorf("recorded %d starts, want 0 (an admission attempted past the pacing deadline must not be recorded)", got)
+	}
+}
+
 // TestClusterCreatePacerCallerExpiringPastTheBoundProceedsUnpaced checks the
 // consequence of capping the poll sleep by the remaining budget: a caller whose
 // context outlives the pacing bound — but not by a full poll interval — must
