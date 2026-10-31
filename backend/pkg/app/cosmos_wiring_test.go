@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -240,6 +241,14 @@ func TestBackendStorageRegistrations(t *testing.T) {
 			require.Contains(t, names, "managedresourcegroupwatching")
 		} else {
 			require.NotContains(t, names, "managedresourcegroupwatching")
+		}
+		mockFPAOwnerRoleAssignmentName := strings.ToLower(roleassignments.MockFPAOwnerRoleAssignmentControllerName)
+		require.Equal(t, "mockfpaownerroleassignment", mockFPAOwnerRoleAssignmentName)
+		require.Equal(t, !controllerContext.HasRealFPA, newControllerRegistry()[mockFPAOwnerRoleAssignmentName].Enabled(controllerContext))
+		if controllerContext.HasRealFPA {
+			require.NotContains(t, names, mockFPAOwnerRoleAssignmentName)
+		} else {
+			require.Contains(t, names, mockFPAOwnerRoleAssignmentName)
 		}
 		options := storageTestOptions(t, func(*http.Request) (*http.Response, error) {
 			t.Fatal("startup must not contact Cosmos")

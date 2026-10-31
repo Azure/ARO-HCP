@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
@@ -33,6 +34,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/roleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -152,6 +155,18 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
 }
 
+func setMockFPAOwnerRoleAssignmentCreated(t *testing.T, spc *coreapi.ServiceProviderCluster) {
+	t.Helper()
+	scope, err := azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup)
+	require.NoError(t, err)
+	spc.Status.AzureResources.ManagedResourceGroup.AzureResource = scope
+	assignmentID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), "mock-fpa-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
+	require.NoError(t, err)
+	spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = assignmentID
+	recheck := metav1.Now()
+	spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{roleassignments.MockFPAOwnerRoleAssignmentControllerName: &recheck}
+}
+
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
@@ -163,7 +178,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		dbCluster                      *coreapi.Cluster                // cluster stored in the DB
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
 		managementClusters             []*fleetapi.ManagementCluster   // seeded into the fleet lister
-		denyAssignmentsDisabled        bool                            // simulates an environment without a real FPA
+		mockFPA                        bool
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -308,13 +323,14 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// Desired version is resolved, and NO deny assignments are tracked because the
 				// ClusterDenyAssignment controller is disabled in this environment.
+				setMockFPAOwnerRoleAssignmentCreated(t, spc)
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				// Placement is resolved so the (independent) placement gate does not block; this
 				// case isolates the deny-assignment behaviour.
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			}),
-			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
-			denyAssignmentsDisabled: true,
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			mockFPA:            true,
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mockCS.EXPECT().
@@ -438,6 +454,83 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 	}
 
+	for _, mockFPA := range []bool{false, true} {
+		for _, state := range []struct {
+			name    string
+			blocked bool
+			mutate  func(*coreapi.ServiceProviderCluster)
+		}{
+			{name: "absent", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment = coreapi.AzureReference{}
+			}},
+			{name: "pending only", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = nil
+			}},
+			{name: "confirmed and pending", blocked: true, mutate: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.PendingAzureResource = spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource
+			}},
+			{name: "confirmed without recheck deadline", mutate: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.EarliestRecheckTimesByController = nil
+			}},
+			{name: "confirmed with future recheck", mutate: func(spc *coreapi.ServiceProviderCluster) {
+				deadline := metav1.NewTime(time.Now().Add(time.Hour))
+				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPAOwnerRoleAssignmentControllerName] = &deadline
+			}},
+			{name: "confirmed with expired recheck", mutate: func(spc *coreapi.ServiceProviderCluster) {
+				deadline := metav1.NewTime(time.Now().Add(-time.Hour))
+				spc.Spec.EarliestRecheckTimesByController[roleassignments.MockFPAOwnerRoleAssignmentControllerName] = &deadline
+			}},
+			{name: "last confirmed principal remains sufficient until reconciled", mutate: func(spc *coreapi.ServiceProviderCluster) {
+				previousID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String(), "previous-principal", "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"))
+				require.NoError(t, err)
+				spc.Status.AzureResources.MockFPAOwnerRoleAssignment.AzureResource = previousID
+			}},
+		} {
+			gateTest := tests[0]
+			gateTest.listCluster = tests[0].listCluster.DeepCopy()
+			gateTest.dbCluster = tests[0].dbCluster.DeepCopy()
+			gateTest.name = fmt.Sprintf("FPA status gate mock=%t: %s", mockFPA, state.name)
+			gateTest.mockFPA = mockFPA
+			gateTest.existingServiceProviderCluster = newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				if !mockFPA {
+					setDenyAssignmentsCreated(spc)
+				}
+				setMockFPAOwnerRoleAssignmentCreated(t, spc)
+				state.mutate(spc)
+			})
+			if mockFPA && state.blocked {
+				gateTest.setupMockCS = func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+					return ocm.NewMockClusterServiceClientSpec(ctrl)
+				}
+				gateTest.verifyDB = func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+					cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+					require.NoError(t, err)
+					require.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
+				}
+			}
+			tests = append(tests, gateTest)
+		}
+	}
+	for _, pendingMRG := range []bool{false, true} {
+		readyTest := tests[0]
+		readyTest.listCluster = tests[0].listCluster.DeepCopy()
+		readyTest.dbCluster = tests[0].dbCluster.DeepCopy()
+		readyTest.name = fmt.Sprintf("mock FPA gate permits CS without confirmed MRG tracking, pending=%t", pendingMRG)
+		readyTest.mockFPA = true
+		readyTest.existingServiceProviderCluster = newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+			spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+			setMockFPAOwnerRoleAssignmentCreated(t, spc)
+			if pendingMRG {
+				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = spc.Status.AzureResources.ManagedResourceGroup.AzureResource
+			}
+			spc.Status.AzureResources.ManagedResourceGroup.AzureResource = nil
+		})
+		tests = append(tests, readyTest)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -470,7 +563,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
 				managementClusterLister:      &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
 				clustersServiceClient:        mockCS,
-				denyAssignmentsEnabled:       !tt.denyAssignmentsDisabled,
+				hasRealFPA:                   !tt.mockFPA,
 			}
 
 			key := controllerutils.HCPClusterKey{

@@ -47,20 +47,28 @@ type ControllerContext struct {
 	// certificates from Key Vault onto a management cluster. It is never a customer's
 	// tenant, and permissions granted here are not scoped to any individual
 	// customer's HostedCluster or subscription.
-	ServiceTenantID                                     string
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackupConfig                                        *clusterbackups.BackupConfig
-	BillingDBClient                                     billingcosmosstorage.BillingDBClient
-	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
-	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
-	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
-	ClustersServiceClient                               ocm.ClusterServiceClientSpec
-	VersionProfileSource                                cincinnati.VersionProfileSource
-	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
-	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
-	HasRealFPA                                          bool
+	ServiceTenantID                   string
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackupConfig                      *clusterbackups.BackupConfig
+	BillingDBClient                   billingcosmosstorage.BillingDBClient
+	CheckAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
+	CloudEnvironment                  *azureconfig.AzureCloudEnvironment
+	ClusterScopedIdentitiesConfig     *internalazure.ClusterScopedIdentitiesConfig
+	ClustersServiceClient             ocm.ClusterServiceClientSpec
+	VersionProfileSource              cincinnati.VersionProfileSource
+	FPAClientBuilder                  azureclient.FirstPartyApplicationClientBuilder
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	FleetDBClient                     fleetcosmosstorage.FleetDBClient
+	HasRealFPA                        bool
+	// MockFPAPrincipalID identifies the mock FPA service principal that receives Owner on
+	// cluster managed resource groups when HasRealFPA is false. It is an object ID, not
+	// an application/client ID or the MI mock identity's object ID; real-FPA mode ignores it.
+	MockFPAPrincipalID string
+	// ARMPermissionsManagerClientBuilder creates role-assignment clients using the ARM
+	// helper's rotating credentials and cloud options to grant Owner to MockFPAPrincipalID.
+	// It is only built and used in mock-FPA mode (HasRealFPA is false); otherwise it is nil.
+	ARMPermissionsManagerClientBuilder                  azureclient.ARMPermissionsManagerClientBuilder
 	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
