@@ -17,6 +17,8 @@ package identity
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -28,13 +30,17 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -428,6 +434,169 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				tc.verify(t, updatedServiceProviderCluster)
 			}
 		})
+	}
+}
+
+func TestFetchMSIIdentitiesInfoRetrievalFailureAndRecovery(t *testing.T) {
+	notFound := &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "NotFound"}
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantRetry bool
+	}{
+		{name: "not found", err: notFound},
+		{name: "wrapped not found", err: fmt.Errorf("credentials request: %w", notFound)},
+		{name: "forbidden", err: &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "Forbidden"}, wantRetry: true},
+		{name: "server error", err: &azcore.ResponseError{StatusCode: http.StatusInternalServerError, ErrorCode: "InternalServerError"}, wantRetry: true},
+		{name: "long unicode error", err: errors.New(strings.Repeat("界", 1100)), wantRetry: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+			clock := clocktesting.NewFakePassiveClock(now)
+			cluster := newTestClusterForFetch()
+			future := metav1.NewTime(now.Add(time.Hour))
+			spc := newTestServiceProviderClusterWithMatchingMSIIdentities(&future)
+			// Changing the desired set forces a fetch even with a future recheck.
+			// The failed observation must also prune identities no longer requested.
+			spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities["obsolete"] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{}
+			spc.Spec.EarliestRecheckTimesByController["other-controller"] = &future
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			crud := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+			_, err := crud.Create(ctx, spc, nil)
+			require.NoError(t, err)
+			stored, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			lister := &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{stored}}
+			client := &fakeManagedIdentitiesDataplaneClient{err: tc.err}
+			syncer := &fetchMSIIdentitiesInfoSyncer{
+				clock:                        clock,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister: lister,
+				resourcesDBClient:            mockDB,
+				fpaMIdataplaneClientBuilder:  &fakeFPAMIDataplaneClientBuilder{client: client},
+			}
+			key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+			err = syncer.SyncOnce(ctx, key)
+			if tc.wantRetry {
+				require.ErrorIs(t, err, tc.err, "non-404 errors must still drive retries")
+			} else {
+				require.NoError(t, err, "404 should be a completed observation")
+			}
+			require.Equal(t, 1, client.callCount)
+			observed, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			msi := observed.Status.MSIManagedIdentities
+			require.Len(t, msi.ControlPlaneOperatorsIdentities, 1)
+			op := msi.ControlPlaneOperatorsIdentities[strings.ToLower(testControlPlaneOperatorIdentityResourceID)]
+			require.NotNil(t, op)
+			require.NotNil(t, msi.ServiceManagedIdentity)
+			assert.Equal(t, cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[testControlPlaneOperatorName], op.ResourceID)
+			assert.Equal(t, cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, msi.ServiceManagedIdentity.ResourceID)
+			assert.Nil(t, op.ClientID)
+			assert.Nil(t, op.PrincipalID)
+			assert.Nil(t, msi.ServiceManagedIdentity.ClientID)
+			assert.Nil(t, msi.ServiceManagedIdentity.PrincipalID)
+			wantError := []rune(tc.err.Error())
+			if len(wantError) > 1024 {
+				wantError = wantError[:1024]
+			}
+			require.NotNil(t, op.RetrievalError)
+			assert.Equal(t, string(wantError), *op.RetrievalError)
+			assert.Equal(t, op.RetrievalError, msi.ServiceManagedIdentity.RetrievalError)
+			assert.True(t, future.Equal(observed.Spec.EarliestRecheckTimesByController["other-controller"]), "other controllers' recheck times must be preserved")
+			// Cached input must not be mutated while constructing the replacement.
+			assert.Len(t, stored.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities, 2)
+			assert.NotNil(t, stored.Status.MSIManagedIdentities.ServiceManagedIdentity.ClientID)
+			lister.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{observed}
+			recheck := observed.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+			if tc.wantRetry {
+				assert.Nil(t, recheck, "failed requests must clear stale recheck times")
+			} else {
+				require.NotNil(t, recheck)
+				assert.False(t, recheck.Time.Before(now.Add(12*time.Hour)))
+				assert.True(t, recheck.Time.Before(now.Add(18*time.Hour)))
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				assert.Equal(t, 1, client.callCount, "404 must suppress requests until recheck")
+				clock.SetTime(recheck.Add(time.Second))
+			}
+			client.err = nil
+			client.creds = &dataplane.ManagedIdentityCredentials{ExplicitIdentities: []dataplane.UserAssignedIdentityCredentials{
+				uaCred(testControlPlaneOperatorIdentityResourceID, ptr.To("new-op-client"), ptr.To("new-op-principal")),
+				uaCred(testServiceManagedIdentityID, ptr.To("new-smi-client"), ptr.To("new-smi-principal")),
+			}}
+			require.NoError(t, syncer.SyncOnce(ctx, key))
+			assert.Equal(t, 2, client.callCount, "next eligible sync should retry retrieval")
+			recovered, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			recoveredOp := recovered.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(testControlPlaneOperatorIdentityResourceID)]
+			assert.Nil(t, recoveredOp.RetrievalError)
+			assert.Equal(t, ptr.To("new-op-client"), recoveredOp.ClientID)
+			assert.Equal(t, ptr.To("new-op-principal"), recoveredOp.PrincipalID)
+			recoveredSMI := recovered.Status.MSIManagedIdentities.ServiceManagedIdentity
+			assert.Nil(t, recoveredSMI.RetrievalError)
+			assert.Equal(t, ptr.To("new-smi-client"), recoveredSMI.ClientID)
+			assert.Equal(t, ptr.To("new-smi-principal"), recoveredSMI.PrincipalID)
+			require.NotNil(t, recovered.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName])
+		})
+	}
+}
+
+type failingMSIResourcesDBClient struct {
+	corecosmosstorage.ResourcesDBClient
+	err error
+}
+
+func (c *failingMSIResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return &failingMSIServiceProviderClusterCRUD{
+		ResourceCRUD: c.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName),
+		err:          c.err,
+	}
+}
+
+type failingMSIServiceProviderClusterCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+	err error
+}
+
+func (c *failingMSIServiceProviderClusterCRUD) Replace(context.Context, *coreapi.ServiceProviderCluster, *azcosmos.ItemOptions) (*coreapi.ServiceProviderCluster, error) {
+	return nil, c.err
+}
+
+func TestFetchMSIIdentitiesInfoRetrievalFailureWriteFailure(t *testing.T) {
+	for _, requestStatus := range []int{http.StatusNotFound, http.StatusInternalServerError} {
+		for _, writeStatus := range []int{http.StatusPreconditionFailed, http.StatusInternalServerError} {
+			t.Run(fmt.Sprintf("request_%d_write_%d", requestStatus, writeStatus), func(t *testing.T) {
+				ctx := context.Background()
+				requestErr := &azcore.ResponseError{StatusCode: requestStatus}
+				writeErr := &azcore.ResponseError{StatusCode: writeStatus}
+				mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+				crud := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				_, err := crud.Create(ctx, newTestServiceProviderClusterWithMatchingMSIIdentities(nil), nil)
+				require.NoError(t, err)
+				stored, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				syncer := &fetchMSIIdentitiesInfoSyncer{
+					clock:                        clocktesting.NewFakePassiveClock(time.Now()),
+					clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestClusterForFetch()}},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{stored}},
+					resourcesDBClient:            &failingMSIResourcesDBClient{ResourcesDBClient: mockDB, err: writeErr},
+					fpaMIdataplaneClientBuilder:  &fakeFPAMIDataplaneClientBuilder{client: &fakeManagedIdentitiesDataplaneClient{err: requestErr}},
+				}
+				err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName})
+				if requestStatus != http.StatusNotFound {
+					require.ErrorIs(t, err, requestErr, "request failure must survive a failed write")
+				}
+				if writeStatus != http.StatusPreconditionFailed {
+					require.ErrorIs(t, err, writeErr, "persistence failures must drive retries even for a 404 observation")
+				} else if requestStatus == http.StatusNotFound {
+					require.NoError(t, err, "etag conflicts are retried through informer updates")
+				}
+				unchanged, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, stored, unchanged, "failed writes must not persist metadata or recheck times")
+			})
+		}
 	}
 }
 
