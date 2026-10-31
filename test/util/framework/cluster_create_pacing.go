@@ -90,8 +90,9 @@ const (
 	clusterCreatePacingLockRetryInterval = 250 * time.Millisecond
 )
 
-// errPacingLockUnavailable reports that the pacer state lock did not become
-// available within the pacing deadline; pace fails open on it.
+// errPacingLockUnavailable reports that an admission did not complete within
+// the pacing deadline — the state lock not becoming available, or the deadline
+// crossing while the locks were being acquired; pace fails open on it.
 var errPacingLockUnavailable = errors.New("cluster-creation pacing lock not acquired within the pacing wait bound")
 
 // clusterCreatePacing is a sliding-window limit on cluster-creation starts.
@@ -391,9 +392,10 @@ func (p *clusterCreatePacer) lockState(ctx context.Context, deadline time.Time) 
 // tryRecordStart records a start timestamp if the trailing window has
 // capacity and the refill-smoothing gate has passed. It returns the duration
 // after which the caller should retry (zero when the start was recorded). A
-// cancelled context aborts; any other error — state-file trouble or the lock
-// not becoming free within the pacing deadline — means fail-open, which pace
-// treats as proceeding unpaced.
+// cancelled context aborts; any other error — state-file trouble, the lock
+// not becoming free within the pacing deadline, or the deadline crossing
+// while the locks are acquired — means fail-open, which pace treats as
+// proceeding unpaced.
 func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.Time) (time.Duration, error) {
 	release, err := p.lockState(ctx, deadline)
 	if err != nil {
@@ -401,7 +403,14 @@ func (p *clusterCreatePacer) tryRecordStart(ctx context.Context, deadline time.T
 	}
 	defer release()
 
+	// The deadline is rechecked on this read — the one an admission would be
+	// recorded with — because lockState last checked it before acquiring the
+	// locks and the acquisition can straddle the bound: capacity that ages out
+	// during it must not be admitted and persisted past the bound.
 	now := p.now()
+	if now.After(deadline) {
+		return 0, errPacingLockUnavailable
+	}
 
 	state, err := p.readState()
 	if err != nil {
