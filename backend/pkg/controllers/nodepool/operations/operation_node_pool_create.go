@@ -46,6 +46,7 @@ type operationNodePoolCreate struct {
 	readDesireLister       kubeapplierlisters.ReadDesireLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
+	quotaFailFast          *quotaFailFast
 }
 
 const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
@@ -84,6 +85,7 @@ func NewOperationNodePoolCreateController(
 		activeOperationsLister: activeOperationsLister,
 		clusterServiceClient:   clusterServiceClient,
 		notificationClient:     notificationClient,
+		quotaFailFast:          newQuotaFailFast(clock),
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -145,22 +147,18 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, nodePool)
+	deadlineExceeded := nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time)
+
+	operationalState, err := c.determineOperationState(ctx, operation, nodePool, deadlineExceeded)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	var persistErr *coreapi.CloudErrorBody
-	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    operationalState.CloudErrorCode,
-			Message: operationalState.Message,
-		}
-	}
+	persistErr := operationbase.PersistedOperationError(operationalState)
 
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
+	// A quota error at the deadline already made the state terminal, so it is not reported as a timeout.
+	if !operationalState.ProvisioningState.IsTerminal() && deadlineExceeded {
 		message := operationbase.DeadlineExceededMessage(
 			"node pool creation did not complete before the deadline",
 			operationalState.Message,
@@ -179,6 +177,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		}
 	}
 
+	operationbase.LogOperationFailure(ctx, "node pool create", operationalState, persistErr)
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -196,7 +195,7 @@ func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(node
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil && nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool, deadlineExceeded bool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var errs []error
@@ -210,6 +209,11 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
+		if deadlineExceeded {
+			state = c.quotaFailFast.applyPastDeadline(ctx, firstSeenKey(operation), state)
+		} else {
+			state = c.quotaFailFast.apply(ctx, firstSeenKey(operation), state)
+		}
 		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
 	}
 

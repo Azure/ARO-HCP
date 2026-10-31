@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -49,7 +50,27 @@ const (
 	CloudErrorCodeLockContention           = "LockContention"
 	CloudErrorCodeCapacityHeavyUse         = "AROHCPCapacityHeavyUse"
 	CloudErrorCodeDeadlineExceeded         = "DeadlineExceeded"
+	// CloudErrorCodeQuotaExceeded is returned when the customer's Azure compute quota prevents
+	// the virtual machines of a node pool from being created. The customer must raise the quota.
+	CloudErrorCodeQuotaExceeded = "QuotaExceeded"
 )
+
+// customerCausedCodes are the error codes for failures the customer must
+// resolve, as opposed to failures the service team owns. Add a code here only
+// when every producer of it is certain the cause is on the customer's side.
+var customerCausedCodes = sync.OnceValue(func() map[string]struct{} {
+	return map[string]struct{}{
+		CloudErrorCodeQuotaExceeded: {},
+	}
+})
+
+// IsCustomerCaused reports whether code identifies a failure the customer must
+// resolve. Anything not listed, including an empty or unknown code, is treated
+// as caused by the system, so unclassified failures keep reaching the service team.
+func IsCustomerCaused(code string) bool {
+	_, ok := customerCausedCodes()[code]
+	return ok
+}
 
 // CloudError represents a complete resource provider error.
 type CloudError struct {
