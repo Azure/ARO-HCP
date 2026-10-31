@@ -108,25 +108,58 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 		t.Fatalf("unexpected outcome selection: %+v", summary)
 	}
 	for i, want := range []struct {
-		count int
-		total time.Duration
+		count   int
+		total   time.Duration
+		minimum time.Duration
+		maximum time.Duration
 	}{
-		{2, 13 * time.Second}, {2, 9 * time.Second}, {1, 4 * time.Second}, {1, 17 * time.Second}, {1, 20 * time.Second},
+		{2, 13 * time.Second, 3 * time.Second, 10 * time.Second},
+		{2, 9 * time.Second, 4 * time.Second, 5 * time.Second},
+		{1, 4 * time.Second, 4 * time.Second, 4 * time.Second},
+		{1, 17 * time.Second, 17 * time.Second, 17 * time.Second},
+		{1, 20 * time.Second, 20 * time.Second, 20 * time.Second},
 	} {
 		got := summary.Rows[i]
-		if got.Count != want.count || got.Total != want.total {
-			t.Errorf("category %q: got count %d total %s, want %d %s", got.Name, got.Count, got.Total, want.count, want.total)
+		if got.Count != want.count || got.Total != want.total || got.Min != want.minimum || got.Max != want.maximum {
+			t.Errorf("category %q: got %+v, want %+v", got.Name, got, want)
 		}
 	}
 	if summary.Rows[0].Mean() != "6.5s" || summary.Rows[1].Mean() != "4.5s" || summary.Rows[0].Incomplete != 1 {
 		t.Fatalf("mean or incomplete sample selection is incorrect: %+v", summary.Rows[0])
 	}
-	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.Mean() != "N/A" {
+	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.Mean() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
 		t.Fatalf("missing cleanup boundary cannot become a zero-second sample: %+v", got)
 	}
 	passed.Phases = []StepTimingMetadata{{Name: "cleanup interrupted", StartedAt: start.Add(20 * time.Second), FinishedAt: start.Add(40 * time.Second), Incomplete: true}}
 	if got := summarizeLifecycle([]TestInfo{passed}).Rows[4]; got.Count != 0 || got.Incomplete != 1 {
 		t.Fatalf("interrupted cleanup cannot be a success sample: %+v", got)
+	}
+}
+
+func TestLifecycleDurationRangesIncludeZeroAndFullCleanup(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var tests []TestInfo
+	for i, duration := range []time.Duration{5 * time.Second, 0, 2 * time.Second} {
+		tests = append(tests, TestInfo{
+			StartedAt: start, FinishedAt: start.Add(10 * time.Second),
+			CleanupStartedAt: start.Add(time.Duration(10-2*i) * time.Second), Outcome: "passed",
+			Steps: []StepTimingMetadata{{
+				Name: "create", Kind: timing.KindCreateCluster, Outcome: timing.OutcomeSucceeded,
+				StartedAt: start, FinishedAt: start.Add(duration),
+			}},
+		})
+	}
+	summary := summarizeLifecycle(tests)
+	for _, row := range []durationSummary{summary.Rows[0], summary.Rows[4]} {
+		if row.Count != 3 || row.Minimum() != "0s" || row.Max == 0 || row.Mean() == "N/A" {
+			t.Fatalf("zero duration is a valid sample, not missing data: %+v", row)
+		}
+	}
+	if row := summary.Rows[0]; row.Min != 0 || row.Max != 5*time.Second || row.Total != 7*time.Second {
+		t.Fatalf("incorrect operation range: %+v", row)
+	}
+	if row := summary.Rows[4]; row.Min != 0 || row.Max != 4*time.Second || row.Total != 6*time.Second {
+		t.Fatalf("incorrect full-cleanup range: %+v", row)
 	}
 }
 
@@ -142,13 +175,13 @@ func TestLifecycleSummaryExcludesFailedAndUnknownOperationsInPassingTests(t *tes
 		}
 	}
 	for _, row := range summarizeLifecycle([]TestInfo{item}).Rows[:4] {
-		if row.Count != 0 || row.Total != 0 || row.Mean() != "N/A" {
+		if row.Count != 0 || row.Total != 0 || row.Mean() != "N/A" || row.Minimum() != "N/A" || row.Maximum() != "N/A" {
 			t.Errorf("unsuccessful or unknown operations became successful samples: %+v", row)
 		}
 	}
 	var operations int
 	for _, row := range lifecycleRows(item) {
-		if row.Kind == "operation" {
+		if row.Kind != "phase" && row.Kind != "gap" {
 			operations++
 		}
 	}
@@ -253,10 +286,10 @@ steps:
 		t.Fatal(err)
 	}
 	text := string(html)
-	if !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>1</td>") {
+	if !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>2s</td><td>2s</td><td>1</td>") {
 		t.Fatal("visible summary must show passed-only creation means and sample counts")
 	}
-	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>1</td>") {
+	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")
 	}
 	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {

@@ -438,12 +438,15 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 				Value: float64(row.StartedAt.Sub(startTime)) / float64(time.Millisecond),
 			})
 			style := &opts.ItemStyle{Color: colors[identifier]}
+			if color := timingColor(row.Kind); color != "" {
+				style.Color = color
+			}
 			switch row.Kind {
 			case "phase":
 				style.BorderWidth = 1
-				style.Opacity = opts.Float(0.45)
+				style.Opacity = opts.Float(0.7)
 			case "gap":
-				style.Color = "#b0b0b0"
+				style.Opacity = opts.Float(0.65)
 			}
 			durations = append(durations, opts.BarData{
 				Name:      fmt.Sprintf("%s: %s", identifier, row.Name),
