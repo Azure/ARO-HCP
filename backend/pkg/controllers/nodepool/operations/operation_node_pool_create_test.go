@@ -46,6 +46,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestNodePoolCreateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewNodePoolTestFixture()
+	nodePool := fixture.NewNodePool()
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	nodePool.ServiceProviderProperties.ClusterServiceID = nil
+	check := &nodePoolCreateClusterServiceCheck{
+		nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{nodePool}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestCreate), struct{}{})
+	require.ErrorContains(t, err, "node pool cluster service ID is no longer available")
+	assert.Nil(t, state)
+}
+
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		return fixture.NewNodePool()
@@ -415,6 +431,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
+			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
+				&nodePoolCreateClusterServiceCheck{nodePoolLister: controller.nodePoolLister, clusterServiceClient: controller.clusterServiceClient},
+				&nodePoolCreateHypershiftCheck{nodePoolLister: controller.nodePoolLister, readDesireLister: controller.readDesireLister},
+			)
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tt.expectError {
