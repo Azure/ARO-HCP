@@ -132,3 +132,7 @@ func (m *FirstPartyApplicationClientBuilderFunc) DenyAssignmentsClient(tenantID 
 func (m *FirstPartyApplicationClientBuilderFunc) RoleAssignmentsClient(tenantID string, subscriptionID string) (azureclient.RoleAssignmentsClient, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+
+func (m *FirstPartyApplicationClientBuilderFunc) RoleDefinitionsClient(tenantID string) (azureclient.RoleDefinitionsClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}

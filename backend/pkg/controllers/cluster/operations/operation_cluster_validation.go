@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// clusterValidationFailureTimeout is how long a validation must have been continuously failing,
+// on an operation at least as old, before the operation is failed terminally.
 const clusterValidationFailureTimeout = 10 * time.Minute
 
 var (
