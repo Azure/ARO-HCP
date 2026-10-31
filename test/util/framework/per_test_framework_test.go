@@ -342,11 +342,8 @@ func TestGetARMSubscriptionsClientFactoryCacheHitConcurrent(t *testing.T) {
 	}
 }
 
-// Per-test subscriptionID is never assigned in production (the live cache is
-// perBinaryInvocationTestContext.subscriptionID). These tests seed the unused
-// field on purpose: they catch the Lock()/RUnlock() mismatch from PR #6312,
-// which is a runtime fatal if that field is ever written. Persisting a
-// per-test copy in getSubscriptionIDUnlocked is a separate follow-up.
+// Per-test subscription caching lets final timing serialization avoid Azure access.
+// These seeded cache tests also guard the Lock/RUnlock mismatch from PR #6312.
 func TestSubscriptionIDCacheHit(t *testing.T) {
 	t.Parallel()
 
@@ -450,23 +447,6 @@ func TestGetGraphClientDoesNotCacheFailedCreate(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, got)
 	assert.Nil(t, tc.graphClient, "failed NewClient must not cache a client")
-}
-
-func TestRecordTestStep(t *testing.T) {
-	t.Parallel()
-
-	tc := &perItOrDescribeTestContext{}
-	start := time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
-	finish := start.Add(time.Second)
-
-	tc.RecordTestStep("Clean up resource group rg (no RP)", start, finish)
-	tc.RecordTestStep("second step", start.Add(2*time.Second), finish.Add(2*time.Second))
-
-	assert.Len(t, tc.timingMetadata.Steps, 2)
-	assert.Equal(t, "Clean up resource group rg (no RP)", tc.timingMetadata.Steps[0].Name)
-	assert.Equal(t, start.Format(time.RFC3339), tc.timingMetadata.Steps[0].StartedAt)
-	assert.Equal(t, finish.Format(time.RFC3339), tc.timingMetadata.Steps[0].FinishedAt)
-	assert.Equal(t, "second step", tc.timingMetadata.Steps[1].Name)
 }
 
 func TestRecordTestStepConcurrent(t *testing.T) {

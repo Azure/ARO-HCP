@@ -106,6 +106,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}, nil
 }
 
+// Complete loads recorded timing intervals, retaining lifecycle and operation metadata.
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	timingPathMatcher, err := regexp.Compile(`timing-metadata-[a-z0-9]+\.yaml(\.gz)?`)
 	if err != nil {
@@ -169,23 +170,14 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			logger.Error(err, "failed to parse finish date", "identifier", item.Identifier)
 			continue
 		}
-		var steps []StepTimingMetadata
-		for _, step := range item.Steps {
-			stepStarted, err := time.Parse(time.RFC3339Nano, step.StartedAt)
+		steps := parseSteps(item.Steps, logger)
+		phases := parseSteps(item.Phases, logger)
+		var cleanupStarted time.Time
+		if item.CleanupStartedAt != "" {
+			cleanupStarted, err = time.Parse(time.RFC3339Nano, item.CleanupStartedAt)
 			if err != nil {
-				logger.Error(err, "failed to parse start date", "identifier", step.Name)
-				continue
+				logger.Error(err, "failed to parse cleanup start date", "identifier", item.Identifier)
 			}
-			stepFinished, err := time.Parse(time.RFC3339Nano, step.FinishedAt)
-			if err != nil {
-				logger.Error(err, "failed to parse finish date", "identifier", step.Name)
-				continue
-			}
-			steps = append(steps, StepTimingMetadata{
-				Name:       step.Name,
-				StartedAt:  stepStarted,
-				FinishedAt: stepFinished,
-			})
 		}
 		deployments := make(map[string]map[string][]ARMOperation)
 		for resourceGroup, deploymentNames := range item.Deployments {
@@ -203,11 +195,14 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			}
 		}
 		times = append(times, TestInfo{
-			Identifier:  item.Identifier,
-			StartedAt:   s,
-			FinishedAt:  f,
-			Steps:       steps,
-			Deployments: deployments,
+			Identifier:       item.Identifier,
+			StartedAt:        s,
+			FinishedAt:       f,
+			CleanupStartedAt: cleanupStarted,
+			Outcome:          item.Outcome,
+			Phases:           phases,
+			Steps:            steps,
+			Deployments:      deployments,
 		})
 	}
 
@@ -305,16 +300,21 @@ func parseISO8601Duration(from string) (time.Duration, error) {
 }
 
 type TestInfo struct {
-	Identifier []string
-	StartedAt  time.Time
-	FinishedAt time.Time
-
-	Steps       []StepTimingMetadata
-	Deployments map[string]map[string][]ARMOperation
+	Identifier       []string
+	StartedAt        time.Time
+	FinishedAt       time.Time
+	CleanupStartedAt time.Time
+	Outcome          string
+	Phases           []StepTimingMetadata
+	Steps            []StepTimingMetadata
+	Deployments      map[string]map[string][]ARMOperation
 }
 
 type StepTimingMetadata struct {
 	Name       string
+	Kind       string
+	Outcome    string
+	Incomplete bool
 	StartedAt  time.Time
 	FinishedAt time.Time
 }
@@ -327,6 +327,7 @@ type ARMOperation struct {
 	Children      []ARMOperation
 }
 
+// Visualize writes timing charts and successful-test operation summaries.
 func (o *Options) Visualize(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -355,6 +356,11 @@ func (o *Options) Visualize(ctx context.Context) error {
 	}()
 	rendered := waterfall.RenderContent()
 	rendered = bytes.Replace(rendered, []byte("<head>"), []byte(`<head><meta name="viewport" content="width=device-width, initial-scale=1">`), 1)
+	summary, err := lifecycleSummaryHTML(o.Times)
+	if err != nil {
+		return fmt.Errorf("failed to render timing summary: %w", err)
+	}
+	rendered = bytes.Replace(rendered, []byte("<body>"), append([]byte("<body>"), summary...), 1)
 	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
 	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
 	if _, err := output.Write(rendered); err != nil {
@@ -373,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// testTimingChart needs nonempty input and sorts it in chronological order.
+// TestTimingChart renders theme-aware lifecycle, phase, operation, and gap rows in two series.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -423,23 +429,28 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Value: float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
 			ItemStyle: &opts.ItemStyle{
 				Color:       colors[identifier],
-				BorderColor: "black",
 				BorderWidth: 1,
 			},
 		})
 		names = append(names, identifier)
-		for _, step := range item.Steps {
+		for _, row := range lifecycleRows(item) {
 			highWaterMark = append(highWaterMark, opts.BarData{
-				Value: float64(step.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+				Value: float64(row.StartedAt.Sub(startTime)) / float64(time.Millisecond),
 			})
+			style := &opts.ItemStyle{Color: colors[identifier]}
+			switch row.Kind {
+			case "phase":
+				style.BorderWidth = 1
+				style.Opacity = opts.Float(0.45)
+			case "gap":
+				style.Color = "#b0b0b0"
+			}
 			durations = append(durations, opts.BarData{
-				Name:  fmt.Sprintf("%s: %s", identifier, step.Name),
-				Value: float64(step.FinishedAt.Sub(step.StartedAt)) / float64(time.Millisecond),
-				ItemStyle: &opts.ItemStyle{
-					Color: colors[identifier],
-				},
+				Name:      fmt.Sprintf("%s: %s", identifier, row.Name),
+				Value:     float64(row.FinishedAt.Sub(row.StartedAt)) / float64(time.Millisecond),
+				ItemStyle: style,
 			})
-			names = append(names, step.Name)
+			names = append(names, row.Name)
 		}
 	}
 
@@ -452,8 +463,8 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:      "ARO HCP End-to-End Test Timing",
-			Subtitle:   fmt.Sprintf("Overall Runtime: %s", endTime.Sub(startTime).String()),
+			Title:      "Test timing",
+			Subtitle:   lifecycleSubtitle(times, endTime.Sub(startTime)),
 			TitleStyle: &opts.TextStyle{Align: "left"},
 			TextAlign:  "left",
 			Left:       "center",
@@ -492,6 +503,27 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	waterfall.AddJSFuncStrs(
 		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({xAxis: {axisLabel: {formatter: `+millisecondAxisFormatter(startTime.Format(time.RFC3339Nano))+`}}, tooltip: {confine: true, formatter: `+testTimingTooltipFormatter+`}});`),
 		opts.FuncOpts(`window.addEventListener('resize', () => {`+render.EchartsInstancePlaceholder+`.resize();});`),
+		opts.FuncOpts(`(() => {
+			const chart = `+render.EchartsInstancePlaceholder+`;
+			const applyTheme = () => {
+				const style = getComputedStyle(document.body);
+				const color = style.color;
+				chart.setOption({
+					backgroundColor: 'transparent',
+					textStyle: {color},
+					title: {textStyle: {color}, subtextStyle: {color}},
+					xAxis: {axisLabel: {color}, axisLine: {lineStyle: {color}}, splitLine: {lineStyle: {color, opacity: 0.15}}},
+					tooltip: {backgroundColor: style.backgroundColor, borderColor: color, textStyle: {color}},
+					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
+					series: [{}, {itemStyle: {borderColor: color}}]
+				});
+			};
+			applyTheme();
+			window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+			new MutationObserver(applyTheme).observe(document.documentElement, {
+				attributes: true, attributeFilter: ['class', 'style', 'data-darkreader-scheme']
+			});
+		})();`),
 	)
 
 	return waterfall

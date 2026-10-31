@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 // ---------------------------------------------------------------------------
@@ -734,6 +735,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20251223(ctx
 	return clusterParams, nil
 }
 
+// CreateHCPClusterFromParam20251223 records submission or provisioning time according to whether it waits for completion.
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	ctx context.Context,
 	logger logr.Logger,
@@ -741,7 +743,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	parameters ClusterParams20251223,
 	imageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20251223FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
@@ -752,7 +754,11 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
+		kind, format := timing.KindCreateCluster, "Deploy HCP cluster %s/%s (v20251223preview)"
+		if timeout <= 0 {
+			kind, format = timing.KindCreateClusterRequest, "Submit HCP cluster %s/%s (v20251223preview)"
+		}
+		tc.RecordTestOperation(kind, fmt.Sprintf(format, resourceGroupName, clusterName), startTime, finishTime, operationErr)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20251223(parameters, tc.Location(), imageDigestMirrors)
@@ -777,6 +783,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	return nil
 }
 
+// CreateNodePoolFromParam20251223 creates a node pool and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 	ctx context.Context,
 	logger logr.Logger,
@@ -785,14 +792,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 	hcpClusterName string,
 	parameters NodePoolParams20251223,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime, operationErr)
 	}()
 
 	nodePoolName := parameters.NodePoolName

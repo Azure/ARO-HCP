@@ -520,46 +520,62 @@ type testTimingBoundaries struct {
 	CleanupStartTime time.Time
 }
 
-// identityContainerStep reports whether a step name refers to identity container setup.
+// Reports whether a step name refers to identity container setup.
 func identityContainerStep(name string) bool {
 	return strings.Contains(strings.ToLower(name), "identity container")
 }
 
-// deriveSetupTestBoundary inspects the steps in the timing metadata and returns:
-//   - setupFinishTime: the latest FinishedAt among steps whose name contains
-//     "identity container" (setup steps).
-//   - testStartTime: the earliest StartedAt among steps whose name does NOT
-//     contain "identity container" (test steps).
-//
-// Either or both may be zero when the relevant steps are not present or their
-// timestamps cannot be parsed.
-func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime, testStartTime time.Time) {
+// Derives ordered setup/test boundaries from work that starts before cleanup.
+// Setup spans crossing cleanup are capped at that boundary. Without a named body
+// span, the test starts at setup completion or the spec start to retain requests.
+func deriveSetupTestBoundary(steps []timing.StepTimingMetadata, startedAt, cleanupStart time.Time) (setupFinishTime, testStartTime time.Time) {
 	for _, step := range steps {
+		stepStart, startErr := time.Parse(time.RFC3339Nano, step.StartedAt)
+		if startErr == nil && !cleanupStart.IsZero() && !stepStart.Before(cleanupStart) {
+			continue
+		}
 		if identityContainerStep(step.Name) {
-			if step.FinishedAt != "" {
-				if t, err := time.Parse(time.RFC3339, step.FinishedAt); err == nil {
-					if setupFinishTime.IsZero() || t.After(setupFinishTime) {
-						setupFinishTime = t
-					}
-				}
+			stepFinish, err := time.Parse(time.RFC3339Nano, step.FinishedAt)
+			if err != nil {
+				continue
 			}
-		} else {
-			if step.StartedAt != "" {
-				if t, err := time.Parse(time.RFC3339, step.StartedAt); err == nil {
-					if testStartTime.IsZero() || t.Before(testStartTime) {
-						testStartTime = t
-					}
+			if !cleanupStart.IsZero() && stepFinish.After(cleanupStart) {
+				if startErr != nil {
+					continue
 				}
+				stepFinish = cleanupStart
+			}
+			if !startedAt.IsZero() && stepFinish.Before(startedAt) {
+				continue
+			}
+			if setupFinishTime.IsZero() || stepFinish.After(setupFinishTime) {
+				setupFinishTime = stepFinish
+			}
+		} else if startErr == nil {
+			if !startedAt.IsZero() && stepStart.Before(startedAt) {
+				stepStart = startedAt
+			}
+			if testStartTime.IsZero() || stepStart.Before(testStartTime) {
+				testStartTime = stepStart
 			}
 		}
+	}
+	if testStartTime.IsZero() {
+		testStartTime = setupFinishTime
+		if testStartTime.IsZero() {
+			testStartTime = startedAt
+		}
+	}
+	if !testStartTime.IsZero() && setupFinishTime.After(testStartTime) {
+		setupFinishTime = testStartTime
 	}
 	return setupFinishTime, testStartTime
 }
 
-// fetchTestTimings downloads timing metadata files from the GCS bucket and
-// returns a map from test name to the derived timing boundaries. The top-level
-// finishedAt marks when cleanup began. Steps whose name contains "identity
-// container" are treated as setup; the remaining steps are the test itself.
+// Fetches timing metadata from GCS and derives per-test timing boundaries.
+// CleanupStartedAt marks when teardown began; historical artifacts used FinishedAt instead.
+// Only pre-cleanup steps identify setup and test work; absent body spans fall back
+// to setup completion or the spec start so timestamped body requests are retained.
 func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, artifactPrefix string, logger logr.Logger, strictClient *http.Client) (map[string]testTimingBoundaries, error) {
 	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
 	logger.V(1).Info("Fetching timing metadata", "prefix", prefix)
@@ -643,19 +659,24 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, bucket, ar
 		}
 		boundaries := testTimingBoundaries{}
 
-		if tm.FinishedAt != "" {
-			t, err := time.Parse(time.RFC3339, tm.FinishedAt)
+		cleanupStartedAt := tm.CleanupStartedAt
+		if cleanupStartedAt == "" {
+			cleanupStartedAt = tm.FinishedAt
+		}
+		if cleanupStartedAt != "" {
+			t, err := time.Parse(time.RFC3339Nano, cleanupStartedAt)
 			if err == nil {
 				boundaries.CleanupStartTime = t
 			} else {
-				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
+				logger.Error(err, "Failed to parse cleanup boundary from timing metadata, skipping", "path", objPath)
 				if strictClient != nil {
 					ReportProwArtifactProblem(ctx, "timing", "malformed")
 				}
 			}
 		}
 
-		boundaries.SetupFinishTime, boundaries.TestStartTime = deriveSetupTestBoundary(tm.Steps)
+		startedAt, _ := time.Parse(time.RFC3339Nano, tm.StartedAt)
+		boundaries.SetupFinishTime, boundaries.TestStartTime = deriveSetupTestBoundary(tm.Steps, startedAt, boundaries.CleanupStartTime)
 		result[testName] = boundaries
 	}
 

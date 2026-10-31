@@ -24,3 +24,18 @@ type SpecTimingMetadata = utilitytiming.SpecTimingMetadata
 type StepTimingMetadata = utilitytiming.StepTimingMetadata
 type Operation = utilitytiming.Operation
 type Resource = utilitytiming.Resource
+
+// Operation kinds keep duration summaries independent of human-readable labels.
+const (
+	KindCreateCluster        = "create-cluster"
+	KindCreateClusterRequest = "create-cluster-request"
+	KindCreateNodePool       = "create-nodepool"
+	KindDeleteCluster        = "delete-cluster"
+	KindResourceGroupCleanup = "resource-group-cleanup"
+)
+
+// Operation outcomes describe the helper's result rather than the enclosing test.
+const (
+	OutcomeSucceeded = "succeeded"
+	OutcomeFailed    = "failed"
+)

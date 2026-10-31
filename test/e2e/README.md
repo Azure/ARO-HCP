@@ -320,6 +320,44 @@ permissions and may be unavailable during early VM provisioning. This bundle
 captures configuration at failure time, not historical packet delivery or the
 backend selected for an individual connection.
 
+#### Test Timing Analysis
+
+Timing metadata records the running spec's setup through framework teardown,
+including ARM evidence collection, debug collection, resource deletion, Key
+Vault/Managed HSM purge and identity release. ARM deployment operations are
+collected before deletion; final timing metadata and the spec outcome are saved
+after teardown, including failed or timed-out cleanup. SDK logging stays open
+through teardown.
+
+The report shows full test intervals, separate lifecycle phases and nested
+operation steps. Gray intervals identify work without a named operation span.
+Operation coverage uses interval unions, not sums of overlapping parent/child
+steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
+The compact summary and chart follow the browser's light/dark color scheme.
+
+The summary reports means and sample counts for recorded cluster creation,
+nodepool creation, cluster deletion, resource-group cleanup and full cleanup.
+Only passing tests contribute averages; interrupted spans and failed, timed-out
+or unknown-outcome tests are excluded. Typed resource-operation averages also
+require an explicit successful operation outcome: failed attempts, including
+expected rejections in passing tests, and unknown historical outcomes remain on
+the timeline but do not contribute averages or sample counts. Distinct concurrent
+successful operations remain separate samples. Resource-group cleanup includes
+contained resources and purge, so categories are independent and must not be
+added together.
+
+Cluster creation with a nonpositive timeout does not wait for provisioning. Its
+`create-cluster-request` span measures submission and the initial status poll,
+not resource readiness. It remains visible on the timeline but is excluded from
+creation averages, even when both the request and the test pass.
+
+Historical metadata remains readable, but its missing cleanup intervals and
+unknown outcomes are labeled rather than reconstructed. Regenerate a report with:
+
+```bash
+./test/aro-hcp-tests visualize --timing-input "$SHARED_DIR" --output "$ARTIFACT_DIR/test-timing"
+```
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 

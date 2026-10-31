@@ -142,7 +142,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to delete managed identities for cluster %q", customerClusterName)
 
 			By("deleting the HCP cluster")
-			err = framework.DeleteHCPCluster20240610(
+			err = tc.DeleteHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
