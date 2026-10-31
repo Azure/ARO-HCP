@@ -57,6 +57,7 @@ type perBinaryInvocationTestContext struct {
 	testUserClientID         string
 	location                 string
 	pullSecretPath           string
+	digiCertCredentialsPath  string
 	frontendAddress          string
 	adminAPIAddress          string
 	resourceManagerEndpoint  string
@@ -121,6 +122,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			testUserClientID:                     testUserClientID(),
 			location:                             location(),
 			pullSecretPath:                       pullSecretPath(),
+			digiCertCredentialsPath:              digiCertCredentialsPath(),
 			frontendAddress:                      frontendAddress(),
 			adminAPIAddress:                      adminAPIAddress(),
 			resourceManagerEndpoint:              resourceManagerEndpoint(),
@@ -487,6 +489,15 @@ func pullSecretPath() string {
 		return "/var/run/aro-hcp-qe-pull-secret"
 	}
 	return path
+}
+
+// digiCertCredentialsPath returns the directory containing the mounted DigiCert
+// account-id, api-key, and organization-id files.
+func digiCertCredentialsPath() string {
+	if path := os.Getenv("ARO_HCP_DIGICERT_CREDENTIALS_PATH"); path != "" {
+		return path
+	}
+	return "/var/run/digicert"
 }
 
 // frontendAddress returns the value of FRONTEND_ADDRESS environment variable

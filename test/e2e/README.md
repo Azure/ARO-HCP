@@ -105,6 +105,32 @@ issuer specifications. Artifact-collection errors do not replace the test failur
 Collection is skipped when the per-test artifact directory is empty, including
 local runs without `ARTIFACT_DIR`.
 
+### DigiCert credentials for the Key Vault ingress-certificate test
+
+The Key Vault ingress-certificate test reads three files from `/var/run/digicert`:
+`account-id`, `api-key`, and `organization-id`. The API key is used as the Key Vault
+issuer password and for CertCentral domain validation. The organization ID must
+be a positive integer, and the organization must already be OV validated.
+
+Set `ARO_HCP_DIGICERT_CREDENTIALS_PATH` to use another directory for local runs.
+The test skips before provisioning resources if a credential file is missing.
+Unreadable or empty files, and invalid organization IDs, fail before provisioning.
+Trailing and leading whitespace is removed from each value.
+
+For CI, store each value as a separate field in a `digicert` group and add this
+entry to the `credentials` list of the step running `aro-hcp-tests` in
+`openshift/release`, replacing `YOUR_COLLECTION` with the team's collection:
+
+```yaml
+credentials:
+- collection: YOUR_COLLECTION
+  group: digicert
+  mount_path: /var/run/digicert
+```
+
+See [Adding a New Secret to CI](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/)
+for creating the fields and configuring the credential mount.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
