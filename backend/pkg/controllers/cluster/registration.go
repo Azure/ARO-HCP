@@ -1114,6 +1114,17 @@ func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegi
 	}
 }
 
+func registerEgressPublicIPsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers: 20,
+		Instantiate: controllerconfig.WithCacheSyncs(func(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+			_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+			return clusterazureresources.NewEgressPublicIPsController(controllerContext.Clock, controllerContext.ResourcesDBClient, serviceProviderClusterLister, subscriptionLister, controllerContext.FPAClientBuilder, controllerContext.BackendInformers, controllerContext.UnionKubeApplierInformers), nil
+		}, true),
+	}
+}
+
 func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
@@ -1381,5 +1392,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(clusterazureresources.EgressPublicIPsControllerName)] = registerEgressPublicIPsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

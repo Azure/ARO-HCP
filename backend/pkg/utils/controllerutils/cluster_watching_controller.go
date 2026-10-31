@@ -37,6 +37,11 @@ type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
 }
 
+// ErrSyncSkipped leaves the persisted controller condition unchanged when no work
+// was attempted. Return it directly, not wrapped or joined with another error.
+// The syncer must arrange its own retry if work remains outstanding.
+var ErrSyncSkipped = errors.New("sync skipped")
+
 type clusterWatchingController struct {
 	name   string
 	syncer ClusterSyncer
@@ -139,6 +144,9 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 	}
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
+	if syncErr == ErrSyncSkipped {
+		return nil
+	}
 
 	controllerWriteErr := WriteController(
 		ctx,
