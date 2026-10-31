@@ -218,7 +218,7 @@ environments:
       - centralus
       - canadacentral
       resource_type: aro-hcp-dev-hypershift-westus3-slot
-      slot_count: 2
+      slot_count: 30
       slot_assets:
         e2e_identities:
           allocation: dedicated
