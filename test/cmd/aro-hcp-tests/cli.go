@@ -179,7 +179,7 @@ func setupCli() (*cobra.Command, error) {
 		// 	specs = specs.AddLabel("SLOW")
 
 		// Specs can be globally filtered...
-		// specs = specs.MustFilter([]string{`name.contains("filter")`})
+		specs = specs.MustFilter([]string{`name.contains("Insights Operator")`})
 
 		// Or walked...
 		// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
