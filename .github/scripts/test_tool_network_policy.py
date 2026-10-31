@@ -45,7 +45,7 @@ class ToolNetworkPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             scratch = Path(temporary)
             tools = ROOT / "dev-infrastructure/openshift-ci"
-            for name in ("update-tool-versions.sh", "versions.mk", "Dockerfile"):
+            for name in ("update-tool-versions.sh", "versions.mk", "Dockerfile", "Dockerfile.nested-podman"):
                 shutil.copyfile(tools / name, scratch / name)
             commands = scratch / "bin"
             commands.mkdir()

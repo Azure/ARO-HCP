@@ -10,12 +10,13 @@ PLATFORM ?= "linux/amd64"
 GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
 
 VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION BICEP_VERSION
+NESTED_PODMAN_VERSION_ARGS = GOTESTSUM_VERSION ENVTEST_VERSION
 
-.PHONY: verify build test build-nested-podman test-nested-podman test-nested-podman-runtime update-tool-versions
+.PHONY: verify verify-nested-podman build test build-nested-podman test-nested-podman test-nested-podman-runtime update-tool-versions
 
 ##@ Verification
 
-verify: ## Verify versions are consistent across config files
+verify: verify-nested-podman ## Verify versions are consistent across config files
 	@GO_WORK_MINOR=$$(echo "$(GO_WORK_VERSION)" | cut -d. -f1,2); \
 	if ! BUILDER_GO=$$(echo "$(BUILDER_IMAGE_TAG)" | grep -oP 'golang-\K[0-9]+\.[0-9]+') || [ -z "$$BUILDER_GO" ]; then \
 		echo "ERROR: cannot parse builder image Go version from tag '$(BUILDER_IMAGE_TAG)'"; \
@@ -40,6 +41,15 @@ verify: ## Verify versions are consistent across config files
 	fi
 	@echo "  bicep      $(BICEP_VERSION) OK"
 
+verify-nested-podman: ## Verify helper pins match the source-free image defaults
+	@$(foreach v,$(NESTED_PODMAN_VERSION_ARGS),\
+		actual=$$(grep -oP 'ARG $(v)=\K\S*' Dockerfile.nested-podman); \
+		if [ "$$actual" != "$($(v))" ]; then \
+			echo "ERROR: Dockerfile.nested-podman ARG $(v)=$$actual ≠ versions.mk $($(v))"; \
+			exit 1; \
+		fi; \
+		echo "  $(v) $($(v)) OK";)
+
 ##@ Build
 
 build: verify ## Build the CI image
@@ -48,8 +58,9 @@ build: verify ## Build the CI image
 		-f Dockerfile \
 		-t $(IMAGE_NAME) ../..
 
-build-nested-podman: ## Build the source-free nested Podman CI image
+build-nested-podman: verify-nested-podman ## Build the source-free nested Podman CI image
 	$(CONTAINER_ENGINE) build --platform=$(PLATFORM) \
+		$(foreach v,$(NESTED_PODMAN_VERSION_ARGS),--build-arg $(v)=$($(v))) \
 		$(if $(NESTED_PODMAN_IMAGE),--build-arg NESTED_PODMAN_IMAGE=$(NESTED_PODMAN_IMAGE)) \
 		-f Dockerfile.nested-podman \
 		-t $(NESTED_PODMAN_IMAGE_NAME) .
@@ -63,12 +74,14 @@ else
 	$(CONTAINER_ENGINE) run --rm -i $(IMAGE_NAME) bash -s < smoke-test.sh
 endif
 
-test-nested-podman: build-nested-podman ## Smoke-test nested Podman tools and non-root Go builds
-	$(CONTAINER_ENGINE) run --rm --entrypoint /bin/bash \
-		$(NESTED_PODMAN_IMAGE_NAME) -euc '\
+test-nested-podman: $(if $(filter true,$(IN_CONTAINER)),verify-nested-podman,build-nested-podman) ## Smoke-test nested Podman tools and non-root Go builds
+	$(if $(filter true,$(IN_CONTAINER)),bash,$(CONTAINER_ENGINE) run --rm --entrypoint /bin/bash $(NESTED_PODMAN_IMAGE_NAME)) -euc '\
 		test "$$(id -u)" = 1000 || { echo "ERROR: image must default to UID 1000" >&2; exit 1; }; \
 		git --version; go version; make --version; \
 		pass --version; qrencode --version; netstat --version; tree --version; podman --version; \
+		gotestsum --version; \
+		go version -m "$$(command -v gotestsum)" | grep -E "^[[:space:]]+mod[[:space:]]+gotest[.]tools/gotestsum[[:space:]]+v$(subst .,[.],$(GOTESTSUM_VERSION))[[:space:]]"; \
+		go version -m "$$(command -v setup-envtest)" | grep -E "^[[:space:]]+mod[[:space:]]+sigs[.]k8s[.]io/controller-runtime/tools/setup-envtest[[:space:]]+$(subst .,[.],$(ENVTEST_VERSION))[[:space:]]"; \
 		export GOPATH=/opt/app-root; \
 		d=$$(mktemp -d); cd "$$d"; \
 		go mod init smoke.example.com/nonroot; \
@@ -88,5 +101,5 @@ test-nested-podman-runtime: test-nested-podman ## Run a nested container (requir
 
 ##@ Maintenance
 
-update-tool-versions: ## Bump every pinned tool in versions.mk/Dockerfile to its latest GitHub release
+update-tool-versions: ## Bump release-tracked tool pins; envtest compatibility pins are updated manually
 	./update-tool-versions.sh

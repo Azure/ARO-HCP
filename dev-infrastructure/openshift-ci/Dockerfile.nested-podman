@@ -1,6 +1,9 @@
 ARG NESTED_PODMAN_IMAGE=quay-proxy.ci.openshift.org/ci/nested-podman:latest
 FROM ${NESTED_PODMAN_IMAGE}
 
+ARG GOTESTSUM_VERSION=1.13.0
+ARG ENVTEST_VERSION=v0.0.0-20260125163108-a19ec76a3c5d
+
 USER root
 
 RUN printf '%s\n' \
@@ -25,15 +28,25 @@ RUN printf '%s\n' \
 
 RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 
-# Integration jobs install Go tools into this GOPATH at runtime.
-RUN mkdir -p /opt/app-root && chmod 777 /opt/app-root
+# Keep root-run Go telemetry out of the runtime user's HOME.
+RUN mkdir -p /opt/app-root/bin && chmod 777 /opt/app-root && \
+    export HOME=/tmp/ci-helper-home GOBIN=/opt/app-root/bin GOPATH=/tmp/ci-helper-build GOCACHE=/tmp/ci-helper-cache && \
+    go install gotest.tools/gotestsum@v${GOTESTSUM_VERSION} && \
+    go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION} && \
+    rm -rf /tmp/ci-helper-build /tmp/ci-helper-cache "${HOME}" && \
+    chown 1000:0 /opt/app-root/bin && chmod 0775 /opt/app-root/bin
+
+ENV PATH="${PATH}:/opt/app-root/bin"
 
 # ci-operator clones source into /go before the test commands set GOPATH.
 RUN mkdir -p /go && chown 1000:0 /go && chmod 0775 /go
 
 USER 1000
 
-# Fail the image build if the default user cannot prepare a source checkout.
+# Fail the image build if the default user cannot prepare a checkout or runtime config.
 RUN clone_root=$(mktemp -d /go/source-clone.XXXXXX) && \
     git init --quiet "${clone_root}/src/github.com/Azure/ARO-HCP" && \
-    rm -rf "${clone_root}"
+    rm -rf "${clone_root}" && \
+    mkdir -p "${HOME}/.config/containers" && \
+    config_probe=$(mktemp "${HOME}/.config/containers/.ci-permissions.XXXXXX") && \
+    rm -f "${config_probe}"

@@ -75,8 +75,14 @@ class InventoryTests(unittest.TestCase):
         ci = self.root / "dev-infrastructure/openshift-ci"
         ci.mkdir(parents=True)
         shutil.copyfile(HELPER, ci / HELPER.name)
-        (ci / "versions.mk").write_text("PROMTOOL_VERSION ?= 3.2.1\nBICEP_VERSION ?= 0.48.1\n")
+        (ci / "versions.mk").write_text(
+            "PROMTOOL_VERSION ?= 3.2.1\nBICEP_VERSION ?= 0.48.1\n"
+            "GOTESTSUM_VERSION ?= 1.13.0\n"
+            "ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d\n")
         (ci / "Dockerfile").write_text("ARG PROMTOOL_VERSION=3.2.1\nARG BICEP_VERSION=0.48.1\n")
+        (ci / "Dockerfile.nested-podman").write_text(
+            "ARG GOTESTSUM_VERSION=1.13.0\n"
+            "ARG ENVTEST_VERSION=v0.0.0-20260125163108-a19ec76a3c5d\n")
         self.config = {
             "pins": {}, "modules": {},
             "releases": {
@@ -84,6 +90,8 @@ class InventoryTests(unittest.TestCase):
                     {"tag_name": "v3.15.1", "draft": False, "prerelease": False},
                 "https://api.github.com/repos/Azure/bicep/releases/latest":
                     {"tag_name": "v0.48.1", "draft": False, "prerelease": False},
+                "https://api.github.com/repos/gotestyourself/gotestsum/releases/latest":
+                    {"tag_name": "v1.13.0", "draft": False, "prerelease": False},
             },
         }
         self.add_tool("generator-one", "example.org/generator", "v0.34.3", "v0.35.0")
@@ -135,7 +143,7 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(rows["example.org/new/v2"]["status"], "ahead")
         self.assertEqual(rows["example.org/generator"]["toolNames"], ["generator-one", "generator-two"])
         self.assertEqual(rows["example.org/generator"]["sourceURL"], "https://pkg.go.dev/example.org/generator")
-        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(rows), 5)
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         lookups = [call for call in calls if "example.org/generator@latest" in call]
         self.assertEqual(len(lookups), 1, "shared upstream must only be resolved once")

@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Checks the latest stable GitHub release for every tool pinned in
-# versions.mk and rewrites the corresponding *_VERSION variable in place
-# when a newer version is available. Adding a new pinned tool to
-# versions.mk only requires adding its GitHub repo to TOOL_REPOS below;
-# this script never needs to change for the bicep/promtool case
-# specifically.
+# Checks the latest stable GitHub release for release-tracked tools pinned in
+# versions.mk and rewrites each pin and its owning Dockerfile ARG.
+# Add each release-tracked tool's repository and Dockerfile to the maps below.
+# ENVTEST_VERSION is a manual compatibility pin; see versions.mk before changing it.
 # Pass *_VERSION variable names to update only those tools; omit them to check all.
 # --metadata-json reports the upstream mapping without fetching or changing pins.
 
@@ -34,6 +32,14 @@ VERSIONS_MK="$REPO_ROOT/versions.mk"
 declare -A TOOL_REPOS=(
   [PROMTOOL_VERSION]="prometheus/prometheus"
   [BICEP_VERSION]="Azure/bicep"
+  [GOTESTSUM_VERSION]="gotestyourself/gotestsum"
+)
+
+# Each release-tracked pin has one source-free Dockerfile default to synchronize.
+declare -A TOOL_DOCKERFILES=(
+  [PROMTOOL_VERSION]="Dockerfile"
+  [BICEP_VERSION]="Dockerfile"
+  [GOTESTSUM_VERSION]="Dockerfile.nested-podman"
 )
 
 if [[ "${1:-}" == "--metadata-json" ]]; then
@@ -57,6 +63,7 @@ for var in "${tools[@]}"; do
     echo "ERROR: unsupported tool version variable: ${var}" >&2
     exit 1
   fi
+  dockerfile="$REPO_ROOT/${TOOL_DOCKERFILES[$var]}"
 
   current="$(grep -oP "^${var}\s*\?=\s*\K\S*" "$VERSIONS_MK" || true)"
   if [[ -z "$current" ]]; then
@@ -92,14 +99,14 @@ for var in "${tools[@]}"; do
 
   echo "  ${var}: ${current} -> ${latest}"
   sed -i -E "s/^(${var}[[:space:]]*\?=[[:space:]]*).*$/\1${latest}/" "$VERSIONS_MK"
-  sed -i -E "s/^(ARG ${var}=).*$/\1${latest}/" "$REPO_ROOT/Dockerfile"
+  sed -i -E "s/^(ARG ${var}=).*$/\1${latest}/" "$dockerfile"
 
   if ! grep -qE "^${var}[[:space:]]*\?=[[:space:]]*${latest}$" "$VERSIONS_MK"; then
     echo "ERROR: failed to update ${var} in $VERSIONS_MK" >&2
     exit 1
   fi
-  if ! grep -qE "^ARG ${var}=${latest}$" "$REPO_ROOT/Dockerfile"; then
-    echo "ERROR: failed to update ARG ${var} in $REPO_ROOT/Dockerfile" >&2
+  if ! grep -qE "^ARG ${var}=${latest}$" "$dockerfile"; then
+    echo "ERROR: failed to update ARG ${var} in $dockerfile" >&2
     exit 1
   fi
 

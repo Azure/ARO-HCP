@@ -18,12 +18,13 @@ The `Dockerfile` in this directory defines the base image used in our release co
 - **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.26-openshift-4.22`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
 - **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
 - **Bicep**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
+- **Integration helpers**: `gotestsum` and `setup-envtest` are pinned in `versions.mk` and `Dockerfile.nested-podman`. Update the `setup-envtest` compatibility pin deliberately; the Kubernetes asset version remains in the root `Makefile`.
 - **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
 When updating versions:
 
 1. **Go bump**: Update `.ci-operator.yaml` first (the base-ci image must have the new Go version before `go.work` is updated). Then update `go.work` in a follow-up PR.
-2. **Bicep/promtool bump**: Run `make update-tool-versions` at the repo root to update both tools, or run `dev-infrastructure/openshift-ci/update-tool-versions.sh BICEP_VERSION` (or `PROMTOOL_VERSION`) to update one tool and its Dockerfile ARG.
+2. **Bicep/promtool/gotestsum bump**: Run `make update-tool-versions` at the repo root to update release-tracked tools, or pass `BICEP_VERSION`, `PROMTOOL_VERSION` or `GOTESTSUM_VERSION` to `dev-infrastructure/openshift-ci/update-tool-versions.sh` to update one tool and its owning Dockerfile ARG.
 3. Run `make verify` to check that Go minor version in `go.work` matches the builder image tag, and that the pinned tool versions are in sync.
 4. Run `make test` to build the image and smoke-test all tools.
 
@@ -37,7 +38,7 @@ The baseimage-generator presubmit retains its non-root Go build/test check.
 ### Agentic Tool Updates
 
 The [tool-version-updates GitHub Agentic Workflow](../../.github/workflows/tool-version-updates.md)
-checks bicep, promtool and every Bingo-managed tool daily and after an owned
+checks bicep, promtool, gotestsum and every Bingo-managed tool daily and after an owned
 tool-update PR merges. It resolves stable
 upstream versions and proposes one upstream family at a time. All five
 `k8s.io/code-generator` tools update together; unrelated tools remain separate.
@@ -84,6 +85,12 @@ no direct package RPM URLs or per-architecture checksums are maintained.
 Signature verification and package installation failures fail the build rather
 than publishing an incomplete toolchain.
 
+The image provides natively compiled, pinned `gotestsum` and `setup-envtest`
+helpers in `/opt/app-root/bin`. Integration tests retain the existing
+`make envtest-setup` bootstrap: the root `Makefile` selects Kubernetes 1.34.1
+and downloads its binaries into the writable `bin/envtest` directory.
+Kubernetes binaries are not baked into the image.
+
 Local builds pull from `quay-proxy.ci.openshift.org` and require
 [CI registry access](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/#how-do-i-gain-access-to-qci).
 Use `NESTED_PODMAN_IMAGE=<pullspec>` to test a different upstream base.
@@ -97,6 +104,11 @@ make build-nested-podman
 make test-nested-podman
 make test-nested-podman-runtime
 ```
+
+To smoke-test an already-built image in CI without starting an outer container,
+run `make test-nested-podman IN_CONTAINER=true` from this directory as the image's
+default user. This checks the actual pinned helper module identities and
+non-root Go compilation/install.
 
 Both tests use the image's default user without a runtime user override.
 The tools test asserts UID 1000 and checks that Go can compile, test,

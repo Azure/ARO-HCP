@@ -99,6 +99,7 @@ safe-outputs:
       - .bingo/variables.env
       - dev-infrastructure/openshift-ci/versions.mk
       - dev-infrastructure/openshift-ci/Dockerfile
+      - dev-infrastructure/openshift-ci/Dockerfile.nested-podman
     protected-files:
       policy: blocked
       exclude:
@@ -109,6 +110,7 @@ safe-outputs:
         - .bingo/variables.env
         - dev-infrastructure/openshift-ci/versions.mk
         - dev-infrastructure/openshift-ci/Dockerfile
+        - dev-infrastructure/openshift-ci/Dockerfile.nested-podman
 ---
 
 # Agentic CI and development tool updates
@@ -204,6 +206,16 @@ unverified bump or suppress a genuine infrastructure/authentication error.
   build and Go smoke test before merge.
   Official release API requests and binary redirects are restricted to the
   declared GitHub release hosts; retain network isolation when changing them.
+- **Gotestsum:** run
+  `dev-infrastructure/openshift-ci/update-tool-versions.sh GOTESTSUM_VERSION`,
+  then `make -C dev-infrastructure/openshift-ci verify`. Build the exact resolved
+  version into a temporary `GOBIN` with `go install gotest.tools/gotestsum@v<version>`.
+  Exercise the current pinned binary and candidate against the same temporary Go
+  module containing passing and deliberately failing tests. Use `--junitfile`
+  and `-- -count=1`; verify the expected exit statuses, testcase identities and
+  failure results in the JUnit XML for both binaries. Keep the fixture outside
+  the checkout and remove it afterward. The nested Podman image smoke and
+  integration jobs validate the image's real consumer before merge.
 - **Bingo:** use the currently pinned Bingo to run
   `bingo get <existing-tool>@<resolved-version>` for every tool in the selected
   upstream family. Do not hand-edit generated module, checksum or helper files.
