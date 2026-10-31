@@ -1965,3 +1965,74 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_workload_identity_slo_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyWorkloadIdentitySaturationCredentialExpiry'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'workload-identity-credential-expiry'
+        }
+        annotations: {
+          correlationId: 'userJourneyWorkloadIdentitySaturationCredentialExpiry/{{ $labels.cluster }}'
+          description: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
+          info: 'One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'MSI credential close to expiry (7 days or less left)'
+          title: 'MSI credential close to expiry (7 days or less left)'
+        }
+        expression: '(workload_identity:credential_refresher_expiry_le7d:increase1h - workload_identity:credential_refresher_expiry_le0d:increase1h) > 0'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyWorkloadIdentityRefresherStalled'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'workload-identity-credential-expiry'
+        }
+        annotations: {
+          correlationId: 'userJourneyWorkloadIdentityRefresherStalled/{{ $labels.cluster }}'
+          description: 'The credential refresher on this services cluster has stopped observing MSI credentials, so they are not being checked or renewed.'
+          info: 'The credential refresher on this services cluster has stopped observing MSI credentials, so they are not being checked or renewed.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'Credential refresher is not observing any MSI credentials'
+          title: 'Credential refresher is not observing any MSI credentials'
+        }
+        expression: 'workload_identity:credential_refresher_expiry_observations:increase1h == 0 or (max by (cluster, region) (max_over_time(workload_identity:credential_refresher_expiry_observations:increase1h[1w])) unless on (cluster) workload_identity:credential_refresher_expiry_observations:increase1h)'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

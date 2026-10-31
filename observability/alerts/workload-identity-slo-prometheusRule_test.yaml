@@ -1,0 +1,190 @@
+rule_files:
+- workload-identity-slo-prometheusRule.yaml
+- workload-identity-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: some credentials have 7 days or less left (not expired). Alert fires.
+- name: critical_fires_at_7_days_or_less
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="-90"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "MSI credential close to expiry (7 days or less left)"
+        description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: the alert waits 15m (its for: duration) before firing.
+- name: critical_waits_for_duration
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: between 7 and 30 days left. No alert here (the existing
+# ClusterCredentialExpiringSoon covers this range).
+- name: no_alert_between_7_and_30_days
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0+3x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: only expired / non-renewable credentials (for example orphaned secrets).
+# No alert; these are covered by ClusterCredentialExpired / NotRenewable.
+- name: expired_credentials_do_not_fire
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0+4x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0+4x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0+4x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="-90"}'
+    values: "0+4x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: all credentials healthy. No alert.
+- name: healthy_credentials_do_not_fire
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="30"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts: []
+# Test: same input scraped by two Prometheus replicas fires one alert, not two.
+- name: replica_duplicates_fire_once
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf",prometheus_replica="prometheus-0"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7",prometheus_replica="prometheus-0"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0",prometheus_replica="prometheus-0"}'
+    values: "0x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf",prometheus_replica="prometheus-1"}'
+    values: "0+10x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="7",prometheus_replica="prometheus-1"}'
+    values: "0+2x60"
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="0",prometheus_replica="prometheus-1"}'
+    values: "0x60"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyWorkloadIdentitySaturationCredentialExpiry
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "MSI credential close to expiry (7 days or less left)"
+        description: "One or more MSI credentials monitored by this services cluster have 7 days or less left before expiry. Renewal has been failing for over a month and the affected cluster will lose operator access when the credential expires."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher stuck, observation count stops increasing. Fires after the 1h for.
+- name: stalled_fires_when_refresher_is_stuck
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x120 1200x300"
+  alert_rule_test:
+  - eval_time: 230m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+  - eval_time: 250m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is not observing any MSI credentials"
+        description: "The credential refresher on this services cluster has stopped observing MSI credentials, so they are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher gone, series disappears. Fires after the 1h for.
+- name: stalled_fires_when_refresher_is_gone
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x120 _x300"
+  alert_rule_test:
+  - eval_time: 250m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        component: slo
+        severity: "4"
+        slo: workload-identity-credential-expiry
+      exp_annotations:
+        summary: "Credential refresher is not observing any MSI credentials"
+        description: "The credential refresher on this services cluster has stopped observing MSI credentials, so they are not being checked or renewed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert"
+# Test: refresher healthy. No alert.
+- name: stalled_does_not_fire_when_healthy
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x400"
+  alert_rule_test:
+  - eval_time: 300m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
+# Test: short 20 minute gap in data. No alert.
+- name: stalled_does_not_fire_on_short_gap
+  interval: 1m
+  input_series:
+  - series: 'credential_refresher_days_until_msi_credential_expiration_bucket{cluster="svc-1",vault_name="kv-1",le="+Inf"}'
+    values: "0+10x120 _x20 1400+10x200"
+  alert_rule_test:
+  - eval_time: 250m
+    alertname: userJourneyWorkloadIdentityRefresherStalled
+    exp_alerts: []
