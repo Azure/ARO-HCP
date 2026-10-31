@@ -71,6 +71,12 @@ tests:
     alertname: InstancesDownV1
 ```
 
+## HostedCluster deletion age
+
+See [HostedCluster deletion age alert](hosted-cluster-deletion-stuck.md) for the
+severity 4 alert's timestamp contract, per-HostedCluster identity, pending period,
+and rollout prerequisites.
+
 ## Dev notifications
 
 In non MSFT environments (e.g. personal dev) you can add e-mail alerts by adding your email to the `devAlertingEmails` key.
