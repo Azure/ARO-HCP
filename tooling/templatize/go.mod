@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/templatize
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d

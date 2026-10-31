@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/test
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
