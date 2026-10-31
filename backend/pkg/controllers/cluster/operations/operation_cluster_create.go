@@ -17,10 +17,8 @@ package operations
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -158,7 +156,8 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
-	operationalState, err := c.determineOperationState(ctx, operation, cluster)
+	operationalState, observationErr := c.determineOperationState(ctx, operation, cluster)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, cluster.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "cluster creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -168,28 +167,6 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-
-		message := operationbase.DeadlineExceededMessage(
-			"cluster creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -257,25 +234,17 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 		operationStates = append(operationStates, currState.WithSource("tlsCertificates"))
 	}
 
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	// cheap and easy backup check for potential accidents in future code.
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
 	logger.Info("determined cluster create operation status", "operationStates", operationStates)
-
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
 	}
-	logger.Info("picked cluster create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {

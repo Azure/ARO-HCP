@@ -26,6 +26,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -37,6 +38,35 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
+
+func TestAdmitNodePoolNotDeleting(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		op       operation.Type
+		deleting bool
+	}{
+		{name: "create", op: operation.Create},
+		{name: "failed update", op: operation.Update},
+		{name: "failed deletion update", op: operation.Update, deleting: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var oldObj *coreapi.NodePool
+			if tc.op == operation.Update {
+				oldObj = &coreapi.NodePool{Properties: coreapi.NodePoolProperties{ProvisioningState: coreapi.ProvisioningStateFailed}}
+				if tc.deleting {
+					oldObj.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				}
+			}
+			// The stored object, not the incoming object, carries deletion intent.
+			errs := AdmitNodePool(t.Context(), &NodePoolAdmissionContext{Cluster: &coreapi.Cluster{}}, operation.Operation{Type: tc.op}, &coreapi.NodePool{}, oldObj)
+			if tc.deleting {
+				require.Equal(t, field.ErrorList{field.Forbidden(field.NewPath(""), "node pool is being deleted and cannot be updated")}, errs)
+			} else {
+				require.Empty(t, errs)
+			}
+		})
+	}
+}
 
 func TestMutateNodePool(t *testing.T) {
 	const (

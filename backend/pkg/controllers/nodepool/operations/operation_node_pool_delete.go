@@ -136,6 +136,29 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 
+	if operation.OperationID.Name != nodePool.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("node pool active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.OperationID.Name, "nodePoolActiveOperationID", nodePool.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+
+	if deadline := nodePool.ServiceProviderProperties.DeleteOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		message := "node pool deletion did not complete before the deadline"
+		if nodePool.ServiceProviderProperties.ClusterServiceID == nil {
+			message += "; waiting for node pool document deletion"
+		} else if nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
+			message += "; ClusterService deletion not yet dispatched"
+		} else {
+			message += "; ClusterService node pool deletion not yet confirmed"
+		}
+		persistErr := &coreapi.CloudErrorBody{Code: coreapi.CloudErrorCodeDeadlineExceeded, Message: message}
+		logger.Info("delete operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(nodePool) {
 		return nil
 	}
