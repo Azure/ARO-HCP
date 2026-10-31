@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -28,15 +29,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -233,6 +240,155 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
+			}
+		})
+	}
+}
+
+type unavailableDeletionClients struct {
+	err    error
+	client kubeappliercosmosstorage.KubeApplierDBClient
+}
+
+func (clients unavailableDeletionClients) For(context.Context, *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return clients.client, clients.err
+}
+
+type diagnosticResources struct {
+	corecosmosstorage.ResourcesDBClient
+	spcErr error
+}
+
+func (db diagnosticResources) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return diagnosticSPCCRUD{ResourceCRUD: db.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName), err: db.spcErr}
+}
+
+type diagnosticSPCCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+	err error
+}
+
+func (crud diagnosticSPCCRUD) Get(ctx context.Context, name string) (*coreapi.ServiceProviderCluster, error) {
+	if crud.err != nil {
+		return nil, crud.err
+	}
+	return crud.ResourceCRUD.Get(ctx, name)
+}
+
+type diagnosticClient struct {
+	kubeappliercosmosstorage.KubeApplierDBClient
+	crud cosmosstorageutils.UntypedResourceCRUD
+	err  error
+}
+
+func (client diagnosticClient) UntypedCRUD(azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error) {
+	return client.crud, client.err
+}
+
+type diagnosticCRUD struct {
+	cosmosstorageutils.UntypedResourceCRUD
+	iterator cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument]
+	err      error
+}
+
+func (crud diagnosticCRUD) ListRecursive(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument], error) {
+	return crud.iterator, crud.err
+}
+
+type diagnosticIterator struct {
+	cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument]
+	err error
+}
+
+func (iterator diagnosticIterator) GetError() error { return iterator.err }
+
+func TestDeletionDiagnosticsQueryFailures(t *testing.T) {
+	injected := errors.New("inventory query failed")
+	type testCase struct {
+		name        string
+		spcErr      error
+		crudErr     error
+		listErr     error
+		iteratorErr error
+		missingSPC  bool
+		wantErr     error
+	}
+	for _, testCase := range []testCase{
+		{name: "SPC read", spcErr: injected, wantErr: injected},
+		{name: "kube-applier CRUD", crudErr: injected, wantErr: injected},
+		{name: "list descendants", listErr: injected, wantErr: injected},
+		{name: "partial iterator", iteratorErr: injected, wantErr: injected},
+		{name: "successful inventory"},
+		{name: "absent SPC", missingSPC: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := t.Context()
+			fixture := operationtesting.NewClusterTestFixture()
+			cluster := fixture.NewCluster(nil)
+			cluster.ServiceProviderProperties.ClusterServiceID = nil
+			deadline := metav1.NewTime(time.Unix(100, 0))
+			cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+			mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+			spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID}, Status: coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID}}
+			resources := []any{cluster, operation}
+			if !testCase.missingSPC {
+				resources = append(resources, spc)
+			}
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+			iterator := diagnosticIterator{DBClientIterator: corecosmosstoragetesting.NewMockIterator([]string{"child"}, []*cosmosstorageutils.TypedDocument{{ResourceType: "test/children"}}), err: testCase.iteratorErr}
+			client := diagnosticClient{crud: diagnosticCRUD{iterator: iterator, err: testCase.listErr}, err: testCase.crudErr}
+			controller := &operationClusterDelete{
+				clock:                clocktesting.NewFakePassiveClock(deadline.Add(time.Second)),
+				resourcesDBClient:    diagnosticResources{ResourcesDBClient: db, spcErr: testCase.spcErr},
+				kubeApplierDBClients: unavailableDeletionClients{client: client},
+				readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{},
+				applyDesireLister:    &kubeapplierlistertesting.SliceApplyDesireLister{},
+			}
+			state, err := controller.remainingDescendantResources(ctx, cluster)
+			if testCase.wantErr != nil {
+				require.ErrorIs(t, err, testCase.wantErr)
+				require.Nil(t, state)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, state)
+			}
+			require.NoError(t, controller.SynchronizeOperation(ctx, fixture.OperationKey()))
+			updated, err := db.Operations(fixture.ClusterResourceID.SubscriptionID).Get(ctx, operationtesting.TestOperationName)
+			require.NoError(t, err)
+			require.Equal(t, coreapi.ProvisioningStateFailed, updated.Status)
+			require.NotNil(t, updated.Error)
+			require.Contains(t, updated.Error.Message, "cluster deletion did not complete before the deadline")
+			if testCase.wantErr != nil {
+				require.NotContains(t, updated.Error.Message, "[descendantResources]")
+			}
+			_, err = db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
+			require.NoError(t, err)
+			if !testCase.missingSPC {
+				_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDeletionDiagnosticsUnavailableClient(t *testing.T) {
+	cluster := operationtesting.NewClusterTestFixture().NewCluster(nil)
+	mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+	spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID}, Status: coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID}}
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{cluster, spc})
+	require.NoError(t, err)
+	injected := errors.New("client resolution failed")
+	for _, failure := range []error{nil, injected} {
+		controller := &operationClusterDelete{resourcesDBClient: db, kubeApplierDBClients: unavailableDeletionClients{err: failure}}
+		require.NotPanics(t, func() {
+			state, err := controller.remainingDescendantResources(t.Context(), cluster)
+			require.Nil(t, state)
+			if failure != nil {
+				require.ErrorIs(t, err, failure)
+			} else {
+				require.ErrorContains(t, err, "inventory unavailable")
 			}
 		})
 	}

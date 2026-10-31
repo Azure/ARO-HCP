@@ -96,12 +96,12 @@ type readinessFactory struct {
 	attempts  atomic.Int32
 }
 
-func (factory *readinessFactory) NewKubeApplierInformers(_ context.Context, resourceID *azcorearm.ResourceID) kubeapplierinformers.KubeApplierInformers {
+func (factory *readinessFactory) NewKubeApplierInformers(_ context.Context, resourceID *azcorearm.ResourceID) (kubeapplierinformers.KubeApplierInformers, error) {
 	factory.attempts.Add(1)
 	if !factory.available.Load() {
-		return nil
+		return nil, nil
 	}
-	return factory.subs[strings.ToLower(resourceID.String())]
+	return factory.subs[strings.ToLower(resourceID.String())], nil
 }
 
 func TestUnionReadinessWaitsForDiscoveryAndEveryExpectedIdentity(t *testing.T) {

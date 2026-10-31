@@ -217,7 +217,10 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 	}
 	mcResourceID := spc.Status.ManagementClusterResourceID
 	if mcResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+		kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+		if err != nil {
+			return false, err
+		}
 		if kaClient == nil {
 			logger.Info("no kube-applier client for management cluster. Continuing with deletion of ServiceProviderNodePool document",
 				"serviceProviderNodePoolResourceID", spnp.ResourceID.String(),
@@ -273,9 +276,12 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 		return nil
 	}
 
-	// Best-effort: if the kube-applier client is unavailable, skip desire deletion here.
+	// Best-effort: if the management cluster is unregistered, skip desire deletion here.
 	// Remaining *Desires are cleaned up by later deletion stages and the orphan scraper.
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		logger.Info("no kube-applier client configured for management cluster; skipping nodepool-scoped desire deletion",
 			"managementClusterResourceID", mcResourceID.String())

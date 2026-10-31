@@ -223,12 +223,15 @@ type cosmosKubeApplierFactory struct {
 
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
-	if client == nil {
-		return nil
+) (kubeapplierinformers.KubeApplierInformers, error) {
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, err
 	}
-	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
+	if client == nil {
+		return nil, nil
+	}
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration), nil
 }
 
 // applyDesireRecorder records the ApplyDesires that arrive through the
