@@ -1,12 +1,15 @@
 {{- if .Header}}{{.Header}}
 {{end -}}
 {{- range $i, $f := .Firings}}Firing {{inc $i}}:{{if $f.Metadata.KnownIssueReason}} (known issue: {{$f.Metadata.KnownIssueReason}}){{end}}
-  State:       {{state $f.Alert.Condition}}
+  State:       {{state $f.Alert.Condition}}{{if not $f.Alert.EndsAt}} [STILL FIRING]{{end}}
+  Duration:    {{formatDuration $f.Alert.StartsAt $f.Alert.EndsAt}}
 {{- if $f.Alert.StartsAt}}
   Started:     {{formatTime $f.Alert.StartsAt}}
 {{- end}}
 {{- if $f.Alert.EndsAt}}
   Ended:       {{formatTime $f.Alert.EndsAt}}
+{{- else}}
+  Ended:       still firing
 {{- end}}
   Severity:    {{$f.Alert.Severity}}
 {{- if $f.Alert.Labels}}
@@ -14,5 +17,17 @@
 {{- end}}
 {{- if $f.Alert.Description}}
   Description: {{$f.Alert.Description}}
+{{- end}}
+{{- if $f.Alert.Expression}}
+  Expression:  {{$f.Alert.Expression}}
+{{- end}}
+{{- with index $f.Alert.Annotations "description"}}
+  Annotation description: {{.}}
+{{- end}}
+{{- with index $f.Alert.Annotations "summary"}}
+  Summary:     {{.}}
+{{- end}}
+{{- with index $f.Alert.Annotations "runbook_url"}}
+  Runbook URL: {{.}}
 {{- end}}
 {{end -}}

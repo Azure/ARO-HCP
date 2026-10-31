@@ -229,6 +229,7 @@ func buildFailureMessage(firings []alert) string {
 }
 
 var tmplFuncs = template.FuncMap{
+	"formatDuration": formatAlertDuration,
 	"state": func(condition string) string {
 		if condition == "Fired" {
 			return "Fired (not resolved)"
