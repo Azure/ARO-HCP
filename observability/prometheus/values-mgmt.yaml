@@ -95,6 +95,9 @@ kube-prometheus-stack:
       - apiGroups: ["velero.io"]
         resources: ["backups"]
         verbs: ["list", "watch"]
+      - apiGroups: ["velero.io"]
+        resources: ["deletebackuprequests"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -166,6 +169,76 @@ kube-prometheus-stack:
                   path: [status, phase]
                   labelName: phase
                   list: ["New", "Queued", "ReadyToStart", "FailedValidation", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
+            # Velero leaves status.phase unset until the Backup controller
+            # actually starts processing the CR (pkg/controller/schedule_controller.go
+            # checks `backup.Status.Phase == ""` as a distinct pre-processing
+            # state - it is never defaulted to "New" at creation). Because the
+            # StateSet "phase" metric above resolves `path: [status, phase]`
+            # to nil for those CRs, kube-state-metrics emits NO phase rows at
+            # all for them (customresourcestate's compiledStateSet.values()
+            # returns early on a nil path) - the enqueued backlog is
+            # otherwise invisible. This Info metric resolves `metadata.name`
+            # and `metadata.namespace` instead, which always exist, so it
+            # emits exactly one row per Backup CR regardless of status.phase.
+            # Subtracting the phase-having CRs from this gives the enqueued
+            # count used by the userJourneyBackupQueueBacklog alert
+            # (ARO-29950) - an always-present "_info" metric alongside the
+            # phase-only StateSet, so "has _info but no (non-queued) _phase
+            # row" identifies the enqueued backlog via PromQL set subtraction.
+            #
+            # NOTE: kube-state-metrics' customResourceState Info metric only
+            # emits a row at all if the metric's OWN `labelsFromPath` (not
+            # the groupVersionKind-level `labelsFromPath` above) resolves at
+            # least one label (see compiledInfo.values() in
+            # pkg/customresourcestate/registry_factory.go - it gates
+            # emission on `len(value.Labels) != 0`, checked before the GVK
+            # base labels are ever attached). A bare `path: [metadata, name]`
+            # with no `labelsFromPath` of its own resolves zero labels and
+            # silently emits nothing, for every CR, always - so this metric
+            # must declare labelsFromPath directly.
+            - name: "info"
+              help: "Backup CR presence indicator, independent of status.phase - one row per existing CR, used to detect backups that have not yet reached any phase (enqueued)"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [metadata, name]
+                    namespace: [metadata, namespace]
+          - groupVersionKind:
+              group: velero.io
+              kind: "DeleteBackupRequest"
+              version: "v1"
+            metricNamePrefix: veleroDeleteBackupRequest
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              backupName: [spec, backupName]
+            metrics:
+            - name: "phase"
+              help: "DeleteBackupRequest phase"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, phase]
+                  labelName: phase
+                  list: ["New", "InProgress", "Processed"]
+            # Same empty-until-processed behavior as Backup above: Velero's
+            # backup_deletion_controller.go only ever assigns
+            # DeleteBackupRequestPhaseInProgress/Processed, never
+            # DeleteBackupRequestPhaseNew - status.phase stays unset for a
+            # DBR sitting in the deletion queue. See the "phase" metric's
+            # comment on the Backup resource above for why this requires a
+            # separate always-present Info metric rather than relying on the
+            # StateSet "phase" metric alone, and for why it must declare its
+            # own labelsFromPath (not just path) to actually emit anything.
+            - name: "info"
+              help: "DeleteBackupRequest CR presence indicator, independent of status.phase - one row per existing CR, used to detect deletion requests that have not yet reached any phase (enqueued)"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [metadata, name]
+                    namespace: [metadata, namespace]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:

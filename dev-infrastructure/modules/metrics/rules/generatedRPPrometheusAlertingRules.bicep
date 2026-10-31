@@ -1841,6 +1841,103 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
   }
 }
 
+resource arohcpBackupSloOverloadAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_backup_slo_overload_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyBackupQueueBacklog'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyBackupQueueBacklog/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
+          info: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
+          summary: 'more than 300 Backup CRs are enqueued (not yet started) on {{ $labels.cluster }}'
+          title: 'more than 300 Backup CRs are enqueued (not yet started) on {{ $labels.cluster }}'
+        }
+        expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)) > 300'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyBackupDeletionQueueBacklog'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyBackupDeletionQueueBacklog/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
+          info: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
+          summary: 'more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on {{ $labels.cluster }}'
+          title: 'more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on {{ $labels.cluster }}'
+        }
+        expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyBackupNonTerminalBacklog'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyBackupNonTerminalBacklog/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} has more than 100 Backup CRs stuck in a non-terminal, non-queued, non-failed phase - e.g. Finalizing, WaitingForPluginOperations, or Deleting - sustained for 1h. Terminal phases (Failed/PartiallyFailed/FailedValidation) are excluded here since they just await TTL cleanup and are already covered by userJourneyBackupErrors at the time of failure; this alert indicates a systemic issue requiring manual CR triage/purge rather than a transient blip - check `kubectl get backups -A` phase distribution on the management cluster.'
+          info: 'Management cluster {{ $labels.cluster }} has more than 100 Backup CRs stuck in a non-terminal, non-queued, non-failed phase - e.g. Finalizing, WaitingForPluginOperations, or Deleting - sustained for 1h. Terminal phases (Failed/PartiallyFailed/FailedValidation) are excluded here since they just await TTL cleanup and are already covered by userJourneyBackupErrors at the time of failure; this alert indicates a systemic issue requiring manual CR triage/purge rather than a transient blip - check `kubectl get backups -A` phase distribution on the management cluster.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
+          summary: 'more than 100 Backup CRs are stuck mid-processing on {{ $labels.cluster }}'
+          title: 'more than 100 Backup CRs are stuck mid-processing on {{ $labels.cluster }}'
+        }
+        expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_certificate_rotation_alerts'
   location: location
