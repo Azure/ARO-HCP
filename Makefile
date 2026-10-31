@@ -726,6 +726,17 @@ image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
 
+# Component updater (shared version bumper; Istio wired today — tooling/component-updater/README.md)
+COMPONENT ?=
+SUBSCRIPTION_ID ?=
+component-updater-check:
+	@$(MAKE) -C tooling/component-updater check COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-check
+
+component-updater-update:
+	@$(MAKE) -C tooling/component-updater update COMPONENT="$(COMPONENT)" SUBSCRIPTION_ID="$(SUBSCRIPTION_ID)"
+.PHONY: component-updater-update
+
 # Tool version bumper
 update-tool-versions:
 	@$(MAKE) -C dev-infrastructure/openshift-ci update-tool-versions
