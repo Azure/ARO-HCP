@@ -83,10 +83,10 @@ func TestNodeVersionInMinor(t *testing.T) {
 		{
 			name:            "unmapped OCP major fails loudly instead of guessing",
 			nodeName:        "node-8",
-			kubeletVersion:  "v1.36.0+xyz",
-			expectedVersion: "5.0",
+			kubeletVersion:  "v1.40.0+xyz",
+			expectedVersion: "6.0",
 			wantEmpty:       false,
-			wantSubstring:   "no known Kubernetes minor mapping for OCP major 5",
+			wantSubstring:   "no known Kubernetes minor mapping for OCP major 6",
 		},
 		{
 			name:            "matching kubelet version OCP 4.20 = k8s 1.33",
@@ -94,6 +94,29 @@ func TestNodeVersionInMinor(t *testing.T) {
 			kubeletVersion:  "v1.33.6+abc123",
 			expectedVersion: "4.20",
 			wantEmpty:       true,
+		},
+		{
+			name:            "matching kubelet version OCP 5.0 = k8s 1.36",
+			nodeName:        "node-9",
+			kubeletVersion:  "v1.36.0+abc123",
+			expectedVersion: "5.0",
+			wantEmpty:       true,
+		},
+		{
+			name:            "wrong kubelet minor for OCP 5.0",
+			nodeName:        "node-10",
+			kubeletVersion:  "v1.35.0+abc123",
+			expectedVersion: "5.0",
+			wantEmpty:       false,
+			wantSubstring:   "KubeletVersion v1.35.0+abc123 has minor 35, expected 36 for OCP 5.0",
+		},
+		{
+			name:            "unmapped OCP 5.x minor fails loudly instead of guessing",
+			nodeName:        "node-11",
+			kubeletVersion:  "v1.37.0+xyz",
+			expectedVersion: "5.1",
+			wantEmpty:       false,
+			wantSubstring:   "no known Kubernetes minor mapping for OCP 5.1",
 		},
 	}
 
@@ -139,33 +162,44 @@ func TestNodeVersionInMinor(t *testing.T) {
 func TestOcpToK8sMinor(t *testing.T) {
 	// Verify the known-good OCP-to-Kubernetes minor mappings we've tested against.
 	knownMappings := []struct {
+		ocpMajor uint64
 		ocpMinor uint64
 		k8sMinor uint64
 	}{
-		{14, 27}, // OCP 4.14 = k8s 1.27
-		{15, 28}, // OCP 4.15 = k8s 1.28
-		{16, 29}, // OCP 4.16 = k8s 1.29
-		{17, 30}, // OCP 4.17 = k8s 1.30
-		{18, 31}, // OCP 4.18 = k8s 1.31
-		{19, 32}, // OCP 4.19 = k8s 1.32
-		{20, 33}, // OCP 4.20 = k8s 1.33
-		{21, 34}, // OCP 4.21 = k8s 1.34
-		{22, 35}, // OCP 4.22 = k8s 1.35
+
+		{4, 14, 27}, // OCP 4.14 = k8s 1.27
+		{4, 15, 28}, // OCP 4.15 = k8s 1.28
+		{4, 16, 29}, // OCP 4.16 = k8s 1.29
+		{4, 17, 30}, // OCP 4.17 = k8s 1.30
+		{4, 18, 31}, // OCP 4.18 = k8s 1.31
+		{4, 19, 32}, // OCP 4.19 = k8s 1.32
+		{4, 20, 33}, // OCP 4.20 = k8s 1.33
+		{4, 21, 34}, // OCP 4.21 = k8s 1.34
+		{4, 22, 35}, // OCP 4.22 = k8s 1.35
+		{5, 0, 36},  // OCP 5.0  = k8s 1.36
 	}
 
 	for _, m := range knownMappings {
-		got, ok := ocpToK8sMinor[m.ocpMinor]
+		minorMap, ok := ocpToK8sMinor[m.ocpMajor]
 		if !ok {
-			t.Errorf("OCP 4.%d: expected an entry in ocpToK8sMinor, found none", m.ocpMinor)
+			t.Errorf("OCP %d: expected a major entry in ocpToK8sMinor, found none", m.ocpMajor)
+			continue
+		}
+		got, ok := minorMap[m.ocpMinor]
+		if !ok {
+			t.Errorf("OCP %d.%d: expected an entry in ocpToK8sMinor, found none", m.ocpMajor, m.ocpMinor)
 			continue
 		}
 		if got != m.k8sMinor {
-			t.Errorf("OCP 4.%d: expected k8s minor %d, got %d", m.ocpMinor, m.k8sMinor, got)
+			t.Errorf("OCP %d.%d: expected k8s minor %d, got %d", m.ocpMajor, m.ocpMinor, m.k8sMinor, got)
 		}
 	}
 
-	if _, ok := ocpToK8sMinor[23]; ok {
+	if _, ok := ocpToK8sMinor[4][23]; ok {
 		t.Errorf("OCP 4.23 should not be mapped yet; add it deliberately once verified, not accidentally")
+	}
+	if _, ok := ocpToK8sMinor[5][1]; ok {
+		t.Errorf("OCP 5.1 should not be mapped yet; add it deliberately once verified, not accidentally")
 	}
 }
 
