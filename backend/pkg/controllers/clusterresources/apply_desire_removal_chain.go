@@ -22,7 +22,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -67,7 +66,7 @@ type applyDesireRemovalStep interface {
 // configuration the HostedCluster teardown still reads stays right where it is;
 // all that stops is the reconcile loop. Putting it anywhere else would park it
 // behind a finalizer for no reason, and it must in any case precede
-// namespacesRemovalStep — a desire left live while its namespace is Terminating
+// namespace deletion — a desire left live while its namespace is Terminating
 // makes the kube-applier retry an apply that can never succeed.
 //
 // NodePool documents are also dropped in that first step. HyperShift deletes the
@@ -90,9 +89,8 @@ type applyDesireRemovalStep interface {
 // Both hold Azure networking state behind finalizers, and PodNetwork is
 // cluster-scoped besides, so neither can be left to the cascade.
 //
-// The namespaces go last, once every object that needed deleting on its own
-// terms is gone. Their deletion reclaims the remaining objects that
-// cascadeCoveredRemovalStep stopped reconciling.
+// The namespace controller waits for all of these desires to be gone before
+// deleting either namespace, reclaiming the objects left to the namespace cascade.
 //
 // Steps claim desires by name, and the names come from classifyClusterResource,
 // which errors on anything it does not recognize. Between the two, the claim
@@ -105,7 +103,6 @@ var applyDesireRemovalChain = []applyDesireRemovalStep{
 	hostedClusterRemovalStep{},
 	swiftPodNetworkInstanceRemovalStep{},
 	swiftPodNetworkRemovalStep{},
-	namespacesRemovalStep{},
 }
 
 // deleteAllOwnedApplyDesires tears down every ApplyDesire owned by this
@@ -139,7 +136,7 @@ func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Cont
 	claimed := claimedDesireNames()
 	owned := make([]*kubeapplierapi.ApplyDesire, 0, len(existing))
 	for _, desire := range existing {
-		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+		if managedByDedicatedK8sResourcesDesire(desire.ResourceID.Name) {
 			continue
 		}
 		if desire.Tags == nil ||
@@ -178,81 +175,6 @@ func (c *clusterResourcesController) deleteAllOwnedApplyDesires(ctx context.Cont
 	}
 
 	return nil
-}
-
-// ensureMatchingApplyDesiresRemoved is the teardown primitive the removal steps share:
-// it flips every desire in owned that matches selects to Type=Delete and purges
-// the ones the kube-applier reports as deleted. owned must already be filtered
-// to the desires this controller owns. done is true only when nothing
-// matching selects is left.
-func ensureMatchingApplyDesiresRemoved(
-	ctx context.Context,
-	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
-	stepName string,
-	owned []*kubeapplierapi.ApplyDesire,
-	selects func(*kubeapplierapi.ApplyDesire) bool,
-) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	var waitingFor []string
-	var errs []error
-	for _, desire := range owned {
-		if !selects(desire) {
-			continue
-		}
-
-		desireName := desire.ResourceID.Name
-		crud, err := applyDesireCRUDFor(kubeApplierDBClient, desire)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		removed, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, desireName, crud)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if !removed {
-			waitingFor = append(waitingFor, desireName)
-			continue
-		}
-		logger.Info("deleted ApplyDesire", "step", stepName, "desireName", desireName)
-
-		// Now that the ApplyDesire is removed and the object is gone from the
-		// management cluster, delete the corresponding ReadDesire. It was only
-		// needed for observability during deletion; now that deletion is complete,
-		// it's no longer useful.
-		//
-		// ReadDesire deletion errors are fatal: if we log and continue, the step
-		// reports done=true while the ReadDesire is still live. The cleanup gate
-		// preserves ClusterResources-owned ReadDesires and ServiceProviderCluster
-		// deletion waits for every desire, so a transient Cosmos failure here would
-		// permanently block cluster deletion. Return the error so the step stays
-		// incomplete and retries on the next reconcile.
-		readDesireCRUD, readErr := readDesireCRUDFor(kubeApplierDBClient, desire)
-		if readErr != nil {
-			return false, readErr
-		}
-		if delErr := readDesireCRUD.Delete(ctx, desireName); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
-			return false, utils.TrackError(fmt.Errorf("delete ReadDesire %s: %w", desireName, delErr))
-		}
-		logger.Info("deleted ReadDesire", "step", stepName, "desireName", desireName)
-	}
-
-	// Report errors ahead of the wait list: a step that could not be fully
-	// processed must not be treated as drained, so the chain stops here.
-	if len(errs) > 0 {
-		return false, errors.Join(errs...)
-	}
-
-	if len(waitingFor) > 0 {
-		logger.Info("ApplyDesire teardown in progress",
-			"step", stepName, "waitingFor", waitingFor)
-		return false, nil
-	}
-
-	return true, nil
 }
 
 // deleteMatchingApplyDesiresDocuments is the other teardown primitive: it removes the
@@ -376,7 +298,7 @@ func (c *clusterResourcesController) sweepOrphanedReadDesires(
 	}
 
 	for _, readDesire := range readDesires {
-		if managedByKubeAPIServerServingCertificate(readDesire.ResourceID.Name) {
+		if managedByDedicatedK8sResourcesDesire(readDesire.ResourceID.Name) {
 			continue
 		}
 		if readDesire.Tags == nil || readDesire.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {

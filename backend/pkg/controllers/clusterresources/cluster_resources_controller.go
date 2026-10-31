@@ -26,6 +26,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 	"k8s.io/utils/ptr"
@@ -287,6 +288,10 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
+		if managedByK8sResources(&unstructuredObj) {
+			continue
+		}
+
 		gvr, err := restmapper.ResourceFor(unstructuredObj.GroupVersionKind())
 		if err != nil {
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to resolve resource %s: %w", resourceKey, err)))
@@ -296,12 +301,6 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		classified, err := classifyClusterResource(&unstructuredObj)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
-			continue
-		}
-
-		// The dedicated certificate controller owns these desires, including
-		// adoption of existing ClusterResources documents.
-		if managedByKubeAPIServerServingCertificate(classified.desireName) {
 			continue
 		}
 
@@ -531,6 +530,27 @@ type classifiedResource struct {
 	nodePoolName string
 }
 
+type groupKindName struct {
+	group string
+	kind  string
+	name  string
+}
+
+var k8sResourcesManagedResources = sets.New[groupKindName](
+	groupKindName{group: "secret-sync.x-k8s.io", kind: "SecretSync", name: "kube-apiserver-tls-cert"},
+	groupKindName{group: "secrets-store.csi.x-k8s.io", kind: "SecretProviderClass", name: "kube-apiserver-tls-cert"},
+	groupKindName{group: "secret-sync.x-k8s.io", kind: "SecretSync", name: controllerutils.ServiceProviderDefaultIngressWildcardServingCertName},
+	groupKindName{group: "secrets-store.csi.x-k8s.io", kind: "SecretProviderClass", name: controllerutils.ServiceProviderDefaultIngressWildcardServingCertName},
+)
+
+// managedByK8sResources identifies objects owned by dedicated Kubernetes resource
+// controllers. Certificate objects match their group, kind, and name exactly;
+// all Namespace objects belong to the namespace controller.
+func managedByK8sResources(obj *unstructured.Unstructured) bool {
+	gvk := obj.GroupVersionKind()
+	return gvk.Kind == "Namespace" || k8sResourcesManagedResources.Has(groupKindName{group: gvk.Group, kind: gvk.Kind, name: obj.GetName()})
+}
+
 // classifyClusterResource maps a kube object from the Cluster Service
 // GetClusterResources response to an intent-based desire name. Every
 // recognized resource gets a stable, human-readable name; unrecognized
@@ -541,13 +561,12 @@ type classifiedResource struct {
 //
 //	hypershift.openshift.io    HostedCluster          → HostedCluster
 //	hypershift.openshift.io    NodePool               → NodePool                 (nodePoolName set, scoped under nodepool)
-//	core/v1                    Namespace              → HostedClusterNamespace | ControlPlaneNamespace
 //	core/v1                    ConfigMap              → DefaultIngressConfigMap | ExternalAuthCAConfigMap
 //	core/v1                    Secret                 → OCPPullSecret | ExternalAuthClientSecret
 //	multitenancy.acn.azure.com PodNetwork             → PodNetwork
 //	multitenancy.acn.azure.com PodNetworkInstance      → PodNetworkInstance
-//	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretSync
-//	secrets-store.csi.x-k8s.io SecretProviderClass    → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert,KubeAPIServerServingCert}SecretProviderClass
+//	secret-sync.x-k8s.io      SecretSync             → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert}SecretSync
+//	secrets-store.csi.x-k8s.io SecretProviderClass    → {BoundServiceAccountSigningKey,DefaultIngressWildcardCert}SecretProviderClass
 func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource, error) {
 	gvk := obj.GroupVersionKind()
 	name := obj.GetName()
@@ -562,17 +581,6 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		clusterName, _, _ := unstructured.NestedString(obj.Object, "spec", "clusterName")
 		armName := strings.TrimPrefix(name, clusterName+"-")
 		return classifiedResource{desireName: DesireNameNodePool, nodePoolName: armName}, nil
-
-	case "Namespace":
-		// CS returns two Namespaces: the HostedCluster namespace
-		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c") and the
-		// ControlPlane namespace
-		// (e.g. "ocm-arohcppers-2sdm6b8jke9sm3h8ukc8mbaahngnre5c-j7h3t4w0u1t3b4b").
-		// The ControlPlane namespace carries the "hypershift.openshift.io/cluster" label.
-		if _, ok := obj.GetLabels()["hypershift.openshift.io/cluster"]; ok {
-			return classifiedResource{desireName: DesireNameControlPlaneNamespace}, nil
-		}
-		return classifiedResource{desireName: DesireNameHostedClusterNamespace}, nil
 
 	case "ManagedCluster":
 		return classifiedResource{desireName: DesireNameManagedCluster}, nil
@@ -599,20 +607,16 @@ func classifyClusterResource(obj *unstructured.Unstructured) (classifiedResource
 		switch {
 		case strings.Contains(name, "signing-key"):
 			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretSync}, nil
-		case strings.Contains(name, "default-ingress"):
+		case strings.HasPrefix(name, "default-ingress"):
 			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretSync}, nil
-		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretSync}, nil
 		}
 
 	case "SecretProviderClass":
 		switch {
 		case strings.Contains(name, "signing-key"):
 			return classifiedResource{desireName: DesireNameBoundServiceAccountSigningKeySecretProviderClass}, nil
-		case strings.Contains(name, "default-ingress"):
+		case strings.HasPrefix(name, "default-ingress"):
 			return classifiedResource{desireName: DesireNameDefaultIngressWildcardCertSecretProviderClass}, nil
-		case strings.Contains(name, "kube-apiserver"):
-			return classifiedResource{desireName: DesireNameKubeAPIServerServingCertSecretProviderClass}, nil
 		}
 	}
 
@@ -773,8 +777,6 @@ func shouldCreateReadDesireFor(DesireName string) bool {
 	switch lowerName {
 	case strings.ToLower(DesireNamePodNetworkInstance),
 		strings.ToLower(DesireNamePodNetwork),
-		strings.ToLower(DesireNameHostedClusterNamespace),
-		strings.ToLower(DesireNameControlPlaneNamespace),
 		strings.ToLower(DesireNameManagedCluster):
 		return true
 	default:
@@ -801,7 +803,7 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 	}
 
 	for _, desire := range existing {
-		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
+		if managedByDedicatedK8sResourcesDesire(desire.ResourceID.Name) {
 			continue
 		}
 		// Pre-existing ACM-path ingress certificate wiring desires are no longer reasserted (see processClusterResources), so don't reap them as stale; the full-cluster teardown chain removes them once the cluster is deleted.

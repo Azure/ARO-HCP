@@ -32,6 +32,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -46,7 +47,7 @@ import (
 )
 
 // classifiableResources is one kube object per desire name classifyClusterResource
-// can recognize (including names handed off to dedicated controllers). It is the input to the coverage test below, which is the only
+// can recognize. It is the input to the coverage test below, which is the only
 // thing keeping the destruct chain's claim sets honest: a new resource type
 // added to classifyClusterResource but not assigned to a step would otherwise
 // only surface as a log line on a cluster that is already deleting.
@@ -56,8 +57,6 @@ var classifiableResources = []string{
 	`{"apiVersion":"cluster.open-cluster-management.io/v1","kind":"ManagedCluster","metadata":{"name":"my-hc"}}`,
 	`{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"my-hc","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"NodePool","metadata":{"name":"q2e1p3b8m8a3s6l-np-2dz967","namespace":"ocm-env-abc"},"spec":{"clusterName":"q2e1p3b8m8a3s6l"}}`,
-	`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-env-abc"}}`,
-	`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"ocm-env-abc-cp","labels":{"hypershift.openshift.io/cluster":"abc"}}}`,
 	`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"default-ingress","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"external-auth-ca","namespace":"ocm-env-abc","labels":{"api.openshift.com/type":"ext-auth"}}}`,
 	`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pull-secret","namespace":"ocm-env-abc"}}`,
@@ -66,10 +65,8 @@ var classifiableResources = []string{
 	`{"apiVersion":"multitenancy.acn.azure.com/v1alpha1","kind":"PodNetworkInstance","metadata":{"name":"pni-abc123","namespace":"ocm-env-abc-cp"}}`,
 	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"bound-sa-signing-key","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"default-ingress-cert","namespace":"ocm-env-abc"}}`,
-	`{"apiVersion":"secret-sync.x-k8s.io/v1alpha1","kind":"SecretSync","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"bound-sa-signing-key","namespace":"ocm-env-abc"}}`,
 	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"default-ingress-cert","namespace":"ocm-env-abc"}}`,
-	`{"apiVersion":"secrets-store.csi.x-k8s.io/v1","kind":"SecretProviderClass","metadata":{"name":"kube-apiserver-server-cert","namespace":"ocm-env-abc"}}`,
 }
 
 // TestApplyDesireDestructChainCoversEveryDesireName pins the invariant the
@@ -90,7 +87,6 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 		"swift-podnetworkinstance": swiftPodNetworkInstanceDesireNames,
 		"swift-podnetwork":         swiftPodNetworkDesireNames,
 		"cascade-covered":          cascadeCoveredDesireNames,
-		"namespaces":               namespaceDesireNames,
 	}
 	stepNames := make(map[string]bool)
 	for _, step := range applyDesireRemovalChain {
@@ -109,9 +105,6 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 
 		result, err := classifyClusterResource(&obj)
 		require.NoError(t, err, "fixture should classify: %s", resource)
-		if managedByKubeAPIServerServingCertificate(result.desireName) {
-			continue
-		}
 		classified[strings.ToLower(result.desireName)] = result.desireName
 	}
 	claimed := claimedDesireNames()
@@ -169,7 +162,6 @@ func TestApplyDesireDestructChainOrdering(t *testing.T) {
 	podNetworkInstance := indexOf(swiftPodNetworkInstanceRemovalStep{})
 	podNetwork := indexOf(swiftPodNetworkRemovalStep{})
 	cascadeCovered := indexOf(cascadeCoveredRemovalStep{})
-	namespaces := indexOf(namespacesRemovalStep{})
 
 	require.NotEqual(t, -1, managedCluster, "managed-cluster step must be in the chain")
 	require.NotEqual(t, -1, ingress, "ingress-manifests step must be in the chain")
@@ -177,26 +169,17 @@ func TestApplyDesireDestructChainOrdering(t *testing.T) {
 	require.NotEqual(t, -1, podNetworkInstance, "swift-podnetworkinstance step must be in the chain")
 	require.NotEqual(t, -1, podNetwork, "swift-podnetwork step must be in the chain")
 	require.NotEqual(t, -1, cascadeCovered, "cascade-covered step must be in the chain")
-	require.NotEqual(t, -1, namespaces, "namespaces step must be in the chain")
 
 	assert.Equal(t, 0, cascadeCovered, "document-only cleanup must run before any waited-on step")
 	assert.Less(t, managedCluster, ingress, "ManagedCluster cleanup must finish before ingress configuration is removed")
 	assert.Less(t, ingress, hostedCluster, "shared-namespace ingress manifests must be removed before HostedCluster teardown")
-	assert.Less(t, hostedCluster, namespaces,
-		"HostedCluster must be deleted before its namespaces: its finalizer deprovisions Azure "+
-			"infrastructure and needs the control plane namespace intact while it runs")
 	assert.Less(t, hostedCluster, podNetworkInstance,
 		"the PodNetworkInstance provides pod networking for the control plane, so it must outlive "+
 			"the HostedCluster teardown")
 	assert.Less(t, podNetworkInstance, podNetwork,
 		"SWIFT resources are destroyed in reverse order of creation: PodNetwork reports InUse "+
 			"while an instance still references it")
-	assert.Less(t, podNetworkInstance, namespaces,
-		"the PodNetworkInstance is namespaced and its finalizer releases Azure networking state, "+
-			"so leaving it to the namespace cascade would wedge the namespace in Terminating")
-	assert.Less(t, cascadeCovered, namespaces,
-		"cascade-covered desires must stop being reconciled before their namespace is deleted, "+
-			"otherwise kube-applier retries an apply into a Terminating namespace that can never succeed")
+
 }
 
 // TestPodNetworkIsNeverLeftToTheCascade guards the specific mistake that the
@@ -396,14 +379,13 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			newOwnedClusterDesire(DesireNamePodNetwork),
 			newOwnedClusterDesire(DesireNameOCPPullSecret),
 			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
-			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
 			newOwnedNodePoolDesire(testNodePoolName, DesireNameNodePool),
 		}
 	}
 
 	downstreamOfHostedCluster := []string{
 		DesireNamePodNetworkInstance, DesireNamePodNetwork,
-		DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace,
+		DesireNameHostedClusterNamespace,
 	}
 
 	ingressNames := []string{
@@ -538,35 +520,6 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		}
 	})
 
-	t.Run("waits for namespace cleanup of an orphan NodePool when HostedCluster is absent", func(t *testing.T) {
-		t.Parallel()
-		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, []*kubeapplierapi.ApplyDesire{
-			newOwnedNodePoolDesire(testNodePoolName, DesireNameNodePool),
-			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
-			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
-		}, DesireNameNodePool)
-
-		// The controller can request namespace cleanup, but cannot declare it
-		// complete until kube-applier observes the namespaces gone. This does
-		// not simulate Kubernetes GC or HyperShift's NodePool finalizer.
-		for range 2 {
-			err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
-			require.NoError(t, err, "reconcile orphan NodePool cleanup without HostedCluster")
-			_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
-			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphan NodePool must stop being applied, got %v", err)
-			for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
-				desire, err := fixture.clusterCRUD.Get(ctx, name)
-				require.NoError(t, err, "%s must remain pending until namespace cleanup completes", name)
-				assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, desire.Spec.Type, "%s must request deletion", name)
-			}
-			readCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-			require.NoError(t, err, "get orphan NodePool ReadDesire CRUD")
-			_, err = readCRUD.Get(ctx, DesireNameNodePool)
-			require.NoError(t, err, "orphan NodePool observation must remain until namespace cleanup completes")
-		}
-	})
-
 	// The SWIFT resources hold Azure networking state behind finalizers, so the
 	// chain has to wait them out rather than drop their documents and let the
 	// namespace cascade run. PodNetwork in particular is cluster-scoped, so no
@@ -593,7 +546,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, podNetwork.Spec.Type,
 			"PodNetwork stays InUse while the instance references it, so its delete must wait")
 
-		for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
+		for _, name := range []string{DesireNameHostedClusterNamespace} {
 			namespace, err := fixture.clusterCRUD.Get(ctx, name)
 			require.NoError(t, err, "%s should not be touched yet", name)
 			assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, namespace.Spec.Type,
@@ -623,43 +576,6 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		assert.Nil(t, podNetwork.Spec.ServerSideApply, "PodNetwork ServerSideApply should be cleared")
 	})
 
-	t.Run("deletes the namespaces once every waited-on step has drained", func(t *testing.T) {
-		t.Parallel()
-		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-
-		desires := seedDesires()
-		markDeleted(desires,
-			DesireNameHostedCluster, DesireNamePodNetworkInstance, DesireNamePodNetwork)
-
-		fixture := newDestructFixture(t, ctx, testNodePoolName, desires...)
-
-		err := fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
-		require.NoError(t, err, "deleteAllOwnedApplyDesires should succeed")
-
-		for _, name := range []string{DesireNameHostedCluster, DesireNamePodNetworkInstance, DesireNamePodNetwork} {
-			_, err := fixture.clusterCRUD.Get(ctx, name)
-			assert.Error(t, err, "%s should be purged once its delete succeeded", name)
-		}
-		_, err = fixture.nodePoolCRUD.Get(ctx, DesireNameNodePool)
-		assert.Error(t, err, "nodepool-scoped NodePool ApplyDesire should be dropped without waiting for deletion status")
-
-		// Cascade-covered desires are dropped outright, never flipped to Delete,
-		// so the kube-applier issues no delete of its own and the namespace
-		// cascade reclaims the objects.
-		_, err = fixture.clusterCRUD.Get(ctx, DesireNameOCPPullSecret)
-		assert.Error(t, err, "OCPPullSecret document should be dropped, leaving its object to the namespace cascade")
-
-		// Namespaces are deleted deliberately and waited on, so they are still
-		// present, now marked for deletion.
-		for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
-			desire, err := fixture.clusterCRUD.Get(ctx, name)
-			require.NoError(t, err, "%s should still exist while its delete is pending", name)
-			assert.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, desire.Spec.Type,
-				"%s should be flipped to Delete", name)
-			assert.Nil(t, desire.Spec.ServerSideApply, "%s ServerSideApply should be cleared", name)
-		}
-	})
-
 	t.Run("leaves desires owned by other controllers alone", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -678,7 +594,7 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 			"untagged desire should be untouched")
 	})
 
-	t.Run("deletes paired ReadDesires and retains NodePool observations until namespaces are gone", func(t *testing.T) {
+	t.Run("deletes paired ReadDesires and sweeps orphaned NodePool observations", func(t *testing.T) {
 		t.Parallel()
 		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
@@ -706,22 +622,6 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		require.NoError(t, err, "get NodePool ReadDesire CRUD")
 
 		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
-		require.NoError(t, err, "NodePool ReadDesire must remain while namespace deletion is pending")
-
-		// Simulate kube-applier completing namespace deletion, then reconcile
-		// the same fixture again to exercise the orphan sweep.
-		clusterCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
-		require.NoError(t, err, "get writable cluster ApplyDesire CRUD")
-		for _, name := range []string{DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace} {
-			desire, err := clusterCRUD.Get(ctx, name)
-			require.NoError(t, err, "namespace desire %s must exist until deletion succeeds", name)
-			markDeleted([]*kubeapplierapi.ApplyDesire{desire}, name)
-			_, err = clusterCRUD.Replace(ctx, desire, nil)
-			require.NoError(t, err, "report namespace %s deleted", name)
-		}
-		err = fixture.controller.deleteAllOwnedApplyDesires(ctx, testKey(), testManagementClusterResourceID)
-		require.NoError(t, err, "cleanup should finish after namespace deletion")
-		_, err = nodePoolReadDesireCRUD.Get(ctx, DesireNameNodePool)
 		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "orphaned NodePool ReadDesire should be swept, got %v", err)
 	})
 
@@ -733,10 +633,9 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 		// but add orphaned ReadDesires for resources whose ApplyDesires are already gone
 		desires := []*kubeapplierapi.ApplyDesire{
 			newOwnedClusterDesire(DesireNameHostedClusterNamespace),
-			newOwnedClusterDesire(DesireNameControlPlaneNamespace),
 		}
 		// Mark namespace desires as deleted so the chain completes and sweep runs
-		markDeleted(desires, DesireNameHostedClusterNamespace, DesireNameControlPlaneNamespace)
+		markDeleted(desires, DesireNameHostedClusterNamespace)
 
 		fixture := newDestructFixtureWithReadDesires(t, ctx, testNodePoolName, desires,
 			DesireNamePodNetworkInstance, DesireNamePodNetwork)
@@ -765,13 +664,16 @@ func TestDeleteAllOwnedApplyDesires(t *testing.T) {
 }
 
 // An older owner tag must not let stale cleanup or cluster deletion race with
-// adoption by the dedicated kube-apiserver serving certificate controller.
-func TestKubeAPIServerServingCertificateDesiresAreIgnored(t *testing.T) {
-	for _, owner := range []string{ClusterResourcesControllerName, "KubeAPIServerServingCertificate", "KubeAPIServerServingCertificateK8sResources"} {
+// adoption by the dedicated Kubernetes resource controllers.
+func TestDedicatedK8sResourcesDesiresAreIgnored(t *testing.T) {
+	for _, owner := range []string{ClusterResourcesControllerName, "KubeAPIServerServingCertificate", "KubeAPIServerServingCertificateK8sResources", "ControlPlaneNamespaceK8sResources"} {
 		t.Run(owner, func(t *testing.T) {
 			ctx := t.Context()
-			names := []string{DesireNameKubeAPIServerServingCertSecretSync, DesireNameKubeAPIServerServingCertSecretProviderClass}
-			desires := []*kubeapplierapi.ApplyDesire{newOwnedClusterDesire(names[0]), newOwnedClusterDesire(names[1])}
+			names := []string{DesireNameKubeAPIServerServingCertSecretSync, DesireNameKubeAPIServerServingCertSecretProviderClass, DesireNameControlPlaneNamespace, DesireNameHostedClusterNamespace}
+			var desires []*kubeapplierapi.ApplyDesire
+			for _, name := range names {
+				desires = append(desires, newOwnedClusterDesire(name))
+			}
 			for _, desire := range desires {
 				desire.Tags[kubeapplierapi.TagControllerName] = owner
 			}
@@ -812,5 +714,17 @@ func TestKubeAPIServerServingCertificateDesiresAreIgnored(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestNamespaceDeletionPreconditionsCoverFinalRemovalSteps(t *testing.T) {
+	expected := newDesireNameSet(DesireNameHostedCluster, DesireNamePodNetworkInstance, DesireNamePodNetwork)
+	actual := k8sresources.NamespaceDeletionPreconditionDesireNames()
+	require.Len(t, actual, len(expected), "namespace deletion must wait for the final three resource deletions")
+	for name := range expected {
+		require.True(t, actual.Has(name), "namespace deletion must wait for %s", name)
+	}
+	for _, step := range applyDesireRemovalChain {
+		require.NotEqual(t, "namespaces", step.name(), "namespace deletion belongs to the namespace controller")
 	}
 }
