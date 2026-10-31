@@ -36,7 +36,7 @@ import (
 func TestSubscriptionReadOnlyMetadataHTTP(t *testing.T) {
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
-	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	f := NewFrontend(testr.New(t), nil, nil, reg, reg, db, newTestFrontendInformers(t, db), nil, newNoopAuditClient(t), coreapitesting.TestLocation, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 	ts := newHTTPServer(ctx, f, db, nil)
 	t.Cleanup(ts.Close)
@@ -111,7 +111,7 @@ func TestSubscriptionReadOnlyMetadataHTTP(t *testing.T) {
 func TestPreflightReadOnlyParityHTTP(t *testing.T) {
 	db := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
-	f := NewFrontend(testr.New(t), nil, nil, reg, reg, noInventoryListsDB{db}, newTestFrontendInformers(t, noInventoryListsDB{db}), nil, newNoopAuditClient(t), coreapitesting.TestLocation, true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	f := NewFrontend(testr.New(t), nil, nil, reg, reg, noInventoryListsDB{db}, newTestFrontendInformers(t, noInventoryListsDB{db}), nil, newNoopAuditClient(t), coreapitesting.TestLocation, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 	ts := newHTTPServer(ctx, f, db, map[string]*coreapi.Subscription{
 		coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),

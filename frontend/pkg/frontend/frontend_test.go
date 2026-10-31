@@ -106,7 +106,6 @@ func TestOperationsList(t *testing.T) {
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
-		true,
 		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 
@@ -211,7 +210,6 @@ func TestSubscriptionsGET(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -362,7 +360,6 @@ func TestSubscriptionsPUT(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -718,7 +715,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -860,7 +856,6 @@ func TestRequestAdminCredential(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -978,7 +973,6 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -1107,7 +1101,6 @@ func TestRevokeCredentials(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 
@@ -1254,7 +1247,6 @@ func TestDeleteCluster(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				coreapitesting.TestLocation,
-				true,
 				azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 			)
 

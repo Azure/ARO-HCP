@@ -46,6 +46,7 @@ func newNoopAuditClient(t *testing.T) audit.Client {
 	return noopAuditClient{}
 }
 
+// NewTestFrontend constructs a frontend with isolated test storage and metrics.
 func NewTestFrontend(t *testing.T) *Frontend {
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
@@ -61,7 +62,6 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
-		true,
 		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 	return f

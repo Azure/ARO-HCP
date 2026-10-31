@@ -144,8 +144,11 @@ func readSteps[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadat
 	return steps, nil
 }
 
+// RunTest executes an isolated fixture; mock suites verify leaks after parallel cases finish.
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
-	defer integrationutils.VerifyNoNewGoLeaks(t)
+	if !tt.withMock {
+		defer integrationutils.VerifyNoNewGoLeaks(t)
+	}
 
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
