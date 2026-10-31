@@ -16,7 +16,7 @@ Use the implementation and deployment sources rather than maintaining a copied i
 
 ## Runtime Model
 
-At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
+At startup the process loads the rendered runtime config, loads and validates both credential files once, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
 
 The detailed startup, configuration, credentials, and rendered deployment behavior is defined in:
 
@@ -275,11 +275,11 @@ Do not update tenant definitions in `deploy/values.yaml`. That file contains sta
 Subscription IDs are resolved at runtime from configured subscription display names rather than stored in the config.
 Role assignment usage and limits are retrieved directly from Azure rather than configured per subscription.
 
-## Secrets and Credential Reload
+## Secrets and Credential Rotation
 
-Client secrets live in the `opstool` workload Key Vault and are mounted into the pod with the CSI Secret Store driver.
+Client IDs and client secrets live in the `opstool` workload Key Vault and are mounted into the pod with the CSI Secret Store driver.
 
-Credential reload behavior is defined in [`pkg/credentials/provider.go`](pkg/credentials/provider.go). A Key Vault secret update can be picked up without restarting the pod when the CSI-mounted file refreshes and the process rereads the invalidated credential on its next use.
+Credentials are loaded at startup and cached for the lifetime of the process. **Restart the exporter whenever either the client ID or the password changes.** CSI refresh alone does not update the running exporter. There is no credential watcher or hot reload. Startup rejects missing, unreadable, empty or malformed client-ID files and empty passwords without logging credential material. Syntax validation is not proof that a password belongs to an application; operators must verify that binding before activation. The shared `entra-app-credentials ensure-secret` publisher preserves existing values without checking their binding.
 
 ## Alerting
 
@@ -309,6 +309,10 @@ cd tooling/tenant-quota
 make run-image
 ```
 
+Run as the non-root owner of the local files, using a local Linux container engine. `fetch-secrets` keeps the directory at 0700 and files at 0600; `run-image` keeps both mounts read-only. Rootless Podman uses `--userns=keep-id:uid=65532,gid=65532` so the host owner maps to the image's non-root user. Rootful Docker without user-namespace remapping uses the caller's UID/GID for this local run only. The production image still declares `USER 65532:65532`.
+
+Engine detection also handles a `docker` command backed by Podman. Rootless/userns-remapped Docker and rootful Podman are refused rather than running the container as root or weakening host permissions; use rootless Podman or `make run` instead. Remote engines and Docker Desktop file-sharing semantics are not supported by this local identity mapping. On SELinux-enforcing hosts, use a container-readable labeled workspace; this target does not relabel private files or disable SELinux. Restart the local process/container after fetching either changed credential.
+
 ## Managing Tenants
 
 ### Add or reconcile a tenant service principal
@@ -323,9 +327,16 @@ The Microsoft test-tenant (`testTestAro`) service principal is the only one stil
 
 ```bash
 cd tooling/tenant-quota
+make render-config
 ./scripts/manage-service-principals.sh --tenant test-tenant
 ./scripts/manage-service-principals.sh --list
 ```
+
+Bootstrap reads the `TestTestARO` entry from the rendered collector config (`--config` overrides the default), and requires the active Azure CLI tenant to match before creating applications or granting Reader. New applications are created without a password; only after Reader grants succeed does bootstrap add a password and save a protected recovery handoff before attempting authentication or publication. The direct `--keyvault-only --app-id` path also targets the configured `TestTestARO` tenant. Uploading an existing handoff remains independent of the active CLI tenant and does not require local rendered configuration.
+
+The credential scripts require Bash, Azure CLI, jq, yq v4, curl, and GNU coreutils (`stat -c` for protected-handoff checks). Use Linux or a development environment with GNU coreutils on PATH; native BSD `stat` is not supported. Bootstrap restricts subscription lookups to the configured tenant and rejects ambiguous display names.
+
+If bootstrap publication fails, retain the printed handoff and retry its upload command rather than rerunning bootstrap. This reuses the same additive password, including after partial publication. Successful immediate publication removes the handoff; `--skip-keyvault` retains it for the vault writer. Existing handoff destinations are rejected before bootstrap mutations. If password creation has an uncertain outcome or saving the handoff fails, inspect the printed operation name before retrying; never revoke unrelated credentials.
 
 After adding or changing a tenant:
 
@@ -334,10 +345,11 @@ After adding or changing a tenant:
 
 ### Renew a client secret
 
-List current tenant credentials:
+Render configuration and list the configured tenant names (no credential lookup):
 
 ```bash
 cd tooling/tenant-quota
+make render-config
 ./scripts/renew-sp-secret.sh --list
 ```
 
@@ -349,10 +361,43 @@ az login --tenant <azure-ad-tenant-id>
 ./scripts/renew-sp-secret.sh --tenant RedHat0
 ```
 
-If needed, the script can also restart the deployment:
+After verifying publication and the target Kubernetes context, the script can perform the required restart:
 
 ```bash
 ./scripts/renew-sp-secret.sh --tenant RedHat0 --restart
 ```
 
-Because the runtime watches mounted secret files, a restart should normally be optional and is mainly a recovery step if the rotated secret does not propagate promptly.
+Without `--restart`, restart manually after successful publication. The script uses the current Kubernetes context; it does not obtain cluster credentials. Renewal reads tenant IDs and secret references from the rendered config (`--config` overrides the local default), resolves the client ID from Key Vault, verifies the current pair, and adds a password with `--append`. It never revokes the previous password automatically.
+
+Renewal saves the new password in a protected recovery handoff **before** token verification or Key Vault publication. If either fails, retry the printed handoff upload command instead of running renewal again: upload does not mint another password. No restart occurs on failure. Successful immediate publication removes the handoff; deferred publication retains it for upload. Retain the printed operation name to identify the additive application password if password creation has an uncertain outcome or saving the handoff fails. Inspect that operation before retrying and never revoke unrelated credentials. A prepared handoff is not proof of authentication or publication.
+
+An expired or otherwise unverifiable existing pair fails renewal closed, before minting. Do not treat a timeout or authentication failure as permission to replace an unverified binding. Recover by publishing to new generation-specific names using the privileged publisher (or test-tenant bootstrap), then switching both references as described below. This preserves the active binding and does not require weakening legacy-adoption checks.
+
+### Safe publication and staged migration
+
+Owner review of the credential scripts' file/publication handling and the local launcher's mounts and user-namespace mapping remains required before merge. Automated checks do not replace this security review.
+
+1. Prepare credentials **before** deploying the new consumer. RedHat0 uses the privileged `E2ESubscriptionRBAC` pipeline and the unchanged `entra-app-credentials ensure-secret` publisher. It already creates `<prefix>-client-id` alongside `<prefix>-client-secret`, but preserves present values without tenant assertions, binding checks or read-back verification. For this publisher, the configured ID reference must equal the password reference with `-client-secret` replaced by `-client-id`. CI-bot reconciliation is unchanged.
+2. Independently verify the application, configured tenant, client ID and password for **every** configured tenant, including `testTestAro`, before activation. Publisher success alone does not establish that an existing pair is valid. The separate tenant-quota bootstrap and renewal scripts retain token-backed pair checks, protected recovery handoffs and publication read-back; these safeguards do not apply to the shared Go publisher. No tenant-ID migration is included.
+3. Run publishers serially for a given pair. Two Key Vault writes are not a transaction. A failed publication must not activate configuration or trigger a restart. The tenant-quota scripts support retrying the same pair from their protected handoff. The shared Go publisher has no such recovery handoff: if its password write fails after password creation, an unused additive password may remain and a rerun may mint another. Inspect uncertain outcomes and clean up unused credentials only after recovery. Token propagation failures may require a retry. Never revoke a working password during this recovery.
+4. For **application recreation**, stage both values under new generation-specific names, for example `collector-g2-client-id` and `collector-g2-client-secret`. Do not overwrite an active client-ID name. Establish existing Graph consent and Reader grants on the new principal, verify the pair, then switch both references together. Recreating only the service principal may retain the AppID but still requires restoring grants.
+5. Only after pair verification, deploy a compatible exporter image with `clientIdKeyVaultSecretName` and `clientSecretKeyVaultSecretName`. **This migration is not ready for deployment with the current image pin:** `config/config-dev-ci.yaml` still pins `sha256:fffb43f9e00b0b5b0505ca4754eedc2a5fbcf431d79517d47303da577c9c5d83`, annotated with revision `ee0fd6137bfb9160e7a6d4ef2483627a01830b5f`, whose configuration requires a raw client ID. Building, verifying and pinning an image containing the reference-only consumer remains a rollout prerequisite; no replacement digest is supplied here. Verify the actual image revision supports this configuration before cutover; a mutable tag alone is not evidence of compatibility. The old raw-client-ID configuration is not supported by the new binary, and the old binary cannot consume the new reference-only configuration. Keep the old image, configuration and pair together for rollback until acceptance completes; rolling back only the image is unsafe. The ConfigMap checksum triggers a rollout when references change; changing either value in place requires an explicit restart.
+6. Keep workload and deployment identities read-only on the required Key Vault secrets. No Graph administration, credential-writing privileges, Kubernetes Secret mirroring, tenant-ID migration or RBAC redesign is required for the exporter.
+
+For test-tenant bootstrap, `manage-service-principals.sh --tenant test-tenant --secret-name <generation>-client-secret` selects a new pair. When the application administrator and vault writer differ, use `--skip-keyvault --defer-secret-out /protected/new-pair.json`, then switch identities and run `--keyvault-only --secret-name <generation>-client-secret --secret-file /protected/new-pair.json`. The handoff is created with mode 0600, must not already exist, and binds the tenant, application, vault and both references. Upload validates the target and authenticates the pair without changing the Azure CLI login. Legacy one-line password files are rejected. Delete the handoff after successful upload; never print or commit it.
+
+Renewal also supports `--defer-secret-out /protected/new-pair.json` instead of immediate publication, followed by the same upload command. Its initial verification requires read access to the existing vault pair and application-management access in the configured tenant; the uploading identity needs vault write access. No script changes identities automatically.
+
+The renewal CLI now requires an explicit `--tenant`; `--list` only lists configured names and does not inspect live credential expirations. The former `--cluster` and `--resource-group` options and automatic AKS credential fetching are removed. Select and verify the intended Kubernetes context yourself before using `--restart`.
+
+Upload accepts only an owned regular handoff file without group or other access (mode 0600 or 0400), not a symlink. It validates a private snapshot containing exactly one JSON object with string credential fields before publication. If transferring between operating-system accounts, use a protected transfer and establish destination ownership and permissions before upload; Azure login changes alone do not require a file ownership change.
+
+### Operator acceptance (separately authorized)
+
+No live deployment or secret access is needed for unit tests. For an authorized rollout:
+
+1. Record publication success, both secret references/versions, image revision and rollout start time **without recording values**. Verify consent/Reader for all target subscriptions before cutover. Ensure CSI has mounted the complete pair; do not print mounted files or token responses.
+2. Restart `deployment/tenant-quota-collector` in namespace `tenant-quota`; wait for rollout completion and a new pod UID. Confirm that the new pod's `SecretProviderClassPodStatus` object versions match the published versions of both secrets, without printing their values. Startup must report loaded credentials for every configured tenant without credential-validation errors. Local execution likewise requires stopping the process, fetching both files, then starting it again; never fetch into a directory while starting a process.
+3. Prove fresh post-restart collection: inspect new-pod logs for `Updated quota metrics` (directory quota where enabled), `Collected subscription quota metrics` and `Collected resource group metrics` for each configured tenant/subscription. Verify subscription resolution, compute/network quota and role assignment results, with no authentication or partial-collection errors. Check at least one configured collection interval (default 15 minutes), and compare resulting metrics with that collection time. A green `/healthz`, a ready pod, or retained gauges alone do not prove authentication or collection succeeded. Restart clears the in-memory subscription cache (normally 24 hours).
+4. Repeat with a same-ID password rotation and with a staged new-identity pair in a safe test environment. Confirm no new credentials are used until restart, then confirm new successful collection. Test an invalid/missing pair on a non-production rollout: startup must fail with a field-specific error and no values. Do not revoke the old pair until successful fresh collection is demonstrated.
+5. On failure, retain or restore the previous image/configuration/pair and restart; repair publication or grants before retrying. Do not infer successful rotation from stale metrics.

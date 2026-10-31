@@ -25,8 +25,8 @@ data:
       {{- with .Values.tenants.redHat0 }}
       - tenantId: "{{ .tenantId }}"
         tenantName: "{{ .tenantName }}"
-        servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
-        keyVaultSecretName: "{{ .keyVaultSecretName }}"
+        clientIdKeyVaultSecretName: "{{ .clientIdKeyVaultSecretName }}"
+        clientSecretKeyVaultSecretName: "{{ .clientSecretKeyVaultSecretName }}"
         scope: "https://graph.microsoft.com/.default"
         directoryQuota: {{ .directoryQuota }}
         subscriptions:
@@ -39,8 +39,8 @@ data:
       {{- with .Values.tenants.testTestAro }}
       - tenantId: "{{ .tenantId }}"
         tenantName: "{{ .tenantName }}"
-        servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
-        keyVaultSecretName: "{{ .keyVaultSecretName }}"
+        clientIdKeyVaultSecretName: "{{ .clientIdKeyVaultSecretName }}"
+        clientSecretKeyVaultSecretName: "{{ .clientSecretKeyVaultSecretName }}"
         scope: "https://graph.microsoft.com/.default"
         directoryQuota: {{ .directoryQuota }}
         subscriptions:

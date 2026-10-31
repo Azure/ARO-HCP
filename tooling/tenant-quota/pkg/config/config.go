@@ -50,6 +50,7 @@ const (
 )
 
 var gcsBucketPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+var keyVaultSecretNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,127}$`)
 
 type Config struct {
 	ExitOnPanic bool           `yaml:"exitOnPanic"`
@@ -269,13 +270,13 @@ type ProwRepositoryConfig struct {
 }
 
 type TenantConfig struct {
-	TenantID                 string               `yaml:"tenantId"`
-	TenantName               string               `yaml:"tenantName,omitempty"`
-	ServicePrincipalClientId string               `yaml:"servicePrincipalClientId"`
-	KeyVaultSecretName       string               `yaml:"keyVaultSecretName"`
-	Scope                    string               `yaml:"scope,omitempty"`
-	DirectoryQuota           *bool                `yaml:"directoryQuota,omitempty"`
-	Subscriptions            []SubscriptionConfig `yaml:"subscriptions,omitempty"`
+	TenantID                       string               `yaml:"tenantId"`
+	TenantName                     string               `yaml:"tenantName,omitempty"`
+	ClientIDKeyVaultSecretName     string               `yaml:"clientIdKeyVaultSecretName"`
+	ClientSecretKeyVaultSecretName string               `yaml:"clientSecretKeyVaultSecretName"`
+	Scope                          string               `yaml:"scope,omitempty"`
+	DirectoryQuota                 *bool                `yaml:"directoryQuota,omitempty"`
+	Subscriptions                  []SubscriptionConfig `yaml:"subscriptions,omitempty"`
 }
 
 type SubscriptionConfig struct {
@@ -349,11 +350,8 @@ func (c *Config) Validate() error {
 		if t.TenantID == "" {
 			return fmt.Errorf("tenant[%d]: tenantId is required", i)
 		}
-		if t.ServicePrincipalClientId == "" {
-			return fmt.Errorf("tenant[%d]: servicePrincipalClientId is required", i)
-		}
-		if t.KeyVaultSecretName == "" {
-			return fmt.Errorf("tenant[%d]: keyVaultSecretName is required", i)
+		if err := t.ValidateCredentialReferences(); err != nil {
+			return fmt.Errorf("tenant[%d]: %w", i, err)
 		}
 		if seen[t.TenantID] {
 			return fmt.Errorf("tenant[%d]: duplicate tenantId %q", i, t.TenantID)
@@ -487,4 +485,22 @@ func (t *TenantConfig) IsDirectoryQuotaEnabled() bool {
 		return true
 	}
 	return *t.DirectoryQuota
+}
+
+func (t TenantConfig) ValidateCredentialReferences() error {
+	for field, name := range map[string]string{
+		"clientIdKeyVaultSecretName":     t.ClientIDKeyVaultSecretName,
+		"clientSecretKeyVaultSecretName": t.ClientSecretKeyVaultSecretName,
+	} {
+		if name == "" {
+			return fmt.Errorf("%s is required", field)
+		}
+		if !keyVaultSecretNamePattern.MatchString(name) {
+			return fmt.Errorf("%s must be a Key Vault secret name (1-127 letters, digits or hyphens)", field)
+		}
+	}
+	if strings.EqualFold(t.ClientIDKeyVaultSecretName, t.ClientSecretKeyVaultSecretName) {
+		return fmt.Errorf("client ID and client secret references must differ")
+	}
+	return nil
 }

@@ -5,7 +5,7 @@
 # This script manages the Azure AD service principal that the tenant-quota
 # collector uses to query subscription quotas (ARM APIs) in the Microsoft test
 # tenant. The RedHat0 principal (Graph consent, Reader on every ci.<env>
-# subscription, Key Vault secret) is declarative and reconciled by the
+# subscription, Key Vault credential pair) is declarative and reconciled by the
 # privileged entrypoint (make dev-ci-privileged-local-run).
 #
 # The test-tenant service principal needs:
@@ -28,7 +28,6 @@
 #   switch to an identity that can write to Key Vault, then upload with --keyvault-only.
 #
 # Usage:
-#   ./scripts/manage-service-principals.sh --tenant redhat
 #   ./scripts/manage-service-principals.sh --tenant test-tenant
 #   ./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault
 #   ./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault --defer-secret-out /safe/path/file
@@ -41,8 +40,10 @@
 #
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/credential-pair.sh"
 
 KEYVAULT_NAME="${OPSTOOL_KEYVAULT_NAME:-opstool-kv-usw3}"
+CONFIG_PATH="$(dirname "${BASH_SOURCE[0]}")/../_output/config.yaml"
 
 # When true, setup_* stops after Reader/Graph; use --keyvault-only after switching identity.
 SKIP_KEYVAULT=false
@@ -53,8 +54,6 @@ KV_ONLY_SECRET_NAME=""
 KV_ONLY_SECRET_FILE=""
 # Optional path used with --skip-keyvault (--defer-secret-out PATH); omit for a secure mktemp file.
 DEFER_SECRET_OUT=""
-# One-time password from az ad sp create-for-rbac (avoid an extra credential reset on first deploy).
-SP_BOOTSTRAP_PASSWORD=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -82,19 +81,6 @@ print_error_details() {
     done <<< "${details}"
 }
 
-is_secret_not_found_error() {
-    local details="$1"
-
-    case "${details}" in
-        *SecretNotFound*|*"was not found in this key vault"*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
 # =============================================================================
 # TENANT DEFINITIONS
 # =============================================================================
@@ -105,67 +91,67 @@ is_secret_not_found_error() {
 # Test Test Azure Red Hat OpenShift (Microsoft test tenant). Subscription quota only.
 setup_test_tenant() {
     local APPLICATION_NAME="custom-metrics-collector-test-test-azure-arohcp-ms-graph-ro"
-    local KEYVAULT_SECRET_NAME="custom-metrics-collector-test-test-azure-arohcp-client-secret"
     local SUBSCRIPTIONS=(
         "ARO HCP E2E"
         "ARO HCP E2E - Staging"
     )
 
+    configure_test_tenant
+    if [[ -n "$DEFER_SECRET_OUT" ]]; then validate_handoff_destination "$DEFER_SECRET_OUT"; fi
     create_or_get_sp "${APPLICATION_NAME}"
     grant_subscription_reader "${APP_ID}" "${SUBSCRIPTIONS[@]}"
-    maybe_store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
+    PAIR_CLIENT_ID="$APP_ID"
+    if [[ "$SKIP_KEYVAULT" == true ]]; then
+        prepare_password
+    else
+        store_secret
+    fi
 }
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
-maybe_store_secret() {
-    local app_id="$1"
-    local secret_name="$2"
-
-    if [[ "${SKIP_KEYVAULT}" != "true" ]]; then
-        store_secret "${app_id}" "${secret_name}"
-        return 0
+configure_test_tenant() {
+    local tenant
+    [[ -f "$CONFIG_PATH" ]] || { pair_error "Run make render-config first or supply --config"; exit 1; }
+    tenant=$(yq -o=json '.tenants' "$CONFIG_PATH" | jq -ce '[.[] | select(.tenantName == "TestTestARO")] | if length == 1 then .[0] else error("TestTestARO must match exactly once") end')
+    PAIR_TENANT_ID=$(printf '%s' "$tenant" | jq -er '.tenantId')
+    PAIR_SECRET_NAME=$(printf '%s' "$tenant" | jq -er '.clientSecretKeyVaultSecretName')
+    PAIR_ID_NAME=$(printf '%s' "$tenant" | jq -er '.clientIdKeyVaultSecretName')
+    if [[ -n "$KV_ONLY_SECRET_NAME" ]]; then
+        PAIR_SECRET_NAME="$KV_ONLY_SECRET_NAME"
+        PAIR_ID_NAME="${PAIR_SECRET_NAME%-client-secret}-client-id"
     fi
+    validate_pair_names || { pair_error "Invalid paired references"; exit 1; }
+    [[ "$PAIR_TENANT_ID" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]] || { pair_error "Invalid configured tenant ID"; exit 1; }
+    [[ "$(az account show --query tenantId -o tsv)" == "$PAIR_TENANT_ID" ]] || { pair_error "Login to the configured TestTestARO tenant before bootstrap"; exit 1; }
+}
 
-    header "Deferring Key Vault; preparing client secret in target tenant"
-    local new_secret=""
+validate_handoff_destination() {
+    [[ ! -e "$1" && ! -L "$1" && -d "$(dirname "$1")" && -w "$(dirname "$1")" ]] || { pair_error "Recovery handoff must be a new file in a writable directory; no password added"; exit 1; }
+}
 
-    if [[ -n "${SP_BOOTSTRAP_PASSWORD}" ]]; then
-        new_secret="${SP_BOOTSTRAP_PASSWORD}"
-        SP_BOOTSTRAP_PASSWORD=""
-        print_info "Using the initial password from az ad sp create-for-rbac (no extra credential reset)."
-    else
-        print_info "Creating a client secret with az ad sp credential reset (requires app admin in this tenant)..."
-        if ! new_secret=$(create_sp_client_password "${app_id}"); then
-            print_error "Failed to create client secret"
-            exit 1
-        fi
+prepare_password() {
+    RECOVERY_DIRECTORY=""
+    RECOVERY_FILE="$DEFER_SECRET_OUT"
+    if [[ -z "$RECOVERY_FILE" ]]; then
+        RECOVERY_DIRECTORY=$(mktemp -d -t tenant-quota-bootstrap.XXXXXX)
+        RECOVERY_FILE="$RECOVERY_DIRECTORY/pair.json"
     fi
-
-    if [[ -z "${new_secret}" ]]; then
-        print_error "Client secret value is empty"
+    validate_handoff_destination "$RECOVERY_FILE"
+    local operation_name
+    operation_name="tenant-quota-$(basename "$PAIR_TEMP_DIR")"
+    echo "Adding an application password with operation name $operation_name; retain this name for recovery."
+    if ! PAIR_PASSWORD=$(az ad app credential reset --append --id "$PAIR_CLIENT_ID" --display-name "$operation_name" --years 1 --query password -o tsv 2>/dev/null); then
+        pair_error "Password creation failed for operation $operation_name; inspect application credentials before retrying"
         exit 1
     fi
-
-    local outpath="${DEFER_SECRET_OUT}"
-    if [[ -z "${outpath}" ]]; then
-        outpath=$(mktemp -t tenant-quota-kv-defer.XXXXXX)
+    if ! save_pair "$RECOVERY_FILE"; then
+        pair_error "Cannot save recovery handoff for operation $operation_name; inspect this additive password before retrying; do not revoke unrelated credentials"
+        exit 1
     fi
-
-    printf '%s\n' "${new_secret}" > "${outpath}"
-    chmod 600 "${outpath}"
-
-    print_success "Wrote client secret (one line) to: ${outpath}"
-    print_warning "Protect this file; delete it after Key Vault upload (e.g. shred -u or rm)."
-    print_info "Application (client) ID: ${app_id}"
-    print_info "Key Vault secret name: ${secret_name}"
-    echo ""
-    print_info "Switch to the identity that can write to Key Vault '${KEYVAULT_NAME}', then run:"
-    echo "  az account set --subscription \"<subscription-with-keyvault-access>\""
-    echo "  $0 --keyvault-only --secret-name ${secret_name} --secret-file ${outpath}"
-    echo ""
+    echo "Recovery handoff: $RECOVERY_FILE"
 }
 
 create_or_get_sp() {
@@ -173,10 +159,8 @@ create_or_get_sp() {
     local error_file
     local lookup_error
 
-    SP_BOOTSTRAP_PASSWORD=""
-
     error_file=$(mktemp)
-    if APP_ID=$(az ad app list --display-name "${app_name}" --query '[0].appId' -o tsv 2>"${error_file}"); then
+    if APP_ID=$(az ad app list --display-name "${app_name}" --query "[?displayName=='${app_name}'].appId" -o tsv 2>"${error_file}"); then
         :
     else
         lookup_error=$(<"${error_file}")
@@ -187,22 +171,22 @@ create_or_get_sp() {
     fi
     rm -f "${error_file}"
 
+    if [[ "$APP_ID" == *$'\n'* || "$APP_ID" == *$'\t'* ]]; then
+        pair_error "Ambiguous application display name"
+        exit 1
+    fi
     if [[ -n "${APP_ID}" ]]; then
-        print_info "Application '${app_name}' already exists: ${APP_ID}"
+        print_info "Application already exists"
     else
         header "Creating application: ${app_name}"
         local sp_output
         sp_output=$(az ad sp create-for-rbac \
-            --years 10 \
+            --create-password false \
             --display-name "${app_name}" \
             -o json)
 
         APP_ID=$(echo "${sp_output}" | jq -r '.appId')
-        SP_BOOTSTRAP_PASSWORD=$(echo "${sp_output}" | jq -r '.password // empty')
-        if [[ "${SP_BOOTSTRAP_PASSWORD}" == "null" ]]; then
-            SP_BOOTSTRAP_PASSWORD=""
-        fi
-        print_success "Created service principal: ${APP_ID}"
+        print_success "Created service principal"
     fi
 }
 
@@ -219,7 +203,7 @@ grant_subscription_reader() {
         local lookup_error
 
         error_file=$(mktemp)
-        if sub_id=$(az account list --query "[?name=='${sub_name}'].id" -o tsv 2>"${error_file}"); then
+        if sub_id=$(az account list --query "[?name=='${sub_name}' && tenantId=='${PAIR_TENANT_ID}'].id" -o tsv 2>"${error_file}"); then
             :
         else
             lookup_error=$(<"${error_file}")
@@ -230,6 +214,10 @@ grant_subscription_reader() {
         fi
         rm -f "${error_file}"
 
+        if [[ "$sub_id" == *$'\n'* || "$sub_id" == *$'\t'* ]]; then
+            pair_error "Ambiguous subscription display name in configured tenant"
+            exit 1
+        fi
         if [[ -z "${sub_id}" ]]; then
             print_error "Could not find subscription '${sub_name}'"
             print_info "Make sure you have access to this subscription. You may need to:"
@@ -254,108 +242,30 @@ grant_subscription_reader() {
     done
 }
 
-create_sp_client_password() {
-    local app_id="$1"
-
-    az ad sp credential reset \
-        --id "${app_id}" \
-        --display-name "tenant-quota-collector-initial" \
-        --years 1 \
-        --query password \
-        -o tsv
-}
-
 store_secret() {
-    local app_id="$1"
-    local secret_name="$2"
-    local existing_secret
-    local error_file
-    local secret_error
-
-    header "Checking Key Vault secret"
-
-    error_file=$(mktemp)
-    if existing_secret=$(az keyvault secret show \
-        --vault-name "${KEYVAULT_NAME}" \
-        --name "${secret_name}" \
-        --query "value" -o tsv 2>"${error_file}"); then
-        rm -f "${error_file}"
-        if [[ -z "${existing_secret}" ]]; then
-            print_error "Key Vault secret '${secret_name}' exists but returned an empty value"
-            exit 1
-        fi
+    read_vault_value "$PAIR_ID_NAME"
+    if [[ "$PAIR_FOUND" == true && "$PAIR_VALUE" != "$PAIR_CLIENT_ID" ]]; then
+        pair_error "Identity changed: use new generation-specific secret names"
+        exit 1
+    fi
+    read_vault_value "$PAIR_SECRET_NAME"
+    if [[ "$PAIR_FOUND" == true ]]; then
+        PAIR_PASSWORD="$PAIR_VALUE"
+        publish_pair
     else
-        secret_error=$(<"${error_file}")
-        rm -f "${error_file}"
-        if ! is_secret_not_found_error "${secret_error}"; then
-            print_error "Failed to query Key Vault secret '${secret_name}'"
-            print_error_details "${secret_error}"
+        prepare_password
+        if ! publish_pair; then
+            pair_error "Publication incomplete; do not bootstrap again or restart" || true
+            printf 'Retry the saved handoff: %q --keyvault-only --keyvault %q --secret-name %q --secret-file %q\n' "$(dirname "${BASH_SOURCE[0]}")/manage-service-principals.sh" "$KEYVAULT_NAME" "$PAIR_SECRET_NAME" "$RECOVERY_FILE" >&2
             exit 1
         fi
-        existing_secret=""
+        rm -f -- "$RECOVERY_FILE"
+        if [[ -n "$RECOVERY_DIRECTORY" ]]; then rmdir -- "$RECOVERY_DIRECTORY"; fi
     fi
-
-    if [[ -n "${existing_secret}" ]]; then
-        print_info "Key Vault secret '${secret_name}' already exists"
-        print_info "To rotate, use: ./scripts/renew-sp-secret.sh --tenant <name>"
-        return 0
-    fi
-
-    print_info "Key Vault secret '${secret_name}' was not found"
-    print_info "Creating new client secret and storing in Key Vault..."
-    local new_secret
-    if [[ -n "${SP_BOOTSTRAP_PASSWORD}" ]]; then
-        new_secret="${SP_BOOTSTRAP_PASSWORD}"
-        SP_BOOTSTRAP_PASSWORD=""
-        print_info "Using the initial password from az ad sp create-for-rbac (no credential reset)."
-    elif ! new_secret=$(create_sp_client_password "${app_id}"); then
-        print_error "Failed to create client secret"
-        exit 1
-    fi
-
-    if [[ -z "${new_secret}" ]]; then
-        print_error "Failed to create client secret"
-        exit 1
-    fi
-
-    az keyvault secret set \
-        --vault-name "${KEYVAULT_NAME}" \
-        --name "${secret_name}" \
-        --value "${new_secret}" \
-        --description "Created $(date +%Y-%m-%d) by manage-service-principals.sh" \
-        > /dev/null
-
-    print_success "Secret stored in Key Vault as '${secret_name}'"
 }
 
 keyvault_upload_secret_from_file() {
-    local secret_name="$1"
-    local file_path="$2"
-    local new_secret
-
-    header "Uploading secret to Key Vault (no Entra credential reset)"
-
-    if [[ ! -f "${file_path}" || ! -r "${file_path}" ]]; then
-        print_error "Secret file not found or not readable: ${file_path}"
-        exit 1
-    fi
-    IFS= read -r new_secret < "${file_path}" || true
-    new_secret="${new_secret//$'\r'/}"
-    if [[ -z "${new_secret}" ]]; then
-        print_error "Secret file is empty (first line): ${file_path}"
-        exit 1
-    fi
-
-    print_info "Key Vault: ${KEYVAULT_NAME}"
-    az keyvault secret set \
-        --vault-name "${KEYVAULT_NAME}" \
-        --name "${secret_name}" \
-        --value "${new_secret}" \
-        --description "Uploaded $(date +%Y-%m-%d) by manage-service-principals.sh (--secret-file)" \
-        > /dev/null
-
-    print_success "Secret stored in Key Vault as '${secret_name}'"
-    print_warning "Remove the local secret file when finished (e.g. shred -u or rm -f)."
+    upload_pair "$2" "$1"
 }
 
 list_tenants() {
@@ -372,7 +282,7 @@ list_tenants() {
     echo "  Different users for target tenant vs Key Vault (common for test tenants):"
     echo "    1) az login → identity that owns the SERVICE PRINCIPAL TIER (Azure AD / subscriptions)"
     echo "    2) $0 --tenant <name> --skip-keyvault [--defer-secret-out PATH]"
-    echo "       (writes a chmod 600 one-line secret file unless you pick PATH)"
+    echo "       (writes a chmod 600 paired JSON handoff file unless you pick PATH)"
     echo "    3) az login → identity that can WRITE to '${KEYVAULT_NAME}'"
     echo "       az account set --subscription \"<subscription-with-keyvault-access>\""
     echo "    4) $0 --keyvault-only --secret-name '<name>' --secret-file '<printed-path>'"
@@ -391,12 +301,13 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --tenant NAME       Setup SP for the named tenant (test-tenant)"
-    echo "  --skip-keyvault     Stop after subscriptions/permissions; write client secret to a local file"
-    echo "  --defer-secret-out  With --skip-keyvault: path for the one-line secret file (default: mktemp)"
+    echo "  --config PATH       Rendered collector config (default: ../_output/config.yaml)"
+    echo "  --skip-keyvault     Stop after subscriptions/permissions; prepare a protected credential handoff for verification during upload"
+    echo "  --defer-secret-out  With --skip-keyvault: path for the paired JSON handoff file (default: mktemp)"
     echo "  --keyvault-only     Only Key Vault: upload --secret-file, or reset+KV with --app-id"
     echo "  --app-id ID         Application (client) id for --keyvault-only (same-tenant reset path)"
     echo "  --secret-name NAME  Key Vault secret name"
-    echo "  --secret-file PATH  With --keyvault-only: upload first line (no az ad sp credential reset)"
+    echo "  --secret-file PATH  With --keyvault-only: upload paired JSON handoff (no credential reset)"
     echo "  --list              List available tenant configurations"
     echo "  --keyvault NAME     Override Key Vault name (default: ${KEYVAULT_NAME})"
     echo "  --help              Show this help message"
@@ -416,6 +327,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --keyvault)
             KEYVAULT_NAME="$2"
+            shift 2
+            ;;
+        --config)
+            CONFIG_PATH="$2"
             shift 2
             ;;
         --list)
@@ -497,7 +412,9 @@ if [[ "${KEYVAULT_ONLY}" == "true" ]]; then
 
         header "Key Vault phase only (Entra reset + upload)"
         print_info "Key Vault: ${KEYVAULT_NAME}"
-        store_secret "${KV_ONLY_APP_ID}" "${KV_ONLY_SECRET_NAME}"
+        configure_test_tenant
+        PAIR_CLIENT_ID="$KV_ONLY_APP_ID"
+        store_secret
     fi
 
     header "Done"

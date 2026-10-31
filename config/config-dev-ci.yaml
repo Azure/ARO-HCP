@@ -226,8 +226,8 @@ clouds:
               # and E2ESubscriptionRBACGrants service groups: Graph consent,
               # Reader on every ci.<env> subscription, and the Key Vault secret.
               applicationName: "custom-metrics-collector-redhat0-ms-graph-ro"
-              servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f"
-              keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
+              clientIdKeyVaultSecretName: "custom-metrics-collector-redhat0-client-id"
+              clientSecretKeyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
               directoryQuota: true
             # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory
             # quota off, subscription ARM only. Not part of ci.<env>, so its single
@@ -235,8 +235,8 @@ clouds:
             testTestAro:
               tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
               tenantName: "TestTestARO"
-              servicePrincipalClientId: "e46ecbd4-9ef3-439e-a28a-74a4d8270349"
-              keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
+              clientIdKeyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-id"
+              clientSecretKeyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
               directoryQuota: false
               subscriptionName: "ARO HCP E2E"
               regions: "eastus2euap,uksouth,switzerlandnorth,canadacentral,australiaeast,westeurope,centralindia,brazilsouth,eastus2"

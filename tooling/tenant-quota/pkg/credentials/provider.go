@@ -15,184 +15,103 @@
 package credentials
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
 
 const (
-	secretsStorePath           = "/mnt/secrets-store"
-	secretsStoreEnvVar         = "SECRETS_STORE_PATH"
-	defaultSecretWatchInterval = time.Minute
+	secretsStorePath   = "/mnt/secrets-store"
+	secretsStoreEnvVar = "SECRETS_STORE_PATH"
 )
 
-// Provider caches ClientSecretCredential instances per tenant.
+var clientIDPattern = regexp.MustCompile(`^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$`)
+
+type credentialKey struct {
+	tenantID         string
+	clientIDName     string
+	clientSecretName string
+}
+
 type Provider struct {
-	logger        *slog.Logger
-	credCache     map[string]*azidentity.ClientSecretCredential
-	credMu        sync.RWMutex
-	watchInterval time.Duration
-	watchStarted  bool
+	logger    *slog.Logger
+	root      string
+	credCache map[credentialKey]*azidentity.ClientSecretCredential
+	credMu    sync.Mutex
 }
 
 func NewProvider(logger *slog.Logger) *Provider {
-	return &Provider{
-		logger:        logger,
-		credCache:     make(map[string]*azidentity.ClientSecretCredential),
-		watchInterval: defaultSecretWatchInterval,
+	root := os.Getenv(secretsStoreEnvVar)
+	if root == "" {
+		root = secretsStorePath
 	}
+	return &Provider{logger: logger, root: root, credCache: make(map[credentialKey]*azidentity.ClientSecretCredential)}
 }
 
-// ValidateCredentials attempts to create credentials for all configured
-// tenants. Returns an error if any secret is missing or any credential
-// cannot be constructed; intended to be called at startup to fail fast.
 func (p *Provider) ValidateCredentials(tenants []config.TenantConfig) error {
-	for _, t := range tenants {
-		if _, err := p.GetCredential(t); err != nil {
-			return fmt.Errorf("tenant %s: %w", t.GetDisplayName(), err)
+	for _, tenant := range tenants {
+		if _, err := p.GetCredential(tenant); err != nil {
+			return fmt.Errorf("tenant %s: %w", tenant.GetDisplayName(), err)
 		}
-		p.logger.Info("Validated credentials", "tenant", t.GetDisplayName())
+		p.logger.Info("Loaded startup credentials; rotation requires restart", "tenant", tenant.GetDisplayName())
 	}
 	return nil
 }
 
 func (p *Provider) GetCredential(tenant config.TenantConfig) (*azidentity.ClientSecretCredential, error) {
-	key := credentialCacheKey(tenant)
-
-	p.credMu.RLock()
-	if cred, ok := p.credCache[key]; ok {
-		p.credMu.RUnlock()
-		return cred, nil
-	}
-	p.credMu.RUnlock()
-
 	p.credMu.Lock()
 	defer p.credMu.Unlock()
-
-	if cred, ok := p.credCache[key]; ok {
-		return cred, nil
+	key := credentialKey{tenant.TenantID, tenant.ClientIDKeyVaultSecretName, tenant.ClientSecretKeyVaultSecretName}
+	if credential, found := p.credCache[key]; found {
+		return credential, nil
 	}
-
-	secret, err := readSecret(tenant.KeyVaultSecretName)
-	if err != nil {
-		return nil, fmt.Errorf("read secret: %w", err)
+	if err := tenant.ValidateCredentialReferences(); err != nil {
+		return nil, err
 	}
-
-	cred, err := azidentity.NewClientSecretCredential(
-		tenant.TenantID,
-		tenant.ServicePrincipalClientId,
-		secret,
-		nil,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create credential: %w", err)
-	}
-
-	p.credCache[key] = cred
-	p.logger.Debug("Created credential for tenant", "tenant", tenant.GetDisplayName())
-	return cred, nil
-}
-
-// StartWatching monitors the mounted secret files and invalidates cached
-// credentials when the files change so the next GetCredential call reloads the
-// rotated secret from disk.
-func (p *Provider) StartWatching(ctx context.Context, tenants []config.TenantConfig) error {
-	if p.watchStarted {
-		return nil
-	}
-
-	type watchTarget struct {
-		secretName string
-		cacheKeys  []string
-	}
-
-	targets := make(map[string]*watchTarget)
-	for _, tenant := range tenants {
-		path := secretPath(tenant.KeyVaultSecretName)
-		target, ok := targets[path]
-		if !ok {
-			target = &watchTarget{secretName: tenant.KeyVaultSecretName}
-			targets[path] = target
-		}
-		target.cacheKeys = append(target.cacheKeys, credentialCacheKey(tenant))
-	}
-
-	watchCtx := utils.ContextWithLogger(ctx, utils.DefaultLogger())
-	for path, target := range targets {
-		secretName := target.secretName
-		cacheKeys := append([]string(nil), target.cacheKeys...)
-
-		watcher, err := utils.NewFSWatcher(path, p.watchInterval, func(_ context.Context) error {
-			p.invalidateCredentials(secretName, cacheKeys)
-			return nil
-		})
+	root := p.root
+	if _, err := os.Lstat(filepath.Join(root, "..data")); err == nil {
+		root, err = filepath.EvalSymlinks(filepath.Join(root, "..data"))
 		if err != nil {
-			return fmt.Errorf("create secret watcher for %s: %w", secretName, err)
+			return nil, fmt.Errorf("resolve credential mount generation")
 		}
-		if err := watcher.Start(watchCtx); err != nil {
-			return fmt.Errorf("start secret watcher for %s: %w", secretName, err)
-		}
-
-		p.logger.Info("Started secret watcher",
-			"secret", secretName,
-			"path", path,
-			"watchInterval", p.watchInterval,
-			"credentialCount", len(cacheKeys))
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("inspect credential mount generation")
 	}
-
-	p.watchStarted = true
-	return nil
-}
-
-func (p *Provider) invalidateCredentials(secretName string, cacheKeys []string) {
-	p.credMu.Lock()
-	invalidated := 0
-	for _, cacheKey := range cacheKeys {
-		if _, ok := p.credCache[cacheKey]; ok {
-			delete(p.credCache, cacheKey)
-			invalidated++
-		}
-	}
-	p.credMu.Unlock()
-
-	if invalidated == 0 {
-		p.logger.Debug("Detected secret rotation but no cached credentials needed invalidation",
-			"secret", secretName)
-		return
-	}
-
-	p.logger.Info("Invalidated cached credentials after secret rotation",
-		"secret", secretName,
-		"credentialCount", invalidated)
-}
-
-func readSecret(secretName string) (string, error) {
-	path := secretPath(secretName)
-	data, err := os.ReadFile(path)
+	clientID, err := readSecret(root, tenant.ClientIDKeyVaultSecretName)
 	if err != nil {
-		return "", fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("client ID: %w", err)
 	}
-
-	return strings.TrimSpace(string(data)), nil
+	if !clientIDPattern.MatchString(clientID) {
+		return nil, fmt.Errorf("client ID file must contain a UUID")
+	}
+	clientSecret, err := readSecret(root, tenant.ClientSecretKeyVaultSecretName)
+	if err != nil {
+		return nil, fmt.Errorf("client secret: %w", err)
+	}
+	credential, err := azidentity.NewClientSecretCredential(tenant.TenantID, clientID, clientSecret, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create credential: invalid tenant or credential configuration")
+	}
+	p.credCache[key] = credential
+	return credential, nil
 }
 
-func secretPath(secretName string) string {
-	basePath := os.Getenv(secretsStoreEnvVar)
-	if basePath == "" {
-		basePath = secretsStorePath
+func readSecret(root, name string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		return "", fmt.Errorf("cannot read credential file")
 	}
-	return basePath + "/" + secretName
-}
-
-func credentialCacheKey(tenant config.TenantConfig) string {
-	return tenant.TenantID + ":" + tenant.ServicePrincipalClientId
+	value := strings.TrimSpace(string(data))
+	if value == "" {
+		return "", fmt.Errorf("credential file is empty")
+	}
+	return value, nil
 }
