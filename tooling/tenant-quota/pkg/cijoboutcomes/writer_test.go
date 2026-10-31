@@ -63,11 +63,19 @@ func newTestWriter(t *testing.T) *Writer {
 	}
 	w.jobDetail = func(context.Context, *http.Client, string) (runDetail, error) { return runDetail{}, nil }
 	w.e2eRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		return []ciTestResult{{BuildID: string(testBuildID), TestID: "e2e"}}, []ciTestName{{TestID: "e2e", Name: "full name"}}, nil
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "e2e", Source: sourceE2E}}, []ciTestName{{TestID: "e2e", Name: "full name"}}, nil
 	}
 	w.observabilityRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
-		return []ciTestResult{{BuildID: string(testBuildID), TestID: "observability"}},
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "observability", Source: sourceObservability}},
 			[]ciTestName{{TestID: "observability", Name: "[aro-hcp-observability] full name"}}, nil
+	}
+	w.rpProvisionRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "rp-provision", Source: sourceRPProvision}},
+			[]ciTestName{{TestID: "rp-provision", Name: "Run pipeline step svc/rg/provision"}}, nil
+	}
+	w.rpUpgradeRows = func(context.Context, *http.Client, string) ([]ciTestResult, []ciTestName, error) {
+		return []ciTestResult{{BuildID: string(testBuildID), TestID: "rp-upgrade", Source: sourceRPUpgrade}},
+			[]ciTestName{{TestID: "rp-upgrade", Name: "Run pipeline step svc/rg/upgrade"}}, nil
 	}
 	t.Cleanup(w.queue.ShutDown)
 	t.Cleanup(w.discoveryQueue.ShutDown)
@@ -92,8 +100,8 @@ func TestReconcileRequiresLiveCompletionNotAcceptedCache(t *testing.T) {
 		require.Equal(t, 15*time.Minute, delay)
 		require.Zero(t, acknowledgments, "accepted cache cannot acknowledge invisible ingestion")
 	}
-	require.Equal(t, 10, checked, "all five tags must be checked on every reconcile")
-	require.Equal(t, 5, submitted, "accepted cache suppresses only resubmission")
+	require.Equal(t, 2*len(batchKinds), checked, "all batch tags must be checked on every reconcile")
+	require.Equal(t, len(batchKinds), submitted, "accepted cache suppresses only resubmission")
 	for _, kind := range batchKinds {
 		visible[kind] = true
 	}
@@ -109,7 +117,7 @@ func TestReconcileRequiresLiveCompletionNotAcceptedCache(t *testing.T) {
 	delay, err = w.reconcile(ctx, testJobURI)
 	require.NoError(t, err)
 	require.Zero(t, delay)
-	require.Equal(t, 15, checked)
+	require.Equal(t, 3*len(batchKinds), checked)
 }
 
 func TestAcceptedCacheExpiryAllowsRepair(t *testing.T) {
@@ -128,11 +136,11 @@ func TestAcceptedCacheExpiryAllowsRepair(t *testing.T) {
 		_, err := w.reconcile(testContext(t, w), testJobURI)
 		require.NoError(t, err)
 	}
-	require.Equal(t, 5, submissions)
+	require.Equal(t, len(batchKinds), submissions)
 	now = now.Add(15 * time.Minute)
 	_, err := w.reconcile(testContext(t, w), testJobURI)
 	require.NoError(t, err)
-	require.Equal(t, 10, submissions)
+	require.Equal(t, 2*len(batchKinds), submissions)
 	require.Equal(t, "run-123", runTag("123"))
 	require.Equal(t, "tests-123", testsTag("123"))
 	require.NotEqual(t, discoveryTag(testJobURI), discoveryTag(testJobURI+"1"))
@@ -190,7 +198,7 @@ func TestRootCompletionGateAndNativeOutcome(t *testing.T) {
 	})
 	_, err = w.reconcile(testContext(t, w), testJobURI)
 	require.NoError(t, err)
-	require.Equal(t, 5, submitted)
+	require.Equal(t, len(batchKinds), submitted)
 }
 
 func TestRestartRepairsFailedIngestion(t *testing.T) {
@@ -244,6 +252,9 @@ func TestIndependentSourceFailuresAndOptionalEmpty(t *testing.T) {
 			require.ErrorIs(t, err, failure)
 			require.Contains(t, submitted, observabilityTestsBatch)
 			require.Contains(t, submitted, observabilityNamesBatch)
+			for _, kind := range []batchKind{rpProvisionTestsBatch, rpProvisionNamesBatch, rpUpgradeTestsBatch, rpUpgradeNamesBatch} {
+				require.Contains(t, submitted, kind)
+			}
 			if source == "e2e" {
 				require.Contains(t, submitted, namesBatch)
 			}
@@ -259,6 +270,8 @@ func TestIndependentSourceFailuresAndOptionalEmpty(t *testing.T) {
 			return nil, nil, nil
 		}
 		w.observabilityRows = w.e2eRows
+		w.rpProvisionRows = w.e2eRows
+		w.rpUpgradeRows = w.e2eRows
 		acks := 0
 		w.submitProcessed = func(context.Context, BuildID) error { acks++; return nil }
 		_, err := w.reconcile(testContext(t, w), testJobURI)
@@ -400,8 +413,8 @@ func TestKustoProductionReadHooks(t *testing.T) {
 }
 
 func TestIngestionRequiresSlotMetadataMapping(t *testing.T) {
-	columns := []string{"adoBuildId", "runtimeRegion", "leasedSlot", "leasedAssets", "message"}
-	for _, missing := range columns[1 : len(columns)-1] {
+	columns := []string{"adoBuildId", "runtimeRegion", "leasedSlot", "leasedAssets", "source", "evidence", "message"}
+	for _, missing := range []string{"runtimeRegion", "leasedSlot", "leasedAssets", "source"} {
 		t.Run(missing, func(t *testing.T) {
 			w := newTestWriter(t)
 			w.config.CIJobOutcomes.ClusterURI = "http://localhost"
@@ -460,8 +473,8 @@ func TestPendingQueryRejectsPartialAndMissingPrimaryResults(t *testing.T) {
 
 func TestMappingQueriesAndGuards(t *testing.T) {
 	w := newTestWriter(t)
-	for _, target := range []config.KustoTableConfig{w.target(discoveredBatch), w.target(processedBatch), w.target(testsBatch)} {
-		for _, field := range []string{"buildId", "message"} {
+	for _, target := range []config.KustoTableConfig{w.target(discoveredBatch), w.target(processedBatch), w.target(testsBatch), w.target(rpProvisionTestsBatch)} {
+		for _, field := range []string{"buildId", "message", "source"} {
 			mapping, err := json.Marshal(fmt.Sprintf(`[{"Column":%q,"DataType":"string","Path":"$['%s']"}]`, field, field))
 			require.NoError(t, err)
 			client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder("http://localhost"), azkustodata.WithHttpClient(&http.Client{

@@ -39,16 +39,20 @@ canonical `jobUri`, `buildId`, and `jobName` rows to `ciDiscoveredJobs`.
 
 Processing selects discovered URIs whose build IDs are absent from `ciProcessedJobs`,
 without an age cutoff. It waits for Prow completion and `completionDelay`, then
-reconciles the independent `run`, `tests`, `names`, `observability-tests`, and
-`observability-names` batches. Only visible semantic tags (or handled empty/absent
-sources) permit the processed acknowledgment. Accepted submissions are not proof
-of visibility. The bounded TTL cache suppresses recent submissions, not pending
-work. Errors retry; incomplete or settling jobs are rescheduled normally.
+reconciles the independent `run`, `tests`, `names`, `observability-tests`,
+`observability-names`, `rp-provision-tests`, `rp-provision-names`,
+`rp-upgrade-tests`, and `rp-upgrade-names` batches. Only visible semantic tags (or
+handled empty/absent sources) permit the processed acknowledgment. Accepted
+submissions are not proof of visibility. The bounded TTL cache suppresses recent
+submissions, not pending work. Errors retry; incomplete or settling jobs are
+rescheduled normally.
 
-Deploy the `ciDiscoveredJobs` and `ciProcessedJobs` tables and mappings, plus updated
-outcomes/results mappings, before ingestion or controller rollout. The outcomes,
-test names, and test results tables retain their existing semantic batch identities.
-Observability failures are independent of E2E results. See the
+Deploy the `ciDiscoveredJobs` and `ciProcessedJobs` tables and mappings, plus
+updated outcomes/results mappings, before ingestion or controller
+rollout. The outcomes, test names, and test results tables retain their existing
+semantic batch identities. Observability failures and RP pipeline steps are
+independent of E2E results. `source` distinguishes mixed-table producers:
+`e2e`, `observability`, `rp-provision`, and `rp-upgrade`. See the
 [schema sources](../../dev-infrastructure/modules/logs/kusto/tables/) and
 [`ci-outcomes.example.yaml`](ci-outcomes.example.yaml) for current settings.
 
@@ -112,6 +116,48 @@ ciJobOutcomes
 
 Use the unexpanded outcome rows for run counts: `mv-expand` produces one row per
 asset and omits runs with an empty array.
+
+### Provision Failure Artifacts
+
+The templatize pipeline JUnit reports of the RP provision and in-place upgrade
+steps land in the existing `ciTestResults` / `ciTestNames` tables under two
+`source` values, written like `observability`:
+
+| `source` | Artifact beneath the job artifact directory (first non-empty wins) |
+| --- | --- |
+| `rp-provision` | `aro-hcp-provision-environment/artifacts/junit_entrypoint.xml` (`e2e-parallel`), else `aro-hcp-provision-from-main/artifacts/junit_entrypoint_baseline.xml` (`e2e-parallel-inplace-upgrade`) |
+| `rp-upgrade` | `aro-hcp-test-local-upgrade/artifacts/junit_entrypoint.xml` (only the in-place-upgrade job) |
+
+Each `Run pipeline step <serviceGroup>/<resourceGroup>/<step>` testcase becomes
+one row; the step name is the test name. Unlike `observability`, **passed steps
+are kept** so step durations are queryable. Failed steps carry the step log in
+`message`; preempted (skipped) steps are dropped. `startedAt`/`finishedAt` are
+the step's execution start and start plus duration, and are zero when the report
+predates the testcase `timestamp` attribute (Azure/ARO-HCP#7874). A missing
+artifact is counted under the `rp-provision` / `rp-upgrade` artifact source,
+produces no rows, and does not block other batches; malformed XML is counted as
+`malformed` and likewise skipped.
+
+An upgrade-job build has the same step names under both sources, so always
+group or filter by `source`. `rp-provision` means PR code in `e2e-parallel` but
+main code in `e2e-parallel-inplace-upgrade`; join `ciJobOutcomes` on `buildId`
+and use `jobName`/`family` to tell them apart:
+
+```kusto
+ciTestResults
+| where source == "rp-provision" and startedAt > ago(7d)
+| join kind=inner (ciTestNames | distinct testId, name) on testId
+| join kind=inner ciJobOutcomes on buildId
+| summarize p50 = percentile(finishedAt - startedAt, 50) by name, jobName
+```
+
+The `aro-hcp-gather-provision-failure` build log is intentionally not ingested.
+`--inspect-artifacts` can preview the rows without writing.
+
+Deploy the `ciTestResults` schema documentation and mapping (with the additive
+`source` column) before this collector; ingestion startup checks the mapping.
+**There is no backfill**: processed builds are skipped, and an existing batch tag
+prevents rewriting. Historical `ciTestResults` rows have an empty `source`.
 
 ## One-Shot CLI
 

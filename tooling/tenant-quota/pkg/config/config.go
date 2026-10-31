@@ -82,7 +82,7 @@ type CIJobOutcomesConfig struct {
 	IngestionURI string `yaml:"ingestionURI"`
 	Database     string `yaml:"database"`
 
-	// Outcomes holds one row per run; TestNames is the test dimension; and
+	// Outcomes holds one row per run; TestNames is the test dimension;
 	// TestResults joins the two with the per-test outcome and timings.
 	Outcomes    KustoTableConfig `yaml:"outcomes"`
 	TestNames   KustoTableConfig `yaml:"testNames"`

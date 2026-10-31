@@ -137,13 +137,13 @@ func enrichmentError(ctx context.Context, err error) error {
 // Source readers return nil slices for unavailable primary data and nonnil empty
 // slices for valid empty reports. Enrichment errors retain names, but not rows.
 func fetchE2ERows(ctx context.Context, client *http.Client, prowURL string) ([]ciTestResult, []ciTestName, error) {
-	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", "e2e"))
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("source", sourceE2E))
 	info, err := snapshot.ParseProwURL(prowURL)
 	if err != nil {
 		return nil, nil, err
 	}
 	results, err := snapshot.FetchProwJobTestResultsStrict(ctx, client, info)
-	rows, names := testRowsFor(info.ProwID, results)
+	rows, names := testRowsFor(info.ProwID, sourceE2E, results)
 	if err != nil {
 		return nil, names, err
 	}
@@ -222,7 +222,7 @@ func fetchJSONArtifact(ctx context.Context, client *http.Client, url string, int
 // depending on what the run exercises, and a skipped test has no timings and no
 // outcome to attribute, so recording them would roughly double the table to say
 // nothing. Sippy's synthetic tests describe Sippy, not the run, and are dropped.
-func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult, []ciTestName) {
+func testRowsFor(buildID, source string, results []snapshot.TestResult) ([]ciTestResult, []ciTestName) {
 	if results == nil {
 		return nil, nil
 	}
@@ -247,6 +247,7 @@ func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult,
 		rows = append(rows, ciTestResult{
 			BuildID:          buildID,
 			TestID:           testID,
+			Source:           source,
 			Result:           resultOf(result),
 			Failed:           result.Failed,
 			Message:          result.Error,
@@ -254,8 +255,8 @@ func testRowsFor(buildID string, results []snapshot.TestResult) ([]ciTestResult,
 			StartedAt:        result.StartTime.UTC(),
 			FinishedAt:       result.EndTime.UTC(),
 			SetupFinishTime:  result.SetupFinishTime.UTC(),
-			TestStartTime:    result.TestStartTime.UTC(),
 			CleanupStartTime: result.CleanupStartTime.UTC(),
+			TestStartTime:    result.TestStartTime.UTC(),
 		})
 	}
 	return rows, names

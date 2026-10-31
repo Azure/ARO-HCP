@@ -42,11 +42,15 @@ const (
 	namesBatch              batchKind = "names"
 	observabilityTestsBatch batchKind = "observability-tests"
 	observabilityNamesBatch batchKind = "observability-names"
+	rpProvisionTestsBatch   batchKind = "rp-provision-tests"
+	rpProvisionNamesBatch   batchKind = "rp-provision-names"
+	rpUpgradeTestsBatch     batchKind = "rp-upgrade-tests"
+	rpUpgradeNamesBatch     batchKind = "rp-upgrade-names"
 	discoveredBatch         batchKind = "discovered"
 	processedBatch          batchKind = "processed"
 )
 
-var batchKinds = [...]batchKind{runBatch, testsBatch, namesBatch, observabilityTestsBatch, observabilityNamesBatch}
+var batchKinds = [...]batchKind{runBatch, testsBatch, namesBatch, observabilityTestsBatch, observabilityNamesBatch, rpProvisionTestsBatch, rpProvisionNamesBatch, rpUpgradeTestsBatch, rpUpgradeNamesBatch}
 
 func (kind batchKind) tag(id BuildID) string { return string(kind) + "-" + string(id) }
 func runTag(id string) string                { return runBatch.tag(BuildID(id)) }
@@ -64,7 +68,7 @@ func (w *Writer) target(kind batchKind) config.KustoTableConfig {
 		return w.config.CIJobOutcomes.Processed
 	case runBatch:
 		return w.config.CIJobOutcomes.Outcomes
-	case namesBatch, observabilityNamesBatch:
+	case namesBatch, observabilityNamesBatch, rpProvisionNamesBatch, rpUpgradeNamesBatch:
 		return w.config.CIJobOutcomes.TestNames
 	default:
 		return w.config.CIJobOutcomes.TestResults
@@ -132,6 +136,7 @@ func (w *Writer) initializeKustoWithCredential(ctx context.Context, ingest bool,
 			column, dataType string
 		}{
 			{settings.Outcomes, "adoBuildId", "string"}, {settings.TestResults, "message", "string"},
+			{settings.TestResults, "source", "string"},
 			{settings.Outcomes, "runtimeRegion", "string"}, {settings.Outcomes, "leasedSlot", "string"},
 			{settings.Outcomes, "leasedAssets", "dynamic"},
 			{settings.Discovered, "jobUri", "string"}, {settings.Discovered, "buildId", "string"}, {settings.Discovered, "jobName", "string"},
