@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -51,7 +51,7 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "delete-mi-rg", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resource group")
 
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -68,7 +68,7 @@ var _ = Describe("Customer", func() {
 				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy customer infrastructure")
-			clusterParams, err = framework.PopulateClusterParamsFromCustomerInfraDeployment20240610(clusterParams, customerInfraResult)
+			clusterParams, err = framework.PopulateClusterParamsFromCustomerInfraDeployment20260901(clusterParams, customerInfraResult)
 			Expect(err).NotTo(HaveOccurred(), "failed to populate cluster params from customer infra deployment")
 
 			// This test deletes the cluster's managed identities, so it must own dedicated
@@ -100,25 +100,26 @@ var _ = Describe("Customer", func() {
 				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy dedicated managed identities")
-			clusterParams, err = framework.PopulateClusterParamsFromManagedIdentitiesDeployment20240610(clusterParams, managedIdentitiesResult)
+			clusterParams, err = framework.PopulateClusterParamsFromManagedIdentitiesDeployment20260901(clusterParams, managedIdentitiesResult)
 			Expect(err).NotTo(HaveOccurred(), "failed to populate cluster params from managed identities deployment")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20260901(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			By("ensuring the cluster is viable before deleting its identities")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				hcpClient,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -132,7 +133,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q before deletion", customerClusterName)
 			Expect(cluster.Properties).NotTo(BeNil(), "cluster %q properties were nil before deletion", customerClusterName)
 			Expect(cluster.Properties.ProvisioningState).NotTo(BeNil(), "cluster %q provisioning state was nil before deletion", customerClusterName)
-			Expect(*cluster.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "expected cluster %q to be Succeeded before deleting its identities", customerClusterName)
+			Expect(*cluster.Properties.ProvisioningState).To(Equal(hcpsdk20260901preview.ProvisioningStateSucceeded), "expected cluster %q to be Succeeded before deleting its identities", customerClusterName)
 			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			_, err = rgClient.Get(ctx, managedResourceGroupName, nil)
 			Expect(err).NotTo(HaveOccurred(), "expected managed resource group %q to exist before cluster deletion", managedResourceGroupName)
@@ -142,7 +143,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to delete managed identities for cluster %q", customerClusterName)
 
 			By("deleting the HCP cluster")
-			err = framework.DeleteHCPCluster20240610(
+			err = framework.DeleteHCPCluster20260901(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
