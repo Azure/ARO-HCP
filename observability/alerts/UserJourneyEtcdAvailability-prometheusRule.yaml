@@ -1,0 +1,470 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-etcd-availability-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-etcd-availability-alert-rules
+    rules:
+    # ========================================
+    # Alert inventory (14 rules across 8 families):
+    #
+    # Tiered (MWMBR per ADR-001) — 3 burn-rate tiers each (9 rules):
+    #   - userJourneyEtcdBackendCommitDurationHigh  (p99 > 100ms, per pod)
+    #   - userJourneyEtcdPeerRoundTripTimeHigh      (p99 > 100ms, aggregate)
+    #   - userJourneyEtcdWALFsyncDurationHigh       (p99 > 50ms, per pod)
+    # Burn-rate windows:
+    #   Fast   (1h/5m):  fires in 5m  — severity: 4
+    #   Medium (6h/30m): fires in 30m — severity: 4
+    #   Slow   (3d/6h):  fires in 3h  — severity: 4
+    # The rate window matches the short window, with a dual-window
+    # (short AND long) confirmation for all three tiers.
+    # correlationId groups all three burn-rate tiers of an alert family into
+    # one IcM incident (dropping the tier suffix from the alert name).
+    #
+    # Non-tiered — single alert each (5 rules):
+    #   - userJourneyEtcdDatabaseHighFragmentation  (ratio < 25%, per pod, for: 15m)
+    #   - userJourneyEtcdDatabaseSizeExceeded        (> 85% of quota, for: 15m)
+    #   - userJourneyEtcdFrequentLeaderChanges       (> 3 in 15m, for: 5m)
+    #   - userJourneyEtcdNoLeader                    (has_leader == 0, for: 5m)
+    #   - userJourneyEtcdMetricsAbsent               (etcd metrics missing, for: 15m)
+    #
+    # Every alert joins on (namespace, cluster) against the
+    # info:kube_namespace:hcp_cluster_resource_id and
+    # info:kube_namespace:hcp_cluster_subscription_id recording rules
+    # (observability/recording-rules/namespace-hcp-cluster-resource-id-recordingRule.yaml)
+    # to attach the HCP cluster's Azure resource ID and subscription ID as
+    # resource_id and subscription_id labels. Alerts only fire for namespaces
+    # both recording rules have data for.
+    # ========================================
+    # ----------------------------------------
+    # userJourneyEtcdBackendCommitDurationHigh
+    # ----------------------------------------
+    - alert: userJourneyEtcdBackendCommitDurationHigh1h5m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.100
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.100
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 5m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 1h
+        short_window: 5m
+        slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Fast burn (1h/5m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdBackendCommitDurationHigh6h30m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.100
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 30m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 6h
+        short_window: 30m
+        slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd backend commit duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Medium burn (6h/30m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdBackendCommitDurationHigh3d6h
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.100
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 3h
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        slo: etcd-backend-commit-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd backend commit duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile backend commit duration of {{ $value }}s (threshold: 100ms). Slow disk performance may impact write performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdBackendCommitDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdDatabaseHighFragmentation
+    # ----------------------------------------
+    - alert: userJourneyEtcdDatabaseHighFragmentation
+      expr: |
+        (
+          max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 15m
+      labels:
+        component: hcp
+        severity: "4"
+        slo: etcd-database-fragmentation
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd database fragmentation is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd database in-use ratio is {{ $value | humanizePercentage }} (threshold: 25%). Database defragmentation may be needed to reclaim space. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseHighFragmentation/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdDatabaseSizeExceeded
+    # ----------------------------------------
+    - alert: userJourneyEtcdDatabaseSizeExceeded
+      expr: |
+        (
+          max without (prometheus_replica) (
+            etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes
+          ) > 0.85
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 15m
+      labels:
+        component: hcp
+        severity: "4"
+        slo: etcd-database-size
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd database size is too large for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd database size is {{ $value | humanizePercentage }} of quota (threshold: 85%). Database may need compaction or quota increase. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdDatabaseSizeExceeded/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdFrequentLeaderChanges
+    # ----------------------------------------
+    - alert: userJourneyEtcdFrequentLeaderChanges
+      expr: |
+        (
+          max by (namespace, cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 5m
+      labels:
+        component: hcp
+        severity: "4"
+        slo: etcd-leader-changes
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd cluster experiencing frequent leader changes for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdFrequentLeaderChanges/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdNoLeader
+    # ----------------------------------------
+    - alert: userJourneyEtcdNoLeader
+      expr: |
+        (
+          min without (prometheus_replica) (
+            etcd_server_has_leader
+          ) == 0
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 5m
+      labels:
+        component: hcp
+        severity: "4"
+        slo: etcd-has-leader
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd member has no leader for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd member has no leader. The cluster cannot process writes until a leader is elected. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdNoLeader/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdPeerRoundTripTimeHigh
+    # ----------------------------------------
+    - alert: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1
+          and
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 5m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 1h
+        short_window: 5m
+        slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Fast burn (1h/5m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1
+          and
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 30m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 6h
+        short_window: 30m
+        slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd peer round-trip time is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Medium burn (6h/30m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdPeerRoundTripTimeHigh3d6h
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
+          and
+          histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 3h
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        slo: etcd-peer-round-trip-time
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd peer round-trip time is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdPeerRoundTripTimeHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdWALFsyncDurationHigh
+    # ----------------------------------------
+    - alert: userJourneyEtcdWALFsyncDurationHigh1h5m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 5m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 1h
+        short_window: 5m
+        slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Fast burn (1h/5m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdWALFsyncDurationHigh6h30m
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 30m
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 6h
+        short_window: 30m
+        slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd WAL fsync duration is high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Medium burn (6h/30m)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdWALFsyncDurationHigh3d6h
+      expr: |
+        (
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
+          and
+          histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05
+        )
+        * on (namespace, cluster) group_left (resource_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 3h
+      labels:
+        component: hcp
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        slo: etcd-wal-fsync-duration
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd WAL fsync duration is chronically high for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} etcd has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 50ms). Slow disk performance may impact cluster stability. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}. Slow burn (3d/6h)."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWALFsyncDurationHigh/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # ----------------------------------------
+    # userJourneyEtcdMetricsAbsent
+    # ----------------------------------------
+    - alert: userJourneyEtcdMetricsAbsent
+      expr: |
+        (
+          max by (namespace, cluster, resource_id) (
+            label_replace(
+              info:kube_namespace:hcp_cluster_resource_id,
+              "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+            )
+          )
+          unless on (namespace, cluster)
+          count by (namespace, cluster) (etcd_server_has_leader)
+        )
+        * on (namespace, cluster) group_left (subscription_id)
+        label_replace(
+          info:kube_namespace:hcp_cluster_subscription_id,
+          "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+        )
+      for: 15m
+      labels:
+        component: hcp
+        severity: "4"
+        slo: etcd-metrics-absent
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "etcd metrics are absent for {{ $labels.namespace }} ({{ $labels.resource_id }}, {{ $labels.subscription_id }})"
+        description: "{{ $labels.namespace }} has not reported etcd metrics for at least 15 minutes. All etcd availability alerts are blind for this cluster. Resource ID: {{ $labels.resource_id }}. Subscription ID: {{ $labels.subscription_id }}."
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdMetricsAbsent/{{ $labels.cluster }}/{{ $labels.namespace }}"

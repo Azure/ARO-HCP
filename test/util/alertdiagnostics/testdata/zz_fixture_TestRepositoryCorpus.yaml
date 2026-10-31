@@ -5635,6 +5635,216 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh1h5m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh3d6h
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh6h30m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdDatabaseHighFragmentation
+  occurrence: 1
+  input: ((max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod, region) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdDatabaseSizeExceeded
+  occurrence: 1
+  input: ((max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdFrequentLeaderChanges
+  occurrence: 1
+  input: ((max by (namespace, cluster, region) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((max by (namespace, cluster, region) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((max by (namespace, cluster, region) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((max by (namespace, cluster, region) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdMetricsAbsent
+  occurrence: 1
+  input: ((max by (namespace, cluster, resource_id, region) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster, region) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((max by (namespace, cluster, resource_id, region) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster, region) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((max by (namespace, cluster, resource_id, region) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster, region) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((max by (namespace, cluster, resource_id, region) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster, region) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdNoLeader
+  occurrence: 1
+  input: ((min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh3d6h
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh1h5m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh3d6h
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh6h30m
+  occurrence: 1
+  input: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: ((histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
   alert: hypershiftCPODown
   occurrence: 1
@@ -7840,6 +8050,422 @@
         path: root/unless:left
         queries:
           - expression: (count by (cluster, namespace) (cluster_operator_conditions{condition="failing",name="version"} == 1)) unless on (cluster, namespace) (count by (cluster, namespace) ((cluster_operator_conditions{condition="available",name!="version"} == 0) or (cluster_operator_conditions{condition="degraded",name!="version"} == 1)))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh1h5m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.100
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.100
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh3d6h
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.100
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdBackendCommitDurationHigh6h30m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.100
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.100
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdDatabaseHighFragmentation
+  occurrence: 1
+  input: |
+    (
+      max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_use_in_bytes) / max by (namespace, cluster, pod) (etcd_mvcc_db_total_size_in_bytes) < 0.25) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdDatabaseSizeExceeded
+  occurrence: 1
+  input: |
+    (
+      max without (prometheus_replica) (
+        etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes
+      ) > 0.85
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (max without (prometheus_replica) (etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes) > 0.85) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdFrequentLeaderChanges
+  occurrence: 1
+  input: |
+    (
+      max by (namespace, cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (max by (namespace, cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (max by (namespace, cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (max by (namespace, cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdMetricsAbsent
+  occurrence: 1
+  input: |
+    (
+      max by (namespace, cluster, resource_id) (
+        label_replace(
+          info:kube_namespace:hcp_cluster_resource_id,
+          "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+        )
+      )
+      unless on (namespace, cluster)
+      count by (namespace, cluster) (etcd_server_has_leader)
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (max by (namespace, cluster, resource_id) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (max by (namespace, cluster, resource_id) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (max by (namespace, cluster, resource_id) (label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)")) unless on (namespace, cluster) count by (namespace, cluster) (etcd_server_has_leader)) * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdNoLeader
+  occurrence: 1
+  input: |
+    (
+      min without (prometheus_replica) (
+        etcd_server_has_leader
+      ) == 0
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (min without (prometheus_replica) (etcd_server_has_leader) == 0) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1
+      and
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh3d6h
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
+      and
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1
+      and
+      histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m) > 0.1 and histogram_quantile(0.99, namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h) > 0.1) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh1h5m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh3d6h
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/UserJourneyEtcdAvailability-prometheusRule.yaml
+  group: hcp-etcd-availability-alert-rules
+  alert: userJourneyEtcdWALFsyncDurationHigh6h30m
+  occurrence: 1
+  input: |
+    (
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05
+      and
+      histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05
+    )
+    * on (namespace, cluster) group_left (resource_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_resource_id,
+      "resource_id", "$1", "hcp_cluster_resource_id", "(.*)"
+    )
+    * on (namespace, cluster) group_left (subscription_id)
+    label_replace(
+      info:kube_namespace:hcp_cluster_subscription_id,
+      "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)"
+    )
+  plan:
+    expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+    conditions:
+      - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
+        path: root
+        queries:
+          - expression: (histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m) > 0.05 and histogram_quantile(0.99, namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h) > 0.05) * on (namespace, cluster) group_left (resource_id) label_replace(info:kube_namespace:hcp_cluster_resource_id, "resource_id", "$1", "hcp_cluster_resource_id", "(.*)") * on (namespace, cluster) group_left (subscription_id) label_replace(info:kube_namespace:hcp_cluster_subscription_id, "subscription_id", "$1", "hcp_cluster_subscription_id", "(.*)")
             role: signal
         thresholds: []
         unsupported: ""

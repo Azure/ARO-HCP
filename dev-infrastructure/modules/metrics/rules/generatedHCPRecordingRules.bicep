@@ -226,6 +226,108 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
   }
 }
 
+resource etcdDiskBackendCommitBucketRates 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'etcd_disk_backend_commit_bucket_rates'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate5m'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate30m'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate1h'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate6h'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_backend_commit_duration_seconds_bucket:rate3d'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
+      }
+    ]
+  }
+}
+
+resource etcdNetworkPeerRoundTripTimeBucketRates 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'etcd_network_peer_round_trip_time_bucket_rates'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate5m'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate30m'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
+      }
+      {
+        record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate1h'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
+      }
+      {
+        record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate6h'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
+      }
+      {
+        record: 'namespace_cluster:etcd_network_peer_round_trip_time_seconds_bucket:rate3d'
+        expression: 'sum by (namespace, cluster, le, region) (max without (prometheus_replica) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
+      }
+    ]
+  }
+}
+
+resource etcdDiskWalFsyncBucketRates 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'etcd_disk_wal_fsync_bucket_rates'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate5m'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate30m'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[30m])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate1h'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[1h])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate6h'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[6h])))'
+      }
+      {
+        record: 'namespace_cluster_pod:etcd_disk_wal_fsync_duration_seconds_bucket:rate3d'
+        expression: 'sum by (namespace, cluster, pod, le, region) (max without (prometheus_replica) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{namespace=~"ocm-.*"}[3d])))'
+      }
+    ]
+  }
+}
+
 resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'hcp-etcd-grpc-latency-recording-rules'
   location: location
@@ -295,6 +397,28 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
       {
         record: 'errors:ingress_canary_latency:error_rate'
         expression: '1 - latency:ingress_canary:ratio'
+      }
+    ]
+  }
+}
+
+resource arohcpNamespaceHcpClusterResourceIdRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_namespace_hcp_cluster_resource_id_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'info:kube_namespace:hcp_cluster_resource_id'
+        expression: 'label_replace(max without (prometheus_replica, instance, pod, container, endpoint, service) (kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",job="kube-state-metrics"}), "hcp_cluster_resource_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.*)")'
+      }
+      {
+        record: 'info:kube_namespace:hcp_cluster_subscription_id'
+        expression: 'label_replace(max without (prometheus_replica, instance, pod, container, endpoint, service) (kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id=~"(?i)/subscriptions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/resourcegroups/.*",job="kube-state-metrics"}), "hcp_cluster_subscription_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(?i)/subscriptions/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/resourcegroups/.*")'
       }
     ]
   }

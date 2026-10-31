@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Etcd Availability - Fleet Summary\n\nThis dashboard summarizes etcd availability across **all** HCP regional Prometheus workspaces.\n\n**Aggregation methodology:**\n- **Counts and totals** (clusters monitored, total leader changes, stable cluster count, total/worst DB size): mathematically correct fleet-wide sum/max via Grafana's `Mixed` datasource + `Reduce` transform.\n- **Latency percentiles** (`Worst Regional P99 ...`): show the **highest p99 observed in any single region**, NOT a true cross-region p99. PromQL cannot reconstruct a histogram across independent Prometheus workspaces. Use these tiles as an \"is any region degraded?\" signal. A true fleet p99 requires observability infrastructure work (Thanos / Mimir / federated workspace).\n- **Violator tables**: concatenated rows from every regional workspace; each row is one offending cluster.\n- **Per-cluster timeseries**: lines from every cluster in every region overlaid on one chart.\n\n**Health Targets:**\n- Leader stability: < 5 changes per 24h\n- No excessive leader churn (> 3 changes/hour)\n\n**Performance SLOs (per region, 99th percentile):**\n- WAL fsync duration: < 10ms\n- Backend commit duration: < 25ms\n- Peer network RTT: < 50ms\n",
+        "content": "### Etcd Availability - Fleet Summary\n\nThis dashboard summarizes etcd availability across **all** HCP regional Prometheus workspaces.\n\n**Aggregation methodology:**\n- **Counts and totals** (clusters monitored, total leader changes, stable cluster count, total/worst DB size): mathematically correct fleet-wide sum/max via Grafana's `Mixed` datasource + `Reduce` transform.\n- **Latency percentiles** (`Worst Regional P99 ...`): show the **highest p99 observed in any single region**, NOT a true cross-region p99. PromQL cannot reconstruct a histogram across independent Prometheus workspaces. Use these tiles as an \"is any region degraded?\" signal. A true fleet p99 requires observability infrastructure work (Thanos / Mimir / federated workspace).\n- **Violator tables**: concatenated rows from every regional workspace; each row is one offending cluster.\n- **Per-cluster timeseries**: lines from every cluster in every region overlaid on one chart.\n\n**Health Targets:**\n- Leader stability: < 5 changes per 24h\n- No excessive leader churn (> 3 changes/15m)\n\n**Performance SLOs (per region, 99th percentile):**\n- WAL fsync duration: < 50ms\n- Backend commit duration: < 100ms\n- Peer network RTT: < 100ms\n",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -328,7 +328,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst per-cluster p99 WAL fsync duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. Use this as a \"any cluster degraded?\" signal. SLO target: < 10ms.",
+      "description": "Worst per-cluster p99 WAL fsync duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. Use this as a \"any cluster degraded?\" signal. SLO target: < 50ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -344,11 +344,11 @@
               },
               {
                 "color": "yellow",
-                "value": 8
+                "value": 40
               },
               {
                 "color": "red",
-                "value": 10
+                "value": 50
               }
             ]
           },
@@ -422,7 +422,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst per-cluster p99 backend commit duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 25ms.",
+      "description": "Worst per-cluster p99 backend commit duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 100ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -438,11 +438,11 @@
               },
               {
                 "color": "yellow",
-                "value": 20
+                "value": 80
               },
               {
                 "color": "red",
-                "value": 25
+                "value": 100
               }
             ]
           },
@@ -516,7 +516,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst per-cluster p99 etcd peer network RTT across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 50ms.",
+      "description": "Worst per-cluster p99 etcd peer network RTT across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 100ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -532,11 +532,11 @@
               },
               {
                 "color": "yellow",
-                "value": 40
+                "value": 80
               },
               {
                 "color": "red",
-                "value": 50
+                "value": 100
               }
             ]
           },
@@ -704,7 +704,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Clusters exceeding WAL fsync SLO (> 10ms at p99) - Lists clusters with slow disk write performance. Check disk IOPS and storage health.",
+      "description": "Clusters exceeding WAL fsync SLO (> 50ms at p99) - Lists clusters with slow disk write performance. Check disk IOPS and storage health.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -727,7 +727,7 @@
               },
               {
                 "color": "red",
-                "value": 15
+                "value": 75
               }
             ]
           },
@@ -769,7 +769,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 10",
+          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 50",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -805,7 +805,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Clusters exceeding backend commit SLO (> 25ms at p99) - Lists clusters with slow database commits. May indicate disk or CPU pressure.",
+      "description": "Clusters exceeding backend commit SLO (> 100ms at p99) - Lists clusters with slow database commits. May indicate disk or CPU pressure.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -828,7 +828,7 @@
               },
               {
                 "color": "red",
-                "value": 35
+                "value": 150
               }
             ]
           },
@@ -870,7 +870,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 25",
+          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 100",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -906,7 +906,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Clusters exceeding peer RTT SLO (> 50ms at p99) - Lists clusters with high network latency between etcd peers. Check network health and node placement.",
+      "description": "Clusters exceeding peer RTT SLO (> 100ms at p99) - Lists clusters with high network latency between etcd peers. Check network health and node placement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -929,7 +929,7 @@
               },
               {
                 "color": "red",
-                "value": 75
+                "value": 150
               }
             ]
           },
@@ -971,7 +971,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 50",
+          "expr": "max by (cluster) (histogram_quantile(0.99, sum by (cluster, instance, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{cluster!=\"\"}[5m]))) * 1000) > 100",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1007,7 +1007,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Clusters with excessive leader instability (> 3 changes per hour) - Lists clusters experiencing frequent leader elections, indicating potential network or performance issues.",
+      "description": "Clusters with excessive leader instability (> 3 changes per 15m) - Lists clusters experiencing frequent leader elections, indicating potential network or performance issues.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1031,11 +1031,11 @@
               },
               {
                 "color": "yellow",
-                "value": 5
+                "value": 4
               },
               {
                 "color": "red",
-                "value": 10
+                "value": 8
               }
             ]
           },
@@ -1077,7 +1077,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total[1h])) > 3",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total[15m])) > 3",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1085,7 +1085,7 @@
           "refId": "A"
         }
       ],
-      "title": "Leader Instability (Hourly)",
+      "title": "Leader Instability (15m)",
       "transformations": [
         {
           "id": "merge",
@@ -1621,7 +1621,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Leader changes per cluster (1h window) - Shows the number of leader elections in a rolling 1-hour window for each cluster. Helps identify instability patterns.",
+      "description": "Leader changes per cluster (15m window) - Shows the number of leader elections in a rolling 15-minute window for each cluster. Helps identify instability patterns.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1708,14 +1708,14 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1h]))",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total{cluster!=\"\"}[15m]))",
           "instant": false,
           "legendFormat": "{{cluster}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Per-Cluster Leader Changes (1h window)",
+      "title": "Per-Cluster Leader Changes (15m window)",
       "type": "timeseries"
     },
     {
