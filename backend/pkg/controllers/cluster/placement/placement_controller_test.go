@@ -16,6 +16,7 @@ package placement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -145,7 +146,7 @@ func schedulingDoc(stamp string, ceiling, usage, notReady, pending int64) *fleet
 				{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
 				{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionTrue, Reason: "Test"},
 			},
-			ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(usage)},
+			ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(usage), Requests: swiftResourceList(usage)},
 			ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(ceiling)},
 			NotReadyResourceIDs:     notReadyIDs,
 			PendingAssignedClusters: dummyResourceIDs(int(pending)),
@@ -218,7 +219,7 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 			notReady := append(namedClusterResourceIDs("ha-nr", tc.haNotReady), namedClusterResourceIDs("sr-nr", tc.srNotReady)...)
 			doc := &fleetapi.ManagementClusterScheduling{
 				Status: fleetapi.ManagementClusterSchedulingStatus{
-					ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(tc.usage)},
+					ObservedResources:       fleetapi.ObservedResources{Usage: swiftResourceList(tc.usage), Requests: swiftResourceList(tc.usage)},
 					ScaleCeiling:            fleetapi.ScaleCeiling{Capacity: swiftResourceList(tc.ceiling)},
 					PendingAssignedClusters: pending,
 					NotReadyResourceIDs:     notReady,
@@ -231,6 +232,97 @@ func TestAvailableResources_MixedControlPlaneAvailability(t *testing.T) {
 			all = append(all, notReady...)
 			syncer := &placementSyncer{clusterLister: clusterListerForAvailability(all)}
 			assert.Equal(t, tc.expected, swiftNICCount(syncer.availableResources(context.Background(), doc)))
+		})
+	}
+}
+
+func TestResourceSpecificAvailability(t *testing.T) {
+	for _, scenario := range []string{"known", "missing-ceiling", "missing-usage", "missing-requests", "nil-maps", "empty-maps", "nil-document", "zero", "requests-higher"} {
+		t.Run(scenario, func(t *testing.T) {
+			document := schedulingDoc("s", 12, 2, 1, 1)
+			switch scenario {
+			case "missing-ceiling":
+				delete(document.Status.ScaleCeiling.Capacity, kuberesources.SwiftNICResourceName)
+			case "missing-usage":
+				delete(document.Status.ObservedResources.Usage, kuberesources.SwiftNICResourceName)
+			case "missing-requests":
+				delete(document.Status.ObservedResources.Requests, kuberesources.SwiftNICResourceName)
+			case "nil-maps":
+				document.Status.ObservedResources.Usage = nil
+				document.Status.ObservedResources.Requests = nil
+			case "empty-maps":
+				document.Status.ObservedResources.Usage = corev1.ResourceList{}
+				document.Status.ObservedResources.Requests = corev1.ResourceList{}
+			case "nil-document":
+				document = nil
+			case "zero":
+				document = schedulingDoc("s", 0, 0, 0, 0)
+			case "requests-higher":
+				document.Status.ObservedResources.Requests = swiftResourceList(4)
+			}
+			if document != nil {
+				document.Status.ScaleCeiling.Capacity[corev1.ResourceCPU] = resource.MustParse("8")
+				document.Status.ObservedResources.Capacity = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("8")}
+				document.Status.ObservedResources.LastReportedAt = ptr.To(metav1.Now())
+			}
+			before := document.DeepCopy()
+			syncer := &placementSyncer{}
+			available := syncer.availableResources(t.Context(), document)
+			require.Equal(t, before, document)
+			require.NotContains(t, available, corev1.ResourceCPU)
+			require.Nil(t, resourceContention(document, time.Now()))
+			quantity, known := available[kuberesources.SwiftNICResourceName]
+			expectedKnown := scenario == "known" || scenario == "zero" || scenario == "requests-higher"
+			require.Equal(t, expectedKnown, known)
+			if expectedKnown {
+				expected := int64(4)
+				switch scenario {
+				case "zero":
+					expected = 0
+				case "requests-higher":
+					expected = 2
+				}
+				require.Equal(t, expected, quantity.Value())
+			}
+			for _, needed := range []int64{0, 1, 3} {
+				candidate := eligibleCandidate("s", 0)
+				candidate.availableResources = available
+				candidate.scheduling = document
+				chosen, _, condition := selectByCapacity([]managementClusterEvaluation{candidate}, needed)
+				switch {
+				case !known:
+					require.Nil(t, chosen)
+					require.Equal(t, metav1.ConditionUnknown, condition.Status)
+					require.Equal(t, coreapi.CapacityReasonEvaluationIncomplete, condition.Reason)
+				case quantity.Value() < needed:
+					require.Nil(t, chosen)
+					require.Equal(t, coreapi.CapacityReasonInsufficientCapacity, condition.Reason)
+				default:
+					require.NotNil(t, chosen)
+					require.Equal(t, metav1.ConditionTrue, condition.Status)
+				}
+			}
+		})
+	}
+}
+
+func TestSelectByCapacityUnknownResources(t *testing.T) {
+	for _, needed := range []int64{0, 1, 3} {
+		t.Run(fmt.Sprint(needed), func(t *testing.T) {
+			unknown := eligibleCandidate("unknown", 99)
+			unknown.availableResources = nil
+			fit := eligibleCandidate("fit", needed)
+			insufficient := eligibleCandidate("insufficient", -1)
+			for _, candidates := range [][]managementClusterEvaluation{{unknown, fit}, {fit, unknown}, {insufficient, unknown, fit}} {
+				chosen, _, condition := selectByCapacity(candidates, needed)
+				require.Equal(t, fit.resourceID, chosen)
+				require.Equal(t, metav1.ConditionTrue, condition.Status)
+			}
+			chosen, _, condition := selectByCapacity([]managementClusterEvaluation{insufficient, unknown}, needed)
+			require.Nil(t, chosen)
+			require.Equal(t, metav1.ConditionUnknown, condition.Status)
+			_, _, condition = selectByCapacity([]managementClusterEvaluation{insufficient}, needed)
+			require.Equal(t, metav1.ConditionFalse, condition.Status)
 		})
 	}
 }
@@ -314,7 +406,8 @@ func TestAvailableResources_MixedNetworkingModes(t *testing.T) {
 func TestAvailableResources_IgnoresNilEntries(t *testing.T) {
 	doc := &fleetapi.ManagementClusterScheduling{
 		Status: fleetapi.ManagementClusterSchedulingStatus{
-			ScaleCeiling: fleetapi.ScaleCeiling{Capacity: swiftResourceList(9)},
+			ObservedResources: fleetapi.ObservedResources{Usage: swiftResourceList(0), Requests: swiftResourceList(0)},
+			ScaleCeiling:      fleetapi.ScaleCeiling{Capacity: swiftResourceList(9)},
 			// One nil entry (must not reserve) + one real entry (reserves 3).
 			PendingAssignedClusters: []*azcorearm.ResourceID{
 				nil,
@@ -625,42 +718,95 @@ func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
 		{name: "SWIFT HA fits three NICs", swift: true, capacity: 3},
 		{name: "SWIFT SingleReplica fits one NIC", swift: true, availability: coreapi.SingleReplicaControlPlane, capacity: 1},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			cluster := newTestHCPCluster()
-			cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tc.availability
-			if !tc.swift {
-				cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
-			}
-			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
-			spc, err := spcCRUD.Create(ctx, newTestSPC(), nil)
-			require.NoError(t, err)
-			scheduling := schedulingDoc("1", tc.capacity, 0, 0, 0)
-			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-			schedulingCRUD := fleetDB.Stamps().ManagementClusters("1").Scheduling()
-			scheduling, err = schedulingCRUD.Create(ctx, scheduling, nil)
-			require.NoError(t, err)
-			syncer := &placementSyncer{
-				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
-				clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
-				managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
-				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling}},
-				cosmosClient:                      db,
-				fleetDBClient:                     fleetDB,
-			}
-			key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
-			require.NoError(t, syncer.SyncOnce(ctx, key))
-			updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			require.NotNil(t, updated.Spec.ManagementClusterResourceID)
-			assert.Equal(t, mcForStamp("1", true, true).ResourceID, updated.Spec.ManagementClusterResourceID)
-			require.NotNil(t, updated.Status.Placement)
-			assert.True(t, meta.IsStatusConditionTrue(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType))
-			reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
-			require.NoError(t, err)
-			assert.Equal(t, []*azcorearm.ResourceID{key.GetResourceID()}, reserved.Status.PendingAssignedClusters, "zero NIC demand still records the pending assignment")
-		})
+		for _, measurements := range []string{"known", "missing-ceiling", "missing-usage", "missing-requests", "missing-usage-with-fit"} {
+			t.Run(tc.name+"/"+measurements, func(t *testing.T) {
+				ctx := context.Background()
+				cluster := newTestHCPCluster()
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tc.availability
+				if !tc.swift {
+					cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+				}
+				db := corecosmosstoragetesting.NewMockResourcesDBClient()
+				spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
+				spc, err := spcCRUD.Create(ctx, newTestSPC(), nil)
+				require.NoError(t, err)
+				scheduling := schedulingDoc("1", tc.capacity, 0, 0, 0)
+				switch measurements {
+				case "missing-ceiling":
+					delete(scheduling.Status.ScaleCeiling.Capacity, kuberesources.SwiftNICResourceName)
+				case "missing-usage", "missing-usage-with-fit":
+					delete(scheduling.Status.ObservedResources.Usage, kuberesources.SwiftNICResourceName)
+				case "missing-requests":
+					delete(scheduling.Status.ObservedResources.Requests, kuberesources.SwiftNICResourceName)
+				}
+				encoded, err := json.Marshal(scheduling)
+				require.NoError(t, err)
+				var restored fleetapi.ManagementClusterScheduling
+				require.NoError(t, json.Unmarshal(encoded, &restored))
+				for _, values := range []struct{ before, after corev1.ResourceList }{
+					{scheduling.Status.ScaleCeiling.Capacity, restored.Status.ScaleCeiling.Capacity},
+					{scheduling.Status.ObservedResources.Usage, restored.Status.ObservedResources.Usage},
+					{scheduling.Status.ObservedResources.Requests, restored.Status.ObservedResources.Requests},
+				} {
+					require.Len(t, values.after, len(values.before))
+					for name, expected := range values.before {
+						actual, present := values.after[name]
+						require.True(t, present)
+						require.Zero(t, expected.Cmp(actual))
+					}
+				}
+				scheduling = &restored
+				fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+				schedulingCRUD := fleetDB.Stamps().ManagementClusters("1").Scheduling()
+				scheduling, err = schedulingCRUD.Create(ctx, scheduling, nil)
+				require.NoError(t, err)
+				syncer := &placementSyncer{
+					serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+					clusterLister:                     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+					managementClusterLister:           &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)}},
+					managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling}},
+					cosmosClient:                      db,
+					fleetDBClient:                     fleetDB,
+				}
+				selectedStamp := "1"
+				if measurements == "missing-usage-with-fit" {
+					selectedStamp = "2"
+					alternative := schedulingDoc(selectedStamp, tc.capacity, 0, 0, 0)
+					alternative, err = fleetDB.Stamps().ManagementClusters(selectedStamp).Scheduling().Create(ctx, alternative, nil)
+					require.NoError(t, err)
+					syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true), mcForStamp(selectedStamp, true, true)}}
+					syncer.managementClusterSchedulingLister = &fleetlistertesting.SliceManagementClusterSchedulingLister{Schedulings: []*fleetapi.ManagementClusterScheduling{scheduling, alternative}}
+				}
+				enqueuer := &fakeAfterEnqueuer{}
+				syncer.enqueueAfter = enqueuer
+				key := controllerutils.HCPClusterKey{SubscriptionID: testClusterSubscriptionID, ResourceGroupName: testClusterResourceGroup, HCPClusterName: testClusterName}
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				updated, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				if measurements != "known" {
+					unchosen, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+					require.NoError(t, err)
+					require.Empty(t, unchosen.Status.PendingAssignedClusters)
+				}
+				if measurements != "known" && measurements != "missing-usage-with-fit" {
+					require.Nil(t, updated.Spec.ManagementClusterResourceID)
+					require.NotNil(t, updated.Status.Placement)
+					condition := meta.FindStatusCondition(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType)
+					require.NotNil(t, condition)
+					require.Equal(t, metav1.ConditionUnknown, condition.Status)
+					require.Equal(t, coreapi.CapacityReasonEvaluationIncomplete, condition.Reason)
+					require.Equal(t, []any{key}, enqueuer.keys)
+					return
+				}
+				require.NotNil(t, updated.Spec.ManagementClusterResourceID)
+				assert.Equal(t, mcForStamp(selectedStamp, true, true).ResourceID, updated.Spec.ManagementClusterResourceID)
+				require.NotNil(t, updated.Status.Placement)
+				assert.True(t, meta.IsStatusConditionTrue(updated.Status.Placement.Conditions, coreapi.CapacityAvailableConditionType))
+				reserved, err := fleetDB.Stamps().ManagementClusters(selectedStamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, []*azcorearm.ResourceID{key.GetResourceID()}, reserved.Status.PendingAssignedClusters, "zero NIC demand still records the pending assignment")
+			})
+		}
 	}
 }
 

@@ -404,7 +404,11 @@ func selectByCapacity(evaluations []managementClusterEvaluation, requiredSwiftNI
 		if evaluation.eligibility != eligible {
 			continue
 		}
-		available := swiftNICCount(evaluation.availableResources)
+		quantity, known := evaluation.availableResources[kuberesources.SwiftNICResourceName]
+		if !known {
+			continue
+		}
+		available := quantity.Value()
 		if available < requiredSwiftNICs {
 			continue
 		}
@@ -441,7 +445,7 @@ func selectByCapacity(evaluations []managementClusterEvaluation, requiredSwiftNI
 }
 
 // noPlacementCondition explains a failed selection. Call only after finding no fit:
-// every eligible cluster therefore lacks capacity. Any unknown eligibility prevents
+// every eligible cluster lacks known sufficient capacity. Unknown eligibility or availability prevents
 // declaring capacity unavailable, even when other clusters have known blockers.
 func noPlacementCondition(evaluations []managementClusterEvaluation, requiredSwiftNICs int64) metav1.Condition {
 	var unknownCount, insufficientCapacityCount int
@@ -450,6 +454,11 @@ func noPlacementCondition(evaluations []managementClusterEvaluation, requiredSwi
 		id := evaluation.resourceID.String()
 		switch evaluation.eligibility {
 		case eligible:
+			if _, known := evaluation.availableResources[kuberesources.SwiftNICResourceName]; !known {
+				unknownCount++
+				eliminated = append(eliminated, fmt.Sprintf("%s: swift-NIC availability is unknown", id))
+				continue
+			}
 			insufficientCapacityCount++
 			eliminated = append(eliminated, fmt.Sprintf("%s: insufficient swift-NIC capacity (available %d, need %d)", id, swiftNICCount(evaluation.availableResources), requiredSwiftNICs))
 		case unknownEligibility:
@@ -485,7 +494,7 @@ func noPlacementCondition(evaluations []managementClusterEvaluation, requiredSwi
 // cluster: ScaleCeiling.Capacity minus the higher of ObservedResources.Usage
 // and ObservedResources.Requests (per resource), with swift-NIC further
 // reduced by the per-cluster reservation for each NotReady or Pending HCP.
-// A nil scheduling document yields an empty ResourceList
+// Unknown headroom is omitted; a nil scheduling document yields an empty ResourceList.
 //
 //	available = ScaleCeiling.Capacity
 //	          - max(ObservedResources.Usage, ObservedResources.Requests)
@@ -510,25 +519,25 @@ func (c *placementSyncer) availableResources(ctx context.Context, scheduling *fl
 	if scheduling == nil {
 		return corev1.ResourceList{}
 	}
-	available := scheduling.Status.ScaleCeiling.Capacity.DeepCopy()
-	if available == nil {
-		available = corev1.ResourceList{}
-	}
+	available := corev1.ResourceList{}
 	usage := scheduling.Status.ObservedResources.Usage
 	requests := scheduling.Status.ObservedResources.Requests
-	for name := range sets.KeySet(usage).Union(sets.KeySet(requests)) {
-		consumed := usage[name]
-		if requested := requests[name]; requested.Cmp(consumed) > 0 {
+	for name, quantity := range scheduling.Status.ScaleCeiling.Capacity {
+		consumed, hasUsage := usage[name]
+		requested, hasRequests := requests[name]
+		if !hasUsage || !hasRequests {
+			continue
+		}
+		if requested.Cmp(consumed) > 0 {
 			consumed = requested
 		}
-		quantity := available[name]
+		quantity = quantity.DeepCopy()
 		quantity.Sub(consumed)
 		available[name] = quantity
 	}
 
 	swiftNICReservation := c.swiftNICReservation(ctx, scheduling.Status.NotReadyResourceIDs) + c.swiftNICReservation(ctx, scheduling.Status.PendingAssignedClusters)
-	if swiftNICReservation != 0 {
-		quantity := available[kuberesources.SwiftNICResourceName]
+	if quantity, known := available[kuberesources.SwiftNICResourceName]; known && swiftNICReservation != 0 {
 		quantity.Sub(*resource.NewQuantity(swiftNICReservation, resource.DecimalSI))
 		available[kuberesources.SwiftNICResourceName] = quantity
 	}

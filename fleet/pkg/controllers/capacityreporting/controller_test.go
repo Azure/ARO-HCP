@@ -163,7 +163,8 @@ func TestSyncOnce_WritesCapacityToScheduling(t *testing.T) {
 
 	report := &capacityreportv1alpha1.CapacityReport{
 		Status: capacityreportv1alpha1.CapacityReportStatus{
-			LastReportedAt: &metav1.Time{Time: fixedTime},
+			LastReportedAt:      &metav1.Time{Time: fixedTime},
+			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{Resources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)}},
 			Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 				{
 					SKU:   "Standard_D8ds_v5",
