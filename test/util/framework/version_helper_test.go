@@ -120,6 +120,14 @@ func TestControlPlaneVersionPayload(t *testing.T) {
 				return BuildNodePoolFromParams20261001(NodePoolParams20261001{OpenshiftVersionId: version}, "test-location")
 			},
 		},
+		"20270201": {
+			cluster: func(version, channel string, tags map[string]*string, disableSwift bool) (any, error) {
+				return BuildHCPClusterFromParams20270201(ClusterParams20270201{OpenshiftVersionId: version, ChannelGroup: channel, Tags: tags, DisableSwift: disableSwift, VnetIntegrationSubnetID: "integration-subnet"}, "test-location", nil)
+			},
+			nodePool: func(version string) any {
+				return BuildNodePoolFromParams20270201(NodePoolParams20270201{OpenshiftVersionId: version}, "test-location")
+			},
+		},
 	}
 	type versionPayload struct {
 		Tags       map[string]*string `json:"tags"`
