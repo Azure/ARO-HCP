@@ -516,22 +516,29 @@ spec:
     labels:
       component: slo
     rules:
-    # Canary: every other alert in this file is a `velero_backup_*` PromQL
-    # expression, which is silently vacuous (no time series, no alert) if
-    # Velero itself stops reporting - metrics-shaped alerts cannot detect
-    # their own metric going away. This compares the authoritative "should
-    # be running" inventory (`underlay_clusters`, see docs/alerts.md)
-    # against successful Velero server scrapes, scoped to management
-    # clusters only ({env}-{region}-mgmt-{stamp} naming) since service
-    # clusters never run Velero/HostedCluster backups.
-    # velero/deploy/templates/velero-podmonitor.yaml selects the server;
-    # its target namespace/pod labels identify Velero rather than node-agent.
-    # Unlike schedule-labeled counters, up exists on healthy empty MCs.
-    # One healthy HA scrape is sufficient; both up=0 and missing targets
-    # are failures. The 15m hold also provides deployment grace.
+    # Canary for Velero itself going silent: every other alert here is a
+    # `velero_backup_*` expression that is vacuously true (no series, no alert)
+    # once Velero stops reporting. Instead compare the "should be running"
+    # inventory (`underlay_clusters`, see docs/alerts.md) against successful
+    # Velero server scrapes, scoped to management clusters ({env}-{region}-mgmt-
+    # {stamp}) since only they run backups. One healthy HA scrape suffices;
+    # up=0 and missing targets both count as failures, and the 15m hold gives
+    # deployment grace.
+    #
+    # The inventory side is gated on the MC being healthy and reporting
+    # (`up{job="prometheus/prometheus", namespace="prometheus"} == 1`, the same
+    # self-scrape signal PrometheusMetricsAbsentPerCluster uses). So an absent or
+    # non-functional MC - in the bicep inventory but torn down / never came up,
+    # nothing remote-writing - does not false-fire this canary (ARO-30447); that
+    # case is PrometheusMetricsAbsentPerCluster's job. An empty-but-healthy MC
+    # still reports velero up=1, so its (non-firing) behaviour is unchanged.
     - alert: userJourneyBackupMetricsAbsent
       expr: |
-        group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+        (
+          group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+          and on (cluster)
+          group by (cluster) (up{job="prometheus/prometheus", namespace="prometheus"} == 1)
+        )
         unless on (cluster)
         group by (cluster) (up{namespace="velero", pod=~"velero-.+"} == 1)
       for: 15m

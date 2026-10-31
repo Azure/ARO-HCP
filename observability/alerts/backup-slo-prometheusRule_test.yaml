@@ -910,6 +910,10 @@ tests:
   input_series:
   - series: 'underlay_clusters{cluster="int-eastus-mgmt-1", source="bicep"}'
     values: "1+0x20"
+  # Cluster healthy and reporting (its Prometheus self-scrape is up), so a
+  # missing Velero server scrape is a real failure and must fire (ARO-30447 gate).
+  - series: 'up{cluster="int-eastus-mgmt-1", job="prometheus/prometheus", namespace="prometheus"}'
+    values: "1x20"
   alert_rule_test:
   - eval_time: 17m
     alertname: userJourneyBackupMetricsAbsent
@@ -924,6 +928,21 @@ tests:
         summary: "no successful Velero server metrics scrape for 15m on int-eastus-mgmt-1"
         description: "Management cluster int-eastus-mgmt-1 is in the underlay-cluster inventory but has had no successful Velero server metrics scrape for 15m. Check Velero, its PodMonitor, and the management-cluster metrics pipeline. A healthy empty cluster with up=1 is not a failure merely because it has no backup attempts."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
+# ARO-30447: a management cluster declared in the bicep inventory that is absent
+# or non-functional - e.g. a torn-down or never-provisioned stamp, so nothing
+# remote-writes from it (no Prometheus self-scrape, no Velero) - must NOT fire
+# this Velero canary. Its absence is PrometheusMetricsAbsentPerCluster's job.
+# Mirror of metrics_missing_server (same cluster/inventory/missing-velero) minus
+# the Prometheus self-up health signal.
+- interval: 1m
+  name: metrics_absent_unhealthy_cluster_does_not_fire
+  input_series:
+  - series: 'underlay_clusters{cluster="int-eastus-mgmt-absent", source="bicep"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 17m
+    alertname: userJourneyBackupMetricsAbsent
+    exp_alerts: []
 # A service cluster absent from the inventory filter must never fire - svc
 # clusters never run Velero/HostedCluster backups.
 - interval: 1m
@@ -931,6 +950,11 @@ tests:
   input_series:
   - series: 'underlay_clusters{cluster="int-eastus-svc-1", source="bicep"}'
     values: "1+0x20"
+  # Healthy and reporting (self-scrape up=1) so exclusion is enforced by the
+  # cluster=~".*-mgmt-.*" filter, not by a missing inventory side - drop the
+  # filter and this reporting svc cluster would fire.
+  - series: 'up{cluster="int-eastus-svc-1", job="prometheus/prometheus", namespace="prometheus"}'
+    values: "1x20"
   alert_rule_test:
   - eval_time: 17m
     alertname: userJourneyBackupMetricsAbsent
@@ -954,6 +978,8 @@ tests:
   interval: 1m
   input_series:
   - series: underlay_clusters{cluster="int-eastus-mgmt-recovery"}
+    values: 1x50
+  - series: 'up{cluster="int-eastus-mgmt-recovery", job="prometheus/prometheus", namespace="prometheus"}'
     values: 1x50
   - series: up{cluster="int-eastus-mgmt-recovery", namespace="velero", pod="velero-server-1"}
     values: 0x20 1x29
@@ -993,6 +1019,11 @@ tests:
   input_series:
   - series: underlay_clusters{cluster="int-eastus-mgmt-ha"}
     values: 1x30
+  # Cluster healthy and reporting (self-scrape up=1) so the inventory side is
+  # populated - without this the alert cannot fire regardless of Velero and the
+  # HA-replica suppression below would not actually be exercised.
+  - series: 'up{cluster="int-eastus-mgmt-ha", job="prometheus/prometheus", namespace="prometheus"}'
+    values: 1x30
   - series: up{cluster="int-eastus-mgmt-ha", namespace="velero", pod="velero-server-1", prometheus_replica="0"}
     values: '0x30'
   - series: up{cluster="int-eastus-mgmt-ha", namespace="velero", pod="velero-server-1", prometheus_replica="1"}
@@ -1005,6 +1036,8 @@ tests:
   interval: 1m
   input_series:
   - series: underlay_clusters{cluster="int-eastus-mgmt-server-missing"}
+    values: 1x30
+  - series: 'up{cluster="int-eastus-mgmt-server-missing", job="prometheus/prometheus", namespace="prometheus"}'
     values: 1x30
   - series: up{cluster="int-eastus-mgmt-server-missing", namespace="velero", pod="node-agent-1"}
     values: 1x30
