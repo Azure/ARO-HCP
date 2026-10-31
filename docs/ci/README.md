@@ -185,6 +185,15 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Relationship To `e2e-parallel`](upgrade-path-presubmit.md#relationship-to-e2e-parallel)
 - [Known Limitations](upgrade-path-presubmit.md#known-limitations)
 
+### [TLS Preflight](tls-preflight.md)
+
+- [Why this job exists](tls-preflight.md#why-this-job-exists)
+- [How it works](tls-preflight.md#how-it-works)
+- [What it covers](tls-preflight.md#what-it-covers)
+- [Running it](tls-preflight.md#running-it)
+- [Interpreting failures](tls-preflight.md#interpreting-failures)
+- [Known limitations](tls-preflight.md#known-limitations)
+
 ### [CI Operations](operations.md)
 
 - [Inspecting Runs](operations.md#inspecting-runs)
@@ -229,6 +238,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
 - [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.
+- [TLS Preflight](tls-preflight.md) explains the `tls-preflight` presubmit that makes the kubectl inside a candidate runtime image perform a real TLS 1.3 handshake, gating image-bump PRs against the AROSLSRE-2481 regression class.
 - [CI Operations](operations.md) explains how to trigger, inspect, troubleshoot, and change the CI system itself.
 
 ## Source Of Truth
