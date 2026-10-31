@@ -117,11 +117,13 @@ func TestRolloutConditionalSoftDelete(t *testing.T) {
 			require.NoError(t, err)
 			crud := NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, GenericDocument[fleetapi.ControlPlaneVersionRollout]](
 				container, nil, fleetapi.ControlPlaneVersionRolloutResourceType, ProviderNamespacePartitionKeyDeriver{}, FleetResourceIDBuilder{})
+			deleteStarted := time.Now()
 			if tc.unconditional {
 				err = crud.Delete(t.Context(), "stable-4.19")
 			} else {
 				err = crud.DeleteWithETag(t.Context(), "stable-4.19", tc.expectedETag)
 			}
+			deleteFinished := time.Now()
 			if tc.wantConflict {
 				require.True(t, IsPreconditionFailedError(err), "expected HTTP 412: %v", err)
 			} else {
@@ -132,7 +134,10 @@ func TestRolloutConditionalSoftDelete(t *testing.T) {
 				var deleted GenericDocument[map[string]interface{}]
 				require.NoError(t, json.Unmarshal(stored, &deleted))
 				require.NotNil(t, deleted.DeletionTimestamp)
-				require.WithinDuration(t, time.Now(), deleted.DeletionTimestamp.Time, time.Second)
+				// metav1.Time JSON serialization drops fractional seconds, so compare
+				// against the operation's bounds at the same precision.
+				require.WithinRange(t, deleted.DeletionTimestamp.Time,
+					deleteStarted.Truncate(time.Second), deleteFinished.Truncate(time.Second))
 				require.EqualValues(t, SoftDeleteTTLSeconds, deleted.TimeToLive)
 				require.Equal(t, float64(4), deleted.Content["cosmosMetadata"].(map[string]interface{})["instanceVersion"])
 			} else {
