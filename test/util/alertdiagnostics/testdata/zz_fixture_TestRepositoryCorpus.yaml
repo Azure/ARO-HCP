@@ -5664,41 +5664,41 @@
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
-  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54)
+  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54)
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known) > (14.4 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.007199999999999207
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 3
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known) > (14.4 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.007199999999999207
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known
             role: signal
         thresholds:
           - operator: '>'
@@ -5708,41 +5708,41 @@
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability3d6h
   occurrence: 1
-  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130)
+  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130)
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (1 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0004999999999999449
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 64
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known) > (1 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0004999999999999449
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known
             role: signal
         thresholds:
           - operator: '>'
@@ -5752,45 +5752,71 @@
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability6h30m
   occurrence: 1
-  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64)
+  input: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64)
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known) > (6 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0029999999999996696
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 27
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (6 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0029999999999996696
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 64
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: rp-userjourney-kas-kms-systemic-failure-rules
+  alert: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+  occurrence: 1
+  input: (count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config) == 1)) >= 0.5 and on (cluster) count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) >= 3
+  plan:
+    expression: (count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config) == 1)) >= 0.5 and on (cluster) count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) >= 3
+    conditions:
+      - expression: (count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config) == 1)) >= 0.5
+        path: root/and:left
+        queries:
+          - expression: count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config) == 1)
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 0.5
+        unsupported: ""
+      - expression: count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) >= 3
+        path: root/and:right
+        queries:
+          - expression: count by (cluster, region) (max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1)
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_access_cluster_saturation_alerts
@@ -7843,58 +7869,103 @@
             role: signal
         thresholds: []
         unsupported: ""
+- source: observability/alerts/UserJourneyKubeApiserverAvailabilityKmsSystemicFailure-prometheusRule-KSM.yaml
+  group: rp-userjourney-kas-kms-systemic-failure-rules
+  alert: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+  occurrence: 1
+  input: |
+    (
+      count by (cluster) (
+        max by (name, namespace, _id, resource_id, cluster) (
+          hostedClusterAPI_valid_azure_kms_config{status!="True"}
+        ) == 1
+      )
+      /
+      count by (cluster) (
+        max by (name, namespace, _id, resource_id, cluster) (
+          hostedClusterAPI_valid_azure_kms_config
+        ) == 1
+      )
+    ) >= 0.5
+    and on (cluster)
+    count by (cluster) (
+      max by (name, namespace, _id, resource_id, cluster) (
+        hostedClusterAPI_valid_azure_kms_config{status!="True"}
+      ) == 1
+    ) >= 3
+  plan:
+    expression: (count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config) == 1)) >= 0.5 and on (cluster) count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) >= 3
+    conditions:
+      - expression: (count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config) == 1)) >= 0.5
+        path: root/and:left
+        queries:
+          - expression: count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) / count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config) == 1)
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 0.5
+        unsupported: ""
+      - expression: count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1) >= 3
+        path: root/and:right
+        queries:
+          - expression: count by (cluster) (max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config{status!="True"}) == 1)
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
 - source: observability/alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   group: rp-userjourney-kas-availability-monitor-rules
   alert: userJourneyKubeApiserverAvailability1h5m
   occurrence: 1
   input: |
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known)
       > (14.4 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
+      hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3
     )
     and on (name, namespace, _id, resource_id, cluster)
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known)
       > (14.4 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
+      hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54
     )
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known) > (14.4 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.007199999999999207
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known > 3
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 3
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known) > (14.4 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.007199999999999207
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known > 54
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known
             role: signal
         thresholds:
           - operator: '>'
@@ -7906,52 +7977,52 @@
   occurrence: 1
   input: |
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
       > (1 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
     )
     and on (name, namespace, _id, resource_id, cluster)
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known)
       > (1 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
+      hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130
     )
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (1 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0004999999999999449
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 64
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known) > (1 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0004999999999999449
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known > 130
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known
             role: signal
         thresholds:
           - operator: '>'
@@ -7963,52 +8034,52 @@
   occurrence: 1
   input: |
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known)
       > (6 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
+      hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27
     )
     and on (name, namespace, _id, resource_id, cluster)
     (
-      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+      1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
       > (6 * (1 - 0.9995))
       and on (name, namespace, _id, resource_id, cluster)
-      hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
     )
   plan:
-    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64)
+    expression: (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64)
     conditions:
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known) > (6 * (1 - 0.9995))
         path: root/and:left/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0029999999999996696
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known > 27
         path: root/and:left/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known
             role: signal
         thresholds:
           - operator: '>'
             value: 27
         unsupported: ""
-      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995))
+      - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known) > (6 * (1 - 0.9995))
         path: root/and:right/and:left
         queries:
-          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          - expression: 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known / hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known)
             role: signal
         thresholds:
           - operator: '>'
             value: 0.0029999999999996696
         unsupported: ""
-      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+      - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known > 64
         path: root/and:right/and:right
         queries:
-          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h
+          - expression: hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known
             role: signal
         thresholds:
           - operator: '>'
