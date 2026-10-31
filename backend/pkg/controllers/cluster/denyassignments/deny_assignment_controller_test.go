@@ -17,6 +17,7 @@ package denyassignments
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -32,8 +33,12 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	armresourcesfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/fake"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azuremockclient"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -619,35 +624,6 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			},
 		},
 		{
-			name:    "removes stale deny assignment not in definitions",
-			cluster: newTestCluster(),
-			existingSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
-				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{
-					{
-						DenyAssignmentType:       "stale-type-not-in-definitions",
-						DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/stale-uuid")),
-					},
-				}
-			}),
-			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-					return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
-				},
-			},
-			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{
-				DeleteErr: resourceNotFoundError(),
-				CreateErr: fmt.Errorf("simulated create failure"),
-			},
-			expectError: true,
-			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
-				spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-				for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
-					assert.NotEqual(t, "stale-type-not-in-definitions", ref.DenyAssignmentType, "stale type should have been removed")
-				}
-			},
-		},
-		{
 			name:    "existing content up to date sets recheck time",
 			cluster: newTestCluster(),
 			existingSPC: func() *coreapi.ServiceProviderCluster {
@@ -828,6 +804,410 @@ func TestSyncDenyAssignmentUpsertStalePending(t *testing.T) {
 	}
 }
 
+// legacyDenyAssignmentRef builds a deny assignment reference for a legacy per-service type that is no
+// longer required after the migration to the single "complete" deny assignment.
+func legacyDenyAssignmentRef(denyAssignmentType, uuid string) coreapi.DenyAssignmentReference {
+	return coreapi.DenyAssignmentReference{
+		DenyAssignmentType:       denyAssignmentType,
+		DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedRG + "/providers/Microsoft.Authorization/denyAssignments/" + uuid)),
+	}
+}
+
+// TestSyncDenyAssignmentUpsertDeletesLegacyAfterCompleteEnsured proves the ensure-before-delete
+// ordering: once the required "complete" deny assignment is confirmed present in AzureResources, the
+// legacy per-service assignment is deleted from Azure and dropped from AzureResources.
+func TestSyncDenyAssignmentUpsertDeletesLegacyAfterCompleteEnsured(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+
+	legacyRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-uuid")
+	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		// The legacy assignment is tracked alongside the already-present, up-to-date complete assignment.
+		spc.Status.AzureResources.DenyAssignments.AzureResources = append([]coreapi.DenyAssignmentReference{legacyRef}, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyRef}
+	})
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, existingSPC, nil)
+	require.NoError(t, err)
+
+	// The complete assignment already matches, so its ensure succeeds without a create; the legacy
+	// delete succeeds (404 -> no-op).
+	mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: resourceNotFoundError()}
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              fakeClock,
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: mockGenericResources,
+			DenyAssignmentsClientVal:  &azuremockclient.DenyAssignmentsClientFunc{GetFunc: matchingGetResponseForAllTypes(cluster, newTestSPC())},
+		},
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+	// The legacy assignment must be deleted from Azure only after the complete assignment is confirmed.
+	assert.Equal(t, []string{legacyRef.DenyAssignmentResourceID.String()}, mockGenericResources.DeleteCalls,
+		"legacy deny assignment should be deleted from Azure once the complete assignment is ensured")
+
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	hasComplete, hasLegacy := false, false
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		switch ref.DenyAssignmentType {
+		case denyAssignmentSuffixComplete:
+			hasComplete = true
+		case "compute-deny-assignment":
+			hasLegacy = true
+		}
+	}
+	assert.True(t, hasComplete, "required complete assignment should remain in AzureResources")
+	assert.False(t, hasLegacy, "legacy deny assignment should have been removed from AzureResources")
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "the same stale reference must be removed from both lists with one Azure delete")
+}
+
+type denyAssignmentTestTransport func(*http.Request) (*http.Response, error)
+
+func (transport denyAssignmentTestTransport) Do(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
+func TestSyncDenyAssignmentUpsertCreatesCompleteBeforeLegacyCleanup(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+	require.Len(t, requiredRefs, 1)
+	completeRef := requiredRefs[0]
+	legacyRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-compute-uuid")
+	pendingRef := legacyDenyAssignmentRef("storage-deny-assignment", "legacy-storage-uuid")
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+	_, err = spcCRUD.Create(ctx, newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{legacyRef}
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{pendingRef}
+	}), nil)
+	require.NoError(t, err)
+	var events []string
+	var creationResponses []int
+	server := armresourcesfake.Server{
+		BeginCreateOrUpdateByID: func(ctx context.Context, resourceID, apiVersion string, resource armresources.GenericResource, options *armresources.ClientBeginCreateOrUpdateByIDOptions) (azfake.PollerResponder[armresources.ClientCreateOrUpdateByIDResponse], azfake.ErrorResponder) {
+			resourceID = "/" + strings.TrimPrefix(resourceID, "/")
+			assert.Equal(t, completeRef.DenyAssignmentResourceID.String(), resourceID)
+			assert.Equal(t, denyAssignmentAzureAPIVersion, apiVersion)
+			events = append(events, "create-started")
+			spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			assert.Contains(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, completeRef)
+			assert.NotContains(t, spc.Status.AzureResources.DenyAssignments.AzureResources, completeRef)
+			var response azfake.PollerResponder[armresources.ClientCreateOrUpdateByIDResponse]
+			response.AddNonTerminalResponse(http.StatusAccepted, nil)
+			response.SetTerminalResponse(http.StatusOK, armresources.ClientCreateOrUpdateByIDResponse{GenericResource: resource}, nil)
+			return response, azfake.ErrorResponder{}
+		},
+		BeginDeleteByID: func(ctx context.Context, resourceID, apiVersion string, options *armresources.ClientBeginDeleteByIDOptions) (azfake.PollerResponder[armresources.ClientDeleteByIDResponse], azfake.ErrorResponder) {
+			resourceID = "/" + strings.TrimPrefix(resourceID, "/")
+			assert.Equal(t, []int{http.StatusAccepted, http.StatusOK}, creationResponses, "creation polling must finish before any legacy deletion")
+			spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			assert.Contains(t, spc.Status.AzureResources.DenyAssignments.AzureResources, completeRef)
+			assert.NotContains(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, completeRef)
+			events = append(events, "delete:"+resourceID)
+			var response azfake.PollerResponder[armresources.ClientDeleteByIDResponse]
+			response.SetTerminalResponse(http.StatusNoContent, armresources.ClientDeleteByIDResponse{}, nil)
+			return response, azfake.ErrorResponder{}
+		},
+	}
+	transport := armresourcesfake.NewServerTransport(&server)
+	client, err := armresources.NewClient(testSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
+		ClientOptions: policy.ClientOptions{Transport: denyAssignmentTestTransport(func(request *http.Request) (*http.Response, error) {
+			response, err := transport.Do(request)
+			if err == nil && strings.HasPrefix(request.URL.Path, completeRef.DenyAssignmentResourceID.String()) {
+				creationResponses = append(creationResponses, response.StatusCode)
+				if response.StatusCode == http.StatusOK {
+					events = append(events, "complete-provisioned")
+				}
+			}
+			return response, err
+		})},
+	})
+	require.NoError(t, err)
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: client,
+			DenyAssignmentsClientVal: &azuremockclient.DenyAssignmentsClientFunc{GetFunc: func(ctx context.Context, scope, id string, options *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+				assert.Equal(t, completeRef.DenyAssignmentResourceID.Name, id)
+				events = append(events, "complete-missing")
+				return armauthorization.DenyAssignmentsClientGetResponse{}, denyAssignmentNotFoundError()
+			}},
+		},
+	}
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	assert.Equal(t, []string{"complete-missing", "create-started", "complete-provisioned", "delete:" + legacyRef.DenyAssignmentResourceID.String(), "delete:" + pendingRef.DenyAssignmentResourceID.String()}, events)
+	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, requiredRefs, spc.Status.AzureResources.DenyAssignments.AzureResources)
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
+}
+
+func TestSyncDenyAssignmentUpsertRetriesMixedLegacyDeletion(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+	legacyRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-compute-uuid")
+	failedRef := legacyDenyAssignmentRef("storage-deny-assignment", "legacy-storage-uuid")
+	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	past := metav1.NewTime(fakeClock.Now().Add(-time.Hour))
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+	_, err = spcCRUD.Create(ctx, newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.AzureResources.DenyAssignments.AzureResources = append([]coreapi.DenyAssignmentReference{legacyRef, failedRef}, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &past
+	}), nil)
+	require.NoError(t, err)
+	deleteErr := fmt.Errorf("simulated legacy deletion failure")
+	failDeletion := true
+	var deleteCalls []string
+	server := armresourcesfake.Server{
+		BeginDeleteByID: func(ctx context.Context, resourceID, apiVersion string, options *armresources.ClientBeginDeleteByIDOptions) (azfake.PollerResponder[armresources.ClientDeleteByIDResponse], azfake.ErrorResponder) {
+			resourceID = "/" + strings.TrimPrefix(resourceID, "/")
+			deleteCalls = append(deleteCalls, resourceID)
+			var response azfake.PollerResponder[armresources.ClientDeleteByIDResponse]
+			var failure azfake.ErrorResponder
+			if resourceID == failedRef.DenyAssignmentResourceID.String() && failDeletion {
+				failure.SetError(deleteErr)
+			} else {
+				response.SetTerminalResponse(http.StatusNoContent, armresources.ClientDeleteByIDResponse{}, nil)
+			}
+			return response, failure
+		},
+	}
+	client, err := armresources.NewClient(testSubscriptionID, &azfake.TokenCredential{}, &azcorearm.ClientOptions{
+		ClientOptions: policy.ClientOptions{Transport: armresourcesfake.NewServerTransport(&server)},
+	})
+	require.NoError(t, err)
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              fakeClock,
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: client,
+			DenyAssignmentsClientVal:  &azuremockclient.DenyAssignmentsClientFunc{GetFunc: matchingGetResponseForAllTypes(cluster, newTestSPC())},
+		},
+	}
+	err = syncer.SyncOnce(ctx, testKey())
+	assert.ErrorContains(t, err, deleteErr.Error(), "mixed cleanup must return the failed deletion for rate-limited retry")
+	spc, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.NotContains(t, spc.Status.AzureResources.DenyAssignments.AzureResources, legacyRef, "successful removal must persist")
+	assert.Contains(t, spc.Status.AzureResources.DenyAssignments.AzureResources, failedRef)
+	assert.Contains(t, spc.Status.AzureResources.DenyAssignments.AzureResources, requiredRefs[0])
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources)
+	assert.Nil(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime, "failed cleanup must not schedule a healthy recheck")
+	assert.True(t, syncer.syncDenyAssignmentNeedsWork(cluster, spc), "the error retry must not be blocked by the normal recheck gate")
+	failDeletion = false
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	assert.Equal(t, []string{legacyRef.DenyAssignmentResourceID.String(), failedRef.DenyAssignmentResourceID.String(), failedRef.DenyAssignmentResourceID.String()}, deleteCalls)
+	spc, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, requiredRefs, spc.Status.AzureResources.DenyAssignments.AzureResources)
+	require.NotNil(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime)
+	assert.WithinRange(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime.Time, fakeClock.Now().Add(6*time.Hour), fakeClock.Now().Add(18*time.Hour))
+	assert.False(t, syncer.syncDenyAssignmentNeedsWork(cluster, spc), "healthy reconciles must retain the normal recheck gate")
+}
+
+func TestSyncDenyAssignmentUpsertRetainsCompleteWithPendingOnlyStale(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+
+	staleExistingRefs := []coreapi.DenyAssignmentReference{
+		legacyDenyAssignmentRef("compute-deny-assignment", "legacy-compute-uuid"),
+		legacyDenyAssignmentRef("storage-deny-assignment", "legacy-storage-uuid"),
+		legacyDenyAssignmentRef("network-deny-assignment", "legacy-network-uuid"),
+	}
+	pendingOnlyRef := legacyDenyAssignmentRef("legacy-pending-deny-assignment", "legacy-pending-uuid")
+	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.AzureResources.DenyAssignments.AzureResources = append(staleExistingRefs, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{staleExistingRefs[0], pendingOnlyRef}
+	})
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, existingSPC, nil)
+	require.NoError(t, err)
+	mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: resourceNotFoundError()}
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: mockGenericResources,
+			DenyAssignmentsClientVal:  &azuremockclient.DenyAssignmentsClientFunc{GetFunc: matchingGetResponseForAllTypes(cluster, newTestSPC())},
+		},
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+	assert.Equal(t, []string{
+		staleExistingRefs[0].DenyAssignmentResourceID.String(),
+		staleExistingRefs[1].DenyAssignmentResourceID.String(),
+		staleExistingRefs[2].DenyAssignmentResourceID.String(),
+		pendingOnlyRef.DenyAssignmentResourceID.String(),
+	}, mockGenericResources.DeleteCalls)
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	assert.Equal(t, requiredRefs, spc.Status.AzureResources.DenyAssignments.AzureResources,
+		"confirmed complete reference must survive cleanup of existing and pending-only stale types")
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources,
+		"stale references must be removed from both status lists")
+}
+
+// TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails proves the protection guarantee:
+// when the required "complete" deny assignment fails to create/update, the legacy per-service
+// assignment is NOT deleted, so the managed resource group is never left without a deny assignment.
+func TestSyncDenyAssignmentUpsertRetainsLegacyWhenCompleteEnsureFails(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+
+	legacyRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-uuid")
+	legacyPendingRef := legacyDenyAssignmentRef("storage-deny-assignment", "legacy-pending-uuid")
+	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		spc.Status.AzureResources.DenyAssignments.AzureResources = append([]coreapi.DenyAssignmentReference{legacyRef}, requiredRefs...)
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyPendingRef}
+	})
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, existingSPC, nil)
+	require.NoError(t, err)
+
+	// The complete assignment reports mismatched content (so it needs an update) and the update fails,
+	// so it is never confirmed present in AzureResources.
+	mockDenyAssignments := &azuremockclient.DenyAssignmentsClientFunc{
+		GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+			return armauthorization.DenyAssignmentsClientGetResponse{
+				DenyAssignment: armauthorization.DenyAssignment{
+					Properties: &armauthorization.DenyAssignmentProperties{
+						Permissions: []*armauthorization.DenyAssignmentPermission{
+							{Actions: to.SliceOfPtrs("wrong-action"), NotActions: to.SliceOfPtrs[string](), DataActions: to.SliceOfPtrs[string]()},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+	mockGenericResources := &azuremockclient.GenericResourcesClientFunc{CreateErr: fmt.Errorf("simulated create failure")}
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              fakeClock,
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: mockGenericResources,
+			DenyAssignmentsClientVal:  mockDenyAssignments,
+		},
+	}
+
+	require.Error(t, syncer.SyncOnce(ctx, testKey()), "sync should surface the failed complete ensure")
+
+	// Protection must be retained: no delete may be issued while the complete assignment could not be
+	// ensured.
+	assert.Empty(t, mockGenericResources.DeleteCalls, "legacy deny assignment must not be deleted when the complete ensure fails")
+
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	hasLegacy := false
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		if ref.DenyAssignmentType == "compute-deny-assignment" {
+			hasLegacy = true
+		}
+	}
+	assert.True(t, hasLegacy, "legacy deny assignment must remain in AzureResources so the resource group stays protected")
+	assert.Contains(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, legacyPendingRef, "obsolete pending assignments must also remain when ensuring complete fails")
+}
+
+// TestSyncDenyAssignmentUpsertPrunesObsoletePending proves that an obsolete legacy type left in
+// PendingAzureResources (which has no definition after the migration to the single "complete" deny
+// assignment) is deleted from Azure and removed from the pending list, rather than being retried
+// forever as a "no definition" failure that would keep the cluster permanently pending.
+func TestSyncDenyAssignmentUpsertPrunesObsoletePending(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fakeClock := clocktesting.NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	cluster := newTestCluster()
+	requiredRefs, err := allDenyAssignmentReferences(cluster)
+	require.NoError(t, err)
+
+	legacyPendingRef := legacyDenyAssignmentRef("compute-deny-assignment", "legacy-pending-uuid")
+	existingSPC := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+		// The required complete assignment is already present and up to date; a legacy per-service type
+		// is stuck in pending with no matching definition.
+		spc.Status.AzureResources.DenyAssignments.AzureResources = requiredRefs
+		spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{legacyPendingRef}
+	})
+
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+	_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, existingSPC, nil)
+	require.NoError(t, err)
+
+	// The complete assignment already matches (ensure is a no-op); the obsolete pending delete succeeds
+	// (404 -> no-op).
+	mockGenericResources := &azuremockclient.GenericResourcesClientFunc{DeleteErr: resourceNotFoundError()}
+	syncer := &clusterDenyAssignmentSyncer{
+		clock:              fakeClock,
+		resourcesDBClient:  mockDB,
+		clusterLister:      &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{testSubscription()}},
+		azureFPAClientBuilder: &azuremockclient.FirstPartyApplicationClientBuilderFunc{
+			GenericResourcesClientVal: mockGenericResources,
+			DenyAssignmentsClientVal:  &azuremockclient.DenyAssignmentsClientFunc{GetFunc: matchingGetResponseForAllTypes(cluster, newTestSPC())},
+		},
+	}
+
+	// The obsolete pending type must NOT surface a "no definition" error.
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+	// It is deleted from Azure...
+	assert.Contains(t, mockGenericResources.DeleteCalls, legacyPendingRef.DenyAssignmentResourceID.String(),
+		"obsolete pending deny assignment should be deleted from Azure")
+
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+
+	// ...and removed from BOTH status lists, so the cluster is not stuck pending.
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.PendingAzureResources {
+		assert.NotEqual(t, "compute-deny-assignment", ref.DenyAssignmentType, "obsolete type should be removed from PendingAzureResources")
+	}
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		assert.NotEqual(t, "compute-deny-assignment", ref.DenyAssignmentType, "obsolete type should not appear in AzureResources")
+	}
+	assert.Empty(t, spc.Status.AzureResources.DenyAssignments.PendingAzureResources, "pending should be cleared once the obsolete type is pruned")
+	assert.NotNil(t, spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime, "cluster should settle with a recheck time, not stay pending")
+
+	hasComplete := false
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		if ref.DenyAssignmentType == denyAssignmentSuffixComplete {
+			hasComplete = true
+		}
+	}
+	assert.True(t, hasComplete, "required complete assignment should remain")
+}
+
 func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	cluster := newTestCluster()
 	spc := newTestSPC()
@@ -840,10 +1220,10 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	allRefs, err := allDenyAssignmentReferences(cluster)
 	require.NoError(t, err)
 
-	var resourcesRef coreapi.DenyAssignmentReference
+	var completeRef coreapi.DenyAssignmentReference
 	for _, ref := range allRefs {
-		if ref.DenyAssignmentType == denyAssignmentSuffixResources {
-			resourcesRef = ref
+		if ref.DenyAssignmentType == denyAssignmentSuffixComplete {
+			completeRef = ref
 			break
 		}
 	}
@@ -860,7 +1240,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	}{
 		{
 			name:       "existing content up to date",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: matchingGetResponseForAllTypes(cluster, spc),
@@ -872,7 +1252,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 		},
 		{
 			name:       "content mismatch triggers update attempt",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
@@ -909,7 +1289,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 		},
 		{
 			name:       "deny assignment not found triggers create",
-			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
+			refs:       []coreapi.DenyAssignmentReference{completeRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
 				GetFunc: func(ctx context.Context, scope string, id string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
@@ -1068,6 +1448,17 @@ func TestReplaceServiceProviderClusterIfChanged(t *testing.T) {
 			expectNilReturn: false,
 		},
 		{
+			name: "with change persists and returns prior errors",
+			modifyReplacement: func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{
+					{DenyAssignmentType: "new-type"},
+				}
+			},
+			priorErrs:       []error{fmt.Errorf("prior error")},
+			expectError:     true,
+			expectNilReturn: false,
+		},
+		{
 			name:              "prior errors return error",
 			modifyReplacement: nil,
 			priorErrs:         []error{fmt.Errorf("prior error")},
@@ -1102,6 +1493,9 @@ func TestReplaceServiceProviderClusterIfChanged(t *testing.T) {
 			}
 
 			returned, retReplacement, err := replaceServiceProviderClusterIfChanged(ctx, spcCRUD, original, replacement, tt.priorErrs)
+			stored, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, getErr)
+			assert.Equal(t, replacement.Status, stored.Status, "status changes must persist even when prior operations failed")
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
