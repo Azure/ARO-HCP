@@ -178,7 +178,7 @@ resource lowEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
     name: 'AMW Low Event Ingestion Utilization - ${ws.label}'
     location: 'global'
     properties: {
-      description: 'Events Per Minute utilization is below limit. This may indicate that Prometheus remote write is broken or that very few metrics are being ingested. Investigate the ingestion pipeline. https://learn.microsoft.com/azure/azure-monitor/metrics/azure-monitor-workspace-monitor-ingest-limits'
+      description: 'Events Per Minute ingestion is below ${ws.lowEventIngestionThreshold}. This may indicate that Prometheus remote write is broken or that very few metrics are being ingested. Investigate the ingestion pipeline. https://learn.microsoft.com/azure/azure-monitor/metrics/azure-monitor-workspace-monitor-ingest-limits'
       severity: 3
       enabled: enabled
       autoMitigate: true
@@ -193,7 +193,7 @@ resource lowEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
           {
             threshold: ws.lowEventIngestionThreshold
             name: 'EventsPerMinuteCriteria'
-            metricName: 'EventsPerMinuteIngestedPercentUtilization'
+            metricName: 'EventsPerMinuteIngested'
             operator: 'LessThan'
             timeAggregation: 'Average'
             criterionType: 'StaticThresholdCriterion'
