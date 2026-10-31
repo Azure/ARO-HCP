@@ -37,6 +37,10 @@ run's bounded time window from the regional Azure Monitor workspaces.
   correlate their cluster, namespace, pod, and container labels with the test
   logs.
 - `alerts.json` contains the alert data used by the summary.
+- `metrics.json` preserves the inputs to the general metrics panels: the time
+  window, ordered query specifications, full metric labels and samples, and
+  query errors and warnings. It is written before HTML rendering. Azure Monitor
+  samples include the normalization performed during collection.
 - `alert-diagnostics.json` contains the versioned, deduplicated query results
   behind each alert card's **Metric history** pane. Its `alerts` array follows
   the same order as `alerts.json`; chart queries reference the shared `queries`
@@ -66,6 +70,42 @@ not produce passing assertions that no alerts fired. Individual chart queries
 and utilization collection remain informational, with failures shown in their
 tabs. Artifact-writing failures still fail the step after other writes are
 attempted.
+
+#### Filtering and replaying metrics panels
+
+Each metrics plot has **Select all**, **Deselect all**, and **Select matches**
+controls. Search matches label substrings case-insensitively and only narrows
+the legend; it does not change which lines are plotted. **Selected only** hides
+manually deselected legend entries. Plotted labels appear first in the paginated
+legend, and the status names the series when only one line is plotted.
+
+The peak slider hides selected series below its threshold without forgetting
+manual selections. Lower it to restore those lines. The status distinguishes
+selected and plotted counts, including selections hidden by the threshold.
+
+Rebuild the test binary after changing the renderer, then replay a downloaded
+report without Azure credentials or configuration:
+
+```bash
+make -C test
+./test/aro-hcp-tests gather-observability render-metrics \
+  --input metrics.json --output metrics-summary.html
+```
+
+The replay uses the saved query settings and the current renderer. Open the
+output in a browser (the ECharts library is loaded from the same CDN as the CI
+report). Older reports without `metrics.json` do not support this command
+directly.
+
+The same 103-series retry-ratio chart, with the peak threshold lowered to zero:
+
+Before (all series visible):
+
+![Retry-ratio chart before legend filtering](images/metrics-legend-before.png)
+
+After searching for `operationcluster` and selecting only the three matches:
+
+![Retry-ratio chart with searchable legend and selected-only view](images/metrics-legend-after.png)
 
 The uploaded summary preserves the selected chart samples after the ephemeral
 environment is deleted, subject to OpenShift CI artifact retention. It is not a

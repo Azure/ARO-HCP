@@ -46,7 +46,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 		"endpoint:hcp", "endpoint:svc", "query:svc", "metrics", "render:First",
 		"render:alerts", "render:utilization", "render:history", "write:alerts.json", "write:utilization.json",
 		"write:junit", "write:page", "write:alert-diagnostics.json", "setup:cosmos", "setup:known", "setup:queries",
-		"amw", "render:amw", "write:amw.json",
+		"amw", "render:amw", "write:amw.json", "write:metrics.json",
 	} {
 		t.Run(failure, func(t *testing.T) {
 			t.Parallel()
@@ -164,7 +164,7 @@ func TestGatherIndependentFailures(t *testing.T) {
 				}
 			}
 			if failure != "setup:queries" {
-				for _, name := range []string{"query:svc", "query:hcp", "metrics", "render:First", "render:Second"} {
+				for _, name := range []string{"query:svc", "query:hcp", "metrics", "render:First", "render:Second", "write:metrics.json"} {
 					if name == "query:svc" && failure == "endpoint:svc" || name == "query:hcp" && failure == "endpoint:hcp" {
 						continue
 					}
@@ -311,6 +311,7 @@ func TestAMWOnlySkipsOtherCollectors(t *testing.T) {
 func TestQueriesKeepFailedChartsAndTabs(t *testing.T) {
 	t.Parallel()
 	o := Options{completedOptions: &completedOptions{
+		TimeWindow: timing.TimeWindow{Start: time.Unix(1000, 0), End: time.Unix(2000, 0)},
 		Queries: &QueriesConfig{Panels: []PanelSpec{
 			{Title: "selectors", Queries: []QuerySpec{
 				{Title: "unknown workspace", Workspace: "missing"},
@@ -324,6 +325,7 @@ func TestQueriesKeepFailedChartsAndTabs(t *testing.T) {
 	}}
 	workspaces := map[string]*workspaceData{workspaceSvc: {PromEndpoint: "svc"}, workspaceHcp: {}}
 	var calls int
+	var saved metricsReport
 	deps := gatherDependencies{
 		queryRange: func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error) {
 			calls++
@@ -333,6 +335,9 @@ func TestQueriesKeepFailedChartsAndTabs(t *testing.T) {
 			return &promutil.Response{}, nil
 		},
 		renderPanel: func(data panelPageData) ([]byte, error) {
+			if len(saved.Panels) != 2 || len(saved.Panels[0].Queries) != 5 {
+				t.Fatal("all metrics evidence must be saved before rendering begins")
+			}
 			if data.Title == "selectors" {
 				if len(data.Charts) != 5 {
 					t.Fatalf("failed queries suppressed charts: %d", len(data.Charts))
@@ -346,6 +351,17 @@ func TestQueriesKeepFailedChartsAndTabs(t *testing.T) {
 			}
 			return []byte("later succeeded"), nil
 		},
+	}
+	deps.writeFile = func(_ string, data []byte, _ os.FileMode) error {
+		if err := json.Unmarshal(data, &saved); err != nil {
+			t.Fatal(err)
+		}
+		for _, query := range saved.Panels[0].Queries[:4] {
+			if query.Error == "" {
+				t.Errorf("metrics evidence lost error for %q", query.Spec.Title)
+			}
+		}
+		return nil
 	}
 	tabs, err := o.runQueries(logr.NewContext(context.Background(), logr.Discard()), workspaces, deps)
 	if err == nil || !strings.Contains(err.Error(), "unknown metric resource") || !strings.Contains(err.Error(), "unknown workspace") || !strings.Contains(err.Error(), "missing Prometheus endpoint") {
