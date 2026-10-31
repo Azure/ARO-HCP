@@ -23,14 +23,15 @@ const (
 	// Wildcard path segment names for request multiplexing.
 	// Must be lowercase as we lowercase the request URL pattern
 	// when registering handlers.
-	PathSegmentDeploymentName    = "deploymentname"
-	PathSegmentLocation          = "location"
-	PathSegmentNodePoolName      = "nodepoolname"
-	PathSegmentExternalAuthName  = "externalauthname"
-	PathSegmentOperationID       = "operationid"
-	PathSegmentResourceGroupName = "resourcegroupname"
-	PathSegmentResourceName      = "resourcename"
-	PathSegmentSubscriptionID    = "subscriptionid"
+	PathSegmentDeploymentName              = "deploymentname"
+	PathSegmentLocation                    = "location"
+	PathSegmentNodePoolName                = "nodepoolname"
+	PathSegmentExternalAuthName            = "externalauthname"
+	PathSegmentOperationID                 = "operationid"
+	PathSegmentResourceGroupName           = "resourcegroupname"
+	PathSegmentResourceName                = "resourcename"
+	PathSegmentSubscriptionID              = "subscriptionid"
+	PathSegmentOperatorIdentityRoleSetName = "operatoridentityrolesetname"
 
 	healthGaugeName     = "frontend_health"
 	requestCounterName  = "frontend_http_requests_total"
