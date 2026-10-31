@@ -2374,6 +2374,12 @@
           "enum": ["Standard", "Premium"],
           "description": "SKU/tier for the audit logs Event Hub namespace (default Premium; Standard for regions without Premium availability)"
         },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 40,
+          "description": "Capacity for the audit logs Event Hub namespace: throughput units for Standard (1-40), processing units for Premium (1, 2, 4, 8, 16). Default 1."
+        },
         "authRuleName": {
           "type": "string",
           "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
@@ -2396,6 +2402,7 @@
         "name",
         "namespace",
         "sku",
+        "capacity",
         "authRuleName",
         "kustoConsumerGroupName",
         "kustoDataConnectionName",
