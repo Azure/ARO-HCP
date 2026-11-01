@@ -665,7 +665,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		currentDurations = durations;
 		chart.setOption({
 			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
-			tooltip: {trigger:'item', formatter:tooltip},
+			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, formatter:tooltip},
 			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
 				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
 			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]

@@ -137,7 +137,7 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 	});
 	assert.equal(options[0].series[1].data[0].name, ` + string(encodedName) + `);
 	assert.equal(options[0].yAxis[0].data[0], ` + string(encodedName) + `);
-	assert.equal(state.tooltip.formatter({dataIndex:0}).textContent, ` + string(encodedName) + ` + '\n0s');`
+	assert.equal(state.tooltip.formatter([{dataIndex:0}]).textContent, ` + string(encodedName) + ` + '\n0s');`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("tooltip regression: %v\n%s", err, output)
 	}
