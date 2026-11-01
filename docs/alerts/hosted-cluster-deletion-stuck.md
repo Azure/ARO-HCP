@@ -63,7 +63,7 @@ are consumed through `modules/metrics/rp-hcp-rules.bicep` by
 `dev-infrastructure/templates/monitoring.bicep`.
 Local tests and compilation do not establish live Azure acceptance, production
 label correctness, or firing counts. An authorized int/stage alert-tester report
-following [Alert Verification](alert-verification.md) remains required after the
+following [Alert Verification](../alert-verification.md) remains required after the
 metric rolls out. Record the time range, datasources and regions, verify per-cluster
 identity and candidate/firing counts, and distinguish unavailable series from an
 available metric with no matches. No live validation is claimed here. The existing
