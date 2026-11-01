@@ -590,10 +590,18 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			(test.segments || []).map(s => '\n' + s.name + ': ' + Math.floor((s.end-s.start)/1000) + 's').join('');
 		return content;
 	};
+	const visibleRowBounds = (start, end) => {
+		const lastIndex = Math.max(0, currentLabels.length - 1);
+		return [
+			Math.max(0, Math.round(lastIndex * start / 100)),
+			Math.min(lastIndex, Math.round(lastIndex * end / 100))
+		];
+	};
 	const fitRowHeight = () => {
 		const zoom = chart.getOption().dataZoom[0];
 		const fullRange = zoom.start <= 0 && zoom.end >= 100;
-		const visibleRows = groups.length * (zoom.end - zoom.start) / 100;
+		const [first, last] = visibleRowBounds(zoom.start, zoom.end);
+		const visibleRows = last - first + 1;
 		const height = fullRange ? overviewHeight() : Math.max(__MINIMUM_OVERVIEW_HEIGHT__, 130 + Math.ceil(visibleRows) * __ROW_HEIGHT__);
 		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
 		chart.getDom().style.height = height + 'px';
@@ -604,11 +612,10 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		if (zoom.start <= 0 && zoom.end >= 100) fitRowHeight();
 	});
 	const fitTimeRange = (start, end) => {
-		const first = Math.max(0, Math.floor(currentLabels.length * start / 100));
-		const last = Math.min(currentLabels.length, Math.ceil(currentLabels.length * end / 100));
+		const [first, last] = visibleRowBounds(start, end);
 		let earliest = Infinity;
 		let latest = -Infinity;
-		for (let i = first; i < last; i++) {
+		for (let i = first; i <= last; i++) {
 			const offset = Number(currentOffsets[i].value);
 			earliest = Math.min(earliest, offset);
 			latest = Math.max(latest, offset + Number(currentDurations[i].value));

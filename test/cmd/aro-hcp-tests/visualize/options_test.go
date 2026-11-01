@@ -248,3 +248,70 @@ assert.equal(state.dataZoom[0].end, 100);`
 		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
 	}
 }
+
+func TestTimingChartZoomIncludesBoundaryTests(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to execute chart zoom regression tests")
+	}
+	for _, count := range []int{1, 75} {
+		groups := make([]timingChartGroup, count)
+		for i := range groups {
+			duration := float64(1000)
+			if i == 15 || count == 1 {
+				duration = 80000
+			}
+			groups[i] = timingChartGroup{Name: "test", StartTime: int64(i), Duration: duration, FirstRow: i}
+		}
+		encodedGroups, err := json.Marshal(groups)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encodedScript, err := json.Marshal(timingChartSortingJS("mockChart", groups, 200000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		script := `const assert = require('node:assert/strict');
+const groups = ` + string(encodedGroups) + `;
+const listeners = {};
+const state = {
+	yAxis:[{data:groups.map(g=>g.name)}],
+	series:[{data:groups.map((_,i)=>({value:i*1000}))},{data:groups.map(g=>({value:g.duration}))}],
+	dataZoom:[{start:0,end:100},{start:0,end:100}]
+};
+const dom = {style:{height:'600px'}};
+let height = 600;
+const chart = {
+	getOption:()=>state, getDom:()=>dom, getHeight:()=>height, resize:o=>height=o.height,
+	on:(event,handler)=>listeners[event]=handler,
+	setOption:option=>{
+		if (option.yAxis) state.yAxis=[option.yAxis];
+		if (option.series) state.series=option.series;
+		if (option.dataZoom) state.dataZoom=option.dataZoom;
+	},
+	dispatchAction:action=>Object.assign(state.dataZoom[1],action)
+};
+require('node:vm').runInNewContext(` + string(encodedScript) + `, {
+	mockChart:chart,
+	document:{getElementById:()=>({value:'start',addEventListener:()=>{}}),querySelector:()=>({getBoundingClientRect:()=>({top:400})})},
+	window:{innerHeight:1000,scrollY:0,addEventListener:()=>{}}
+});
+for (const [start,end] of [[0,20],[20,40],[20,20],[0,100]]) {
+	Object.assign(state.dataZoom[0],{start,end});
+	listeners.datazoom({dataZoomId:'timing-rows',start,end});
+	const zoom = state.dataZoom[1];
+	const boundaryStart = groups.length === 1 ? 0 : 15000;
+	const boundaryEnd = boundaryStart + 80000;
+	assert.ok(zoom.start/100*200000 <= boundaryStart, 'time zoom clips boundary test start');
+	assert.ok(zoom.end/100*200000 >= boundaryEnd, 'time zoom clips boundary test end');
+	if (start !== 0 || end !== 100) {
+		const first = Math.round((groups.length-1)*start/100);
+		const last = Math.round((groups.length-1)*end/100);
+		assert.equal(height,Math.max(320,130+(last-first+1)*26));
+	}
+}`
+		if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
+			t.Fatalf("boundary zoom regression with %d tests: %v\n%s", count, err, output)
+		}
+	}
+}
