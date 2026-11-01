@@ -647,6 +647,84 @@ func releaseIdentityContainers(containers, available []string, cleanupTrackedAss
 	return nil
 }
 
+// copyEnvLeasedContainers returns the env-assigned containers that have been
+// leased. The boolean is false when this test is not on the env path. An
+// empty slice with true means the env path is active and nothing has been
+// leased yet.
+func (tc *perItOrDescribeTestContext) copyEnvLeasedContainers() ([]string, bool) {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	if !tc.miEnvAssigned {
+		return nil, false
+	}
+	return slices.Clone(tc.miEnvAssignedContainers[:tc.miEnvAssignedIdx]), true
+}
+
+// ReleaseEnvAssignedIdentities cleans safe env-assigned containers without opening
+// the file pool, which does not own these leases. Surviving consumers retain their
+// federated credentials and principal-associated role assignments.
+func (tc *perItOrDescribeTestContext) releaseEnvAssignedIdentities(ctx context.Context) error {
+	containers, _ := tc.copyEnvLeasedContainers()
+
+	tc.contextLock.RLock()
+	tracked := slices.Clone(tc.createdRoleAssignmentIDs)
+	tc.contextLock.RUnlock()
+
+	if len(containers) == 0 && len(tracked) == 0 {
+		return nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(containers) == 0 {
+		return tc.cleanupRoleAssignments(ctx, subscriptionID)
+	}
+	client, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+	if err != nil {
+		return err
+	}
+	msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return err
+	}
+	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
+	guardCtx, cancel := context.WithTimeout(logr.NewContext(ctx, ginkgo.GinkgoLogr.WithValues("spec", specID())), 10*time.Minute)
+	defer cancel()
+	available, err := tc.filterLeasedIdentityConsumers(guardCtx, subscriptionID, containers)
+	if err != nil {
+		return err
+	}
+	plan, err := planIdentityRoleAssignmentCleanup(guardCtx, msiClientFactory.NewUserAssignedIdentitiesClient(), client, subscriptionID, containers, available, tracked)
+	if err != nil {
+		return err
+	}
+	if err := tc.cleanupRoleAssignmentIDs(ctx, client, plan.unassociated); err != nil {
+		return err
+	}
+	return releaseIdentityContainers(containers, available,
+		func(resourceGroup string) error {
+			return tc.cleanupRoleAssignmentIDs(ctx, client, plan.byContainer[resourceGroup])
+		},
+		func(resourceGroup string) error {
+			var errs []error
+			if err := tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup FICs for identity container %s: %w", resourceGroup, err))
+			}
+			if err := tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup, plan); err != nil {
+				errs = append(errs, fmt.Errorf("failed to cleanup role assignments for identity container %s: %w", resourceGroup, err))
+			}
+			return errors.Join(errs...)
+		},
+	)
+}
+
 type identityRoleAssignmentCleanup struct {
 	byContainer          map[string][]string
 	unassociated         []string
@@ -999,7 +1077,7 @@ func inventoryIdentityContainerRoleAssignments(ctx context.Context, client *arma
 				if ra == nil || ra.ID == nil || ra.Name == nil || ra.Properties == nil || ra.Properties.Scope == nil || ra.Properties.PrincipalID == nil {
 					return fmt.Errorf("incomplete role assignment inventory for scope %s", scope)
 				}
-				if !strings.EqualFold(*ra.Properties.Scope, scope) && !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)+"/") {
+				if !mipool.ScopeWithinResourceGroup(*ra.Properties.Scope, scope) {
 					continue
 				}
 				if plan.protectedPrincipals[strings.ToLower(*ra.Properties.PrincipalID)] || plan.preservedAssignments[strings.ToLower(*ra.ID)] {
