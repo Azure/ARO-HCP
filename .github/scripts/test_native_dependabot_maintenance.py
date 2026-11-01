@@ -269,9 +269,130 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(len(result["groups"]), 1)
         self.assertEqual([row["number"] for row in result["groups"][0]["sources"]], [1, 2])
         self.assertEqual(result["groups"][0]["blockers"], [])
+        self.assertEqual(result["groups"][0]["next_action"]["action"], "prepare_replacement")
         endpoints = [endpoint for endpoint, _, _ in self.calls if "issues?" in endpoint]
         self.assertTrue(all("creator=" in endpoint for endpoint in endpoints))
         self.assertTrue(any("state=all" in endpoint for endpoint in endpoints))
+
+    def test_native_ci_is_evidence_not_replacement_preparation_gate(self):
+        sha = self.detail(1)["head"]["sha"]
+        for state in ("awaiting-admission", "pending", "queued", "in_progress", "failed"):
+            with self.subTest(state=state):
+                self.statuses.clear()
+                self.checks.clear()
+                self.pulls[1]["labels"] = [{"name": "needs-ok-to-test"}] if state == "awaiting-admission" else []
+                if state in ("pending", "failed"):
+                    self.ci(pending=state == "pending")
+                elif state in ("queued", "in_progress"):
+                    self.checks[sha] = [{"id": 1, "name": "ci/prow/e2e-parallel",
+                                         "head_sha": sha, "status": state, "conclusion": None}]
+                group = native.inventory(REPO)["groups"][0]
+                self.assertEqual(group["next_action"]["action"], "prepare_replacement")
+
+    def test_inventory_preserves_human_hold_before_preparation(self):
+        self.hold(author="human", body="/hold\nInvestigating dependency compatibility")
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("human/unknown hold", group["next_action"]["reason"])
+
+    def test_inventory_selects_existing_pending_robot_replacement(self):
+        published = native.publish(REPO, self.request())
+        self.ci(number=published["number"], pending=True)
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "maintain_replacement")
+        self.assertEqual(group["next_action"]["replacement_pr"], published["number"])
+
+    def test_inventory_blocks_human_hold_on_existing_replacement(self):
+        published = native.publish(REPO, self.request())
+        self.hold(number=published["number"], author="human", body="/hold\nInvestigating")
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertEqual(group["next_action"]["replacement_pr"], published["number"])
+
+    def test_cleanup_selection_requires_exact_source_head(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": copy.deepcopy(group["sources"])}
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], group["sources"])
+        replacement["sources"][0]["head_sha"] = "c" * 40
+        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+        replacement["sources"] = [{"number": 2, "head_sha": "b" * 40}]
+        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+
+    def test_cleanup_selection_maps_subset_without_changing_publication_sources(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": [copy.deepcopy(group["sources"][0])]}
+        complete_sources = copy.deepcopy(group["sources"])
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], [complete_sources[0]])
+        self.assertEqual(group["sources"], complete_sources)
+
+    def test_cleanup_selection_excludes_rebased_source_from_subset(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": [{"number": 1, "head_sha": "d" * 40},
+                                   copy.deepcopy(group["sources"][1])]}
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], [group["sources"][1]])
+
+    def test_cleanup_selection_uses_one_exact_merged_history_mapping(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        older = {"number": 100, "group": group["group"], "merged": True,
+                 "sources": [copy.deepcopy(group["sources"][0])]}
+        newer = {"number": 101, "group": group["group"], "merged": True,
+                 "sources": [copy.deepcopy(group["sources"][1])]}
+        action = native.next_action(group, [newer, older])
+        self.assertEqual(action["replacement_pr"], newer["number"])
+        self.assertEqual(action["source_prs"], newer["sources"])
+        newer["sources"][0]["head_sha"] = "d" * 40
+        action = native.next_action(group, [newer, older])
+        self.assertEqual(action["replacement_pr"], older["number"])
+        self.assertEqual(action["source_prs"], older["sources"])
+
+    def test_cleanup_selection_precedes_newer_open_replacement_maintenance(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": [copy.deepcopy(group["sources"][0])]}
+        opened = {"number": 101, "group": group["group"], "merged": False,
+                  "blocked_holds": [], "sources": copy.deepcopy(group["sources"])}
+        action = native.next_action(group, [merged, opened])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["replacement_pr"], merged["number"])
+        self.assertEqual(action["source_prs"], merged["sources"])
+
+    def test_cleanup_selection_preserves_group_and_open_replacement_blockers(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40}]}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": copy.deepcopy(group["sources"])}
+        opened = {"number": 101, "group": group["group"], "merged": False,
+                  "blocked_holds": ["human/unknown hold"], "sources": []}
+        self.assertEqual(native.next_action(group, [merged, opened])["action"], "blocked")
+        opened["blocked_holds"] = []
+        ambiguous = {**opened, "number": 102}
+        self.assertEqual(native.next_action(group, [merged, opened, ambiguous])["action"], "blocked")
+        group["blockers"] = ["source has human/unknown hold"]
+        self.assertEqual(native.next_action(group, [merged])["action"], "blocked")
+
+    def test_ambiguous_open_replacements_fail_closed(self):
+        group = {"group": "a" * 24, "blockers": [], "sources": []}
+        replacements = [{"number": number, "group": group["group"], "merged": False,
+                         "blocked_holds": [], "sources": []} for number in (100, 101)]
+        self.assertEqual(native.next_action(group, replacements)["action"], "blocked")
 
     def test_publication_cannot_omit_current_same_family_target_native_source(self):
         second_sha = self.source(2, "internal/go.mod", manifest(NEW))
@@ -285,6 +406,9 @@ class RepositoryFixture(unittest.TestCase):
 
     def test_go_publication_ignores_unrelated_modified_dockerfile(self):
         self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        group = next(row for row in native.inventory(REPO)["groups"] if row["group"] is not None)
+        self.assertEqual(group["blockers"], [])
+        self.assertEqual(group["next_action"]["action"], "prepare_replacement")
         request = self.request()
         result = native.publish(REPO, request)
         self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
@@ -292,6 +416,29 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(self.remote_git("show", result["head_sha"] + ":backend/Dockerfile"),
                          "FROM example.invalid/base:1.0")
         self.assertEqual(self.pulls[2]["state"], "open")
+
+    def test_inventory_blocks_ambiguous_native_sibling_despite_docker_title(self):
+        self.source(2, "api/Makefile", "models:\n\t@echo changed\n")
+        self.pulls[2]["title"] = "chore(deps): bump Docker base image"
+        result = native.inventory(REPO)
+        group = next(row for row in result["groups"] if row["group"] is not None)
+        self.assertEqual([row["number"] for row in group["sources"]], [1])
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("PR #2: unsupported/protected native source path: api/Makefile",
+                      group["next_action"]["reason"])
+
+    def test_inventory_requires_complete_disjoint_sibling_file_evidence(self):
+        self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        original = self.api
+        def partial(endpoint, **kwargs):
+            if "/pulls/2/files?" in endpoint:
+                return [[]]
+            return original(endpoint, **kwargs)
+        with patch.object(native, "api", side_effect=partial):
+            result = native.inventory(REPO)
+        group = next(row for row in result["groups"] if row["group"] is not None)
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("PR #2: incomplete changed-file evidence", group["next_action"]["reason"])
 
     def test_go_publication_does_not_infer_disjointness_from_docker_title(self):
         self.source(2, "api/Makefile", "models:\n\t@echo changed\n")
@@ -630,11 +777,58 @@ class RepositoryFixture(unittest.TestCase):
             native.reconcile(REPO, self.action("close-superseded", replacement_pr=result["number"]))
         self.assertEqual(self.comments[1], [])
 
+    def test_requested_closure_waits_without_starving_independent_family(self):
+        self.source(2, "api/package.json", json.dumps({
+            "devDependencies": {"prettier": "3.9.10"}, "overrides": {"undici": "7.30.1"}}))
+        result = native.publish(REPO, self.request())
+        self.merge_replacement(result["number"])
+        request = self.action("close-superseded", replacement_pr=result["number"])
+        native.reconcile(REPO, request)
+        inventory = native.inventory(REPO)
+        go = next(group for group in inventory["groups"] if group.get("ecosystem") == "go")
+        npm = next(group for group in inventory["groups"] if group.get("ecosystem") == "npm")
+        self.assertEqual(go["next_action"]["action"], "wait_for_closure")
+        self.assertEqual(go["sources"][0]["closure_requests"], [result["number"]])
+        self.assertEqual(npm["next_action"]["action"], "prepare_replacement")
+        self.assertEqual(native.reconcile(REPO, request)["status"], "close-already-requested")
+        self.pulls[1]["state"] = "closed"
+        observed = native.inventory(REPO)
+        self.assertEqual([source["number"] for group in observed["groups"] for source in group["sources"]], [2])
+
+    def test_pending_closure_does_not_hide_another_mapped_source(self):
+        sources = [{"number": 1, "head_sha": "b" * 40, "closure_requests": [100]},
+                   {"number": 2, "head_sha": "c" * 40, "closure_requests": []}]
+        group = {"group": "a" * 24, "blockers": [], "sources": sources}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": [{"number": source["number"], "head_sha": source["head_sha"]}
+                              for source in sources]}
+        decision = native.next_action(group, [merged])
+        self.assertEqual(decision["action"], "close_superseded")
+        self.assertEqual(decision["source_prs"], [{"number": 2, "head_sha": "c" * 40}])
+        sources[0]["closure_requests"] = [999]
+        self.assertEqual(native.next_action(group, [merged])["source_prs"], merged["sources"])
+
+    def test_closure_requests_require_trusted_current_head_command(self):
+        sha = "b" * 40
+        body = f"<!-- {native.MARKER}close:{sha}:100 -->\nCovered by a merged replacement.\n\n/close"
+        snap = {"pull": {"head": {"sha": sha}}, "comments": []}
+        cases = [(native.ROBOT, body, [100]), ("human", body, []),
+                 (native.ROBOT, body.replace(sha, "c" * 40), []),
+                 (native.ROBOT, "Example:\n" + body, []),
+                 (native.ROBOT, body.replace("/close", "No closure requested."), []),
+                 (native.ROBOT, body + "\n```", [])]
+        for author, text, expected in cases:
+            with self.subTest(author=author, body=text):
+                snap["comments"] = [{"user": {"login": author}, "body": text}]
+                self.assertEqual(native.closure_requests(snap), expected)
+
     def test_merged_coverage_closes_only_via_prow_command_and_inventory_finds_merge(self):
         result = native.publish(REPO, self.request())
         self.merge_replacement(result["number"])
         inventory = native.inventory(REPO)
         self.assertTrue(inventory["replacements"][0]["merged"])
+        self.assertEqual(inventory["groups"][0]["next_action"]["action"], "close_superseded")
+        self.assertEqual(inventory["groups"][0]["next_action"]["replacement_pr"], result["number"])
         native.reconcile(REPO, self.action("close-superseded", replacement_pr=result["number"]))
         self.assertTrue(self.comments[1][-1]["body"].endswith("\n/close"))
         self.assertEqual(self.pulls[1]["state"], "open")

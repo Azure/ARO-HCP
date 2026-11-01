@@ -524,19 +524,79 @@ def creator_inventory(repo, creator, state="open"):
     return result
 
 
+def closure_requests(snap):
+    """Read trusted current-head closure commands, not copied or stale markers."""
+    pattern = r"^<!-- " + re.escape(MARKER) + "close:" + snap["pull"]["head"]["sha"] + r":([1-9][0-9]*) -->\n"
+    requested = set()
+    for comment in snap["comments"]:
+        if comment.get("user", {}).get("login") != ROBOT:
+            continue
+        match = re.match(pattern, comment["body"])
+        if match and re.search(r"(?m)^/close\s*\Z", comment["body"]):
+            requested.add(int(match.group(1)))
+    return sorted(requested)
+
+
+def next_action(group, replacements):
+    """Select work from verified identities, never from native-source CI."""
+    if group["blockers"]:
+        return {"action": "blocked", "reason": "; ".join(sorted(group["blockers"]))}
+    matching = sorted((row for row in replacements if row["group"] == group["group"]),
+                      key=lambda row: row["number"])
+    opened = [row for row in matching if not row["merged"]]
+    if len(opened) > 1:
+        return {"action": "blocked", "reason": "ambiguous open matching replacements"}
+    if opened and opened[0]["blocked_holds"]:
+        return {"action": "blocked", "reason": "replacement has human/unknown hold",
+                "replacement_pr": opened[0]["number"]}
+    sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
+    pending = set()
+    for row in matching:
+        if row["merged"]:
+            mapped = {(source["number"], source["head_sha"]) for source in row["sources"]}
+            pending.update((source["number"], source["head_sha"]) for source in group["sources"]
+                           if row["number"] in source.get("closure_requests", [])
+                           and (source["number"], source["head_sha"]) in mapped)
+    for row in reversed(matching):
+        if not row["merged"]:
+            continue
+        mapped = (sources - pending) & {(source["number"], source["head_sha"]) for source in row["sources"]}
+        if mapped:
+            return {"action": "close_superseded",
+                    "reason": "merged replacement maps exact source heads; closure guard must verify coverage",
+                    "replacement_pr": row["number"],
+                    "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(mapped)]}
+    if pending == sources and pending:
+        return {"action": "wait_for_closure",
+                "reason": "trusted current-head closure commands already requested; wait for observed Prow closure",
+                "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(pending)]}
+    if opened:
+        return {"action": "maintain_replacement",
+                "reason": "reuse existing replacement; its current-head CI governs further progress",
+                "replacement_pr": opened[0]["number"]}
+    return {"action": "prepare_replacement",
+            "reason": "no open matching replacement or merged exact-source mapping; native CI is evidence only"}
+
+
 def inventory(repo):
     validate_repo(repo)
     base = main_sha(repo)
     groups = {}
-    for pull in creator_inventory(repo, NATIVE):
+    current = creator_inventory(repo, NATIVE)
+    source_evidence = {}
+    for pull in current:
         row = {"number": pull["number"], "head_sha": pull.get("head", {}).get("sha")}
+        evidence = source_evidence[row["number"]] = {}
         try:
             snap = snapshot(repo, row["number"], row["head_sha"])
+            evidence["snapshot"] = snap
             intent = source_intent(repo, snap)
+            evidence["intent"] = intent
             row.update(intent)
             row["ci"] = snap["ci"]
             row["held"] = snap["held"]
             row["blocked_holds"] = snap["blocked_holds"]
+            row["closure_requests"] = closure_requests(snap)
             key = intent["group"] + ":" + intent["target"]
             group = groups.setdefault(key, {key: intent[key] for key in ("group", "ecosystem", "family", "target")})
             group.setdefault("sources", []).append(row)
@@ -544,6 +604,7 @@ def inventory(repo):
             if snap["blocked_holds"]:
                 group["blockers"].append(f"PR #{row['number']}: human/unknown hold")
         except ValueError as error:
+            evidence["error"] = error
             groups[f"blocked:{pull['number']}"] = {"group": None, "sources": [row], "blockers": [str(error)]}
     replacements = []
     for pull in creator_inventory(repo, ROBOT, state="all"):
@@ -562,6 +623,16 @@ def inventory(repo):
             snap = snapshot(repo, pull["number"], pull["head"]["sha"], author=ROBOT)
             row.update({key: snap[key] for key in ("ci", "held", "blocked_holds")})
         replacements.append(row)
+    for group in groups.values():
+        group["sources"].sort(key=lambda row: row["number"])
+        decision = next_action(group, replacements)
+        if decision["action"] == "prepare_replacement":
+            try:
+                validate_source_siblings(repo, group["sources"], current, evidence=source_evidence)
+            except ValueError as error:
+                group["blockers"].append(str(error))
+                decision = next_action(group, replacements)
+        group["next_action"] = decision
     require(main_sha(repo) == base, "main changed during inventory")
     return {"repository": repo, "base_sha": base, "groups": list(groups.values()), "replacements": replacements}
 
@@ -1106,34 +1177,50 @@ def sources_group(repo, sources):
         intents.append(source_intent(repo, snap))
     require(len({(row["group"], row["target"]) for row in intents}) == 1,
             "sources do not share one actual upgrade family/target")
-    selected = {source["number"] for source in sources}
-    current = creator_inventory(repo, NATIVE)
+    validate_source_siblings(repo, intents, creator_inventory(repo, NATIVE))
+    return {**{key: intents[0][key] for key in ("group", "ecosystem", "family", "target")}, "sources": intents}
+
+
+def validate_source_siblings(repo, intents, current, *, evidence=None):
+    """Require complete family membership or immutable proof of disjointness."""
+    selected = {source["number"] for source in intents}
     require(selected <= {pull["number"] for pull in current},
             "native source inventory changed during authorization")
     for pull in current:
         if pull["number"] in selected:
             continue
-        snap = snapshot(repo, pull["number"], pull["head"]["sha"])
-        # Only complete, unambiguous changed-file evidence can prove a sibling
-        # belongs to another ecosystem. Titles and branch names are untrusted.
-        ecosystems = set()
-        for file in snap["files"]:
-            path = safe_path(file.get("filename"))
-            name = PurePosixPath(path).name
-            ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
-                         "package.json": "npm", "package-lock.json": "npm",
-                         "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
-            if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
-                ecosystem = "actions"
-            if file.get("status") != "modified" or file.get("previous_filename"):
-                ecosystem = None
-            ecosystems.add(ecosystem)
-        if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
-            continue
-        candidate = source_intent(repo, snap)
-        require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
-                f"replacement omits current same-family/target native source #{pull['number']}")
-    return {**{key: intents[0][key] for key in ("group", "ecosystem", "family", "target")}, "sources": intents}
+        cached = evidence.get(pull["number"], {}) if evidence is not None else {}
+        try:
+            if "snapshot" not in cached and "error" in cached:
+                raise cached["error"]
+            snap = cached.get("snapshot")
+            if snap is None:
+                snap = snapshot(repo, pull["number"], pull["head"]["sha"])
+            # Only complete, unambiguous changed-file evidence can prove a sibling
+            # belongs to another ecosystem. Titles and branch names are untrusted.
+            ecosystems = set()
+            for file in snap["files"]:
+                path = safe_path(file.get("filename"))
+                name = PurePosixPath(path).name
+                ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
+                             "package.json": "npm", "package-lock.json": "npm",
+                             "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
+                if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
+                    ecosystem = "actions"
+                if file.get("status") != "modified" or file.get("previous_filename"):
+                    ecosystem = None
+                ecosystems.add(ecosystem)
+            if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
+                continue
+            if "error" in cached:
+                raise cached["error"]
+            candidate = cached.get("intent")
+            if candidate is None:
+                candidate = source_intent(repo, snap)
+            require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
+                    f"replacement omits current same-family/target native source #{pull['number']}")
+        except ValueError as error:
+            raise ValueError(f"PR #{pull['number']}: {error}") from error
 
 
 def post_comment(repo, number, body):
@@ -1384,7 +1471,7 @@ def reconcile(repo, request):
             require(main_sha(repo) == base and pull_detail(repo, request["replacement_pr"]) == target,
                     "merged coverage evidence changed")
             marker = f"<!-- {MARKER}close:{sha}:{request['replacement_pr']} -->"
-            if any(marker in row["body"] and row.get("user", {}).get("login") == ROBOT for row in snap["comments"]):
+            if request["replacement_pr"] in closure_requests(snap):
                 return {"number": number, "status": "close-already-requested"}
             body = marker + f"\nCovered by merged replacement https://github.com/{repo}/pull/{request['replacement_pr']}.\n\n/close"
     return {**post_comment(repo, number, body), "action": action, "status": "requested"}
