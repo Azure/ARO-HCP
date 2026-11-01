@@ -339,16 +339,16 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 </style><section class="timing-summary">
 <h2>Operation durations</h2>
 <p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
+<table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
+<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test. The chart opens with up to 40 rows; use the vertical and horizontal sliders or test selector to explore more.</p>
 <div class="timing-controls">
 <label for="timing-sort">Sort tests by
 <select id="timing-sort"><option value="start">Start time (earliest first)</option><option value="duration">Total duration (longest first)</option><option value="name">Test name (A–Z)</option></select></label>
 <label for="timing-tests">Tests (use Ctrl/Cmd-click to select multiple)
 <select id="timing-tests" multiple size="4">{{range .Tests}}<option value="{{.ID}}" selected>{{.Label}}</option>{{end}}</select></label>
-<button id="timing-reset" type="button">Show all tests</button>
+<button id="timing-reset" type="button">Select all tests</button>
 <p id="timing-filter-status" class="timing-filter-status" aria-live="polite">All tests selected.</p>
 </div>
-<table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test. The chart opens with up to 40 rows; use the vertical and horizontal sliders or test selector to explore more.</p>
 </section>`))
 
 // Renders the duration summary and chart controls above the timing graph.
