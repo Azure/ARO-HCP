@@ -558,11 +558,16 @@ def inventory(repo):
     validate_repo(repo)
     base = main_sha(repo)
     groups = {}
-    for pull in creator_inventory(repo, NATIVE):
+    current = creator_inventory(repo, NATIVE)
+    source_evidence = {}
+    for pull in current:
         row = {"number": pull["number"], "head_sha": pull.get("head", {}).get("sha")}
+        evidence = source_evidence[row["number"]] = {}
         try:
             snap = snapshot(repo, row["number"], row["head_sha"])
+            evidence["snapshot"] = snap
             intent = source_intent(repo, snap)
+            evidence["intent"] = intent
             row.update(intent)
             row["ci"] = snap["ci"]
             row["held"] = snap["held"]
@@ -574,6 +579,7 @@ def inventory(repo):
             if snap["blocked_holds"]:
                 group["blockers"].append(f"PR #{row['number']}: human/unknown hold")
         except ValueError as error:
+            evidence["error"] = error
             groups[f"blocked:{pull['number']}"] = {"group": None, "sources": [row], "blockers": [str(error)]}
     replacements = []
     for pull in creator_inventory(repo, ROBOT, state="all"):
@@ -594,7 +600,14 @@ def inventory(repo):
         replacements.append(row)
     for group in groups.values():
         group["sources"].sort(key=lambda row: row["number"])
-        group["next_action"] = next_action(group, replacements)
+        decision = next_action(group, replacements)
+        if decision["action"] == "prepare_replacement":
+            try:
+                validate_source_siblings(repo, group["sources"], current, evidence=source_evidence)
+            except ValueError as error:
+                group["blockers"].append(str(error))
+                decision = next_action(group, replacements)
+        group["next_action"] = decision
     require(main_sha(repo) == base, "main changed during inventory")
     return {"repository": repo, "base_sha": base, "groups": list(groups.values()), "replacements": replacements}
 
@@ -1139,34 +1152,50 @@ def sources_group(repo, sources):
         intents.append(source_intent(repo, snap))
     require(len({(row["group"], row["target"]) for row in intents}) == 1,
             "sources do not share one actual upgrade family/target")
-    selected = {source["number"] for source in sources}
-    current = creator_inventory(repo, NATIVE)
+    validate_source_siblings(repo, intents, creator_inventory(repo, NATIVE))
+    return {**{key: intents[0][key] for key in ("group", "ecosystem", "family", "target")}, "sources": intents}
+
+
+def validate_source_siblings(repo, intents, current, *, evidence=None):
+    """Require complete family membership or immutable proof of disjointness."""
+    selected = {source["number"] for source in intents}
     require(selected <= {pull["number"] for pull in current},
             "native source inventory changed during authorization")
     for pull in current:
         if pull["number"] in selected:
             continue
-        snap = snapshot(repo, pull["number"], pull["head"]["sha"])
-        # Only complete, unambiguous changed-file evidence can prove a sibling
-        # belongs to another ecosystem. Titles and branch names are untrusted.
-        ecosystems = set()
-        for file in snap["files"]:
-            path = safe_path(file.get("filename"))
-            name = PurePosixPath(path).name
-            ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
-                         "package.json": "npm", "package-lock.json": "npm",
-                         "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
-            if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
-                ecosystem = "actions"
-            if file.get("status") != "modified" or file.get("previous_filename"):
-                ecosystem = None
-            ecosystems.add(ecosystem)
-        if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
-            continue
-        candidate = source_intent(repo, snap)
-        require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
-                f"replacement omits current same-family/target native source #{pull['number']}")
-    return {**{key: intents[0][key] for key in ("group", "ecosystem", "family", "target")}, "sources": intents}
+        cached = evidence.get(pull["number"], {}) if evidence is not None else {}
+        try:
+            if "snapshot" not in cached and "error" in cached:
+                raise cached["error"]
+            snap = cached.get("snapshot")
+            if snap is None:
+                snap = snapshot(repo, pull["number"], pull["head"]["sha"])
+            # Only complete, unambiguous changed-file evidence can prove a sibling
+            # belongs to another ecosystem. Titles and branch names are untrusted.
+            ecosystems = set()
+            for file in snap["files"]:
+                path = safe_path(file.get("filename"))
+                name = PurePosixPath(path).name
+                ecosystem = {"go.mod": "go", "go.sum": "go", "go.work.sum": "go",
+                             "package.json": "npm", "package-lock.json": "npm",
+                             "npm-shrinkwrap.json": "npm", "Dockerfile": "docker"}.get(name)
+                if path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml")):
+                    ecosystem = "actions"
+                if file.get("status") != "modified" or file.get("previous_filename"):
+                    ecosystem = None
+                ecosystems.add(ecosystem)
+            if ecosystems and None not in ecosystems and intents[0]["ecosystem"] not in ecosystems:
+                continue
+            if "error" in cached:
+                raise cached["error"]
+            candidate = cached.get("intent")
+            if candidate is None:
+                candidate = source_intent(repo, snap)
+            require((candidate["group"], candidate["target"]) != (intents[0]["group"], intents[0]["target"]),
+                    f"replacement omits current same-family/target native source #{pull['number']}")
+        except ValueError as error:
+            raise ValueError(f"PR #{pull['number']}: {error}") from error
 
 
 def post_comment(repo, number, body):

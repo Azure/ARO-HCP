@@ -269,6 +269,7 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(len(result["groups"]), 1)
         self.assertEqual([row["number"] for row in result["groups"][0]["sources"]], [1, 2])
         self.assertEqual(result["groups"][0]["blockers"], [])
+        self.assertEqual(result["groups"][0]["next_action"]["action"], "prepare_replacement")
         endpoints = [endpoint for endpoint, _, _ in self.calls if "issues?" in endpoint]
         self.assertTrue(all("creator=" in endpoint for endpoint in endpoints))
         self.assertTrue(any("state=all" in endpoint for endpoint in endpoints))
@@ -405,6 +406,9 @@ class RepositoryFixture(unittest.TestCase):
 
     def test_go_publication_ignores_unrelated_modified_dockerfile(self):
         self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        group = next(row for row in native.inventory(REPO)["groups"] if row["group"] is not None)
+        self.assertEqual(group["blockers"], [])
+        self.assertEqual(group["next_action"]["action"], "prepare_replacement")
         request = self.request()
         result = native.publish(REPO, request)
         self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
@@ -412,6 +416,29 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(self.remote_git("show", result["head_sha"] + ":backend/Dockerfile"),
                          "FROM example.invalid/base:1.0")
         self.assertEqual(self.pulls[2]["state"], "open")
+
+    def test_inventory_blocks_ambiguous_native_sibling_despite_docker_title(self):
+        self.source(2, "api/Makefile", "models:\n\t@echo changed\n")
+        self.pulls[2]["title"] = "chore(deps): bump Docker base image"
+        result = native.inventory(REPO)
+        group = next(row for row in result["groups"] if row["group"] is not None)
+        self.assertEqual([row["number"] for row in group["sources"]], [1])
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("PR #2: unsupported/protected native source path: api/Makefile",
+                      group["next_action"]["reason"])
+
+    def test_inventory_requires_complete_disjoint_sibling_file_evidence(self):
+        self.source(2, "backend/Dockerfile", "FROM example.invalid/base:1.1\n")
+        original = self.api
+        def partial(endpoint, **kwargs):
+            if "/pulls/2/files?" in endpoint:
+                return [[]]
+            return original(endpoint, **kwargs)
+        with patch.object(native, "api", side_effect=partial):
+            result = native.inventory(REPO)
+        group = next(row for row in result["groups"] if row["group"] is not None)
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("PR #2: incomplete changed-file evidence", group["next_action"]["reason"])
 
     def test_go_publication_does_not_infer_disjointness_from_docker_title(self):
         self.source(2, "api/Makefile", "models:\n\t@echo changed\n")
