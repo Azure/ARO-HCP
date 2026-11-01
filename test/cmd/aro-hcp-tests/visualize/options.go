@@ -458,7 +458,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    timingChartHeight(timingChartVisibleRows),
+			Height:    timingChartHeight(len(names)),
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
@@ -482,7 +482,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Rotate: -22.5,
 		}}),
 		charts.WithDataZoomOpts(opts.DataZoom{
-			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: timingChartZoomEnd(len(names)),
+			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: 100,
 		}),
 		charts.WithDataZoomOpts(opts.DataZoom{
 			Type: "slider", Orient: "horizontal", XAxisIndex: []int{0}, Start: 0, End: 100,
@@ -532,7 +532,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	return waterfall
 }
 
-const timingChartVisibleRows = 40
 const timingChartMinimumWindowMillis = 1000
 const timingChartRowHeight = 26
 const timingChartMinimumHeight = 1024
@@ -543,14 +542,6 @@ type timingChartGroup struct {
 	Duration  float64 `json:"duration"`
 	FirstRow  int     `json:"firstRow"`
 	LastRow   int     `json:"lastRow"`
-}
-
-// Limits the initial view to readable timeline rows.
-func timingChartZoomEnd(rowCount int) float32 {
-	if rowCount <= timingChartVisibleRows {
-		return 100
-	}
-	return float32(max(1, (timingChartVisibleRows*100+rowCount-1)/rowCount))
 }
 
 // Keeps each timeline row tall enough to preserve its semantic color.
@@ -567,7 +558,6 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	replacements := strings.NewReplacer(
 		"__CHART__", chart,
 		"__GROUPS__", string(encoded),
-		"__VISIBLE_ROWS__", strconv.Itoa(timingChartVisibleRows),
 		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
 		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
 		"__ROW_HEIGHT__", strconv.Itoa(timingChartRowHeight),
@@ -633,8 +623,8 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 				durations.push(allDurations[i]);
 			}
 		}
-		const visibleRows = Math.min(__VISIBLE_ROWS__, labels.length);
-		const end = labels.length <= __VISIBLE_ROWS__ ? 100 : __VISIBLE_ROWS__ * 100 / labels.length;
+		const visibleRows = labels.length;
+		const end = 100;
 		const timeRange = {start: 0, end: 100};
 		let earliest = Infinity;
 		let latest = -Infinity;

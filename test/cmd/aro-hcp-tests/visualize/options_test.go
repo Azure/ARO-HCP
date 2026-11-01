@@ -150,31 +150,14 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 	}
 }
 
-func TestTimingChartZoomEndKeepsDenseChartsReadable(t *testing.T) {
-	for _, test := range []struct {
-		rows int
-		want float32
-	}{
-		{rows: 0, want: 100},
-		{rows: timingChartVisibleRows, want: 100},
-		{rows: timingChartVisibleRows + 1, want: 98},
-		{rows: 400, want: 10},
-		{rows: 10000, want: 1},
-	} {
-		if got := timingChartZoomEnd(test.rows); got != test.want {
-			t.Errorf("timingChartZoomEnd(%d) = %v, want %v", test.rows, got, test.want)
-		}
-	}
-}
-
 func TestTimingChartHeightPreservesReadableRowsWhenZoomedOut(t *testing.T) {
 	for _, test := range []struct {
 		rows int
 		want string
 	}{
 		{rows: 0, want: "1024px"},
-		{rows: timingChartVisibleRows, want: "1040px"},
-		{rows: timingChartVisibleRows + 1, want: "1066px"},
+		{rows: 40, want: "1040px"},
+		{rows: 41, want: "1066px"},
 		{rows: 400, want: "10400px"},
 	} {
 		if got := timingChartHeight(test.rows); got != test.want {
@@ -228,19 +211,26 @@ const chart = {
 require('node:vm').runInNewContext(` + string(sorting) + `, {chart, document, Math, Number});
 const sortedLabels = () => chart.updates.at(-1).yAxis.data;
 assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels().slice(0, 3))), ['beta root','beta step','beta row 52']);
-assert.equal(chart.height, 1040);
+assert.equal(chart.height, 2600);
+assert.equal(state.dataZoom[0].end, 100);
 sort.value = 'name'; listeners.change();
 assert.equal(sortedLabels()[0], 'alpha root');
 sort.value = 'duration'; listeners.change();
 assert.equal(sortedLabels()[0], 'beta root');
-assert.ok(chart.updates.at(-1).dataZoom[1].end > chart.updates.at(-1).dataZoom[1].start);
+assert.equal(chart.height, 2600);
+assert.equal(state.dataZoom[0].end, 100);
 const initialTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
-const rowZoom = state.dataZoom[0];
-Object.assign(rowZoom, {start:0,end:100});
+Object.assign(state.dataZoom[0], {start:0,end:40});
+listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:40}]});
+assert.equal(chart.height, 1040);
+assert.equal(chart.dom.style.height, '1040px');
+const zoomedTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
+assert.ok(zoomedTimeSpan < initialTimeSpan);
+Object.assign(state.dataZoom[0], {start:0,end:100});
 listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:100}]});
 assert.equal(chart.height, 2600);
 assert.equal(chart.dom.style.height, '2600px');
-assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > initialTimeSpan);`
+assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > zoomedTimeSpan);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
 	}
