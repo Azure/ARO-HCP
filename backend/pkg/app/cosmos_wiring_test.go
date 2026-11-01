@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -72,7 +73,7 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			if strings.EqualFold(req.Header.Get("x-ms-documentdb-query"), "true") {
 				return &http.Response{StatusCode: http.StatusOK, Request: req,
 					Header: http.Header{"X-Ms-Request-Charge": []string{"2"}},
-					Body:   io.NopCloser(strings.NewReader(`{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test"}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test2"}}}]}`))}, nil
+					Body:   io.NopCloser(strings.NewReader(`{"Documents":[{"id":"mc","partitionKey":"1","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test","kubeApplierCosmosContainerMaxScale":80}}},{"id":"mc2","partitionKey":"2","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"KubeApplier-test2","kubeApplierCosmosContainerMaxScale":80}}}]}`))}, nil
 			}
 			charge := "2"
 			if strings.Contains(req.URL.Path, "/colls/KubeApplier-") {
@@ -85,13 +86,12 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			}, nil
 		})
 		factory, err := newStorageFactory("https://cosmos.test", "test", options, StorageFactoryOptions{
-			ResourcesRUsPerSecond:   3.75, // 1 RU per controller after 80% utilization.
-			BillingRUsPerSecond:     7.5,  // 2 RUs per controller.
-			FleetRUsPerSecond:       15,   // 4 RUs per controller.
-			KubeApplierRUsPerSecond: 80,   // 8 RUs per controller at 30% utilization.
-			KubeApplierUtilization:  0.3,
-			ControllerNames:         []string{"normal", "other", "cleanup"},
-			ControllerFractions:     map[string]float64{"cleanup": 0.1},
+			ResourcesRUsPerSecond:  3.75, // 1 RU per controller after 80% utilization.
+			BillingRUsPerSecond:    7.5,  // 2 RUs per controller.
+			FleetRUsPerSecond:      15,   // 4 RUs per controller.
+			KubeApplierUtilization: 0.3,
+			ControllerNames:        []string{"normal", "other", "cleanup"},
+			ControllerFractions:    map[string]float64{"cleanup": 0.1},
 		})
 		require.NoError(t, err)
 		require.Same(t, factory.ResourcesStorageClient("normal"), factory.ResourcesStorageClient("normal"))
@@ -171,8 +171,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 func testStorageAllocations() StorageFactoryOptions {
 	return StorageFactoryOptions{
 		ResourcesRUsPerSecond: 10, BillingRUsPerSecond: 10,
-		FleetRUsPerSecond: 10, KubeApplierRUsPerSecond: 10,
-		ControllerNames: []string{"one"},
+		FleetRUsPerSecond: 10,
+		ControllerNames:   []string{"one"},
 	}
 }
 
@@ -195,7 +195,6 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
 		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
 		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
-		{"invalid kube-applier budget", func(o *StorageFactoryOptions) { o.KubeApplierRUsPerSecond = 0 }},
 		{"invalid kube-applier utilization", func(o *StorageFactoryOptions) { o.KubeApplierUtilization = 1.1 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},
 	} {
@@ -217,14 +216,14 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 	errors := make([]error, len(buckets))
 	var wg sync.WaitGroup
 	for i := range buckets {
-		wg.Go(func() { buckets[i], errors[i] = factory.tokenBucket("new-mc", "one") })
+		wg.Go(func() { buckets[i], errors[i] = factory.kubeApplierTokenBucket("new-mc", 10, "one") })
 	}
 	wg.Wait()
 	for i := range buckets {
 		require.NoError(t, errors[i])
 		require.Same(t, buckets[0], buckets[i])
 	}
-	other, err := factory.tokenBucket("another-mc", "one")
+	other, err := factory.kubeApplierTokenBucket("another-mc", 10, "one")
 	require.NoError(t, err)
 	require.NotSame(t, buckets[0], other)
 }
@@ -247,7 +246,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
 		})
-		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(controllerContext))
+		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(controllerContext, 19000, 4000, 4000))
 		require.NoError(t, err)
 		for _, name := range names {
 			require.NotNil(t, factory.ResourcesStorageClient(name))
@@ -261,7 +260,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		options := BackendStorageFactoryOptions(ControllerContext{})
+		options := BackendStorageFactoryOptions(ControllerContext{}, 19000, 4000, 4000)
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,
@@ -270,6 +269,11 @@ func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 		factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
 		require.NoError(t, err)
 		for _, name := range options.UnlimitedControllerNames {
+			factory.rateLimitsMu.Lock()
+			mcBucket, err := factory.kubeApplierTokenBucket("new-mc", 0, name)
+			factory.rateLimitsMu.Unlock()
+			require.NoError(t, err)
+			require.Same(t, factory.unlimitedBuckets[name], mcBucket)
 			for _, container := range []string{"Resources", "Billing", "Fleet", "new-mc"} {
 				bucket, err := factory.tokenBucket(container, name)
 				require.NoError(t, err)
@@ -291,4 +295,77 @@ func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 		require.NoError(t, bucket.Wait(t.Context()))
 		require.InDelta(t, float64(time.Second), float64(time.Since(start)), 1, "controllers retain their budget and throttling")
 	})
+}
+
+func registeredClientOptions(t *testing.T, documents func() (string, error)) cosmosclient.Options {
+	return storageTestOptions(t, func(request *http.Request) (*http.Response, error) {
+		var body string
+		switch {
+		case request.URL.Path == "" || request.URL.Path == "/":
+			body = `{"id":"test","writableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}],"readableLocations":[{"name":"test","databaseAccountEndpoint":"https://cosmos.test"}]}`
+		case strings.Contains(request.URL.Path, "/colls/Fleet/"):
+			var err error
+			body, err = documents()
+			if err != nil {
+				return nil, err
+			}
+		default:
+			t.Fatalf("unexpected request: %s", request.URL)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Request: request, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+}
+
+func registeredDocument(stamp, container string, maximum int32) string {
+	return fmt.Sprintf(`{"id":"mc%s","partitionKey":"%s","resourceID":"/providers/Microsoft.RedHatOpenShift/stamps/%s/managementClusters/default","properties":{"status":{"kubeApplierCosmosContainerName":"%s","kubeApplierCosmosContainerMaxScale":%d}}}`, stamp, stamp, stamp, container, maximum)
+}
+
+func TestStorageFactoryRejectsInvalidManagementCluster(t *testing.T) {
+	type testCase struct {
+		name        string
+		maximum     int32
+		lookupError error
+		wantError   string
+	}
+	testCases := []testCase{
+		{
+			name:      "zero maximum",
+			maximum:   0,
+			wantError: "requires positive registered KubeApplierCosmosContainerMaxScale, got 0",
+		},
+		{
+			name:      "negative maximum",
+			maximum:   -1,
+			wantError: "requires positive registered KubeApplierCosmosContainerMaxScale, got -1",
+		},
+		{
+			name:        "lister",
+			maximum:     100,
+			lookupError: fmt.Errorf("injected Fleet lookup failure"),
+			wantError:   "injected Fleet lookup failure",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			maximum := testCase.maximum
+			lookupError := testCase.lookupError
+			factory, err := newStorageFactory("https://cosmos.test", "test", registeredClientOptions(t, func() (string, error) {
+				return `{"Documents":[` + registeredDocument("1", "mc-one", maximum) + `]}`, lookupError
+			}), testStorageAllocations())
+			require.NoError(t, err)
+			clients := factory.KubeApplierStorageClients("one")
+			key := unionkubeapplierinformers.ManagementClusterKey{StampIdentifier: "1", ManagementClusterName: "default"}
+			client, err := clients.For(t.Context(), key.GetResourceID())
+			require.ErrorContains(t, err, testCase.wantError)
+			require.ErrorContains(t, err, key.GetResourceID().String())
+			require.Nil(t, client)
+			require.Len(t, factory.rateLimits, 3)
+			lookupError = nil
+			maximum = 100
+			client, err = clients.For(t.Context(), key.GetResourceID())
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.Len(t, factory.rateLimits, 4)
+		})
+	}
 }

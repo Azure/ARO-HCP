@@ -546,7 +546,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	storageOptions := app.BackendStorageFactoryOptions(storageControllerContext)
+	storageOptions, err := discoverStorageOptions(ctx, discoveredAccount, storageControllerContext)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	storageFactory, err := app.NewStorageFactory(discoveredAccount.Endpoint(), discoveredAccount.DatabaseName(), cosmosclient.Options{ClientOptions: azCoreClientOptions}, storageOptions)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))

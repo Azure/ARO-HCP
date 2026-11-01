@@ -78,7 +78,7 @@ func BackendCleanupControllerFractions(fraction float64) map[string]float64 {
 // Each MC container reserves 30% for the backend and 50% for kube-applier, leaving
 // 20% headroom. Cleanup controllers get 10% of a normal controller's share.
 // Shared backend informers use unlimited clients outside these allocations.
-func BackendStorageFactoryOptions(controllerContext ControllerContext) StorageFactoryOptions {
+func BackendStorageFactoryOptions(controllerContext ControllerContext, resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond float64) StorageFactoryOptions {
 	controllerNames := BackendStorageControllerNames(controllerContext)
 	controllerFractions := BackendCleanupControllerFractions(0.1)
 	for name := range controllerFractions {
@@ -88,13 +88,12 @@ func BackendStorageFactoryOptions(controllerContext ControllerContext) StorageFa
 	}
 
 	return StorageFactoryOptions{
-		ResourcesRUsPerSecond:   19000,
-		BillingRUsPerSecond:     4000,
-		FleetRUsPerSecond:       4000,
-		KubeApplierRUsPerSecond: 19000,
-		KubeApplierUtilization:  0.3,
-		ControllerNames:         controllerNames,
-		ControllerFractions:     controllerFractions,
+		ResourcesRUsPerSecond:  resourcesRUsPerSecond,
+		BillingRUsPerSecond:    billingRUsPerSecond,
+		FleetRUsPerSecond:      fleetRUsPerSecond,
+		KubeApplierUtilization: 0.3,
+		ControllerNames:        controllerNames,
+		ControllerFractions:    controllerFractions,
 		UnlimitedControllerNames: []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,

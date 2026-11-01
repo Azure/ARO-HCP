@@ -17,6 +17,7 @@ package cosmos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -64,6 +65,44 @@ func testAccountWithID(t *testing.T, id string, respond func(*http.Request) (str
 	}})
 	require.NoError(t, err)
 	return account
+}
+
+func TestMixedCaseAccountDiscovery(t *testing.T) {
+	for _, throughput := range []struct {
+		name, body string
+		want       float64
+	}{
+		{"manual", `{"properties":{"resource":{"throughput":400}}}`, 400},
+		{"autoscale", `{"properties":{"resource":{"throughput":400,"autoscaleSettings":{"maxThroughput":4000,"targetMaxThroughput":9000}}}}`, 4000},
+	} {
+		t.Run(throughput.name, func(t *testing.T) {
+			id := strings.ReplaceAll(testAccountID, "databaseAccounts/account", "databaseAccounts/AcCoUnT")
+			id = strings.ReplaceAll(id, "Microsoft.DocumentDB", "microsoft.documentdb")
+			var paths []string
+			account := testAccountWithID(t, id, func(request *http.Request) (string, error) {
+				paths = append(paths, request.URL.Path)
+				switch request.URL.Path {
+				case strings.Replace(testAccountID, "databaseAccounts/account", "databaseAccounts/AcCoUnT", 1):
+					return strings.Replace(testAccountResponse, testAccountID, strings.ToUpper(testAccountID), 1), nil
+				case testAccountID + "/sqlDatabases/account":
+					return testDatabaseResponse, nil
+				case testAccountID + "/sqlDatabases/account/containers/Resources/throughputSettings/default":
+					return throughput.body, nil
+				default:
+					return "", fmt.Errorf("unexpected request path %s", request.URL.Path)
+				}
+			})
+			discovered, err := account.Discover(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, "account", discovered.DatabaseName())
+			require.Equal(t, "https://account.documents.test/", discovered.Endpoint())
+			limit, err := discovered.ContainerThroughput(t.Context(), "Resources")
+			require.NoError(t, err)
+			require.Equal(t, throughput.want, limit)
+			require.Len(t, paths, 3)
+			require.Equal(t, "AcCoUnT", account.id.Name)
+		})
+	}
 }
 
 func TestParseAccountID(t *testing.T) {
@@ -122,13 +161,100 @@ func TestDiscover(t *testing.T) {
 			})
 			discovered, err := account.Discover(t.Context())
 			if test.wantError {
-				require.Error(t, err)
 				require.Nil(t, discovered)
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, "https://account.documents.test/", discovered.Endpoint())
 			require.Equal(t, "account", discovered.DatabaseName())
 		})
+	}
+}
+
+func discoveredTestAccount(t *testing.T, throughput func(*http.Request) (string, error)) *DiscoveredAccount {
+	t.Helper()
+	account := testAccount(t, func(request *http.Request) (string, error) {
+		switch request.URL.Path {
+		case testAccountID:
+			return testAccountResponse, nil
+		case testAccountID + "/sqlDatabases/account":
+			return testDatabaseResponse, nil
+		default:
+			return throughput(request)
+		}
+	})
+	discovered, err := account.Discover(t.Context())
+	require.NoError(t, err)
+	return discovered
+}
+
+func TestContainerThroughput(t *testing.T) {
+	for _, test := range []struct {
+		name, resource string
+		want           float64
+	}{
+		{"manual", `{"throughput":4000}`, 4000},
+		{"autoscale", `{"throughput":400,"autoscaleSettings":{"maxThroughput":19000,"targetMaxThroughput":50000}}`, 19000},
+		{"missing", `{}`, 0},
+		{"zero", `{"throughput":0}`, 0},
+		{"negative", `{"throughput":-1}`, 0},
+		{"pending only", `{"autoscaleSettings":{"targetMaxThroughput":50000}}`, 0},
+		{"invalid autoscale with manual", `{"throughput":4000,"autoscaleSettings":{}}`, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			account := discoveredTestAccount(t, func(request *http.Request) (string, error) {
+				require.Equal(t, testAccountID+"/sqlDatabases/account/containers/Resources/throughputSettings/default", request.URL.Path)
+				return `{"properties":{"resource":` + test.resource + `}}`, nil
+			})
+			throughput, err := account.ContainerThroughput(t.Context(), "Resources")
+			if test.want == 0 {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, throughput)
+		})
+	}
+	account := discoveredTestAccount(t, func(*http.Request) (string, error) { return "", errors.New("forbidden") })
+	_, err := account.ContainerThroughput(t.Context(), "Resources")
+	require.ErrorContains(t, err, "forbidden")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = account.ContainerThroughput(ctx, "Resources")
+	require.Error(t, err)
+}
+
+func TestDiscoveryResultsAreIndependent(t *testing.T) {
+	fail := false
+	account := testAccount(t, func(request *http.Request) (string, error) {
+		if fail {
+			return "", errors.New("unavailable")
+		}
+		switch request.URL.Path {
+		case testAccountID:
+			return testAccountResponse, nil
+		case testAccountID + "/sqlDatabases/account":
+			return testDatabaseResponse, nil
+		default:
+			return `{"properties":{"resource":{"throughput":4000}}}`, nil
+		}
+	})
+	first, err := account.Discover(t.Context())
+	require.NoError(t, err)
+	fail = true
+	failed, err := account.Discover(t.Context())
+	require.Error(t, err)
+	require.Nil(t, failed)
+	fail = false
+	second, err := account.Discover(t.Context())
+	require.NoError(t, err)
+	require.NotSame(t, first, second)
+	for _, discovered := range []*DiscoveredAccount{first, second} {
+		for _, container := range []string{"Resources", "Billing", "Fleet"} {
+			limit, err := discovered.ContainerThroughput(t.Context(), container)
+			require.NoError(t, err)
+			require.Equal(t, float64(4000), limit)
+		}
 	}
 }
