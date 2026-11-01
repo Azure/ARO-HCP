@@ -335,12 +335,10 @@ gray intervals identify work without a named operation span.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
 The summary and chart follow the browser's light/dark color scheme. The chart
-opens with up to 40 timeline rows and fits its time slider to those visible
-operations so colors remain visible at default zoom. Its vertical slider reaches
-the remaining rows and the horizontal slider navigates the full time range. Use
-the test multi-select to show any set of tests, or sort selected tests by start
-time, total duration (longest first) or name. “Select all tests” restores the full
-selection.
+opens with up to 40 timeline rows and allocates enough height to keep each row
+legible when the vertical slider shows more rows. Its vertical slider reaches
+the remaining rows and the horizontal slider navigates the full time range. Sort
+tests by start time, total duration (longest first) or name.
 
 The summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group

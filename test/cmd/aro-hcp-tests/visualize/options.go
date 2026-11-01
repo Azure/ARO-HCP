@@ -379,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// Renders lifecycle rows with semantic colors, filtering, sorting, and readable default zoom.
+// Renders lifecycle rows with semantic colors, sorting, and readable zoom levels.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -422,7 +422,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
 		group := timingChartGroup{
-			ID:        len(groups),
 			Name:      identifier,
 			StartTime: item.StartedAt.UnixMilli(),
 			Duration:  float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
@@ -459,7 +458,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    "1024px",
+			Height:    timingChartHeight(timingChartVisibleRows),
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
@@ -527,7 +526,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 				attributes: true, attributeFilter: ['class', 'style', 'data-darkreader-scheme']
 			});
 		})();`),
-		opts.FuncOpts(timingChartControlsJS(render.EchartsInstancePlaceholder, groups, float64(endTime.Sub(startTime))/float64(time.Millisecond))),
+		opts.FuncOpts(timingChartSortingJS(render.EchartsInstancePlaceholder, groups, float64(endTime.Sub(startTime))/float64(time.Millisecond))),
 	)
 
 	return waterfall
@@ -535,9 +534,10 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 
 const timingChartVisibleRows = 40
 const timingChartMinimumWindowMillis = 1000
+const timingChartRowHeight = 26
+const timingChartMinimumHeight = 1024
 
 type timingChartGroup struct {
-	ID        int     `json:"id"`
 	Name      string  `json:"name"`
 	StartTime int64   `json:"startTime"`
 	Duration  float64 `json:"duration"`
@@ -553,8 +553,13 @@ func timingChartZoomEnd(rowCount int) float32 {
 	return float32(max(1, (timingChartVisibleRows*100+rowCount-1)/rowCount))
 }
 
-// Builds sorting and multi-test filtering script for the timing chart.
-func timingChartControlsJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
+// Keeps each timeline row tall enough to preserve its semantic color.
+func timingChartHeight(rowCount int) string {
+	return fmt.Sprintf("%dpx", max(timingChartMinimumHeight, rowCount*timingChartRowHeight))
+}
+
+// Builds the test-sorting script for the timing chart.
+func timingChartSortingJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
 	encoded, _ := json.Marshal(groups)
 	if totalDurationMillis <= 0 {
 		totalDurationMillis = timingChartMinimumWindowMillis
@@ -565,21 +570,50 @@ func timingChartControlsJS(chart string, groups []timingChartGroup, totalDuratio
 		"__VISIBLE_ROWS__", strconv.Itoa(timingChartVisibleRows),
 		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
 		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
+		"__ROW_HEIGHT__", strconv.Itoa(timingChartRowHeight),
+		"__MINIMUM_HEIGHT__", strconv.Itoa(timingChartMinimumHeight),
 	)
 	return replacements.Replace(`(() => {
 	const chart = __CHART__;
 	const groups = __GROUPS__;
 	const initial = chart.getOption();
+	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time'}))});
 	const allLabels = initial.yAxis[0].data;
 	const allOffsets = initial.series[0].data;
 	const allDurations = initial.series[1].data;
+	let currentLabels = allLabels;
+	let currentOffsets = allOffsets;
+	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
-	const tests = document.getElementById('timing-tests');
-	const reset = document.getElementById('timing-reset');
-	const status = document.getElementById('timing-filter-status');
+	const fitRowHeight = () => {
+		const zoom = chart.getOption().dataZoom[0];
+		const visibleRows = allLabels.length * (zoom.end - zoom.start) / 100;
+		const height = Math.max(__MINIMUM_HEIGHT__, Math.ceil(visibleRows) * __ROW_HEIGHT__);
+		if (chart.getHeight() === height) return;
+		chart.getDom().style.height = height + 'px';
+		chart.resize({height});
+	};
+	const fitTimeRange = (start, end) => {
+		const first = Math.max(0, Math.floor(currentLabels.length * start / 100));
+		const last = Math.min(currentLabels.length, Math.ceil(currentLabels.length * end / 100));
+		let earliest = Infinity;
+		let latest = -Infinity;
+		for (let i = first; i < last; i++) {
+			const offset = Number(currentOffsets[i].value);
+			earliest = Math.min(earliest, offset);
+			latest = Math.max(latest, offset + Number(currentDurations[i].value));
+		}
+		if (!Number.isFinite(earliest)) return;
+		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
+		const totalDuration = __TIME_RANGE__;
+		const timeStart = Math.max(0, earliest - padding);
+		const timeEnd = Math.min(totalDuration, latest + padding);
+		const startPercent = timeStart / totalDuration * 100;
+		const endPercent = Math.min(100, Math.max(startPercent + 0.1, timeEnd / totalDuration * 100));
+		chart.dispatchAction({type: 'dataZoom', dataZoomId: 'timing-time', start: startPercent, end: endPercent});
+	};
 	const update = () => {
-		const selected = new Set([...tests.selectedOptions].map(option => Number(option.value)));
-		const visible = groups.filter(group => selected.has(group.id));
+		const visible = groups.slice();
 		const mode = sort.value;
 		visible.sort((a, b) => {
 			if (mode === 'duration' && a.duration !== b.duration) return b.duration - a.duration;
@@ -599,13 +633,9 @@ func timingChartControlsJS(chart string, groups []timingChartGroup, totalDuratio
 				durations.push(allDurations[i]);
 			}
 		}
-		if (labels.length === 0) {
-			chart.setOption({yAxis: {data: []}, series: [{data: []}, {data: []}], dataZoom: [{start: 0, end: 100}, {start: 0, end: 100}]});
-			status.textContent = '0 of ' + groups.length + ' tests selected · 0 timeline rows';
-			return;
-		}
 		const visibleRows = Math.min(__VISIBLE_ROWS__, labels.length);
 		const end = labels.length <= __VISIBLE_ROWS__ ? 100 : __VISIBLE_ROWS__ * 100 / labels.length;
+		const timeRange = {start: 0, end: 100};
 		let earliest = Infinity;
 		let latest = -Infinity;
 		for (let i = 0; i < visibleRows; i++) {
@@ -616,17 +646,21 @@ func timingChartControlsJS(chart string, groups []timingChartGroup, totalDuratio
 		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
 		const totalDuration = __TIME_RANGE__;
 		const timeStart = Math.max(0, earliest - padding);
-		const timeEnd = Math.min(totalDuration, latest + padding);
-		const timeStartPercent = timeStart / totalDuration * 100;
-		const timeEndPercent = Math.min(100, Math.max(timeStartPercent + 0.1, timeEnd / totalDuration * 100));
-		chart.setOption({yAxis: {data: labels}, series: [{data: offsets}, {data: durations}], dataZoom: [{start: 0, end}, {start: timeStartPercent, end: timeEndPercent}]});
-		status.textContent = visible.length + ' of ' + groups.length + ' tests selected · ' + labels.length + ' timeline rows';
+		timeRange.start = timeStart / totalDuration * 100;
+		timeRange.end = Math.min(100, Math.max(timeRange.start + 0.1, timeEnd / totalDuration * 100));
+		currentLabels = labels;
+		currentOffsets = offsets;
+		currentDurations = durations;
+		chart.setOption({yAxis: {data: labels}, series: [{data: offsets}, {data: durations}], dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]});
+		fitRowHeight();
 	};
 	sort.addEventListener('change', update);
-	tests.addEventListener('change', update);
-	reset.addEventListener('click', () => {
-		for (const option of tests.options) option.selected = true;
-		update();
+	chart.on('datazoom', event => {
+		const updates = event.batch || [event];
+		const rows = updates.find(item => item.dataZoomId === 'timing-rows');
+		if (!rows) return;
+		fitRowHeight();
+		fitTimeRange(rows.start, rows.end);
 	});
 	update();
 })();`)

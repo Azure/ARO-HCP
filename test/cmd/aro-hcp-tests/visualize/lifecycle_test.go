@@ -292,13 +292,16 @@ steps:
 	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")
 	}
-	for _, control := range []string{`<select id="timing-sort">`, `<option value="duration">Total duration (longest first)</option>`, `<option value="name">Test name (A–Z)</option>`, `<select id="timing-tests" multiple size="4">`, `<button id="timing-reset" type="button">Select all tests</button>`, `id="timing-filter-status"`, `The chart opens with up to 40 rows`} {
+	for _, control := range []string{`<select id="timing-sort">`, `<option value="duration">Total duration (longest first)</option>`, `<option value="name">Test name (A–Z)</option>`, `The chart opens with up to 40 readable rows`} {
 		if !strings.Contains(text, control) {
 			t.Errorf("timing report is missing the %q control", control)
 		}
 	}
+	if strings.Contains(text, `id="timing-tests"`) || strings.Contains(text, `id="timing-reset"`) {
+		t.Fatal("timing report must not include test filtering controls")
+	}
 	if strings.Index(text, `</table>`) >= strings.Index(text, `<div class="timing-controls">`) {
-		t.Fatal("sorting and test selection controls must appear after the summary table")
+		t.Fatal("sorting controls must appear after the summary table")
 	}
 	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {
 		if !strings.Contains(text, label) {

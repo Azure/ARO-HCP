@@ -167,54 +167,81 @@ func TestTimingChartZoomEndKeepsDenseChartsReadable(t *testing.T) {
 	}
 }
 
-func TestTimingChartControlsSortAndFilterTests(t *testing.T) {
+func TestTimingChartHeightPreservesReadableRowsWhenZoomedOut(t *testing.T) {
+	for _, test := range []struct {
+		rows int
+		want string
+	}{
+		{rows: 0, want: "1024px"},
+		{rows: timingChartVisibleRows, want: "1040px"},
+		{rows: timingChartVisibleRows + 1, want: "1066px"},
+		{rows: 400, want: "10400px"},
+	} {
+		if got := timingChartHeight(test.rows); got != test.want {
+			t.Errorf("timingChartHeight(%d) = %q, want %q", test.rows, got, test.want)
+		}
+	}
+}
+
+func TestTimingChartSortingScript(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("node is required to execute chart control regression tests")
+		t.Skip("node is required to execute chart sorting regression tests")
 	}
 	groups := []timingChartGroup{
-		{ID: 0, Name: "alpha", StartTime: 200, Duration: 7, FirstRow: 0, LastRow: 2},
-		{ID: 1, Name: "beta", StartTime: 100, Duration: 12, FirstRow: 2, LastRow: 4},
+		{Name: "alpha", StartTime: 200, Duration: 7, FirstRow: 0, LastRow: 50},
+		{Name: "beta", StartTime: 100, Duration: 12, FirstRow: 50, LastRow: 100},
 	}
-	controls, err := json.Marshal(timingChartControlsJS("chart", groups, 1000))
+	sorting, err := json.Marshal(timingChartSortingJS("chart", groups, 120000))
 	if err != nil {
 		t.Fatal(err)
 	}
 	script := `const assert = require('node:assert/strict');
 const listeners = {};
-const makeElement = id => ({addEventListener: (event, handler) => listeners[id + ':' + event] = handler});
-const sort = Object.assign(makeElement('sort'), {value: 'start'});
-const tests = Object.assign(makeElement('tests'), {options: [{value: '0', selected: true}, {value: '1', selected: true}]});
-Object.defineProperty(tests, 'selectedOptions', {get() { return this.options.filter(option => option.selected); }});
-const reset = makeElement('reset');
-const status = {textContent: ''};
-const document = {getElementById: id => ({'timing-sort':sort,'timing-tests':tests,'timing-reset':reset,'timing-filter-status':status})[id]};
+const sort = {value: 'start', addEventListener: (event, handler) => listeners[event] = handler};
+const document = {getElementById: id => id === 'timing-sort' ? sort : null};
+const labels = Array.from({length:100}, (_, i) => i < 50 ? (i === 0 ? 'alpha root' : i === 1 ? 'alpha step' : 'alpha row ' + i) : (i === 50 ? 'beta root' : i === 51 ? 'beta step' : 'beta row ' + i));
+const offsets = labels.map((_, i) => ({value:i * 1000}));
+const durations = labels.map((name, i) => ({name,value:30}));
+const state = {yAxis:[{data:labels}],series:[{data:offsets},{data:durations}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
 const chart = {
   updates: [],
-  getOption: () => ({yAxis:[{data:['alpha root','alpha step','beta root','beta step']}],series:[
-    {data:[{value:0},{value:1},{value:2},{value:3}]},
-    {data:[{name:'alpha root',value:1},{name:'alpha step',value:2},{name:'beta root',value:3},{name:'beta step',value:4}]}
-  ]}),
-  setOption: option => chart.updates.push(option)
+  height: 1024,
+  dom: {style:{}},
+  getOption: () => state,
+  getHeight: () => chart.height,
+  getDom: () => chart.dom,
+	resize: ({height}) => chart.height = height,
+	on: (event, handler) => listeners['chart:' + event] = handler,
+	setOption: option => {
+		chart.updates.push(option);
+		if (option.yAxis) state.yAxis = [{...state.yAxis[0], ...option.yAxis}];
+		if (option.series) state.series = option.series.map((s, i) => ({...state.series[i], ...s}));
+		if (option.dataZoom) state.dataZoom = option.dataZoom;
+	},
+	dispatchAction: action => {
+		const zoom = state.dataZoom.find(item => item.id === action.dataZoomId);
+		Object.assign(zoom, {start:action.start,end:action.end});
+		listeners['chart:datazoom']({batch:[action]});
+	}
 };
-require('node:vm').runInNewContext(` + string(controls) + `, {chart, document, Set, Number});
-const labels = () => JSON.parse(JSON.stringify(chart.updates.at(-1).yAxis.data));
-assert.deepEqual(labels(), ['beta root','beta step','alpha root','alpha step']);
-sort.value = 'name'; listeners['sort:change']();
-assert.deepEqual(labels(), ['alpha root','alpha step','beta root','beta step']);
-sort.value = 'duration'; listeners['sort:change']();
-assert.deepEqual(labels(), ['beta root','beta step','alpha root','alpha step']);
-tests.options[1].selected = false; listeners['tests:change']();
-assert.deepEqual(labels(), ['alpha root','alpha step']);
+require('node:vm').runInNewContext(` + string(sorting) + `, {chart, document, Math, Number});
+const sortedLabels = () => chart.updates.at(-1).yAxis.data;
+assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels().slice(0, 3))), ['beta root','beta step','beta row 52']);
+assert.equal(chart.height, 1040);
+sort.value = 'name'; listeners.change();
+assert.equal(sortedLabels()[0], 'alpha root');
+sort.value = 'duration'; listeners.change();
+assert.equal(sortedLabels()[0], 'beta root');
 assert.ok(chart.updates.at(-1).dataZoom[1].end > chart.updates.at(-1).dataZoom[1].start);
-listeners['reset:click']();
-assert.equal(tests.options.every(option => option.selected), true);
-assert.equal(status.textContent, '2 of 2 tests selected · 4 timeline rows');
-for (const option of tests.options) option.selected = false;
-listeners['tests:change']();
-assert.deepEqual(labels(), []);
-assert.equal(status.textContent, '0 of 2 tests selected · 0 timeline rows');`
+const initialTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
+const rowZoom = state.dataZoom[0];
+Object.assign(rowZoom, {start:0,end:100});
+listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:100}]});
+assert.equal(chart.height, 2600);
+assert.equal(chart.dom.style.height, '2600px');
+assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > initialTimeSpan);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
-		t.Fatalf("chart controls regression: %v\n%s", err, output)
+		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
 	}
 }
