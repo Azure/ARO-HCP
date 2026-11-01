@@ -316,6 +316,9 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontai
 ## explicit; go 1.25.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9/fake
+# github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos/v4 v4.0.0
+## explicit; go 1.25.0
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos/v4
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0
 ## explicit; go 1.24.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2
@@ -325,7 +328,7 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.3.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub
-# github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1
+# github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.2.0
 ## explicit; go 1.24.0
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.5.0
 ## explicit; go 1.23.0
