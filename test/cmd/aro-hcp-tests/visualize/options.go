@@ -534,6 +534,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 
 const timingChartMinimumWindowMillis = 1000
 const timingChartRowHeight = 26
+const timingChartMinimumOverviewHeight = 320
 
 type timingChartGroup struct {
 	Name      string  `json:"name"`
@@ -558,6 +559,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
 		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
 		"__ROW_HEIGHT__", strconv.Itoa(timingChartRowHeight),
+		"__MINIMUM_OVERVIEW_HEIGHT__", strconv.Itoa(timingChartMinimumOverviewHeight),
 	)
 	return replacements.Replace(`(() => {
 	const chart = __CHART__;
@@ -571,7 +573,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
-	const overviewHeight = () => Math.max(1, Math.floor(window.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16));
+	const overviewHeight = () => Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(window.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16));
 	let densityMode = null;
 	const setDensityMode = overview => {
 		if (densityMode === overview) return;

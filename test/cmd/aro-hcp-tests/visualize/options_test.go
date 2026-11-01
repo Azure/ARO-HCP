@@ -138,10 +138,46 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 	}
 	script += `
 	const options = [];
+	const listeners = {};
+	const windowListeners = {};
+	const sort = {value:'start', addEventListener:(event, handler) => listeners[event] = handler};
+	let containerTop = 405;
+	const state = {};
+	const chart = {
+		height: 600,
+		dom: {style:{height:'60vh'}, getBoundingClientRect:() => ({top:435})},
+		setOption: option => {
+			options.push(option);
+			if (option.xAxis) state.xAxis = (Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]).map((axis, i) => ({...state.xAxis?.[i], ...axis}));
+			if (option.yAxis) state.yAxis = (Array.isArray(option.yAxis) ? option.yAxis : [option.yAxis]).map((axis, i) => ({...state.yAxis?.[i], ...axis}));
+			if (option.series) state.series = option.series.map((series, i) => ({...state.series?.[i], ...series}));
+			if (option.dataZoom) state.dataZoom = option.dataZoom;
+		},
+		getOption: () => state,
+		getHeight: () => chart.height,
+		getDom: () => chart.dom,
+		resize: ({height}) => chart.height = height,
+		on: (event, handler) => listeners['chart:' + event] = handler,
+		dispatchAction: action => {
+			const zoom = state.dataZoom.find(item => item.id === action.dataZoomId);
+			if (zoom) Object.assign(zoom, {start:action.start, end:action.end});
+			listeners['chart:datazoom']?.({batch:[action]});
+		}
+	};
+	const vmDocument = {
+		body: {}, documentElement: {},
+		getElementById: id => id === 'timing-sort' ? sort : {},
+		querySelector: selector => selector === '.container' ? {getBoundingClientRect:() => ({top:containerTop})} : null
+	};
+	const vmWindow = {
+		innerHeight: 1000, scrollY: 0,
+		addEventListener: (event, handler) => windowListeners[event] = handler,
+		matchMedia: () => ({addEventListener: () => {}})
+	};
 	require('node:vm').runInNewContext(` + string(encodedScript) + `, {
-		document: {getElementById: () => ({})},
-		window: {addEventListener: () => {}},
-		echarts: {init: () => ({setOption: o => options.push(o)})}
+		document: vmDocument, window: vmWindow, getComputedStyle: () => ({color:'#000', backgroundColor:'#fff'}),
+		MutationObserver: class {observe() {}},
+		echarts: {init: () => chart}, Math, Number
 	});
 	assert.equal(options[0].series[1].data[0].name, ` + string(encodedName) + `);
 	assert.equal(options[0].yAxis[0].data[0], ` + string(encodedName) + `);`
@@ -255,7 +291,14 @@ assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > zoomedTimeSpan);
 window.innerHeight = 800;
 windowListeners.resize();
 assert.equal(chart.height, 349);
-assert.equal(chart.dom.style.height, '349px');`
+assert.equal(chart.dom.style.height, '349px');
+containerTop = 700;
+window.innerHeight = 600;
+windowListeners.resize();
+assert.equal(chart.height, 320);
+assert.equal(chart.dom.style.height, '320px');
+assert.equal(sortedLabels().length, 100);
+assert.equal(state.dataZoom[0].end, 100);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
 	}
