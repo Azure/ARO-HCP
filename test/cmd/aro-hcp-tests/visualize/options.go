@@ -379,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// TestTimingChart renders theme-aware lifecycle, phase, operation, and gap rows in two series.
+// Renders lifecycle rows with semantic colors, filtering, sorting, and readable default zoom.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -402,6 +402,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	waterfall.Renderer = render.NewChartRender(testChart{waterfall}, waterfall.Validate)
 	var highWaterMark, durations []opts.BarData
 	var names []string
+	var groups []timingChartGroup
 	startTimes := map[string]time.Time{}
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
@@ -420,23 +421,22 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	}
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
-
-		highWaterMark = append(highWaterMark, opts.BarData{
-			Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond),
-		})
-		durations = append(durations, opts.BarData{
-			Name:  identifier,
-			Value: float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
-			ItemStyle: &opts.ItemStyle{
-				Color:       colors[identifier],
-				BorderWidth: 1,
-			},
-		})
-		names = append(names, identifier)
-		for _, row := range lifecycleRows(item) {
-			highWaterMark = append(highWaterMark, opts.BarData{
-				Value: float64(row.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+		group := timingChartGroup{
+			ID:        len(groups),
+			Name:      identifier,
+			StartTime: item.StartedAt.UnixMilli(),
+			Duration:  float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
+			FirstRow:  len(names),
+		}
+		appendRow := func(name string, start, finish time.Time, style *opts.ItemStyle) {
+			highWaterMark = append(highWaterMark, opts.BarData{Value: float64(start.Sub(startTime)) / float64(time.Millisecond)})
+			durations = append(durations, opts.BarData{
+				Name: name, Value: float64(finish.Sub(start)) / float64(time.Millisecond), ItemStyle: style,
 			})
+			names = append(names, name)
+		}
+		appendRow(identifier, item.StartedAt, item.FinishedAt, &opts.ItemStyle{Color: colors[identifier], BorderWidth: 1})
+		for _, row := range lifecycleRows(item) {
 			style := &opts.ItemStyle{Color: colors[identifier]}
 			if color := timingColor(row.Kind); color != "" {
 				style.Color = color
@@ -448,13 +448,10 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			case "gap":
 				style.Opacity = opts.Float(0.65)
 			}
-			durations = append(durations, opts.BarData{
-				Name:      fmt.Sprintf("%s: %s", identifier, row.Name),
-				Value:     float64(row.FinishedAt.Sub(row.StartedAt)) / float64(time.Millisecond),
-				ItemStyle: style,
-			})
-			names = append(names, row.Name)
+			appendRow(fmt.Sprintf("%s: %s", identifier, row.Name), row.StartedAt, row.FinishedAt, style)
 		}
+		group.LastRow = len(names)
+		groups = append(groups, group)
 	}
 
 	waterfall.SetGlobalOptions(
@@ -486,7 +483,10 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Rotate: -22.5,
 		}}),
 		charts.WithDataZoomOpts(opts.DataZoom{
-			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: 100,
+			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: timingChartZoomEnd(len(names)),
+		}),
+		charts.WithDataZoomOpts(opts.DataZoom{
+			Type: "slider", Orient: "horizontal", XAxisIndex: []int{0}, Start: 0, End: 100,
 		}),
 	)
 	waterfall.SetXAxis(names).
@@ -517,7 +517,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 					title: {textStyle: {color}, subtextStyle: {color}},
 					xAxis: {axisLabel: {color}, axisLine: {lineStyle: {color}}, splitLine: {lineStyle: {color, opacity: 0.15}}},
 					tooltip: {backgroundColor: style.backgroundColor, borderColor: color, textStyle: {color}},
-					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
+					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}, {textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
 					series: [{}, {itemStyle: {borderColor: color}}]
 				});
 			};
@@ -527,9 +527,109 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 				attributes: true, attributeFilter: ['class', 'style', 'data-darkreader-scheme']
 			});
 		})();`),
+		opts.FuncOpts(timingChartControlsJS(render.EchartsInstancePlaceholder, groups, float64(endTime.Sub(startTime))/float64(time.Millisecond))),
 	)
 
 	return waterfall
+}
+
+const timingChartVisibleRows = 40
+const timingChartMinimumWindowMillis = 1000
+
+type timingChartGroup struct {
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	StartTime int64   `json:"startTime"`
+	Duration  float64 `json:"duration"`
+	FirstRow  int     `json:"firstRow"`
+	LastRow   int     `json:"lastRow"`
+}
+
+// Limits the initial view to readable timeline rows.
+func timingChartZoomEnd(rowCount int) float32 {
+	if rowCount <= timingChartVisibleRows {
+		return 100
+	}
+	return float32(max(1, (timingChartVisibleRows*100+rowCount-1)/rowCount))
+}
+
+// Builds sorting and multi-test filtering script for the timing chart.
+func timingChartControlsJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
+	encoded, _ := json.Marshal(groups)
+	if totalDurationMillis <= 0 {
+		totalDurationMillis = timingChartMinimumWindowMillis
+	}
+	replacements := strings.NewReplacer(
+		"__CHART__", chart,
+		"__GROUPS__", string(encoded),
+		"__VISIBLE_ROWS__", strconv.Itoa(timingChartVisibleRows),
+		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
+		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
+	)
+	return replacements.Replace(`(() => {
+	const chart = __CHART__;
+	const groups = __GROUPS__;
+	const initial = chart.getOption();
+	const allLabels = initial.yAxis[0].data;
+	const allOffsets = initial.series[0].data;
+	const allDurations = initial.series[1].data;
+	const sort = document.getElementById('timing-sort');
+	const tests = document.getElementById('timing-tests');
+	const reset = document.getElementById('timing-reset');
+	const status = document.getElementById('timing-filter-status');
+	const update = () => {
+		const selected = new Set([...tests.selectedOptions].map(option => Number(option.value)));
+		const visible = groups.filter(group => selected.has(group.id));
+		const mode = sort.value;
+		visible.sort((a, b) => {
+			if (mode === 'duration' && a.duration !== b.duration) return b.duration - a.duration;
+			if (mode === 'name') {
+				const byName = a.name.localeCompare(b.name);
+				if (byName) return byName;
+			}
+			return a.startTime - b.startTime || a.name.localeCompare(b.name);
+		});
+		const labels = [];
+		const offsets = [];
+		const durations = [];
+		for (const group of visible) {
+			for (let i = group.firstRow; i < group.lastRow; i++) {
+				labels.push(allLabels[i]);
+				offsets.push(allOffsets[i]);
+				durations.push(allDurations[i]);
+			}
+		}
+		if (labels.length === 0) {
+			chart.setOption({yAxis: {data: []}, series: [{data: []}, {data: []}], dataZoom: [{start: 0, end: 100}, {start: 0, end: 100}]});
+			status.textContent = '0 of ' + groups.length + ' tests selected · 0 timeline rows';
+			return;
+		}
+		const visibleRows = Math.min(__VISIBLE_ROWS__, labels.length);
+		const end = labels.length <= __VISIBLE_ROWS__ ? 100 : __VISIBLE_ROWS__ * 100 / labels.length;
+		let earliest = Infinity;
+		let latest = -Infinity;
+		for (let i = 0; i < visibleRows; i++) {
+			const offset = Number(offsets[i].value);
+			earliest = Math.min(earliest, offset);
+			latest = Math.max(latest, offset + Number(durations[i].value));
+		}
+		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
+		const totalDuration = __TIME_RANGE__;
+		const timeStart = Math.max(0, earliest - padding);
+		const timeEnd = Math.min(totalDuration, latest + padding);
+		const timeStartPercent = timeStart / totalDuration * 100;
+		const timeEndPercent = Math.min(100, Math.max(timeStartPercent + 0.1, timeEnd / totalDuration * 100));
+		chart.setOption({yAxis: {data: labels}, series: [{data: offsets}, {data: durations}], dataZoom: [{start: 0, end}, {start: timeStartPercent, end: timeEndPercent}]});
+		status.textContent = visible.length + ' of ' + groups.length + ' tests selected · ' + labels.length + ' timeline rows';
+	};
+	sort.addEventListener('change', update);
+	tests.addEventListener('change', update);
+	reset.addEventListener('click', () => {
+		for (const option of tests.options) option.selected = true;
+		update();
+	});
+	update();
+})();`)
 }
 
 type testChart struct {

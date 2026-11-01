@@ -149,3 +149,72 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 		t.Fatalf("tooltip regression: %v\n%s", err, output)
 	}
 }
+
+func TestTimingChartZoomEndKeepsDenseChartsReadable(t *testing.T) {
+	for _, test := range []struct {
+		rows int
+		want float32
+	}{
+		{rows: 0, want: 100},
+		{rows: timingChartVisibleRows, want: 100},
+		{rows: timingChartVisibleRows + 1, want: 98},
+		{rows: 400, want: 10},
+		{rows: 10000, want: 1},
+	} {
+		if got := timingChartZoomEnd(test.rows); got != test.want {
+			t.Errorf("timingChartZoomEnd(%d) = %v, want %v", test.rows, got, test.want)
+		}
+	}
+}
+
+func TestTimingChartControlsSortAndFilterTests(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to execute chart control regression tests")
+	}
+	groups := []timingChartGroup{
+		{ID: 0, Name: "alpha", StartTime: 200, Duration: 7, FirstRow: 0, LastRow: 2},
+		{ID: 1, Name: "beta", StartTime: 100, Duration: 12, FirstRow: 2, LastRow: 4},
+	}
+	controls, err := json.Marshal(timingChartControlsJS("chart", groups, 1000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `const assert = require('node:assert/strict');
+const listeners = {};
+const makeElement = id => ({addEventListener: (event, handler) => listeners[id + ':' + event] = handler});
+const sort = Object.assign(makeElement('sort'), {value: 'start'});
+const tests = Object.assign(makeElement('tests'), {options: [{value: '0', selected: true}, {value: '1', selected: true}]});
+Object.defineProperty(tests, 'selectedOptions', {get() { return this.options.filter(option => option.selected); }});
+const reset = makeElement('reset');
+const status = {textContent: ''};
+const document = {getElementById: id => ({'timing-sort':sort,'timing-tests':tests,'timing-reset':reset,'timing-filter-status':status})[id]};
+const chart = {
+  updates: [],
+  getOption: () => ({yAxis:[{data:['alpha root','alpha step','beta root','beta step']}],series:[
+    {data:[{value:0},{value:1},{value:2},{value:3}]},
+    {data:[{name:'alpha root',value:1},{name:'alpha step',value:2},{name:'beta root',value:3},{name:'beta step',value:4}]}
+  ]}),
+  setOption: option => chart.updates.push(option)
+};
+require('node:vm').runInNewContext(` + string(controls) + `, {chart, document, Set, Number});
+const labels = () => JSON.parse(JSON.stringify(chart.updates.at(-1).yAxis.data));
+assert.deepEqual(labels(), ['beta root','beta step','alpha root','alpha step']);
+sort.value = 'name'; listeners['sort:change']();
+assert.deepEqual(labels(), ['alpha root','alpha step','beta root','beta step']);
+sort.value = 'duration'; listeners['sort:change']();
+assert.deepEqual(labels(), ['beta root','beta step','alpha root','alpha step']);
+tests.options[1].selected = false; listeners['tests:change']();
+assert.deepEqual(labels(), ['alpha root','alpha step']);
+assert.ok(chart.updates.at(-1).dataZoom[1].end > chart.updates.at(-1).dataZoom[1].start);
+listeners['reset:click']();
+assert.equal(tests.options.every(option => option.selected), true);
+assert.equal(status.textContent, '2 of 2 tests selected · 4 timeline rows');
+for (const option of tests.options) option.selected = false;
+listeners['tests:change']();
+assert.deepEqual(labels(), []);
+assert.equal(status.textContent, '0 of 2 tests selected · 0 timeline rows');`
+	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
+		t.Fatalf("chart controls regression: %v\n%s", err, output)
+	}
+}

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"html/template"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -240,8 +241,14 @@ func (s durationSummary) Mean() string {
 
 type lifecycleSummary struct {
 	Rows                              []durationSummary
+	Tests                             []timingTestOption
 	Passed, Failed, TimedOut, Unknown int
 	Other, Full, Legacy               int
+}
+
+type timingTestOption struct {
+	ID    int
+	Label string
 }
 
 // Summarizes successful operation duration ranges independently of enclosing cleanup.
@@ -323,17 +330,39 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 .timing-summary p { margin: 8px 0; }
 .timing-summary table { width: 100%; border-collapse: collapse; text-align: left; }
 .timing-summary th, .timing-summary td { padding: 6px 8px; border-bottom: 1px solid GrayText; }
+.timing-controls { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(260px, 2fr) auto; gap: 8px 16px; align-items: end; margin: 12px 0; }
+.timing-controls label { display: grid; gap: 4px; }
+.timing-controls select, .timing-controls button { color: CanvasText; background: Canvas; border: 1px solid GrayText; border-radius: 4px; padding: 6px; }
+.timing-controls #timing-tests { min-height: 100px; }
+.timing-filter-status { grid-column: 1 / -1; }
+@media (max-width: 640px) { .timing-controls { grid-template-columns: 1fr; } .timing-filter-status { grid-column: auto; } }
 </style><section class="timing-summary">
 <h2>Operation durations</h2>
 <p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
+<div class="timing-controls">
+<label for="timing-sort">Sort tests by
+<select id="timing-sort"><option value="start">Start time (earliest first)</option><option value="duration">Total duration (longest first)</option><option value="name">Test name (A–Z)</option></select></label>
+<label for="timing-tests">Tests (use Ctrl/Cmd-click to select multiple)
+<select id="timing-tests" multiple size="4">{{range .Tests}}<option value="{{.ID}}" selected>{{.Label}}</option>{{end}}</select></label>
+<button id="timing-reset" type="button">Show all tests</button>
+<p id="timing-filter-status" class="timing-filter-status" aria-live="polite">All tests selected.</p>
+</div>
 <table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test.</p>
+<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test. The chart opens with up to 40 rows; use the vertical and horizontal sliders or test selector to explore more.</p>
 </section>`))
 
-// LifecycleSummaryHTML renders an escaped, visible summary above the timing chart.
+// Renders the duration summary and chart controls above the timing graph.
 func lifecycleSummaryHTML(times []TestInfo) ([]byte, error) {
+	view := summarizeLifecycle(times)
+	for i, item := range times {
+		name := strings.Join(item.Identifier, " ")
+		view.Tests = append(view.Tests, timingTestOption{
+			ID:    i,
+			Label: fmt.Sprintf("%s · %s", name, item.StartedAt.Format("2006-01-02 15:04:05 MST")),
+		})
+	}
 	var output bytes.Buffer
-	if err := summaryTemplate.Execute(&output, summarizeLifecycle(times)); err != nil {
+	if err := summaryTemplate.Execute(&output, view); err != nil {
 		return nil, err
 	}
 	return output.Bytes(), nil

@@ -292,6 +292,11 @@ steps:
 	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")
 	}
+	for _, control := range []string{`<select id="timing-sort">`, `<option value="duration">Total duration (longest first)</option>`, `<option value="name">Test name (A–Z)</option>`, `<select id="timing-tests" multiple size="4">`, `<button id="timing-reset" type="button">Show all tests</button>`, `id="timing-filter-status"`, `The chart opens with up to 40 rows`} {
+		if !strings.Contains(text, control) {
+			t.Errorf("timing report is missing the %q control", control)
+		}
+	}
 	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {
 		if !strings.Contains(text, label) {
 			t.Fatalf("timeline lost the operation outcome %q", label)
