@@ -343,7 +343,7 @@ navigates the full time range. Sort tests by start time, total duration
 
 The summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
-cleanup and full cleanup, rounded to milliseconds. Segment colors match the summary.
+cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
 or unknown-outcome tests are excluded. Typed resource-operation averages also
 require an explicit successful operation outcome: failed attempts, including

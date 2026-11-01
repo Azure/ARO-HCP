@@ -230,9 +230,9 @@ func (s durationSummary) Maximum() string {
 	return formatTimingDuration(s.Max)
 }
 
-// Formats durations to millisecond precision for readable summaries.
+// Formats durations as whole seconds without rounding up.
 func formatTimingDuration(duration time.Duration) string {
-	return duration.Round(time.Millisecond).String()
+	return duration.Truncate(time.Second).String()
 }
 
 // Mean formats a duration only when the category has successful complete samples.

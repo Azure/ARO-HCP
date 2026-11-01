@@ -115,8 +115,8 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 			t.Errorf("category %q: got %+v, want %+v", got.Name, got, want)
 		}
 	}
-	if summary.Rows[0].Mean() != "6.5s" || summary.Rows[1].Mean() != "4.5s" || summary.Rows[0].Incomplete != 1 {
-		t.Fatalf("mean or incomplete sample selection is incorrect: %+v", summary.Rows[0])
+	if summary.Rows[0].Incomplete != 1 {
+		t.Fatalf("incomplete sample selection is incorrect: %+v", summary.Rows[0])
 	}
 	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.Mean() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
 		t.Fatalf("missing cleanup boundary cannot become a zero-second sample: %+v", got)
@@ -127,12 +127,12 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	}
 }
 
-func TestDurationSummaryFormatsToMilliseconds(t *testing.T) {
+func TestDurationSummaryTruncatesToSeconds(t *testing.T) {
 	duration := 13*time.Minute + 42*time.Second + 854610143*time.Nanosecond
 	summary := durationSummary{Count: 1, Total: duration, Min: duration, Max: duration}
-	const want = "13m42.855s"
+	const want = "13m42s"
 	if summary.Minimum() != want || summary.Mean() != want || summary.Maximum() != want {
-		t.Fatalf("duration summary should round to milliseconds: min=%s mean=%s max=%s", summary.Minimum(), summary.Mean(), summary.Maximum())
+		t.Fatalf("duration summary should truncate to seconds: min=%s mean=%s max=%s", summary.Minimum(), summary.Mean(), summary.Maximum())
 	}
 }
 

@@ -586,8 +586,8 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		const content = document.createElement('div');
 		content.style.whiteSpace = 'pre-line';
 		content.style.maxWidth = 'min(600px, 80vw)';
-		content.textContent = test.name + '\n' + (test.duration / 1000).toFixed(3) + 's' +
-			(test.segments || []).map(s => '\n' + s.name + ': ' + ((s.end-s.start)/1000).toFixed(3) + 's').join('');
+		content.textContent = test.name + '\n' + Math.floor(test.duration / 1000) + 's' +
+			(test.segments || []).map(s => '\n' + s.name + ': ' + Math.floor((s.end-s.start)/1000) + 's').join('');
 		return content;
 	};
 	const fitRowHeight = () => {
