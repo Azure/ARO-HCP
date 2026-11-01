@@ -392,32 +392,15 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	startTime := times[0].StartedAt
 	endTime := startTime
 
-	testNameSet := sets.New[string]()
-	for _, item := range times {
-		testNameSet.Insert(strings.Join(item.Identifier, " "))
-	}
-	testNames := sets.List(testNameSet)
-
 	waterfall := charts.NewBar()
 	waterfall.Renderer = render.NewChartRender(testChart{waterfall}, waterfall.Validate)
 	var highWaterMark, durations []opts.BarData
 	var names []string
 	var groups []timingChartGroup
-	startTimes := map[string]time.Time{}
 	for _, item := range times {
-		identifier := strings.Join(item.Identifier, " ")
 		if item.FinishedAt.After(endTime) {
 			endTime = item.FinishedAt
 		}
-		startTimes[identifier] = item.StartedAt
-	}
-	// Keep the original per-test palette order without a series for every test.
-	slices.SortFunc(testNames, func(a, b string) int {
-		return startTimes[a].Compare(startTimes[b])
-	})
-	colors := map[string]string{}
-	for i, testName := range testNames {
-		colors[testName] = waterfall.Colors[i%len(waterfall.Colors)]
 	}
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
@@ -427,29 +410,20 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Duration:  float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
 			FirstRow:  len(names),
 		}
-		appendRow := func(name string, start, finish time.Time, style *opts.ItemStyle) {
-			highWaterMark = append(highWaterMark, opts.BarData{Value: float64(start.Sub(startTime)) / float64(time.Millisecond)})
-			durations = append(durations, opts.BarData{
-				Name: name, Value: float64(finish.Sub(start)) / float64(time.Millisecond), ItemStyle: style,
-			})
-			names = append(names, name)
-		}
-		appendRow(identifier, item.StartedAt, item.FinishedAt, &opts.ItemStyle{Color: colors[identifier], BorderWidth: 1})
+		highWaterMark = append(highWaterMark, opts.BarData{Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond)})
+		durations = append(durations, opts.BarData{Name: identifier, Value: group.Duration})
+		names = append(names, identifier)
 		for _, row := range lifecycleRows(item) {
-			style := &opts.ItemStyle{Color: colors[identifier]}
-			if color := timingColor(row.Kind); color != "" {
-				style.Color = color
+			color := timingColor(row.Kind)
+			if color == "" {
+				color = "#5470c6"
 			}
-			switch row.Kind {
-			case "phase":
-				style.BorderWidth = 1
-				style.Opacity = opts.Float(0.7)
-			case "gap":
-				style.Opacity = opts.Float(0.65)
-			}
-			appendRow(fmt.Sprintf("%s: %s", identifier, row.Name), row.StartedAt, row.FinishedAt, style)
+			group.Segments = append(group.Segments, timingChartSegment{
+				Name: row.Name, Kind: row.Kind, Color: color,
+				Start: float64(row.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+				End:   float64(row.FinishedAt.Sub(startTime)) / float64(time.Millisecond),
+			})
 		}
-		group.LastRow = len(names)
 		groups = append(groups, group)
 	}
 
@@ -517,7 +491,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 					xAxis: {axisLabel: {color}, axisLine: {lineStyle: {color}}, splitLine: {lineStyle: {color, opacity: 0.15}}},
 					tooltip: {backgroundColor: style.backgroundColor, borderColor: color, textStyle: {color}},
 					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}, {textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
-					series: [{}, {itemStyle: {borderColor: color}}]
 				});
 			};
 			applyTheme();
@@ -537,14 +510,22 @@ const timingChartRowHeight = 26
 const timingChartMinimumOverviewHeight = 320
 
 type timingChartGroup struct {
-	Name      string  `json:"name"`
-	StartTime int64   `json:"startTime"`
-	Duration  float64 `json:"duration"`
-	FirstRow  int     `json:"firstRow"`
-	LastRow   int     `json:"lastRow"`
+	Name      string               `json:"name"`
+	StartTime int64                `json:"startTime"`
+	Duration  float64              `json:"duration"`
+	FirstRow  int                  `json:"firstRow"`
+	Segments  []timingChartSegment `json:"segments"`
 }
 
-// Builds the sorting, density, and zoom script for the timing chart.
+type timingChartSegment struct {
+	Name  string  `json:"name"`
+	Kind  string  `json:"kind"`
+	Color string  `json:"color"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+}
+
+// Builds the segmented test bars, sorting, and zoom script for the timing chart.
 func timingChartSortingJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
 	encoded, _ := json.Marshal(groups)
 	if bytes.Contains(encoded, []byte("__f__")) {
@@ -565,31 +546,55 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	const chart = __CHART__;
 	const groups = __GROUPS__;
 	const initial = chart.getOption();
-	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time'}))});
-	const allLabels = initial.yAxis[0].data;
+	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time'}))}, {replaceMerge: ['dataZoom']});
 	const allOffsets = initial.series[0].data;
 	const allDurations = initial.series[1].data;
-	let currentLabels = allLabels;
+	let currentLabels = groups.map(group => group.name);
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
 	const overviewHeight = () => Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(window.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16));
-	let densityMode = null;
-	const setDensityMode = overview => {
-		if (densityMode === overview) return;
-		densityMode = overview;
-		const data = overview ? currentDurations.map(row => {
-			if (!row.itemStyle) return row;
-			return {...row, itemStyle: {...row.itemStyle, borderWidth: 0, opacity: 1}};
-		}) : currentDurations;
-		chart.setOption({series: [{}, {data}]});
+	const renderItem = (params, api) => {
+		const test = ordered[params.dataIndex];
+		const y = api.coord([0, api.value(0)])[1];
+		const height = Math.max(1, api.size([0, 1])[1] * 0.8);
+		const segments = test.segments || [];
+		const start = api.value(1), end = api.value(2);
+		const boundaries = [...new Set([start, end, ...segments.flatMap(s => [s.start, s.end])])].sort((a,b) => a-b);
+		const children = [];
+		for (let i = 1; i < boundaries.length; i++) {
+			const left = boundaries[i-1], right = boundaries[i];
+			if (right <= left) continue;
+			const active = segments.filter(s => s.start < right && s.end > left);
+			const operations = active.filter(s => s.kind !== 'phase' && s.kind !== 'gap');
+			const phases = active.filter(s => s.kind === 'phase');
+			const layers = operations.length ? operations : phases.length ? phases : active;
+			const colors = layers.length ? layers.map(s => s.color) : ['#64748b'];
+			const x = api.coord([left, 0])[0], xEnd = api.coord([right, 0])[0];
+			colors.forEach((color, lane) => {
+				const shape = echarts.graphic.clipRectByRect({x, y:y-height/2+lane*height/colors.length, width:xEnd-x, height:height/colors.length}, params.coordSys);
+				if (shape) children.push({type:'rect', shape, style:{fill:color}});
+			});
+		}
+		return {type:'group', children};
+	};
+	let ordered = groups.slice();
+	const tooltip = params => {
+		const item = Array.isArray(params) ? params[0] : params;
+		if (!item) return '';
+		const test = ordered[item.dataIndex];
+		const content = document.createElement('div');
+		content.style.whiteSpace = 'pre-line';
+		content.style.maxWidth = 'min(600px, 80vw)';
+		content.textContent = test.name + '\n' + (test.duration / 1000).toFixed(3) + 's' +
+			(test.segments || []).map(s => '\n' + s.name + ': ' + ((s.end-s.start)/1000).toFixed(3) + 's').join('');
+		return content;
 	};
 	const fitRowHeight = () => {
 		const zoom = chart.getOption().dataZoom[0];
 		const fullRange = zoom.start <= 0 && zoom.end >= 100;
-		const visibleRows = allLabels.length * (zoom.end - zoom.start) / 100;
-		setDensityMode(fullRange);
-		const height = fullRange ? overviewHeight() : Math.max(__ROW_HEIGHT__, Math.ceil(visibleRows) * __ROW_HEIGHT__);
+		const visibleRows = groups.length * (zoom.end - zoom.start) / 100;
+		const height = fullRange ? overviewHeight() : Math.max(__MINIMUM_OVERVIEW_HEIGHT__, 130 + Math.ceil(visibleRows) * __ROW_HEIGHT__);
 		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
 		chart.getDom().style.height = height + 'px';
 		chart.resize({height});
@@ -628,16 +633,10 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			}
 			return a.startTime - b.startTime || a.name.localeCompare(b.name);
 		});
-		const labels = [];
-		const offsets = [];
-		const durations = [];
-		for (const group of visible) {
-			for (let i = group.firstRow; i < group.lastRow; i++) {
-				labels.push(allLabels[i]);
-				offsets.push(allOffsets[i]);
-				durations.push(allDurations[i]);
-			}
-		}
+		ordered = visible;
+		const labels = visible.map(group => group.name);
+		const offsets = visible.map(group => allOffsets[group.firstRow]);
+		const durations = visible.map(group => allDurations[group.firstRow]);
 		const visibleRows = labels.length;
 		const end = 100;
 		const timeRange = {start: 0, end: 100};
@@ -657,8 +656,13 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		currentLabels = labels;
 		currentOffsets = offsets;
 		currentDurations = durations;
-		chart.setOption({yAxis: {data: labels}, series: [{data: offsets}, {data: durations}], dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]});
-		densityMode = null;
+		chart.setOption({
+			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
+			tooltip: {trigger:'item', formatter:tooltip},
+			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
+				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
+			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]
+		}, {replaceMerge:['series']});
 		fitRowHeight();
 	};
 	sort.addEventListener('change', update);

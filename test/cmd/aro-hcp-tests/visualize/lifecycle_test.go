@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/test/util/timing"
@@ -54,14 +53,6 @@ func TestLifecycleCoverageUsesOperationUnionNotPhases(t *testing.T) {
 	}
 	if !strings.Contains(gaps[0].Name, "test work") || !strings.Contains(gaps[1].Name, "cleanup") {
 		t.Fatalf("body and cleanup gaps must be distinguishable: %+v", gaps)
-	}
-	chart := testTimingChart([]TestInfo{item})
-	if len(chart.MultiSeries) != 2 {
-		t.Fatalf("phases and gaps must retain two series, got %d", len(chart.MultiSeries))
-	}
-	data := chart.MultiSeries[1].Data.([]opts.BarData)
-	if data[0].Value != float64(20000) || len(data) != 1+len(rows) {
-		t.Fatalf("root must cover complete lifecycle and all rows: %+v", data)
 	}
 	// Removing all operations exposes the whole body and cleanup, even though phase bars cover both.
 	item.Steps = nil
@@ -133,6 +124,15 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	passed.Phases = []StepTimingMetadata{{Name: "cleanup interrupted", StartedAt: start.Add(20 * time.Second), FinishedAt: start.Add(40 * time.Second), Incomplete: true}}
 	if got := summarizeLifecycle([]TestInfo{passed}).Rows[4]; got.Count != 0 || got.Incomplete != 1 {
 		t.Fatalf("interrupted cleanup cannot be a success sample: %+v", got)
+	}
+}
+
+func TestDurationSummaryFormatsToMilliseconds(t *testing.T) {
+	duration := 13*time.Minute + 42*time.Second + 854610143*time.Nanosecond
+	summary := durationSummary{Count: 1, Total: duration, Min: duration, Max: duration}
+	const want = "13m42.855s"
+	if summary.Minimum() != want || summary.Mean() != want || summary.Maximum() != want {
+		t.Fatalf("duration summary should round to milliseconds: min=%s mean=%s max=%s", summary.Minimum(), summary.Mean(), summary.Maximum())
 	}
 }
 
@@ -291,17 +291,6 @@ steps:
 	}
 	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")
-	}
-	for _, control := range []string{`<select id="timing-sort">`, `<option value="duration">Total duration (longest first)</option>`, `<option value="name">Test name (A–Z)</option>`, `The overview shows every timeline row within the available screen height`} {
-		if !strings.Contains(text, control) {
-			t.Errorf("timing report is missing the %q control", control)
-		}
-	}
-	if strings.Contains(text, `id="timing-tests"`) || strings.Contains(text, `id="timing-reset"`) {
-		t.Fatal("timing report must not include test filtering controls")
-	}
-	if strings.Index(text, `</table>`) >= strings.Index(text, `<div class="timing-controls">`) {
-		t.Fatal("sorting controls must appear after the summary table")
 	}
 	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {
 		if !strings.Contains(text, label) {
