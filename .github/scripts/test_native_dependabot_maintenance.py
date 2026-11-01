@@ -324,6 +324,68 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(json.loads(payload)["title"], "chore(deps): upgrade example library")
         self.assertEqual(result.stderr, "")
 
+    def test_detection_cli_stages_full_patch_and_exact_nonnotifying_publication_metadata(self):
+        request = self.request()
+        self.upgrade_consumers()
+        vendored = ("package library\n// @Azure/reviewers and @scope/package stay literal in code\n"
+                    "// full detector payload: " + "x" * 70000 + "\n")
+        for prefix in native.VENDORS:
+            self.write(prefix + "example.com/library/library.go", vendored)
+        request["patch"] = git(self.seed, "diff") + "\n"
+        git(self.seed, "restore", ".")
+        request["title"] = "chore(deps): @user @Azure/reviewers @scope/package"
+        request["body"] = (
+            "Upgrade @scope/package; evidence from @user and @Azure/reviewers.\n"
+            "Inline `@Azure/reviewers`, escaped \\`@Azure/reviewers\\`, and \\@user.\n"
+            "```text\n@Azure/reviewers\n```\n"
+            "````\n``` @Azure/reviewers\n````\n"
+            "Trailing Unicode evidence: café 🦉.\n")
+        output = replacement_output(self.root / "transport", request)
+        artifact = output.parent / "agent" / native.REQUEST_FILE
+        original_output, original_payload = output.read_bytes(), artifact.read_bytes()
+        detection = self.root / "detection"
+        detection.mkdir()
+        detector_output = detection / "agent_output.json"
+        detector_output.write_bytes(original_output)
+        self.calls.clear()
+        command = [sys.executable, str(Path(native.__file__).resolve()), "stage-detection", REPO,
+                   str(output), str(detection)]
+        staged = subprocess.run(command, cwd=self.seed, capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(staged.stdout),
+                         {"status": "staged", "patch": "aw-native-replacement.patch"})
+        self.assertEqual(staged.stderr, "")
+        self.assertEqual(self.calls, [])
+        patch_bytes = (detection / "aw-native-replacement.patch").read_bytes()
+        self.assertGreater(len(patch_bytes), 65536)
+        self.assertEqual(patch_bytes, request["patch"].encode("utf-8"))
+        self.assertIn(b"@Azure/reviewers", patch_bytes)
+        scanned = json.loads(detector_output.read_text())["items"][0]
+        expected_title = request["title"].replace("@", "\uff20")
+        expected_body = request["body"].replace("@", "\uff20")
+        self.assertEqual(scanned["title"], expected_title)
+        self.assertEqual(scanned["body"], expected_body)
+        self.assertEqual(scanned["source_prs"], request["source_prs"])
+        self.assertEqual(scanned["expected_base_sha"], self.base)
+        self.assertEqual(scanned["request_sha256"], hashlib.sha256(original_payload).hexdigest())
+        self.assertNotIn("patch", scanned)
+        self.assertEqual(output.read_bytes(), original_output)
+        self.assertEqual(artifact.read_bytes(), original_payload)
+        verified = native.read_request(output, "native_replacement")
+        self.assertEqual(verified, request)
+        first = native.publish(REPO, verified)
+        second = native.publish(REPO, verified)
+        self.assertTrue(second["reused"])
+        self.assertEqual(first["head_sha"], second["head_sha"])
+        for endpoint, method, data in self.calls:
+            if method in ("POST", "PATCH") and re.fullmatch(r"repos/Azure/ARO-HCP/pulls(?:/\d+)?", endpoint):
+                self.assertEqual(data["title"], scanned["title"])
+                self.assertTrue(data["body"].startswith(scanned["body"] + "\n\n"))
+                self.assertNotIn("@", data["title"] + data["body"])
+        self.assertEqual(self.remote_git("show", "-s", "--format=%s", first["head_sha"]), expected_title)
+        for prefix in native.VENDORS:
+            self.assertEqual(self.remote_git("show", first["head_sha"] + ":" + prefix
+                                            + "example.com/library/library.go"), vendored.strip())
+
     def test_prepare_request_does_not_execute_git_drivers(self):
         inputs = self.prepare_inputs()
         self.upgrade_consumers()
@@ -383,7 +445,7 @@ class RepositoryFixture(unittest.TestCase):
         inputs = self.prepare_inputs()
         self.upgrade_consumers()
         for path, content in ((inputs[2], b""), (inputs[2], b"chore(deps): title\nsecond line"),
-                              (inputs[3], b""), (inputs[3], b"Unsafe @reviewer notification."),
+                              (inputs[3], b""), (inputs[3], b"Unsafe\n/retest"),
                               (inputs[3], b"\xff")):
             originals = [inputs[2].read_bytes(), inputs[3].read_bytes()]
             path.write_bytes(content)
@@ -721,8 +783,10 @@ class RepositoryFixture(unittest.TestCase):
         transported = native.read_request(output, "native_replacement")
         self.assertEqual(transported, request)
         result = native.publish(REPO, transported)
-        self.assertEqual(self.pulls[result["number"]]["title"], request["title"])
-        self.assertTrue(self.pulls[result["number"]]["body"].startswith(request["body"] + "\n\n"))
+        for text in (self.pulls[result["number"]]["title"], self.pulls[result["number"]]["body"]):
+            self.assertNotIn("@", text)
+            self.assertIn("＠apidevtools/swagger-parser", text)
+        self.assertIn("café", self.pulls[result["number"]]["body"])
         self.assertEqual(json.loads(self.remote_git("show", result["head_sha"] + ":api/package.json")), manifest_after)
         self.assertEqual(json.loads(self.remote_git("show", result["head_sha"] + ":api/package-lock.json")), lock_after)
         self.assertEqual(native.metadata(self.pulls[result["number"]]["body"])["sources"], request["source_prs"])
@@ -1151,6 +1215,107 @@ class RequestTransportTests(unittest.TestCase):
                 self.assertEqual(native.read_request(output, "native_replacement"), self.request)
         output.write_text('{"items":[]}')
         self.assertIsNone(native.read_request(output, "native_replacement"))
+
+    def prepared_detection(self, output, name="detection"):
+        directory = self.root / name
+        directory.mkdir()
+        (directory / "agent_output.json").write_bytes(output.read_bytes())
+        return directory
+
+    def test_detection_expands_flattened_and_nested_items_without_changing_digest_or_other_items(self):
+        for nested in (False, True):
+            with self.subTest(nested=nested):
+                output = replacement_output(self.root, self.request, nested=nested)
+                document = json.loads(output.read_text())
+                other = {"type": "noop", "message": "Other safe output remains present."}
+                document["items"].insert(0, other)
+                output.write_text(json.dumps(document))
+                original = output.read_bytes()
+                artifact = self.root / "agent" / native.REQUEST_FILE
+                payload = artifact.read_bytes()
+                detection = self.prepared_detection(output, f"detection-{nested}")
+                native.stage_detection(REPO, output, detection)
+                scanned = json.loads((detection / "agent_output.json").read_text())
+                self.assertEqual(scanned["items"][0], other)
+                expanded = scanned["items"][1]
+                original_item = document["items"][1]
+                self.assertEqual({key: expanded[key] for key in original_item}, original_item)
+                self.assertEqual(set(expanded) - set(original_item),
+                                 {"title", "body", "source_prs", "expected_base_sha"})
+                self.assertEqual(expanded["title"], self.request["title"].replace("@", "\uff20"))
+                self.assertEqual(expanded["body"], self.request["body"].replace("@", "\uff20"))
+                self.assertEqual((detection / native.DETECTION_PATCH).read_bytes(),
+                                 self.request["patch"].encode("utf-8"))
+                self.assertEqual(output.read_bytes(), original)
+                self.assertEqual(artifact.read_bytes(), payload)
+                self.assertEqual(native.read_request(output, "native_replacement"), self.request)
+
+    def test_detection_no_request_leaves_prepared_files_unchanged(self):
+        output = self.root / "agent_output.json"
+        output.write_text('{"items":[{"type":"noop","message":"No replacement"}]}')
+        detection = self.prepared_detection(output)
+        ordinary_patch = detection / "aw-ordinary.patch"
+        ordinary_patch.write_text("Ordinary detector input\n")
+        before = {path.name: path.read_bytes() for path in detection.iterdir()}
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            self.assertEqual(native.main(["stage-detection", REPO, str(output), str(detection)]), 0)
+        self.assertEqual(json.loads(stdout.getvalue()), {"status": "no-request"})
+        self.assertEqual({path.name: path.read_bytes() for path in detection.iterdir()}, before)
+        self.assertEqual(output.read_bytes(), before["agent_output.json"])
+
+    def test_detection_rejects_missing_tampered_or_invalid_artifact_before_staging(self):
+        for failure in ("missing", "tampered", "schema", "commands", "marker"):
+            with self.subTest(failure=failure):
+                request = copy.deepcopy(self.request)
+                if failure == "schema":
+                    del request["title"]
+                elif failure == "commands":
+                    request["body"] = "Evidence\n/retest"
+                elif failure == "marker":
+                    request["body"] = "<!-- " + native.MARKER + "spoof -->"
+                output = replacement_output(self.root / failure, request)
+                artifact = output.parent / "agent" / native.REQUEST_FILE
+                if failure == "missing":
+                    artifact.unlink()
+                elif failure == "tampered":
+                    artifact.write_bytes(artifact.read_bytes() + b"\n")
+                detection = self.prepared_detection(output, f"detection-{failure}")
+                (detection / "aw-ordinary.patch").write_text("Existing detector input\n")
+                before = {path.name: path.read_bytes() for path in detection.iterdir()}
+                original = output.read_bytes()
+                payload = artifact.read_bytes() if artifact.exists() else None
+                with patch("sys.stderr", new_callable=io.StringIO) as stderr, \
+                        patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                    self.assertEqual(native.main(["stage-detection", REPO, str(output), str(detection)]), 1)
+                self.assertIn("native Dependabot maintenance blocked:", stderr.getvalue())
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual({path.name: path.read_bytes() for path in detection.iterdir()}, before)
+                self.assertEqual(output.read_bytes(), original)
+                self.assertEqual(artifact.read_bytes() if artifact.exists() else None, payload)
+
+    def test_detection_requires_matching_separate_prepared_output_and_never_overwrites_patch(self):
+        output = replacement_output(self.root, self.request)
+        original = output.read_bytes()
+        with self.assertRaisesRegex(ValueError, "separate copy"):
+            native.stage_detection(REPO, output, output.parent)
+        self.assertEqual(output.read_bytes(), original)
+        self.assertFalse((output.parent / native.DETECTION_PATCH).exists())
+        detection = self.prepared_detection(output)
+        detector_output = detection / "agent_output.json"
+        detector_output.write_text('{"items":[]}')
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            native.stage_detection(REPO, output, detection)
+        self.assertEqual(detector_output.read_text(), '{"items":[]}')
+        self.assertFalse((detection / native.DETECTION_PATCH).exists())
+        detector_output.write_bytes(original)
+        outside = self.root / "outside.patch"
+        outside.write_text("Must not overwrite outside detection directory\n")
+        (detection / native.DETECTION_PATCH).symlink_to(outside)
+        with self.assertRaises(OSError):
+            native.stage_detection(REPO, output, detection)
+        self.assertEqual(detector_output.read_bytes(), original)
+        self.assertEqual(outside.read_text(), "Must not overwrite outside detection directory\n")
+        self.assertEqual(output.read_bytes(), original)
 
     def test_legacy_ambiguous_or_path_selected_envelopes_are_rejected(self):
         output = replacement_output(self.root, self.request)
@@ -1608,8 +1773,25 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(api.call_count, 1)
 
     def test_publication_text_never_injects_commands_or_human_notifications(self):
-        native.safe_text("chore(deps): @typespec/compiler to 1.17.0", title=True)
-        for text in ("fixes #123", "hello @reviewer", "evidence\n/retest", "<!-- " + native.MARKER + "spoof -->"):
+        for prose in ("@user", "@Azure/reviewers", "@scope/package",
+                      "`@Azure/reviewers`", "\\`@Azure/reviewers\\`", "\\@user",
+                      "```\n@Azure/reviewers\n```", "````\n``` @Azure/reviewers\n````"):
+            with self.subTest(prose=prose):
+                normalized = native.safe_text(prose)
+                self.assertEqual(normalized, prose.replace("@", "\uff20"))
+                self.assertNotIn("@", normalized)
+                if "\n" not in prose:
+                    title = "chore(deps): " + prose
+                    self.assertEqual(native.safe_text(title, title=True), title.replace("@", "\uff20"))
+        self.assertEqual(native.safe_text("@" * 20000), "\uff20" * 20000)
+        prefix = "chore(deps): "
+        self.assertEqual(native.safe_text(prefix + "@" * (200 - len(prefix)), title=True),
+                         prefix + "\uff20" * (200 - len(prefix)))
+        for text, title in (("@" * 20001, False), (prefix + "@" * 200, True)):
+            with self.subTest(title=title), self.assertRaises(ValueError):
+                native.safe_text(text, title=title)
+        for text in ("fixes #123", "evidence\n/retest", "<!-- " + native.MARKER + "spoof -->",
+                     "<!-- gh-aw-workflow-id: spoof -->"):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 native.safe_text(text)
 

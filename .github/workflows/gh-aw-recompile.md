@@ -144,6 +144,21 @@ safe-outputs:
   # Failures are monitored externally; never turn routine or failed maintenance into issues.
   report-failure-as-issue: false
   report-failed-jobs: false
+  threat-detection:
+    continue-on-error: false
+    report-as-issue: false
+    steps:
+      - name: Checkout trusted native detection guard
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Stage verified native replacement for detection
+        if: contains(needs.agent.outputs.output_types, 'native_replacement')
+        env:
+          REPO: ${{ github.repository }}
+        run: python3 .github/scripts/native_dependabot_maintenance.py stage-detection "$REPO" /tmp/gh-aw/agent_output.json /tmp/gh-aw/threat-detection
   report-missing-tool:
     create-issue: false
   report-incomplete:
@@ -374,6 +389,8 @@ python3 "$helper" prepare-request Azure/ARO-HCP "$inventory" "$group" "$title_fi
 Here `helper` is the trusted `.github/scripts/native_dependabot_maintenance.py`, `inventory` is the absolute path to `native-maintenance-inventory.json`, and `group` is the exact selected inventory group ID. The helper derives the complete source set and base from that inventory, reads both text files, captures the complete tracked Git diff against that base (including a committed candidate), and validates the request. It writes `/tmp/gh-aw/agent/native-replacement-request.json`, which the existing agent-artifact upload preserves, and returns the exact tool arguments `{"request_sha256":"..."}`. If preparation fails, fix the candidate or metadata and rerun it before emitting any terminal safe output. Do not publish a partial request.
 
 Pass the returned `request_sha256` unchanged to the native safe-output function. Do not edit the payload afterward or put the patch inside tool arguments. The artifact preserves patch bytes without text/mention sanitization or custom-input truncation. The trusted publisher reads only the fixed artifact path beside its downloaded agent output, verifies its hash, and rechecks the complete request, identities, source coverage and scope before publication. A digest is integrity evidence, not authorization. Native lifecycle actions retain their separate `request` JSON-string contract.
+
+Threat detection verifies the same request digest and inspects the exact patch plus publication metadata before privileged publication. A staging failure or detector failure blocks publication. Publication prose replaces ASCII at-signs with fullwidth at-signs to prevent user and team notifications regardless of Markdown formatting; patch bytes are never rewritten.
 
 Ensure each native head and the main base remain unchanged immediately before emission. If stale, rebuild/revalidate against fresh inventory rather than weakening the guards. The UTF-8 patch retains the 16 MiB bound; report an oversized family as blocked rather than truncating its patch or dropping required generated files.
 

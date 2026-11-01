@@ -33,6 +33,7 @@ MAX_PATCH = 16 * 1024 * 1024
 # bounded publication text, 100 source identities, and JSON structure.
 MAX_REQUEST = 6 * MAX_PATCH + 256 * 1024
 REQUEST_FILE = "native-replacement-request.json"
+DETECTION_PATCH = "aw-native-replacement.patch"
 
 
 def require(condition, message):
@@ -684,6 +685,52 @@ def read_request(path, kind):
     return request
 
 
+def stage_detection(repo, output_file, detection_dir):
+    """Expand only the prepared detector copy with digest-verified publication data.
+
+    Run after prepare_threat_detection_files.sh, before the detector. Its pinned
+    consumer reads agent_output.json and top-level aw-*.patch files, not arbitrary
+    artifact JSON. The publisher still reads the untouched original digest record.
+    """
+    validate_repo(repo)
+    output_path = Path(output_file)
+    original = output_path.read_bytes()
+    request = read_request(output_file, "native_replacement")
+    require(output_path.read_bytes() == original, "agent output changed during detection staging")
+    if request is None:
+        return {"status": "no-request"}
+    output = json.loads(original)
+    item = next(item for item in output["items"] if item["type"] == "native_replacement")
+    item.update({"title": safe_text(request["title"], title=True),
+                 "body": safe_text(request["body"]),
+                 "source_prs": request["source_prs"],
+                 "expected_base_sha": request["expected_base_sha"]})
+    expanded = json.dumps(output, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    directory = os.open(detection_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        descriptor = os.open("agent_output.json", os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+        with os.fdopen(descriptor, "r+b") as detector_output:
+            info = os.fstat(detector_output.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+                    "detector output must be a singly linked regular file")
+            original_info = output_path.stat()
+            require((info.st_dev, info.st_ino) != (original_info.st_dev, original_info.st_ino),
+                    "detector output must be a separate copy of original agent output")
+            require(json.loads(detector_output.read()) == json.loads(original),
+                    "prepared detector output does not match original agent output")
+            descriptor = os.open(DETECTION_PATCH, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                 0o600, dir_fd=directory)
+            with os.fdopen(descriptor, "wb") as detector_patch:
+                detector_patch.write(request["patch"].encode("utf-8"))
+            detector_output.seek(0)
+            detector_output.truncate(0)
+            detector_output.write(expanded)
+    finally:
+        os.close(directory)
+    return {"status": "staged", "patch": DETECTION_PATCH}
+
+
 def git(cwd, *args, input=None, author_email=None, strip=True):
     env = os.environ.copy()
     env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
@@ -1198,16 +1245,22 @@ def admission_safe(repo, snap, intent):
 
 
 def safe_text(text, *, title=False):
-    require(isinstance(text, str) and 0 < len(text) <= (200 if title else 20000)
+    require(isinstance(text, str), "invalid publication text")
+    # Normalize every literal mention delimiter, regardless of Markdown quoting,
+    # escaping, or code fences. Scoped package names remain readable without
+    # allowing user/team notifications. Never apply this to the patch.
+    text = text.replace("@", "\uff20")
+    require(0 < len(text) <= (200 if title else 20000)
             and bool(text.strip()) and not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", text),
             "invalid publication text")
     text.encode("utf-8")
-    require(not re.search(r"(?m)^\s*/|@[A-Za-z0-9_-]+(?![A-Za-z0-9_/-])|(?i:\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+)", text)
+    require(not re.search(r"(?m)^\s*/|(?i:\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+)", text)
             and MARKER not in text and "<!-- gh-aw-workflow-id:" not in text,
-            "publication text cannot contain commands, mentions, auto-close directives or ownership markers")
+            "publication text cannot contain commands, auto-close directives or ownership markers")
     if title:
         require(text.startswith("chore(deps): ") and bool(text[len("chore(deps): "):].strip())
                 and "\n" not in text and "\r" not in text, "replacement title must be chore(deps): ...")
+    return text
 
 
 def replacement_json(text):
@@ -1378,6 +1431,7 @@ def ensure_label(repo):
 
 def publish(repo, request):
     paths = validate_replacement_request(request)
+    title = safe_text(request["title"], title=True)
     validate_repo(repo)
     maintenance.validate_target(repo, 1, request["expected_base_sha"])
     base = request["expected_base_sha"]
@@ -1404,7 +1458,7 @@ def publish(repo, request):
         snap = snapshot(repo, existing["number"], existing["head"]["sha"], author=ROBOT)
         require(not snap["blocked_holds"], "human/unknown replacement hold blocks publication")
     marker = "<!-- " + MARKER + json.dumps({"group": group["group"], "sources": request["source_prs"]}, sort_keys=True, separators=(",", ":")) + " -->"
-    body = request["body"] + "\n\n" + marker
+    body = safe_text(request["body"]) + "\n\n" + marker
     def merged_predecessor(head):
         require(not any(pull["head"]["sha"] == head for pull in closed_unmerged),
                 "closed-unmerged replacement branch must not be revived")
@@ -1474,7 +1528,7 @@ def publish(repo, request):
             bot = api(f"users/{quote(ROBOT, safe='')}")
             require(isinstance(bot, dict) and bot.get("login") == ROBOT and bot.get("type") == "Bot"
                     and type(bot.get("id")) is int and bot["id"] > 0, "missing publishing App bot identity")
-            message = request["title"] + "\n\n" + marker + f"\nnative-dependabot-base: {base}\n"
+            message = title + "\n\n" + marker + f"\nnative-dependabot-base: {base}\n"
             head = git(directory, "commit-tree", tree, *parents, input=message,
                        author_email=f"{bot['id']}+{ROBOT}@users.noreply.github.com")
         ensure_label(repo)
@@ -1497,10 +1551,10 @@ def publish(repo, request):
             "source or main changed before PR publication")
     if existing:
         response = api(f"repos/{repo}/pulls/{existing['number']}", method="PATCH",
-                       data={"title": request["title"], "body": body})
+                       data={"title": title, "body": body})
     else:
         response = api(f"repos/{repo}/pulls", method="POST",
-                       data={"head": branch, "base": "main", "title": request["title"], "body": body, "draft": False})
+                       data={"head": branch, "base": "main", "title": title, "body": body, "draft": False})
         require(isinstance(response, dict) and type(response.get("number")) is int, "missing created PR identity")
     number = response.get("number")
     require(type(number) is int, "missing published PR identity")
@@ -1602,9 +1656,9 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(bool(argv) and argv[0] in ("inventory", "prepare-request", "publish", "reconcile")
+        require(bool(argv) and argv[0] in ("inventory", "prepare-request", "stage-detection", "publish", "reconcile")
                 and len(argv) >= 2,
-                "usage: native_dependabot_maintenance.py inventory REPO | prepare-request REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR | publish/reconcile REPO OUTPUT_FILE")
+                "usage: native_dependabot_maintenance.py inventory REPO | prepare-request REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR | stage-detection REPO OUTPUT_FILE DETECTION_DIR | publish/reconcile REPO OUTPUT_FILE")
         mode, repo = argv[:2]
         validate_repo(repo)
         if mode == "inventory":
@@ -1613,6 +1667,9 @@ def main(argv=None):
         elif mode == "prepare-request":
             require(len(argv) == 7, "prepare-request requires REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR")
             result = prepare_request(repo, *argv[2:])
+        elif mode == "stage-detection":
+            require(len(argv) == 4, "stage-detection requires REPO OUTPUT_FILE DETECTION_DIR")
+            result = stage_detection(repo, *argv[2:])
         else:
             require(len(argv) == 3, "output file required")
             request = read_request(argv[2], "native_replacement" if mode == "publish" else "native_action")
