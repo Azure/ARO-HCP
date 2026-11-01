@@ -646,6 +646,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
 		const totalDuration = __TIME_RANGE__;
 		const timeStart = Math.max(0, earliest - padding);
+		const timeEnd = Math.min(totalDuration, latest + padding);
 		timeRange.start = timeStart / totalDuration * 100;
 		timeRange.end = Math.min(100, Math.max(timeRange.start + 0.1, timeEnd / totalDuration * 100));
 		currentLabels = labels;
