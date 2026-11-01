@@ -115,16 +115,11 @@ spec:
         - "--azure-cluster-scoped-identities-role-set-name"
         - "{{ .Values.clusterScopedIdentitiesConfig.roleSetName }}"
         env:
-        - name: DB_NAME
+        - name: COSMOS_ACCOUNT_RESOURCE_ID
           valueFrom:
             configMapKeyRef:
               name: backend-config
-              key: DB_NAME
-        - name: DB_URL
-          valueFrom:
-            configMapKeyRef:
-              name: backend-config
-              key: DB_URL
+              key: COSMOS_ACCOUNT_RESOURCE_ID
         - name: LOCATION
           valueFrom:
             configMapKeyRef:
