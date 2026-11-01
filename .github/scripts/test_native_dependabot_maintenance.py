@@ -273,6 +273,61 @@ class RepositoryFixture(unittest.TestCase):
         self.assertTrue(all("creator=" in endpoint for endpoint in endpoints))
         self.assertTrue(any("state=all" in endpoint for endpoint in endpoints))
 
+    def test_native_ci_is_evidence_not_replacement_preparation_gate(self):
+        sha = self.detail(1)["head"]["sha"]
+        for state in ("awaiting-admission", "pending", "queued", "in_progress", "failed"):
+            with self.subTest(state=state):
+                self.statuses.clear()
+                self.checks.clear()
+                self.pulls[1]["labels"] = [{"name": "needs-ok-to-test"}] if state == "awaiting-admission" else []
+                if state in ("pending", "failed"):
+                    self.ci(pending=state == "pending")
+                elif state in ("queued", "in_progress"):
+                    self.checks[sha] = [{"id": 1, "name": "ci/prow/e2e-parallel",
+                                         "head_sha": sha, "status": state, "conclusion": None}]
+                group = native.inventory(REPO)["groups"][0]
+                self.assertEqual(group["next_action"]["action"], "prepare_replacement")
+
+    def test_inventory_preserves_human_hold_before_preparation(self):
+        self.hold(author="human", body="/hold\nInvestigating dependency compatibility")
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertIn("human/unknown hold", group["next_action"]["reason"])
+
+    def test_inventory_selects_existing_pending_robot_replacement(self):
+        published = native.publish(REPO, self.request())
+        self.ci(number=published["number"], pending=True)
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "maintain_replacement")
+        self.assertEqual(group["next_action"]["replacement_pr"], published["number"])
+
+    def test_inventory_blocks_human_hold_on_existing_replacement(self):
+        published = native.publish(REPO, self.request())
+        self.hold(number=published["number"], author="human", body="/hold\nInvestigating")
+        group = native.inventory(REPO)["groups"][0]
+        self.assertEqual(group["next_action"]["action"], "blocked")
+        self.assertEqual(group["next_action"]["replacement_pr"], published["number"])
+
+    def test_cleanup_selection_requires_every_exact_source_head(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": copy.deepcopy(group["sources"])}
+        self.assertEqual(native.next_action(group, [replacement])["action"], "close_superseded")
+        replacement["sources"][0]["head_sha"] = "c" * 40
+        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+        replacement["sources"] = [{"number": 2, "head_sha": "b" * 40}]
+        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+        replacement["sources"] = copy.deepcopy(group["sources"])
+        group["sources"].append({"number": 2, "head_sha": "c" * 40})
+        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+
+    def test_ambiguous_open_replacements_fail_closed(self):
+        group = {"group": "a" * 24, "blockers": [], "sources": []}
+        replacements = [{"number": number, "group": group["group"], "merged": False,
+                         "blocked_holds": [], "sources": []} for number in (100, 101)]
+        self.assertEqual(native.next_action(group, replacements)["action"], "blocked")
+
     def test_publication_cannot_omit_current_same_family_target_native_source(self):
         second_sha = self.source(2, "internal/go.mod", manifest(NEW))
         request = self.request()
@@ -635,6 +690,8 @@ class RepositoryFixture(unittest.TestCase):
         self.merge_replacement(result["number"])
         inventory = native.inventory(REPO)
         self.assertTrue(inventory["replacements"][0]["merged"])
+        self.assertEqual(inventory["groups"][0]["next_action"]["action"], "close_superseded")
+        self.assertEqual(inventory["groups"][0]["next_action"]["replacement_pr"], result["number"])
         native.reconcile(REPO, self.action("close-superseded", replacement_pr=result["number"]))
         self.assertTrue(self.comments[1][-1]["body"].endswith("\n/close"))
         self.assertEqual(self.pulls[1]["state"], "open")

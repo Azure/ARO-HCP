@@ -524,6 +524,34 @@ def creator_inventory(repo, creator, state="open"):
     return result
 
 
+def next_action(group, replacements):
+    """Select work from verified identities, never from native-source CI."""
+    if group["blockers"]:
+        return {"action": "blocked", "reason": "; ".join(sorted(group["blockers"]))}
+    matching = sorted((row for row in replacements if row["group"] == group["group"]),
+                      key=lambda row: row["number"])
+    opened = [row for row in matching if not row["merged"]]
+    if len(opened) > 1:
+        return {"action": "blocked", "reason": "ambiguous open matching replacements"}
+    if opened:
+        row = opened[0]
+        if row["blocked_holds"]:
+            return {"action": "blocked", "reason": "replacement has human/unknown hold",
+                    "replacement_pr": row["number"]}
+        return {"action": "maintain_replacement",
+                "reason": "reuse existing replacement; its current-head CI governs further progress",
+                "replacement_pr": row["number"]}
+    sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
+    covered = [row for row in matching if row["merged"] and sources <= {
+        (source["number"], source["head_sha"]) for source in row["sources"]}]
+    if covered:
+        return {"action": "close_superseded",
+                "reason": "merged replacement maps every exact source head; closure guard must verify coverage",
+                "replacement_pr": covered[-1]["number"]}
+    return {"action": "prepare_replacement",
+            "reason": "no open matching replacement or merged exact-source mapping; native CI is evidence only"}
+
+
 def inventory(repo):
     validate_repo(repo)
     base = main_sha(repo)
@@ -562,6 +590,9 @@ def inventory(repo):
             snap = snapshot(repo, pull["number"], pull["head"]["sha"], author=ROBOT)
             row.update({key: snap[key] for key in ("ci", "held", "blocked_holds")})
         replacements.append(row)
+    for group in groups.values():
+        group["sources"].sort(key=lambda row: row["number"])
+        group["next_action"] = next_action(group, replacements)
     require(main_sha(repo) == base, "main changed during inventory")
     return {"repository": repo, "base_sha": base, "groups": list(groups.values()), "replacements": replacements}
 
