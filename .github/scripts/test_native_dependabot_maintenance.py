@@ -308,19 +308,84 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(group["next_action"]["action"], "blocked")
         self.assertEqual(group["next_action"]["replacement_pr"], published["number"])
 
-    def test_cleanup_selection_requires_every_exact_source_head(self):
+    def test_cleanup_selection_requires_exact_source_head(self):
         group = {"group": "a" * 24, "blockers": [],
                  "sources": [{"number": 1, "head_sha": "b" * 40}]}
         replacement = {"number": 100, "group": group["group"], "merged": True,
                        "sources": copy.deepcopy(group["sources"])}
-        self.assertEqual(native.next_action(group, [replacement])["action"], "close_superseded")
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], group["sources"])
         replacement["sources"][0]["head_sha"] = "c" * 40
         self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
         replacement["sources"] = [{"number": 2, "head_sha": "b" * 40}]
         self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
-        replacement["sources"] = copy.deepcopy(group["sources"])
-        group["sources"].append({"number": 2, "head_sha": "c" * 40})
-        self.assertEqual(native.next_action(group, [replacement])["action"], "prepare_replacement")
+
+    def test_cleanup_selection_maps_subset_without_changing_publication_sources(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": [copy.deepcopy(group["sources"][0])]}
+        complete_sources = copy.deepcopy(group["sources"])
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], [complete_sources[0]])
+        self.assertEqual(group["sources"], complete_sources)
+
+    def test_cleanup_selection_excludes_rebased_source_from_subset(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        replacement = {"number": 100, "group": group["group"], "merged": True,
+                       "sources": [{"number": 1, "head_sha": "d" * 40},
+                                   copy.deepcopy(group["sources"][1])]}
+        action = native.next_action(group, [replacement])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["source_prs"], [group["sources"][1]])
+
+    def test_cleanup_selection_uses_one_exact_merged_history_mapping(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        older = {"number": 100, "group": group["group"], "merged": True,
+                 "sources": [copy.deepcopy(group["sources"][0])]}
+        newer = {"number": 101, "group": group["group"], "merged": True,
+                 "sources": [copy.deepcopy(group["sources"][1])]}
+        action = native.next_action(group, [newer, older])
+        self.assertEqual(action["replacement_pr"], newer["number"])
+        self.assertEqual(action["source_prs"], newer["sources"])
+        newer["sources"][0]["head_sha"] = "d" * 40
+        action = native.next_action(group, [newer, older])
+        self.assertEqual(action["replacement_pr"], older["number"])
+        self.assertEqual(action["source_prs"], older["sources"])
+
+    def test_cleanup_selection_precedes_newer_open_replacement_maintenance(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40},
+                             {"number": 2, "head_sha": "c" * 40}]}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": [copy.deepcopy(group["sources"][0])]}
+        opened = {"number": 101, "group": group["group"], "merged": False,
+                  "blocked_holds": [], "sources": copy.deepcopy(group["sources"])}
+        action = native.next_action(group, [merged, opened])
+        self.assertEqual(action["action"], "close_superseded")
+        self.assertEqual(action["replacement_pr"], merged["number"])
+        self.assertEqual(action["source_prs"], merged["sources"])
+
+    def test_cleanup_selection_preserves_group_and_open_replacement_blockers(self):
+        group = {"group": "a" * 24, "blockers": [],
+                 "sources": [{"number": 1, "head_sha": "b" * 40}]}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": copy.deepcopy(group["sources"])}
+        opened = {"number": 101, "group": group["group"], "merged": False,
+                  "blocked_holds": ["human/unknown hold"], "sources": []}
+        self.assertEqual(native.next_action(group, [merged, opened])["action"], "blocked")
+        opened["blocked_holds"] = []
+        ambiguous = {**opened, "number": 102}
+        self.assertEqual(native.next_action(group, [merged, opened, ambiguous])["action"], "blocked")
+        group["blockers"] = ["source has human/unknown hold"]
+        self.assertEqual(native.next_action(group, [merged])["action"], "blocked")
 
     def test_ambiguous_open_replacements_fail_closed(self):
         group = {"group": "a" * 24, "blockers": [], "sources": []}

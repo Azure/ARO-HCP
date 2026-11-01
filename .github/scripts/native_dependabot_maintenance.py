@@ -533,21 +533,23 @@ def next_action(group, replacements):
     opened = [row for row in matching if not row["merged"]]
     if len(opened) > 1:
         return {"action": "blocked", "reason": "ambiguous open matching replacements"}
+    if opened and opened[0]["blocked_holds"]:
+        return {"action": "blocked", "reason": "replacement has human/unknown hold",
+                "replacement_pr": opened[0]["number"]}
+    sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
+    for row in reversed(matching):
+        if not row["merged"]:
+            continue
+        mapped = sources & {(source["number"], source["head_sha"]) for source in row["sources"]}
+        if mapped:
+            return {"action": "close_superseded",
+                    "reason": "merged replacement maps exact source heads; closure guard must verify coverage",
+                    "replacement_pr": row["number"],
+                    "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(mapped)]}
     if opened:
-        row = opened[0]
-        if row["blocked_holds"]:
-            return {"action": "blocked", "reason": "replacement has human/unknown hold",
-                    "replacement_pr": row["number"]}
         return {"action": "maintain_replacement",
                 "reason": "reuse existing replacement; its current-head CI governs further progress",
-                "replacement_pr": row["number"]}
-    sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
-    covered = [row for row in matching if row["merged"] and sources <= {
-        (source["number"], source["head_sha"]) for source in row["sources"]}]
-    if covered:
-        return {"action": "close_superseded",
-                "reason": "merged replacement maps every exact source head; closure guard must verify coverage",
-                "replacement_pr": covered[-1]["number"]}
+                "replacement_pr": opened[0]["number"]}
     return {"action": "prepare_replacement",
             "reason": "no open matching replacement or merged exact-source mapping; native CI is evidence only"}
 
