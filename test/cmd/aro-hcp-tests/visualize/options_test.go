@@ -164,6 +164,17 @@ func TestTimingChartSortingScriptEscapesFunctionMarkers(t *testing.T) {
 	}
 }
 
+func TestTimingChartHorizontalZoomDoesNotFilterSeries(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	chart := testTimingChart([]TestInfo{{
+		Identifier: []string{"test"}, StartedAt: start, FinishedAt: start.Add(time.Second),
+	}})
+	html := string(chart.RenderContent())
+	if got := strings.Count(html, `"filterMode":"none"`); got != 1 {
+		t.Fatalf("expected horizontal data zoom to preserve out-of-window values, got %d filterMode settings", got)
+	}
+}
+
 func TestTimingChartSortingScript(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {

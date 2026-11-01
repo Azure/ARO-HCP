@@ -485,7 +485,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: 100,
 		}),
 		charts.WithDataZoomOpts(opts.DataZoom{
-			Type: "slider", Orient: "horizontal", XAxisIndex: []int{0}, Start: 0, End: 100,
+			Type: "slider", Orient: "horizontal", XAxisIndex: []int{0}, Start: 0, End: 100, FilterMode: "none",
 		}),
 	)
 	waterfall.SetXAxis(names).
