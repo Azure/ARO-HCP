@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,10 @@ SHA = maintenance.SHA
 ACTIONS = {"admit", "recover-retry", "release-hold", "close-superseded"}
 VENDORS = ("vendor/", "image-sync/oc-mirror/acrauth/vendor/")
 MAX_PATCH = 16 * 1024 * 1024
+# JSON can escape each patch byte as six ASCII bytes. Leave room for the
+# bounded publication text, 100 source identities, and JSON structure.
+MAX_REQUEST = 6 * MAX_PATCH + 256 * 1024
+REQUEST_FILE = "native-replacement-request.json"
 
 
 def require(condition, message):
@@ -651,25 +656,47 @@ def read_request(path, kind):
     if not selected:
         return None
     item = selected[0]
-    require(set(item) in ({"type", "request"}, {"type", "data"}), "ambiguous native output envelope")
+    field = "request_sha256" if kind == "native_replacement" else "request"
+    require(set(item) in ({"type", field}, {"type", "data"}), "ambiguous native output envelope")
     data = item.get("data") if "data" in item else {key: value for key, value in item.items() if key != "type"}
-    require(isinstance(data, dict) and set(data) == {"request"} and isinstance(data["request"], str), "invalid native safe-output envelope")
-    request = json.loads(data["request"])
-    require(isinstance(request, dict), "native request must be JSON object")
+    require(isinstance(data, dict) and set(data) == {field} and isinstance(data[field], str),
+            "invalid native safe-output envelope")
+    if kind == "native_replacement":
+        digest = data[field]
+        require(re.fullmatch(r"[0-9a-f]{64}", digest), "replacement request digest must be lowercase SHA256")
+        directory = os.open(Path(path).parent / "agent", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            descriptor = os.open(REQUEST_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as payload_file:
+                info = os.fstat(payload_file.fileno())
+                require(stat.S_ISREG(info.st_mode) and 0 < info.st_size <= MAX_REQUEST,
+                        "replacement request artifact must be a bounded regular file")
+                payload = payload_file.read(MAX_REQUEST + 1)
+        finally:
+            os.close(directory)
+        require(0 < len(payload) <= MAX_REQUEST, "replacement request artifact exceeds size limit")
+        require(hashlib.sha256(payload).hexdigest() == digest, "replacement request artifact digest mismatch")
+        request = replacement_json(payload.decode("utf-8"))
+        validate_replacement_request(request)
+    else:
+        request = json.loads(data[field])
+        require(isinstance(request, dict), "native request must be JSON object")
     return request
 
 
-def git(cwd, *args, input=None, author_email=None):
+def git(cwd, *args, input=None, author_email=None, strip=True):
     env = os.environ.copy()
     env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
-                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0",
                 "GIT_AUTHOR_NAME": "aro-hcp-robot[bot]", "GIT_AUTHOR_EMAIL": "aro-hcp-robot[bot]@users.noreply.github.com",
                 "GIT_COMMITTER_NAME": "aro-hcp-robot[bot]", "GIT_COMMITTER_EMAIL": "aro-hcp-robot[bot]@users.noreply.github.com"})
     if author_email:
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = author_email
-    return subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-                           "-c", "credential.helper=", "-c", "credential.https://github.com.helper=!gh auth git-credential", *args],
-                          cwd=cwd, input=input, text=True, capture_output=True, check=True, env=env).stdout.strip()
+    output = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+                             "-c", "credential.helper=", "-c", "credential.https://github.com.helper=!gh auth git-credential", *args],
+                            cwd=cwd, input=None if input is None else input.encode("utf-8"),
+                            capture_output=True, check=True, env=env).stdout.decode("utf-8")
+    return output.strip() if strip else output
 
 
 def remote_url(repo):
@@ -685,9 +712,13 @@ def patch_paths(patch):
     headers = re.findall(r"^diff --git a/(\S+) b/(\S+)$", patch, re.MULTILINE)
     require(bool(headers) and patch.startswith("diff --git ") and len(headers) == patch.count("\ndiff --git ") + 1,
             "malformed patch file headers")
+    require(re.search(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@", patch, re.MULTILINE),
+            "patch must contain a meaningful text diff")
     require(all(old == new for old, new in headers), "renamed paths not allowed")
     paths = [safe_path(old) for old, _ in headers]
     require(len(set(paths)) == len(paths), "duplicate patch paths")
+    require(all(mode == "100644" for mode in re.findall(r"^(?:new|deleted) file mode (\d+)$", patch, re.MULTILINE)),
+            "only regular patch files are allowed")
     require(not re.search(r"^(?:old mode|new mode|rename |copy |GIT binary patch|Binary files)", patch, re.MULTILINE),
             "mode changes, renames and binary patches are forbidden")
     return paths
@@ -739,20 +770,9 @@ def validate_sdk_module(path, before, after, workspace_go):
 
 
 
-def validate_tree(cwd, base, tree, paths, group):
-    actual = git(cwd, "diff", "--name-only", base, tree).splitlines()
-    require(sorted(actual) == sorted(paths), "patch path list does not match resulting tree")
+def validate_replacement_paths(paths, group):
     ecosystem = group["ecosystem"]
-    manifests = []
     for path in paths:
-        modes = [git(cwd, "ls-tree", ref, "--", path).split(" ", 1)[0] for ref in (base, tree)]
-        generated = (ecosystem == "go" and path.startswith(VENDORS)
-                     or ecosystem == "npm" and group["family"] == "typespec"
-                     and (path.startswith("internal/azureapi/") and "/generated/" in path
-                          or sdk_consumer(path)))
-        require(all(mode in ("100644", "") for mode in modes) and "100644" in modes
-                and (all(modes) or generated),
-                "only regular files; additions/removals limited to generated consumers")
         name = PurePosixPath(path).name
         allowed = False
         if ecosystem == "go":
@@ -768,6 +788,24 @@ def validate_tree(cwd, base, tree, paths, group):
             allowed = (path.startswith(".github/workflows/") and path.endswith((".md", ".yml", ".yaml"))
                        or path == ".github/aw/actions-lock.json")
         require(allowed, "protected or unrelated replacement path: " + path)
+
+
+def validate_tree(cwd, base, tree, paths, group):
+    validate_replacement_paths(paths, group)
+    actual = git(cwd, "diff", "--name-only", base, tree).splitlines()
+    require(sorted(actual) == sorted(paths), "patch path list does not match resulting tree")
+    ecosystem = group["ecosystem"]
+    manifests = []
+    for path in paths:
+        modes = [git(cwd, "ls-tree", ref, "--", path).split(" ", 1)[0] for ref in (base, tree)]
+        generated = (ecosystem == "go" and path.startswith(VENDORS)
+                     or ecosystem == "npm" and group["family"] == "typespec"
+                     and (path.startswith("internal/azureapi/") and "/generated/" in path
+                          or sdk_consumer(path)))
+        require(all(mode in ("100644", "") for mode in modes) and "100644" in modes
+                and (all(modes) or generated),
+                "only regular files; additions/removals limited to generated consumers")
+        name = PurePosixPath(path).name
         if path == ".github/aw/actions-lock.json":
             action_lock_changes(git(cwd, "show", f"{base}:{path}"), git(cwd, "show", f"{tree}:{path}"), group)
         elif ecosystem == "npm" and group["family"] == "typespec" and sdk_consumer(path) and name == "go.mod":
@@ -1160,12 +1198,99 @@ def admission_safe(repo, snap, intent):
 
 
 def safe_text(text, *, title=False):
-    require(isinstance(text, str) and 0 < len(text) <= (200 if title else 20000), "invalid publication text")
+    require(isinstance(text, str) and 0 < len(text) <= (200 if title else 20000)
+            and bool(text.strip()) and not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", text),
+            "invalid publication text")
+    text.encode("utf-8")
     require(not re.search(r"(?m)^\s*/|@[A-Za-z0-9_-]+(?![A-Za-z0-9_/-])|(?i:\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+)", text)
             and MARKER not in text and "<!-- gh-aw-workflow-id:" not in text,
             "publication text cannot contain commands, mentions, auto-close directives or ownership markers")
     if title:
-        require(text.startswith("chore(deps): ") and "\n" not in text, "replacement title must be chore(deps): ...")
+        require(text.startswith("chore(deps): ") and bool(text[len("chore(deps): "):].strip())
+                and "\n" not in text and "\r" not in text, "replacement title must be chore(deps): ...")
+
+
+def replacement_json(text):
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate replacement JSON field")
+            result[key] = value
+        return result
+    try:
+        return json.loads(text, object_pairs_hook=unique_fields)
+    except RecursionError as error:
+        raise ValueError("replacement JSON nesting is too deep") from error
+
+
+def validate_replacement_request(request):
+    require(isinstance(request, dict)
+            and set(request) == {"source_prs", "expected_base_sha", "patch", "title", "body"},
+            "invalid replacement schema")
+    validate_sources(request["source_prs"])
+    maintenance.validate_target("Azure/ARO-HCP", 1, request["expected_base_sha"])
+    safe_text(request["title"], title=True)
+    safe_text(request["body"])
+    return patch_paths(request["patch"])
+
+
+def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, cwd=None):
+    """Write the fixed request artifact offline and return its safe-output digest."""
+    validate_repo(repo)
+    observed = replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
+    require(isinstance(observed, dict) and observed.get("repository") == repo
+            and isinstance(observed.get("groups"), list), "inventory repository or groups are invalid")
+    base = observed.get("base_sha")
+    maintenance.validate_target(repo, 1, base)
+    require(isinstance(group_id, str) and re.fullmatch(r"[0-9a-f]{24}", group_id), "invalid inventory group")
+    require(all(isinstance(group, dict) for group in observed["groups"]), "invalid inventory group entries")
+    matching = [group for group in observed["groups"] if group.get("group") == group_id]
+    require(len(matching) == 1, "inventory must contain exactly one matching group")
+    group = matching[0]
+    require(isinstance(group.get("next_action"), dict)
+            and group["next_action"].get("action") in ("prepare_replacement", "maintain_replacement")
+            and group.get("blockers") == [], "inventory group is not eligible for replacement")
+    require(group.get("ecosystem") in ("go", "npm", "actions") and isinstance(group.get("family"), str)
+            and group["family"] and isinstance(group.get("sources"), list), "invalid inventory group shape")
+    require(all(isinstance(source, dict) and "number" in source and "head_sha" in source
+                for source in group["sources"]), "invalid inventory source identities")
+    sources = [{"number": source["number"], "head_sha": source["head_sha"]} for source in group["sources"]]
+    validate_sources(sources)
+    root = git(cwd, "rev-parse", "--show-toplevel")
+    require(git(root, "rev-parse", "--verify", base + "^{commit}") == base, "inventory base commit is unavailable")
+    # Diff must not execute worktree-supplied diff/textconv or clean/process
+    # drivers. Empty driver commands disable configured filters without writes.
+    settings = git(root, "config", "--null", "--list", "--name-only", strip=False).split("\x00")
+    disabled = [argument for key in sorted(set(settings)) if re.fullmatch(r"filter\..+\.(clean|process)", key)
+                for argument in ("-c", key + "=")]
+    candidate_patch = git(root, *disabled, "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
+                          "--no-color", "--no-relative", "--full-index", "--binary",
+                          "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3",
+                          "--inter-hunk-context=0", "--src-prefix=a/", "--dst-prefix=b/",
+                          "--output-indicator-new=+", "--output-indicator-old=-", "--output-indicator-context= ",
+                          base, "--", ".", strip=False)
+    request = {"source_prs": sources, "expected_base_sha": base, "patch": candidate_patch,
+               "title": Path(title_file).read_bytes().decode("utf-8").rstrip("\r\n"),
+               "body": Path(body_file).read_bytes().decode("utf-8")}
+    paths = validate_replacement_request(request)
+    validate_replacement_paths(paths, group)
+    payload = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    require(len(payload) <= MAX_REQUEST, "replacement request artifact exceeds size limit")
+    destination = Path(artifact_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    directory = os.open(destination, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        descriptor = os.open(REQUEST_FILE, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             0o600, dir_fd=directory)
+        with os.fdopen(descriptor, "wb") as payload_file:
+            info = os.fstat(payload_file.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+                    "replacement request destination must be a singly linked regular file")
+            payload_file.truncate(0)
+            payload_file.write(payload)
+    finally:
+        os.close(directory)
+    return {"request_sha256": hashlib.sha256(payload).hexdigest()}
 
 
 def sources_group(repo, sources):
@@ -1252,15 +1377,12 @@ def ensure_label(repo):
 
 
 def publish(repo, request):
-    require(set(request) == {"source_prs", "expected_base_sha", "patch", "title", "body"}, "invalid replacement schema")
+    paths = validate_replacement_request(request)
     validate_repo(repo)
     maintenance.validate_target(repo, 1, request["expected_base_sha"])
     base = request["expected_base_sha"]
     require(main_sha(repo) == base, "main moved")
     group = sources_group(repo, request["source_prs"])
-    safe_text(request["title"], title=True)
-    safe_text(request["body"])
-    paths = patch_paths(request["patch"])
     candidates = []
     merged_history = []
     closed_unmerged = []
@@ -1480,12 +1602,17 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(len(argv) in (2, 3) and argv[0] in ("inventory", "publish", "reconcile"), "usage: native_dependabot_maintenance.py inventory REPO | publish/reconcile REPO OUTPUT_FILE")
+        require(bool(argv) and argv[0] in ("inventory", "prepare-request", "publish", "reconcile")
+                and len(argv) >= 2,
+                "usage: native_dependabot_maintenance.py inventory REPO | prepare-request REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR | publish/reconcile REPO OUTPUT_FILE")
         mode, repo = argv[:2]
         validate_repo(repo)
         if mode == "inventory":
             require(len(argv) == 2, "inventory takes only REPO")
             result = inventory(repo)
+        elif mode == "prepare-request":
+            require(len(argv) == 7, "prepare-request requires REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR")
+            result = prepare_request(repo, *argv[2:])
         else:
             require(len(argv) == 3, "output file required")
             request = read_request(argv[2], "native_replacement" if mode == "publish" else "native_action")

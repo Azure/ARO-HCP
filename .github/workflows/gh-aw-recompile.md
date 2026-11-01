@@ -222,6 +222,8 @@ safe-outputs:
     native-replacement:
       description: Publish or fast-forward one validated native Dependabot family replacement, without executing candidate code
       max: 1
+      artifacts:
+        - /tmp/gh-aw/agent/native-replacement-request.json
       runs-on: ubuntu-latest
       permissions:
         contents: read
@@ -231,8 +233,8 @@ safe-outputs:
         actions: read
       if: needs.detection.result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       inputs:
-        request:
-          description: JSON object with source_prs (number and immutable head_sha), expected_base_sha, patch, title and body
+        request_sha256:
+          description: SHA-256 of the complete native replacement request artifact produced by native_dependabot_maintenance.py prepare-request
           required: true
           type: string
       steps:
@@ -359,21 +361,21 @@ For every prepared candidate, inspect the **complete** diff and exclude inventor
 
 ### Emit one validated replacement request
 
-Use the `native_replacement` safe-output tool only after successful sandbox validation. Its **only input** is required string `request`, containing a JSON object with exactly this contract:
+Use the `native_replacement` safe-output tool only after successful sandbox validation. Its **only input** is required string `request_sha256`, identifying the complete UTF-8 JSON request in the run's agent artifact. Always construct it with the repository helper, never by hand or by copying a displayed diff into JSON.
 
-```json
-{
-  "source_prs": [{"number": 123, "head_sha": "40-lowercase-hex-immutable-source-head"}],
-  "expected_base_sha": "40-lowercase-hex-main-sha-used-for-the-patch",
-  "patch": "complete nonempty git diff against that main revision",
-  "title": "chore(deps): dependency family and target",
-  "body": "Source PR links and heads, intended upgrade, actual validation results"
-}
+Write the complete proposed title and body to files outside the candidate checkout. The title identifies the dependency family and target; the body records source links and immutable heads, the upgrade and actual validation commands/results. Both are required. Capture the helper's absolute path before entering a candidate checkout, just as for the compiler.
+
+From the tested candidate checkout, run:
+
+```bash
+python3 "$helper" prepare-request Azure/ARO-HCP "$inventory" "$group" "$title_file" "$body_file" /tmp/gh-aw/agent
 ```
 
-The illustrated SHA text describes the required format, not a usable value. Populate actual numeric PR numbers, full lowercase commit SHAs and a real complete patch from the inventory and tested candidate. JSON-encode the object into the single `request` string; do not send its keys as extra tool inputs or include commands/branch names. Ensure the selected source set is complete, the candidate still has exactly the intended main base and no unrelated edits, and each native head is unchanged immediately before emission. If stale, rebuild/revalidate against a fresh inventory rather than weakening the expected-head/base guard.
+Here `helper` is the trusted `.github/scripts/native_dependabot_maintenance.py`, `inventory` is the absolute path to `native-maintenance-inventory.json`, and `group` is the exact selected inventory group ID. The helper derives the complete source set and base from that inventory, reads both text files, captures the complete tracked Git diff against that base (including a committed candidate), and validates the request. It writes `/tmp/gh-aw/agent/native-replacement-request.json`, which the existing agent-artifact upload preserves, and returns the exact tool arguments `{"request_sha256":"..."}`. If preparation fails, fix the candidate or metadata and rerun it before emitting any terminal safe output. Do not publish a partial request.
 
-Sort `source_prs` by ascending PR number without duplicates. The complete UTF-8 patch must fit the guard's 16 MiB bound; report an oversized family as blocked rather than truncating its patch or dropping required generated files.
+Pass the returned `request_sha256` unchanged to the native safe-output function. Do not edit the payload afterward or put the patch inside tool arguments. The artifact preserves patch bytes without text/mention sanitization or custom-input truncation. The trusted publisher reads only the fixed artifact path beside its downloaded agent output, verifies its hash, and rechecks the complete request, identities, source coverage and scope before publication. A digest is integrity evidence, not authorization. Native lifecycle actions retain their separate `request` JSON-string contract.
+
+Ensure each native head and the main base remain unchanged immediately before emission. If stale, rebuild/revalidate against fresh inventory rather than weakening the guards. The UTF-8 patch retains the 16 MiB bound; report an oversized family as blocked rather than truncating its patch or dropping required generated files.
 
 In the PR description, list every original as `Supersedes: <source PR URL>` with its immutable head and explain the complete family coverage. Do not use auto-close keywords such as `Closes`, `Fixes` or `Resolves` with source PR references. Description links never authorize closure: only after the replacement is observed merged may the post-merge guard refresh coverage and post `/close` on each original source PR.
 
