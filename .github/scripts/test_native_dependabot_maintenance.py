@@ -777,6 +777,51 @@ class RepositoryFixture(unittest.TestCase):
             native.reconcile(REPO, self.action("close-superseded", replacement_pr=result["number"]))
         self.assertEqual(self.comments[1], [])
 
+    def test_requested_closure_waits_without_starving_independent_family(self):
+        self.source(2, "api/package.json", json.dumps({
+            "devDependencies": {"prettier": "3.9.10"}, "overrides": {"undici": "7.30.1"}}))
+        result = native.publish(REPO, self.request())
+        self.merge_replacement(result["number"])
+        request = self.action("close-superseded", replacement_pr=result["number"])
+        native.reconcile(REPO, request)
+        inventory = native.inventory(REPO)
+        go = next(group for group in inventory["groups"] if group.get("ecosystem") == "go")
+        npm = next(group for group in inventory["groups"] if group.get("ecosystem") == "npm")
+        self.assertEqual(go["next_action"]["action"], "wait_for_closure")
+        self.assertEqual(go["sources"][0]["closure_requests"], [result["number"]])
+        self.assertEqual(npm["next_action"]["action"], "prepare_replacement")
+        self.assertEqual(native.reconcile(REPO, request)["status"], "close-already-requested")
+        self.pulls[1]["state"] = "closed"
+        observed = native.inventory(REPO)
+        self.assertEqual([source["number"] for group in observed["groups"] for source in group["sources"]], [2])
+
+    def test_pending_closure_does_not_hide_another_mapped_source(self):
+        sources = [{"number": 1, "head_sha": "b" * 40, "closure_requests": [100]},
+                   {"number": 2, "head_sha": "c" * 40, "closure_requests": []}]
+        group = {"group": "a" * 24, "blockers": [], "sources": sources}
+        merged = {"number": 100, "group": group["group"], "merged": True,
+                  "sources": [{"number": source["number"], "head_sha": source["head_sha"]}
+                              for source in sources]}
+        decision = native.next_action(group, [merged])
+        self.assertEqual(decision["action"], "close_superseded")
+        self.assertEqual(decision["source_prs"], [{"number": 2, "head_sha": "c" * 40}])
+        sources[0]["closure_requests"] = [999]
+        self.assertEqual(native.next_action(group, [merged])["source_prs"], merged["sources"])
+
+    def test_closure_requests_require_trusted_current_head_command(self):
+        sha = "b" * 40
+        body = f"<!-- {native.MARKER}close:{sha}:100 -->\nCovered by a merged replacement.\n\n/close"
+        snap = {"pull": {"head": {"sha": sha}}, "comments": []}
+        cases = [(native.ROBOT, body, [100]), ("human", body, []),
+                 (native.ROBOT, body.replace(sha, "c" * 40), []),
+                 (native.ROBOT, "Example:\n" + body, []),
+                 (native.ROBOT, body.replace("/close", "No closure requested."), []),
+                 (native.ROBOT, body + "\n```", [])]
+        for author, text, expected in cases:
+            with self.subTest(author=author, body=text):
+                snap["comments"] = [{"user": {"login": author}, "body": text}]
+                self.assertEqual(native.closure_requests(snap), expected)
+
     def test_merged_coverage_closes_only_via_prow_command_and_inventory_finds_merge(self):
         result = native.publish(REPO, self.request())
         self.merge_replacement(result["number"])

@@ -524,6 +524,19 @@ def creator_inventory(repo, creator, state="open"):
     return result
 
 
+def closure_requests(snap):
+    """Read trusted current-head closure commands, not copied or stale markers."""
+    pattern = r"^<!-- " + re.escape(MARKER) + "close:" + snap["pull"]["head"]["sha"] + r":([1-9][0-9]*) -->\n"
+    requested = set()
+    for comment in snap["comments"]:
+        if comment.get("user", {}).get("login") != ROBOT:
+            continue
+        match = re.match(pattern, comment["body"])
+        if match and re.search(r"(?m)^/close\s*\Z", comment["body"]):
+            requested.add(int(match.group(1)))
+    return sorted(requested)
+
+
 def next_action(group, replacements):
     """Select work from verified identities, never from native-source CI."""
     if group["blockers"]:
@@ -537,15 +550,26 @@ def next_action(group, replacements):
         return {"action": "blocked", "reason": "replacement has human/unknown hold",
                 "replacement_pr": opened[0]["number"]}
     sources = {(row["number"], row["head_sha"]) for row in group["sources"]}
+    pending = set()
+    for row in matching:
+        if row["merged"]:
+            mapped = {(source["number"], source["head_sha"]) for source in row["sources"]}
+            pending.update((source["number"], source["head_sha"]) for source in group["sources"]
+                           if row["number"] in source.get("closure_requests", [])
+                           and (source["number"], source["head_sha"]) in mapped)
     for row in reversed(matching):
         if not row["merged"]:
             continue
-        mapped = sources & {(source["number"], source["head_sha"]) for source in row["sources"]}
+        mapped = (sources - pending) & {(source["number"], source["head_sha"]) for source in row["sources"]}
         if mapped:
             return {"action": "close_superseded",
                     "reason": "merged replacement maps exact source heads; closure guard must verify coverage",
                     "replacement_pr": row["number"],
                     "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(mapped)]}
+    if pending == sources and pending:
+        return {"action": "wait_for_closure",
+                "reason": "trusted current-head closure commands already requested; wait for observed Prow closure",
+                "source_prs": [{"number": number, "head_sha": sha} for number, sha in sorted(pending)]}
     if opened:
         return {"action": "maintain_replacement",
                 "reason": "reuse existing replacement; its current-head CI governs further progress",
@@ -572,6 +596,7 @@ def inventory(repo):
             row["ci"] = snap["ci"]
             row["held"] = snap["held"]
             row["blocked_holds"] = snap["blocked_holds"]
+            row["closure_requests"] = closure_requests(snap)
             key = intent["group"] + ":" + intent["target"]
             group = groups.setdefault(key, {key: intent[key] for key in ("group", "ecosystem", "family", "target")})
             group.setdefault("sources", []).append(row)
@@ -1446,7 +1471,7 @@ def reconcile(repo, request):
             require(main_sha(repo) == base and pull_detail(repo, request["replacement_pr"]) == target,
                     "merged coverage evidence changed")
             marker = f"<!-- {MARKER}close:{sha}:{request['replacement_pr']} -->"
-            if any(marker in row["body"] and row.get("user", {}).get("login") == ROBOT for row in snap["comments"]):
+            if request["replacement_pr"] in closure_requests(snap):
                 return {"number": number, "status": "close-already-requested"}
             body = marker + f"\nCovered by merged replacement https://github.com/{repo}/pull/{request['replacement_pr']}.\n\n/close"
     return {**post_comment(repo, number, body), "action": action, "status": "requested"}
