@@ -331,7 +331,7 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 <h2>Operation durations</h2>
 <p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
 <table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test. The chart opens with all timeline rows; use the vertical and horizontal sliders to zoom and navigate the run.</p>
+<p>Row colors match the table · Purple: phase · Slate: untracked work · Outline: test. The overview shows every timeline row within the available screen height; vertical zoom expands selected rows for detail.</p>
 <div class="timing-controls">
 <label for="timing-sort">Sort tests by
 <select id="timing-sort"><option value="start">Start time (earliest first)</option><option value="duration">Total duration (longest first)</option><option value="name">Test name (A–Z)</option></select></label>

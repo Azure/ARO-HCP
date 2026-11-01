@@ -379,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// Renders lifecycle rows with semantic colors, sorting, and readable zoom levels.
+// Renders lifecycle rows with semantic colors and responsive zoom behavior.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -458,7 +458,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    timingChartHeight(len(names)),
+			Height:    "60vh",
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
@@ -534,7 +534,6 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 
 const timingChartMinimumWindowMillis = 1000
 const timingChartRowHeight = 26
-const timingChartMinimumHeight = 1024
 
 type timingChartGroup struct {
 	Name      string  `json:"name"`
@@ -544,12 +543,7 @@ type timingChartGroup struct {
 	LastRow   int     `json:"lastRow"`
 }
 
-// Keeps each timeline row tall enough to preserve its semantic color.
-func timingChartHeight(rowCount int) string {
-	return fmt.Sprintf("%dpx", max(timingChartMinimumHeight, rowCount*timingChartRowHeight))
-}
-
-// Builds the test-sorting script for the timing chart.
+// Builds the sorting, density, and zoom script for the timing chart.
 func timingChartSortingJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
 	encoded, _ := json.Marshal(groups)
 	if totalDurationMillis <= 0 {
@@ -561,7 +555,6 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
 		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
 		"__ROW_HEIGHT__", strconv.Itoa(timingChartRowHeight),
-		"__MINIMUM_HEIGHT__", strconv.Itoa(timingChartMinimumHeight),
 	)
 	return replacements.Replace(`(() => {
 	const chart = __CHART__;
@@ -575,14 +568,31 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
+	const overviewHeight = () => Math.max(1, Math.floor(window.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16));
+	let densityMode = null;
+	const setDensityMode = overview => {
+		if (densityMode === overview) return;
+		densityMode = overview;
+		const data = overview ? currentDurations.map(row => {
+			if (!row.itemStyle) return row;
+			return {...row, itemStyle: {...row.itemStyle, borderWidth: 0, opacity: 1}};
+		}) : currentDurations;
+		chart.setOption({series: [{}, {data}]});
+	};
 	const fitRowHeight = () => {
 		const zoom = chart.getOption().dataZoom[0];
+		const fullRange = zoom.start <= 0 && zoom.end >= 100;
 		const visibleRows = allLabels.length * (zoom.end - zoom.start) / 100;
-		const height = Math.max(__MINIMUM_HEIGHT__, Math.ceil(visibleRows) * __ROW_HEIGHT__);
-		if (chart.getHeight() === height) return;
+		setDensityMode(fullRange);
+		const height = fullRange ? overviewHeight() : Math.max(__ROW_HEIGHT__, Math.ceil(visibleRows) * __ROW_HEIGHT__);
+		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
 		chart.getDom().style.height = height + 'px';
 		chart.resize({height});
 	};
+	window.addEventListener('resize', () => {
+		const zoom = chart.getOption().dataZoom[0];
+		if (zoom.start <= 0 && zoom.end >= 100) fitRowHeight();
+	});
 	const fitTimeRange = (start, end) => {
 		const first = Math.max(0, Math.floor(currentLabels.length * start / 100));
 		const last = Math.min(currentLabels.length, Math.ceil(currentLabels.length * end / 100));
@@ -643,6 +653,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		currentOffsets = offsets;
 		currentDurations = durations;
 		chart.setOption({yAxis: {data: labels}, series: [{data: offsets}, {data: durations}], dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]});
+		densityMode = null;
 		fitRowHeight();
 	};
 	sort.addEventListener('change', update);
@@ -654,6 +665,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		fitTimeRange(rows.start, rows.end);
 	});
 	update();
+	window.addEventListener('load', fitRowHeight);
 })();`)
 }
 

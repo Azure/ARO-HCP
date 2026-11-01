@@ -334,11 +334,11 @@ operation steps. Operation kinds use consistent colors in the chart and summary;
 gray intervals identify work without a named operation span.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
-The summary and chart follow the browser's light/dark color scheme. The chart
-opens with all timeline rows and allocates enough height to keep each row
-legible. Its vertical slider zooms into selected rows and the horizontal slider
-navigates the full time range. Sort tests by start time, total duration (longest
-first) or name.
+The summary and chart follow the browser's light/dark color scheme. The
+overview shows all timeline rows within the available screen height. The
+vertical slider expands selected rows for detail and the horizontal slider
+navigates the full time range. Sort tests by start time, total duration
+(longest first) or name.
 
 The summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
