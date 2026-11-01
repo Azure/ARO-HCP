@@ -105,6 +105,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard5-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -124,6 +125,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard6-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -143,6 +145,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard7-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -162,6 +165,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard8-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -181,6 +185,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard9-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -200,6 +205,7 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-shard10-slot
       slot_count: 5
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
