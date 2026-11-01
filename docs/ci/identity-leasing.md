@@ -404,59 +404,25 @@ effective worker concurrency, including CLI overrides, and scheduler/lease
 timing in job artifacts. Explicit worker limits cap concurrent specs
 independently of the leased identity-container budget.
 
-#### Stage West US 3 Capacity And Trial
+#### Stage Identity Inventory And Runtime Region
 
-The `stg` pool `westus3-shard0` in
-[`test/e2e-config/e2e-slots.yaml`](../../test/e2e-config/e2e-slots.yaml) retains
-100 physical containers, leases 75, and holds 25 in reserve. Its dedicated
-identity prefix is `aro-hcp-msi-container-stg-westus3-shard0`, its provisioning
-region is West US 3, and its single Boskos slot uses resource type
-`aro-hcp-stg-westus3-shard0-slot`. Runtime region selection defaults to West US 3
-without changing the identity inventory when a different runtime region is
-selected.
+Stage acquisition uses the West US 3 identity inventory declared in the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml). Read the catalog
+for physical provisioning targets, leased-container capacity, Boskos resource
+types, identity prefixes, and regional VM-family policy.
 
-The existing UK South inventory retains its
-`aro-hcp-msi-container-stg-shard0` prefix, 25 leased containers, and the
-`aro-hcp-stg-shard0-slot` Boskos resource type separately, outside this active
-Stage catalog. Both inventories use
-`ARO HCP E2E Hosted Clusters - Stage - 00`. Do not run their jobs concurrently:
-75 plus 25 leased containers can exceed the shared subscription's approximate
-92-HCP deny-assignment ceiling, as well as shared regional and role-assignment
-headroom. Keep the UK South inventory and release-side registration intact;
-retaining them does not grant additional concurrent subscription capacity.
+The runtime region defaults to the selected pool's region. An acquisition-time
+runtime-region override changes where tests execute, not which identity
+inventory is leased. Confirm `SELECTED_LOCATION`, the acquired pool and slot,
+the exported identity list, and the `mi-containers` budget in job artifacts.
+Suite worker defaults follow the acquired identity count; explicit worker
+overrides do not increase the leased identity budget.
 
-The active Stage catalog intentionally contains only the West US 3 inventory.
-A runtime-region override changes where tests run, not which identity inventory
-is leased. In runtime-selected mode, location selectors do not filter candidate
-pools, and acquisition has no pool-name selector. Adding the UK South inventory
-as another active candidate would allow a 25-container acquisition instead of
-the trial's required 75.
-
-Stage fast, slow, and combined parallel suites derive their registered worker
-default from the acquired `LEASED_MSI_CONTAINERS` list. A West US 3 acquisition
-therefore registers 75 workers for `stage/parallel/all` without setting
-`ARO_HCP_SUITE_PARALLELISM`. Leave that variable unset to use the acquired
-default; an explicitly empty value opts out. With the default 75-worker suite,
-`--max-concurrency=75` retains 75 effective workers, a smaller flag caps them,
-and a larger flag cannot raise them above 75. The independent MSI admission
-budget remains 75, not the 100 physical containers. No regional suite-worker
-map or second worker-policy export is required.
-
-The Stage West US 3 runtime uses workers in Dsv6, Dsv5, then Dasv5 families,
-and helpers in Ddsv6, Ddsv5, then Dadsv5 families. Other runtime regions and
-the separately retained UK South inventory retain historical SKU selection. Exact family identifiers
-and role-size constraints remain in the catalog and
-[VM selection guidance](../../test/e2e/README.md#selecting-vm-sizes-skus).
-
-Keep the PR on `/hold` for the trial. Before launching one West US 3
-`stage/parallel/all` run, confirm that no Stage-00 UK South run overlaps,
-use the active West US 3 catalog, and confirm the acquired
-`aro-hcp-stg-westus3-shard0-slot` resource type, pool, runtime region, 75 exported
-identities, registered and effective 75-worker concurrency, and
-`mi-containers=75` budget. Release-side Boskos
-inventory and selectors must match the catalog. Inventory readiness and quota
-headroom require current operational evidence; these declarations alone do not
-prove either.
+UK South inventory retained outside the active catalog shares Stage-00
+subscription limits with the West US 3 pool. Do not run jobs against those
+inventories concurrently. Separate Boskos leases do not isolate subscription
+quotas, and catalog declarations do not prove physical inventory or quota
+readiness.
 
 ### Operational Notes And Troubleshooting
 
