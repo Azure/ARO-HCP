@@ -149,6 +149,20 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 		t.Fatalf("tooltip regression: %v\n%s", err, output)
 	}
 }
+func TestTimingChartSortingScriptEscapesFunctionMarkers(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	name := "__f__alert(1)__f__"
+	chart := testTimingChart([]TestInfo{{
+		Identifier: []string{name}, StartedAt: start, FinishedAt: start.Add(time.Second),
+	}})
+	html := string(chart.RenderContent())
+	if strings.Contains(html, name) {
+		t.Fatal("sorting group names must not expose go-echarts function markers to renderer substitution")
+	}
+	if !strings.Contains(html, `\u005f\u005ff\u005f\u005falert(1)\u005f\u005ff\u005f\u005f`) {
+		t.Fatal("sorting group names must remain encoded as JavaScript string data")
+	}
+}
 
 func TestTimingChartSortingScript(t *testing.T) {
 	node, err := exec.LookPath("node")
@@ -159,7 +173,7 @@ func TestTimingChartSortingScript(t *testing.T) {
 		{Name: "alpha", StartTime: 200, Duration: 7, FirstRow: 0, LastRow: 50},
 		{Name: "beta", StartTime: 100, Duration: 12, FirstRow: 50, LastRow: 100},
 	}
-	sorting, err := json.Marshal(timingChartSortingJS("chart", groups, 120000))
+	sorting, err := json.Marshal(timingChartSortingJS("mockChart", groups, 120000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +209,7 @@ const chart = {
 		listeners['chart:datazoom']({batch:[action]});
 	}
 };
-require('node:vm').runInNewContext(` + string(sorting) + `, {chart, document, window, Math, Number});
+require('node:vm').runInNewContext(` + string(sorting) + `, {mockChart:chart, document, window, Math, Number});
 containerTop = 435;
 windowListeners.load();
 const sortedLabels = () => state.yAxis[0].data;

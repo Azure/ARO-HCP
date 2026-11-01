@@ -546,6 +546,9 @@ type timingChartGroup struct {
 // Builds the sorting, density, and zoom script for the timing chart.
 func timingChartSortingJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
 	encoded, _ := json.Marshal(groups)
+	if bytes.Contains(encoded, []byte("__f__")) {
+		encoded = bytes.ReplaceAll(encoded, []byte("__f__"), []byte(`\u005f\u005ff\u005f\u005f`))
+	}
 	if totalDurationMillis <= 0 {
 		totalDurationMillis = timingChartMinimumWindowMillis
 	}
