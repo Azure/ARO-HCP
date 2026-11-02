@@ -129,6 +129,7 @@ func TestDesiredControlPlaneSizeHandler(t *testing.T) {
 
 			resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
 			require.NoError(t, err)
+			seedHCPCluster(ctx, t, mockResourcesDBClient, resourceID, "4.19", "stable")
 
 			if tt.existingSize != nil {
 				existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
@@ -207,6 +208,8 @@ func TestDesiredControlPlaneSizeHandler_PreservesOtherFields(t *testing.T) {
 
 	resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
 	require.NoError(t, err)
+
+	seedHCPCluster(ctx, t, mockResourcesDBClient, resourceID, "4.19", "stable")
 
 	// Seed an SPC with a populated Status to confirm the handler does not stomp it.
 	existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
