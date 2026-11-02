@@ -335,6 +335,7 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-stg-shard1-slot
       slot_count: 1
+      identity_container_provisioning_count: 100
       slot_assets:
         e2e_identities:
           allocation: dedicated
