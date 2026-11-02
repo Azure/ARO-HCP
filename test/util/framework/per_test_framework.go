@@ -1464,8 +1464,7 @@ func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize
 		if skuRestrictedInLocation(sku, location) {
 			return nil, nil
 		}
-		_, available := zonesInLocation(sku, location)
-		return available, nil
+		return zonesInLocation(sku, location), nil
 	}
 	return nil, fmt.Errorf("VM size %q not found in Resource SKUs for location %q", vmSize, location)
 }
