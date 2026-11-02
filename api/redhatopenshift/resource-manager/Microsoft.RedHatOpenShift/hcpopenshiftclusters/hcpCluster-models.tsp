@@ -967,6 +967,15 @@ model NodePoolPlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
+
+  /** Whether the node pool's VM NICs allow forwarding traffic for addresses not
+   * assigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster
+   * network operator's ipForwarding setting. Immutable after creation; changing
+   * it replaces the node pool's VMs.
+   */
+  @added(Versions.v2027_02_01)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  ipForwarding?: IPForwarding;
 }
 
 /** The settings and configuration options for OSDisk */
@@ -1046,6 +1055,24 @@ union DiskStorageAccountType {
 
   /** Standard HDD with Locally Redundant Storage (LRS) */
   Standard_LRS: "Standard_LRS",
+}
+
+/** Controls which source and destination IP addresses the VMs in the node pool
+ * may send and receive network traffic for.
+ */
+@added(Versions.v2027_02_01)
+union IPForwarding {
+  string,
+
+  /** Keep Azure's default check, restricting NICs to traffic whose source or
+   * destination IP address is assigned to the interface.
+   */
+  InterfaceAddressesOnly: "InterfaceAddressesOnly",
+
+  /** Relax Azure's source/destination address check so nodes may forward traffic
+   * on behalf of other networks (e.g. BGP-advertised prefixes).
+   */
+  AllowAllAddresses: "AllowAllAddresses",
 }
 
 /** Node pool autoscaling */

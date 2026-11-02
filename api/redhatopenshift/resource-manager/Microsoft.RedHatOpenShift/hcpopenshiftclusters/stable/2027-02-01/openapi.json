@@ -2761,6 +2761,30 @@
         "dataPlaneOperators"
       ]
     },
+    "IPForwarding": {
+      "type": "string",
+      "description": "Controls which source and destination IP addresses the VMs in the node pool\nmay send and receive network traffic for.",
+      "enum": [
+        "InterfaceAddressesOnly",
+        "AllowAllAddresses"
+      ],
+      "x-ms-enum": {
+        "name": "IPForwarding",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "InterfaceAddressesOnly",
+            "value": "InterfaceAddressesOnly",
+            "description": "Keep Azure's default check, restricting NICs to traffic whose source or\ndestination IP address is assigned to the interface."
+          },
+          {
+            "name": "AllowAllAddresses",
+            "value": "AllowAllAddresses",
+            "description": "Relax Azure's source/destination address check so nodes may forward traffic\non behalf of other networks (e.g. BGP-advertised prefixes)."
+          }
+        ]
+      }
+    },
     "ImageDigestMirror": {
       "type": "object",
       "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
@@ -3200,6 +3224,14 @@
         "availabilityZone": {
           "type": "string",
           "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "ipForwarding": {
+          "$ref": "#/definitions/IPForwarding",
+          "description": "Whether the node pool's VM NICs allow forwarding traffic for addresses not\nassigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster\nnetwork operator's ipForwarding setting. Immutable after creation; changing\nit replaces the node pool's VMs.",
           "x-ms-mutability": [
             "read",
             "create"

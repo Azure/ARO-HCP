@@ -235,6 +235,27 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 	}
 }
 
+// IPForwarding - Controls which source and destination IP addresses the VMs in the node pool
+// may send and receive network traffic for.
+type IPForwarding string
+
+const (
+	// IPForwardingAllowAllAddresses - Relax Azure's source/destination address check so nodes may forward traffic
+	// on behalf of other networks (e.g. BGP-advertised prefixes).
+	IPForwardingAllowAllAddresses IPForwarding = "AllowAllAddresses"
+	// IPForwardingInterfaceAddressesOnly - Keep Azure's default check, restricting NICs to traffic whose source or
+	// destination IP address is assigned to the interface.
+	IPForwardingInterfaceAddressesOnly IPForwarding = "InterfaceAddressesOnly"
+)
+
+// PossibleIPForwardingValues returns the possible values for the IPForwarding const type.
+func PossibleIPForwardingValues() []IPForwarding {
+	return []IPForwarding{
+		IPForwardingAllowAllAddresses,
+		IPForwardingInterfaceAddressesOnly,
+	}
+}
+
 // IngressType - The type of the default cluster ingress.
 type IngressType string
 
