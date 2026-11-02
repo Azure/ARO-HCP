@@ -17,15 +17,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/go-logr/logr"
 	"slices"
 
+	"github.com/go-logr/logr"
+
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 )
 
 func completePoolConfigs(ctx context.Context, o *validatedOptions, skuCache *skucache.SKUCache, cluster *armcontainerservice.ManagedCluster) (system, user, infra poolConfig, err error) {
@@ -52,13 +54,32 @@ func completePoolConfigs(ctx context.Context, o *validatedOptions, skuCache *sku
 			return system, user, infra, utils.TrackError(fmt.Errorf("%s pool VM size %q not found in region SKUs", cfg.class.Role, cfg.vmSize))
 		}
 		zones, existing := resolvePoolZones(ctx, cfg, meta.Zones, observed)
-		if !existing {
+		selectedZones := zones
+		if existing {
+			selectedZones = nil
+			if cfg.mode == compute.PoolModePerZone && len(zones) > 0 && len(zones) < cfg.poolCount {
+				candidates := cfg.explicitZones
+				if len(candidates) == 0 {
+					candidates = meta.Zones
+				}
+				existingZoneCount := len(zones)
+				// Preserve existing placements first, then fill missing pool slots.
+				for _, zone := range candidates {
+					if len(zones) == cfg.poolCount {
+						break
+					}
+					if !slices.Contains(zones, zone) {
+						zones = append(zones, zone)
+					}
+				}
+				selectedZones = zones[existingZoneCount:]
+			}
+		} else if cfg.mode == compute.PoolModePerZone {
+			selectedZones = zones[:min(len(zones), cfg.poolCount)]
+		}
+		if !existing || len(selectedZones) > 0 {
 			if meta.LocationRestricted {
 				return system, user, infra, utils.TrackError(fmt.Errorf("VM size %q is unavailable in this region", cfg.vmSize))
-			}
-			selectedZones := zones
-			if cfg.mode == compute.PoolModePerZone {
-				selectedZones = zones[:min(len(zones), cfg.poolCount)]
 			}
 			for _, zone := range selectedZones {
 				if !slices.Contains(meta.Zones, zone) {
@@ -110,7 +131,7 @@ func resolvePoolZones(ctx context.Context, cfg validatedPoolConfig, defaultZones
 		slices.Sort(preserved)
 		if !slices.Equal(configured, preserved) {
 			if logger, err := logr.FromContext(ctx); err == nil {
-				logger.Info("WARNING: ignoring configured zones in favor of existing pool zones", "role", cfg.class.Role, "configuredZones", cfg.explicitZones, "existingZones", zones)
+				logger.Info("WARNING: preserving existing pool zones over configured placement", "role", cfg.class.Role, "configuredZones", cfg.explicitZones, "existingZones", zones)
 			}
 		}
 	}

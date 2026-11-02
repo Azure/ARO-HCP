@@ -19,5 +19,4 @@ param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressI
 param regionalResourceGroup = '{{ .regionRG }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
-
 param additionalIngressRules = '{{ .svc.aks.additionalIngressRules }}'

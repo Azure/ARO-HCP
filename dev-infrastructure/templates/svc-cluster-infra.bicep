@@ -58,6 +58,9 @@ param genevaActionsServiceTag string
 @description('The service tag for SRE access')
 param sreServiceTag string
 
+@description('Additional Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort')
+param additionalIngressRules string = ''
+
 @description('Reference pre-created infrastructure identities instead of creating identities in the service resource group.')
 param useLeasedInfrastructureIdentities bool = false
 
@@ -127,9 +130,6 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
     }
   }
 }
-
-@description('Additional Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort')
-param additionalIngressRules string = ''
 
 var additionalIngressRuleEntries = [
   for rule in csvToArray(additionalIngressRules): {
@@ -383,4 +383,6 @@ output managedIdentityId string = aksClusterUserDefinedManagedIdentityId
 // Outputs consumed by svc-cluster.bicep
 output vnetId string = vnet.id
 output istioIngressGatewayIP string = istioIngressGatewayIPAddress.outputs.ipAddress
-output opsIngressGatewayIP string = empty(opsIngressGatewayIPAddressName) ? '' : opsIngressGatewayIPAddress!.outputs.ipAddress
+output opsIngressGatewayIP string = empty(opsIngressGatewayIPAddressName)
+  ? ''
+  : opsIngressGatewayIPAddress!.outputs.ipAddress
