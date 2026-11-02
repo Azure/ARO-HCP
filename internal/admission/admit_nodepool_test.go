@@ -1417,3 +1417,271 @@ func TestAdmitNodePool_ReplicasZeroFloor(t *testing.T) {
 		})
 	}
 }
+
+func TestAdmitNodePool_ClusterComputeNodeCapacity(t *testing.T) {
+	t.Parallel()
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+
+	// makeNodePool builds a node pool with a stable ID derived from name so that
+	// admitClusterComputeNodeCapacity can match the pool under update against its
+	// stored copy in the ClusterNodePools list.
+	makeNodePool := func(name string, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.NodePool {
+		id := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &coreapi.NodePool{
+			CosmosMetadata:  coreapi.CosmosMetadata{ResourceID: id},
+			TrackedResource: coreapi.NewTrackedResource(id, "eastus"),
+			Properties: coreapi.NodePoolProperties{
+				Replicas:    replicas,
+				AutoScaling: autoScaling,
+			},
+		}
+	}
+
+	fixed := func(name string, replicas int32) *coreapi.NodePool { return makeNodePool(name, replicas, nil) }
+	autoscaling := func(name string, min, max int32) *coreapi.NodePool {
+		return makeNodePool(name, 0, &coreapi.NodePoolAutoScaling{Min: min, Max: max})
+	}
+	makeDeletingNodePool := func(name string, replicas int32) *coreapi.NodePool {
+		np := fixed(name, replicas)
+		now := time.Now()
+		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
+		return np
+	}
+
+	// withClusterAutoscaler returns a cluster configured with a cluster-wide
+	// autoscaler cap, mirroring Cluster Service's Autoscaler.ResourceLimits.MaxNodesTotal.
+	withClusterAutoscaler := func(maxNodesTotal int32) *coreapi.Cluster {
+		return &coreapi.Cluster{
+			CustomerProperties: coreapi.ClusterCustomerProperties{
+				Autoscaling: coreapi.ClusterAutoscalingProfile{MaxNodesTotal: maxNodesTotal},
+			},
+		}
+	}
+
+	tests := []struct {
+		name string
+		op   operation.Type
+		// newObj/oldObj are the incoming and stored states of the pool under change.
+		newObj *coreapi.NodePool
+		oldObj *coreapi.NodePool
+		// clusterNodePools is every node pool for the cluster (including the stored
+		// copy of the one under change on UPDATE), as the frontend passes it to
+		// admission.
+		clusterNodePools []*coreapi.NodePool
+		// cluster overrides the default empty cluster; used to exercise the
+		// cluster-wide autoscaler (CustomerProperties.Autoscaling.MaxNodesTotal) path.
+		cluster      *coreapi.Cluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create: single node pool well under the limit allowed",
+			op:           operation.Create,
+			newObj:       fixed("workers", 3),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:             "create: new node pool pushes cluster-wide total over the limit rejected",
+			op:               operation.Create,
+			newObj:           fixed("workers2", 20),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers1", 490)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.replicas", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			name:             "create: new node pool exactly at the limit allowed",
+			op:               operation.Create,
+			newObj:           fixed("workers2", 10),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers1", 490)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "create: autoscaling max counted instead of replicas",
+			op:               operation.Create,
+			newObj:           autoscaling("workers2", 0, 20),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers1", 490)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			name:   "create: node pool marked for deletion does not count toward the total",
+			op:     operation.Create,
+			newObj: fixed("workers2", 20),
+			clusterNodePools: []*coreapi.NodePool{
+				fixed("workers1", 470),
+				makeDeletingNodePool("stale", 100),
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:             "update: raising replicas on an existing pool pushes the total over the limit rejected",
+			op:               operation.Update,
+			oldObj:           fixed("workers", 50),
+			newObj:           fixed("workers", 520),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers", 50)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.replicas", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			name:             "update: the pool's own stored state is not double-counted",
+			op:               operation.Update,
+			oldObj:           fixed("workers", 450),
+			newObj:           fixed("workers", 500),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers", 450)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			// Every mutating request re-validates the resulting total, matching
+			// Cluster Service: an update that improves on (but does not fully fix)
+			// an already-over-limit cluster is still rejected until the total is
+			// back at or under the limit.
+			name:             "update: still over the limit after a reduction is rejected",
+			op:               operation.Update,
+			oldObj:           fixed("workers", 520),
+			newObj:           fixed("workers", 510),
+			clusterNodePools: []*coreapi.NodePool{fixed("workers", 520), fixed("infra", 20)},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.replicas", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			// The guaranteed floor (fixed replicas + every autoscaling pool's Min)
+			// is rejected even though it is naturally <= the ceiling check: an
+			// autoscaling pool always keeps at least Min nodes running, so a floor
+			// this high can never be satisfied within the limit regardless of Max.
+			name:   "create: autoscaling min alone exceeds the limit rejected on the floor check",
+			op:     operation.Create,
+			newObj: autoscaling("workers", 600, 700),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.min", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			// Without a cluster-wide autoscaler, each pool's own Max is summed
+			// independently, so two pools with Max=400 each would exceed 500.
+			name:   "create: without a cluster-wide autoscaler, per-pool max sums are rejected",
+			op:     operation.Create,
+			newObj: autoscaling("workers2", 10, 400),
+			clusterNodePools: []*coreapi.NodePool{
+				autoscaling("workers1", 10, 400),
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			// A pool Max must be reachable while every other pool is also at
+			// its Max. Two pools of Max=400 sum to 800, which exceeds
+			// maxNodesTotal=300, so the request is rejected even though the
+			// autoscaler would stop at 300.
+			name:   "create: cluster-wide autoscaler cap rejects per-pool max sums above the cap",
+			op:     operation.Create,
+			newObj: autoscaling("workers2", 10, 400),
+			clusterNodePools: []*coreapi.NodePool{
+				autoscaling("workers1", 10, 400),
+			},
+			cluster: withClusterAutoscaler(300),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "cluster autoscaler maxNodesTotal"},
+			},
+		},
+		{
+			// Fixed-size replicas count toward the same limit as autoscaling
+			// Max values. 20 + 400 + 400 exceeds maxNodesTotal=490.
+			name:   "create: cluster-wide autoscaler cap includes fixed replicas, rejected",
+			op:     operation.Create,
+			newObj: autoscaling("workers2", 10, 400),
+			clusterNodePools: []*coreapi.NodePool{
+				autoscaling("workers1", 10, 400),
+				fixed("infra", 20),
+			},
+			cluster: withClusterAutoscaler(490),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "cluster autoscaler maxNodesTotal"},
+			},
+		},
+		{
+			// A single pool of max=100 is well under maxNodesTotal=500. The
+			// cap is a limit, not extra capacity stacked on the minimum
+			// (which would have been 10+500=510).
+			name:         "create: per-pool max under cluster autoscaler cap allowed",
+			op:           operation.Create,
+			newObj:       autoscaling("workers", 10, 100),
+			cluster:      withClusterAutoscaler(500),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The guaranteed floor already exceeds maxNodesTotal, so the
+			// request is rejected on the minimum even though it is under 500.
+			name:    "create: autoscaling min exceeds cluster autoscaler cap rejected on the floor check",
+			op:      operation.Create,
+			newObj:  autoscaling("workers", 400, 450),
+			cluster: withClusterAutoscaler(100),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.min", Message: "cluster autoscaler maxNodesTotal"},
+			},
+		},
+		{
+			// maxNodesTotal above the platform limit is still clamped to 500.
+			name:    "create: cluster autoscaler cap above the platform limit rejected",
+			op:      operation.Create,
+			newObj:  autoscaling("workers", 1, 600),
+			cluster: withClusterAutoscaler(501),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "default cluster compute node limit"},
+			},
+		},
+		{
+			// Two existing pools at max=200 plus a new pool at max=60 is 460,
+			// which exceeds maxNodesTotal=410.
+			name:   "create: new pool max pushes the sum of pool maxes over maxNodesTotal rejected",
+			op:     operation.Create,
+			newObj: autoscaling("workers3", 50, 60),
+			clusterNodePools: []*coreapi.NodePool{
+				autoscaling("workers1", 100, 200),
+				autoscaling("workers2", 100, 200),
+			},
+			cluster: withClusterAutoscaler(410),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.autoScaling.max", Message: "cluster autoscaler maxNodesTotal"},
+			},
+		},
+		{
+			// The same two pools plus a new pool of max=10 sit exactly at
+			// maxNodesTotal=410, so every pool can reach its Max together.
+			name:   "create: sum of pool maxes exactly at maxNodesTotal allowed",
+			op:     operation.Create,
+			newObj: autoscaling("workers3", 10, 10),
+			clusterNodePools: []*coreapi.NodePool{
+				autoscaling("workers1", 100, 200),
+				autoscaling("workers2", 100, 200),
+			},
+			cluster:      withClusterAutoscaler(410),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cluster := tt.cluster
+			if cluster == nil {
+				// Empty cluster keeps the subnet VNet check inert (both subnets nil)
+				// and disables the cluster-wide autoscaler cap.
+				cluster = &coreapi.Cluster{}
+			}
+			admissionContext := &NodePoolAdmissionContext{
+				Cluster:          cluster,
+				OriginalNodePool: tt.newObj,
+				ClusterNodePools: tt.clusterNodePools,
+			}
+			errs := AdmitNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
