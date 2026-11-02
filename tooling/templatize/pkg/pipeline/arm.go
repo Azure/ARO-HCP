@@ -61,25 +61,26 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
-	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, &azcorearm.ClientOptions{
+	opts := &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			PerCallPolicies: []policy.Policy{
-				azclient.NewLROPollerRetryPolicy(nil),
+				azclient.NewLROPollerRetryPolicy(&azclient.LROPollerRetryPolicyOptions{RetryDeploymentGETs: true}),
 			},
 		},
-	})
+	}
+	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment client: %w", err)
 	}
-	operationsClient, err := armresources.NewDeploymentOperationsClient(subscriptionID, cred, nil)
+	operationsClient, err := armresources.NewDeploymentOperationsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment operations client: %w", err)
 	}
-	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group client: %w", err)
 	}
-	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, nil)
+	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, opts)
 	return &armClient{
 		bicepClient:             bicepClient,
 		subscriptionID:          subscriptionID,
