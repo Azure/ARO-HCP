@@ -282,7 +282,7 @@ DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
 max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
 ```
 
-This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing. Stage's West US 3 and UK South pools share Stage-00 and must not run concurrently: their combined leased ceiling of 100 exceeds this approximate 92-HCP limit. Distinct Boskos slots do not enforce this subscription-wide exclusion. It translates into slot count as:
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing. Stage uses one 75-container slot per subscription, below this approximate 92-HCP limit. It translates into slot count as:
 
 ```text
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
@@ -406,23 +406,18 @@ independently of the leased identity-container budget.
 
 #### Stage Identity Inventory And Runtime Region
 
-Stage acquisition uses the West US 3 identity inventory declared in the
-[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml). Read the catalog
-for physical provisioning targets, leased-container capacity, Boskos resource
-types, identity prefixes, and regional VM-family policy.
+Stage acquisition uses two West US 3 pools, `shard0` in Stage-00 and `shard1`
+in Stage-01, declared in the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml). Each subscription
+has one slot, 100 physical identity containers, and a leased-container ceiling
+of 75, using the explicit prefix `aro-hcp-msi-container-stg`. Read the catalog
+for Boskos resource types and regional VM-family policy.
 
-The runtime region defaults to the selected pool's region. An acquisition-time
-runtime-region override changes where tests execute, not which identity
-inventory is leased. Confirm `SELECTED_LOCATION`, the acquired pool and slot,
-the exported identity list, and the `mi-containers` budget in job artifacts.
-Suite worker defaults follow the acquired identity count; explicit worker
-overrides do not increase the leased identity budget.
-
-UK South inventory retained outside the active catalog shares Stage-00
-subscription limits with the West US 3 pool. Do not run jobs against those
-inventories concurrently. Separate Boskos leases do not isolate subscription
-quotas, and catalog declarations do not prove physical inventory or quota
-readiness.
+Both runtime and identity provisioning regions are fixed to `westus3`.
+Confirm `SELECTED_LOCATION`, the acquired pool and slot, the exported identity
+list, and the `mi-containers` budget in job artifacts. Suite worker defaults
+follow the acquired identity count; explicit worker overrides do not increase
+the leased identity budget.
 
 ### Operational Notes And Troubleshooting
 
