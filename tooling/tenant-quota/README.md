@@ -62,6 +62,20 @@ the same policy. Discovery repair is not a completeness watermark: old missing
 discovery rows still require a wider explicit scan. Once discovery rows are visible,
 the pending-work anti-join survives restarts and late completion.
 
+### E2E Artifacts
+
+The `tests` / `names` batches read `extension_test_result_e2e_*.json` reports
+with `source=e2e`. PR jobs (including rehearsals) first look under
+`aro-hcp-test-local/artifacts/`, then `aro-hcp-test-local-upgrade/artifacts/`
+if the first step has no report files. The first step containing reports is
+authoritative, even for empty or malformed reports; results are not combined
+across steps. Non-PR jobs continue to use `aro-hcp-test-persistent/artifacts/`.
+The snapshot reader uses the same selection rule.
+
+Upgrade-job E2E coverage is forward-only: builds already marked in
+`ciProcessedJobs` are not revisited, and existing batch tags prevent rewriting.
+Artifact inspection can preview historical results without ingesting them.
+
 ### Slot Acquisition Metadata
 
 The `run` batch also reads
