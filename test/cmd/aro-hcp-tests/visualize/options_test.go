@@ -180,6 +180,7 @@ const sort = {value: 'start', addEventListener: (event, handler) => listeners[ev
 let containerTop = 405;
 const document = {getElementById: id => id === 'timing-sort' ? sort : null, querySelector: selector => selector === '.container' ? {getBoundingClientRect:()=>({top:containerTop})} : null};
 const window = {innerHeight:1000,scrollY:0,addEventListener:(event,handler)=>windowListeners[event]=handler};
+window.top = window;
 const labels = ['alpha', 'beta'];
 const offsets = [{value:0},{value:50000}];
 const durations = [{value:7000},{value:12000}];
@@ -246,6 +247,122 @@ assert.equal(sortedLabels().length, 2);
 assert.equal(state.dataZoom[0].end, 100);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
+	}
+}
+
+func TestTimingChartSortingScriptAutoHeightIframe(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to execute iframe chart regression tests")
+	}
+	groups := make([]timingChartGroup, 75)
+	for i := range groups {
+		groups[i] = timingChartGroup{Name: "test", StartTime: int64(i), Duration: 1000, FirstRow: i}
+	}
+	encodedGroups, err := json.Marshal(groups)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedScript, err := json.Marshal(timingChartSortingJS("mockChart", groups, 200000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"same-origin", "cross-origin"} {
+		t.Run(scenario, func(t *testing.T) {
+			encodedScenario, err := json.Marshal(scenario)
+			if err != nil {
+				t.Fatal(err)
+			}
+			script := `const assert = require('node:assert/strict');
+const sameOrigin = ` + string(encodedScenario) + ` === 'same-origin';
+const groups = ` + string(encodedGroups) + `;
+const listeners = {};
+const childListeners = {};
+const hostListeners = {};
+const addListener = target => (event, handler) => (target[event] ??= []).push(handler);
+const dispatch = (target, event) => (target[event] || []).forEach(handler => handler());
+const sort = {value:'start', addEventListener:addListener(listeners)};
+const chartTop = 435;
+const scrollY = 100;
+const state = {
+	yAxis:[{data:groups.map(group=>group.name)}],
+	series:[{data:groups.map((_,i)=>({value:i*1000}))},{data:groups.map(group=>({value:group.duration}))}],
+	dataZoom:[{start:0,end:100},{start:0,end:100}]
+};
+const chart = {
+	height:600,
+	dom:{style:{height:'600px'}},
+	getOption:()=>state, getDom:()=>chart.dom, getHeight:()=>chart.height,
+	resize:({height})=>chart.height=height,
+	on:(event,handler)=>listeners['chart:'+event]=[handler],
+	setOption:option=>{
+		if (option.yAxis) state.yAxis=[{...state.yAxis[0], ...option.yAxis}];
+		if (option.series) state.series=option.series;
+		if (option.dataZoom) state.dataZoom=option.dataZoom;
+	},
+	dispatchAction:action=>{
+		Object.assign(state.dataZoom.find(zoom=>zoom.id===action.dataZoomId), action);
+		(listeners['chart:datazoom'] || []).forEach(handler=>handler({batch:[action]}));
+	}
+};
+const host = {innerHeight:1000, addEventListener:addListener(hostListeners)};
+const inaccessibleHost = {
+	get innerHeight() {throw Error('cross-origin top.innerHeight');},
+	addEventListener:()=>{throw Error('cross-origin top.addEventListener');}
+};
+const window = {
+	top:sameOrigin ? host : inaccessibleHost,
+	scrollY,
+	// Prow sizes the iframe from its content, including the report's 30px spacer.
+	// Using this viewport for chart height adds 30 - 16 = 14px on every resize.
+	get innerHeight() {return chartTop + chart.height + 30;},
+	addEventListener:addListener(childListeners)
+};
+require('node:vm').runInNewContext(` + string(encodedScript) + `, {
+	mockChart:chart, window, Math, Number,
+	document:{
+		getElementById:()=>sort,
+		querySelector:()=>({getBoundingClientRect:()=>({top:chartTop-scrollY})})
+	}
+});
+dispatch(childListeners, 'load');
+const assertStableOverview = expected => {
+	const heights = [];
+	for (let i = 0; i < 20; i++) {
+		dispatch(childListeners, 'resize');
+		heights.push(chart.height);
+	}
+	assert.deepEqual(heights, Array(20).fill(expected), 'auto-height iframe must settle without 14px resize feedback');
+	assert.equal(chart.dom.style.height, expected+'px');
+	assert.equal(state.dataZoom[0].end, 100);
+};
+assertStableOverview(sameOrigin ? 549 : 320);
+if (sameOrigin) {
+	host.innerHeight = 1200;
+	dispatch(hostListeners, 'resize');
+	assert.equal(chart.height, 749, 'host resize must update the overview before an iframe resize');
+	assertStableOverview(749);
+}
+// Row zoom remains content-sized even when the host viewport is inaccessible.
+Object.assign(state.dataZoom[0], {start:20,end:40});
+listeners['chart:datazoom'].forEach(handler=>handler({dataZoomId:'timing-rows',start:20,end:40}));
+assert.equal(chart.height, 546);
+const timeZoom = {...state.dataZoom[1]};
+host.innerHeight = 1400;
+dispatch(hostListeners, 'resize');
+for (let i = 0; i < 20; i++) dispatch(childListeners, 'resize');
+assert.equal(chart.height, 546, 'viewport resize must preserve row zoom height');
+assert.equal(chart.dom.style.height, '546px');
+assert.equal(state.dataZoom[0].start, 20);
+assert.equal(state.dataZoom[0].end, 40);
+assert.deepEqual({...state.dataZoom[1]}, timeZoom, 'viewport resize must preserve time zoom');
+Object.assign(state.dataZoom[0], {start:0,end:100});
+listeners['chart:datazoom'].forEach(handler=>handler({dataZoomId:'timing-rows',start:0,end:100}));
+assertStableOverview(sameOrigin ? 949 : 320);`
+			if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
+				t.Fatalf("auto-height iframe regression: %v\n%s", err, output)
+			}
+		})
 	}
 }
 

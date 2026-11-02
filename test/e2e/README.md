@@ -341,6 +341,10 @@ vertical slider expands selected test bars for detail and the horizontal slider
 navigates the full time range. Sort tests by start time, total duration
 (longest first) or name.
 
+Embedded reports size the overview from the outer browser viewport, independently
+of the iframe's content height. If cross-origin restrictions hide that viewport,
+the overview uses a fixed 320px chart height.
+
 The summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
 cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
