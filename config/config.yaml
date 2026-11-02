@@ -229,7 +229,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:5311f2facc0d47816963cecacfb89c95694929bd03b37483b482fc0721ac3367 # 20261025.1 (2026-10-25 03:25)
+      digest: sha256:108def4f7816042e425e5417da89c9d646c43254dd3233d1ee16989280da9ee9 # 20261101.1 (2026-11-01 03:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -448,7 +448,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:6a343473b0fc32651cf8eeea03da2e59e3874416223b36eed7371478c599c7b1 # 241463dbb32b736e904f2f8de10a06d46d7b149b (2026-10-30 21:44)
+      digest: sha256:56ad8cd8a5bf5e2682a03c1f971d10c93117d58d1e08257186ad51775df2b720 # 225d8d2265006815d4487423b7ddac7571325d77 (2026-10-30 22:36)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1153,18 +1153,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:ba492e6e89b3dd017d4bcddc1b60e93de6f397ff2126053e0b5ee8efece9172b # v2.17.4-512 (2026-10-30 20:06)
+        digest: sha256:33a8c9f6b353e8009dc386d01f41932e4d016840197dbaa5f2f2c63996258cd9 # v2.17.4-513 (2026-10-31 14:05)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:d71b1317fc4090ddb46083888d99bf9b65b478e88a4251fca038a942ba73280c # v2.17.4-558 (2026-10-29 20:42)
+        digest: sha256:cbc3430473743d279d6e55ac6dd5f05ae3a864c402b4b2a046d6a294b5958f7d # v2.17.4-562 (2026-11-01 15:04)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:3c97cda8eaf1dc3815ce65d72184f4c0608da96ec60093b3c98ac612c3c08bdf # e57073e2830e86c5b9c50dd283363ab0e0ddcc00 (2026-10-29 13:54)
+      digest: sha256:dccae014b4ce54a24e8812655bef7a20fbcaae1b0bb0c1439504d1c8e49d0567 # daccda63c7c131f9719a89c5ac8e9c61af0e55fe (2026-11-02 08:56)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
