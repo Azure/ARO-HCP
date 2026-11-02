@@ -3396,11 +3396,14 @@ Live-reads the management cluster and cached parent Stamp; missing either waits.
 
 Writes `Status.ClusterServiceProvisionShardID` after successful reconciliation and `ClustersServiceRegistered` using [SetRegistrationCondition](../../fleet/pkg/controllers/base/registration_condition.go). Registration is sticky: success sets True/Registered; later errors (including an unapproved Stamp) retain True with reason CheckFailed, while initial failures set False/RegistrationFailed. Same status/reason suppresses message-only changes. Changed management-cluster state is replaced before returning any reconciliation error; unapproved Stamp itself returns no error. Thus True is not proof that current external checks pass.
 
-#### MaestroRegistrationController
+#### MaestroRegistrationController — retired
 
-[Source](../../fleet/pkg/controllers/maestroregistration/controller.go) · **Trigger:** Management-cluster and Stamp informers; stamp key, 5m resync, four workers. Same registration-aware unchanged-event cooldown as Clusters Service registration.
-
-Live-reads the management cluster and cached Stamp; missing either waits. With `Approved=True`, creates a client from the recorded Maestro REST URL, searches for the recorded consumer name and POSTs only if absent. The [consumer adapter](../../fleet/pkg/controllers/maestroregistration/consumer_client.go) validates DNS-1123 names before constructing its search and accepts the first returned match; it does not detect duplicate matches or reconcile existing consumer attributes. Writes only the `MaestroRegistered` condition, not the consumer name or endpoint. Uses the same sticky registration condition and no-op persistence rules as Clusters Service registration; ordinary external errors are persisted then returned for retry. An unapproved Stamp updates the condition without calling Maestro or returning a sync error.
+> **Removed** in `05f05da324` ("refactor(fleet): retire Maestro registration
+> controllers and gates"). The controller and its consumer adapter no longer
+> exist; [fleet lifecycle](../../fleet/pkg/controllers/lifecycle/controller.go)
+> now removes the `MaestroRegistered` condition rather than gating Ready on it.
+> Clusters Service shard registration remains in
+> [clustersserviceregistration](../../fleet/pkg/controllers/clustersserviceregistration/controller.go).
 
 #### ManagementClusterLifecycleController
 
@@ -4072,7 +4075,7 @@ but these observers do not implement or prove successful external creation.
 | ClusterResources → ApplyDesire → Kubernetes | The same implementation classifies returned manifests, applies ownership and unconditional legacy-ingress filters, and persists cluster- or node-pool-scoped desired objects. [ApplyDesireController](../../kube-applier/pkg/controllers/apply_desire/controller.go) performs server-side apply with the configured field manager; neither the manifest response nor persisted intent proves external convergence. Explicit Delete intent and observed deletion are distinct from dropping a desire document. |
 | Kubernetes → ReadDesire → backend observations | [ReadDesireKubernetesController](../../kube-applier/pkg/controllers/read_desire_kubernetes/controller.go) mirrors requested resources. [ActualHostedCluster](../../backend/pkg/controllers/cluster/hostedcluster/actual_hosted_cluster_controller.go), version and operation controllers consume observations; their individual completion gates remain in the catalog and convergence panel. |
 | Maestro-agent deployment boundary | [Chart defaults](../../maestro/agent/deploy/values.yaml) and [pipeline values](../../maestro/agent/values.yaml) disable the agent. Its [Deployment](../../maestro/agent/deploy/templates/maestro-agent.deployment.yaml) and associated templates use `.Values.enabled`. This says nothing about an already-running or overridden deployment. The [configured Cluster Service image](../../config/config.yaml) selects the external build; its digest alone does not establish that build's implementation details. |
-| Retained Maestro contracts | [MaestroRegistrationController](../../fleet/pkg/controllers/maestroregistration/controller.go) still ensures the consumer for an approved Stamp; [fleet lifecycle](../../fleet/pkg/controllers/lifecycle/controller.go) still includes `MaestroRegistered` in Ready. [Child cleanup](../../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) still waits while `Status.MaestroReadonlyBundles` is nonempty. Neither contract proves an agent is deployed. |
+| Retired Maestro contracts | The Maestro registration controllers were retired (`05f05da324`); [fleet lifecycle](../../fleet/pkg/controllers/lifecycle/controller.go) now removes the `MaestroRegistered` condition. [Child cleanup](../../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go) still waits while `Status.MaestroReadonlyBundles` is nonempty. |
 | SSA compatibility is not process liveness | [ClusterResources](../../backend/pkg/controllers/clusterresources/cluster_resources_controller.go) and [KAS delivery](../../backend/pkg/controllers/cluster/k8sresources/kube_apiserver_serving_certificate_controller.go) retain field-manager compatibility. A `work-agent` field-manager string does not identify the process making the current Kubernetes request. |
 
 The agent disablement does not remove a repository controller from the census,

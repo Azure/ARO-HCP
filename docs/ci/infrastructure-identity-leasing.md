@@ -20,8 +20,9 @@ Validate the complete declared pool before making it leaseable:
 make -C test validate-pool-assets ENVIRONMENT=dev ASSET=infrastructure_identities
 ```
 
-The pool capacity is derived from catalog demand: 22 bundles across the five
-DEV pools (five slots each for shard0–shard3, two Hypershift slots). Each bundle
+The pool capacity is derived from catalog demand: 52 bundles across ci01's eleven
+DEV pools (five slots each for shard0–shard3 and shard5–shard10, plus two
+Hypershift slots); ci02 carries additional shards starting with shard4. Each bundle
 contains the service and two management-stamp identity groups. Deploy matching
 Boskos resources before merging the activation PR. For each operator action,
 use the ARO-HCP revision containing the catalog being applied; the Make targets
