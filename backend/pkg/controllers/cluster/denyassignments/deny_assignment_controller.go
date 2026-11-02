@@ -147,6 +147,11 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 	if len(serviceProviderCluster.Status.AzureResources.DenyAssignments.AzureResources) == 0 {
 		return true
 	}
+	// A changed operator identity needs a fresh Azure exclusion immediately;
+	// the periodic recheck interval must not delay identity rotation.
+	if c.confirmedExclusionsDiffer(cluster, serviceProviderCluster) {
+		return true
+	}
 	if t := serviceProviderCluster.Status.AzureResources.DenyAssignments.EarliestRecheckTime; t != nil && c.clock.Now().Before(t.Time) {
 		return false
 	}
@@ -192,6 +197,50 @@ func (c *clusterDenyAssignmentSyncer) principalIDsResolvable(cluster *coreapi.Cl
 	}
 	_, err := resolvePrincipalID(serviceProviderCluster, identities.ServiceManagedIdentity)
 	return err == nil
+}
+
+func (c *clusterDenyAssignmentSyncer) confirmedExclusionsDiffer(
+	cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster,
+) bool {
+	definitions := denyAssignmentDefinitions(cluster)
+	confirmed := make(map[string]coreapi.DenyAssignmentReference, len(spc.Status.AzureResources.DenyAssignments.AzureResources))
+	for _, ref := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+		confirmed[ref.DenyAssignmentType] = ref
+	}
+	for _, definition := range definitions {
+		ref, ok := confirmed[definition.denyAssignmentType]
+		if !ok {
+			return true
+		}
+		identityIDs, err := collectExcludedPrincipalIDs(cluster, definition)
+		if err != nil {
+			return true
+		}
+		expected, err := resolvePrincipalIDs(spc, identityIDs)
+		if err != nil || !samePrincipalSet(expected, ref.ExcludedPrincipalIDs) {
+			return true
+		}
+	}
+	return false
+}
+
+func samePrincipalSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]int, len(a))
+	for _, id := range a {
+		seen[strings.ToLower(id)]++
+	}
+	for _, id := range b {
+		seen[strings.ToLower(id)]--
+	}
+	for _, count := range seen {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster) error {
@@ -384,7 +433,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 			continue
 		}
 
-		err = c.ensureDenyAssignment(ctx, serviceProviderCluster, denyAssignmentsClient, genericResourcesClient,
+		excludedPrincipalIDs, err := c.ensureDenyAssignment(ctx, serviceProviderCluster, denyAssignmentsClient, genericResourcesClient,
 			ref.DenyAssignmentResourceID, scope, excludedIdentityResourceIDs,
 			definition.actions, definition.notActions, definition.dataActions)
 		if err != nil {
@@ -393,6 +442,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 			continue
 		}
 
+		ref.ExcludedPrincipalIDs = excludedPrincipalIDs
 		logger.Info("Ensured deny assignment", "denyAssignmentType", ref.DenyAssignmentType, "resourceID", ref.DenyAssignmentResourceID.String())
 		succeeded = append(succeeded, ref)
 	}
@@ -411,7 +461,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 	actions []string,
 	notActions []string,
 	dataActions []string,
-) error {
+) ([]string, error) {
 	if notActions == nil {
 		notActions = []string{}
 	}
@@ -421,15 +471,15 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 
 	excludedPrincipalIDs, err := resolvePrincipalIDs(serviceProviderCluster, excludedIdentityResourceIDs)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to resolve principal IDs: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to resolve principal IDs: %w", err))
 	}
 
 	existing, err := denyAssignmentsClient.Get(ctx, scope.String(), resourceID.Name, nil)
 	if err != nil && !isDenyAssignmentNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get deny assignment: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to get deny assignment: %w", err))
 	}
 	if err == nil && !denyAssignmentNeedsUpdate(&existing.DenyAssignment, actions, notActions, dataActions, excludedPrincipalIDs) {
-		return nil
+		return excludedPrincipalIDs, nil
 	}
 
 	excludedPrincipals := make([]any, 0, len(excludedPrincipalIDs))
@@ -466,15 +516,15 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 
 	poller, err := genericResourcesClient.BeginCreateOrUpdateByID(ctx, resourceID.String(), denyAssignmentAzureAPIVersion, resource, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("BeginCreateOrUpdateByID failed: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("BeginCreateOrUpdateByID failed: %w", err))
 	}
 
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("polling deny assignment creation failed: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("polling deny assignment creation failed: %w", err))
 	}
 
-	return nil
+	return excludedPrincipalIDs, nil
 }
 
 func isDenyAssignmentNotFoundError(err error) bool {

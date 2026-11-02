@@ -897,6 +897,9 @@ defaults:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     backupCadenceProfile: production
     backupScheduleState: Enabled
+    # Rollout gate for RP ownership of HostedCluster data-plane identity ClientIDs.
+    # Disabling it after takeover pauses updates; it does not return ownership to CS.
+    enableHostedClusterDataPlaneIdentityWriter: false
     exitOnPanic: true
     logVerbosity: 4
     orphanedMRGCleanupTargetSubscriptionAFECFlags: ""

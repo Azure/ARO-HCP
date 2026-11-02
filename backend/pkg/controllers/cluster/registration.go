@@ -1142,6 +1142,20 @@ func instantiateDataPlaneWorkloadsOIDCFederationController(controllerContext con
 	), nil
 }
 
+func registerHostedClusterDataPlaneIdentitiesController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateHostedClusterDataPlaneIdentitiesController, true),
+	}
+}
+
+func instantiateHostedClusterDataPlaneIdentitiesController(c controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdataplaneworkloads.NewHostedClusterDataPlaneIdentitiesController(
+		c.ResourcesDBClient, c.BackendInformers, c.UnionKubeApplierInformers,
+		c.ClusterScopedIdentitiesConfig, c.EnableHostedClusterDataPlaneIdentityWriter,
+	), nil
+}
+
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1344,6 +1358,7 @@ func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (c
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterdataplaneworkloads.HostedClusterDataPlaneIdentitiesControllerName)] = registerHostedClusterDataPlaneIdentitiesController()
 	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
 	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
 	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()
