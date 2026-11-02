@@ -59,11 +59,11 @@ $(GOIMPORTS): $(BINGO_DIR)/goimports.mod
 	@echo "(re)installing $(GOBIN)/goimports-v0.52.0"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.52.0 "golang.org/x/tools/cmd/goimports"
 
-GOJQ := $(GOBIN)/gojq-v0.12.17
+GOJQ := $(GOBIN)/gojq-v0.12.20
 $(GOJQ): $(BINGO_DIR)/gojq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/gojq-v0.12.17"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=gojq.mod -o=$(GOBIN)/gojq-v0.12.17 "github.com/itchyny/gojq/cmd/gojq"
+	@echo "(re)installing $(GOBIN)/gojq-v0.12.20"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=gojq.mod -o=$(GOBIN)/gojq-v0.12.20 "github.com/itchyny/gojq/cmd/gojq"
 
 GOLANGCI_LINT := $(GOBIN)/golangci-lint-v2.5.0
 $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
