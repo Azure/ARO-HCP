@@ -44,8 +44,9 @@ import (
 )
 
 const (
-	testStepPersistent = "aro-hcp-test-persistent"
-	testStepLocal      = "aro-hcp-test-local"
+	testStepPersistent   = "aro-hcp-test-persistent"
+	testStepLocal        = "aro-hcp-test-local"
+	testStepLocalUpgrade = "aro-hcp-test-local-upgrade"
 )
 
 // prConfigPaths lists the known GCS step artifact paths where config.yaml
@@ -399,19 +400,28 @@ func fetchProwJobTestResults(ctx context.Context, gcsClient *storage.Client, inf
 
 	artifactPrefix := fmt.Sprintf("%s/artifacts/%s", info.GCSPrefix, artifactDir)
 
-	// Download test results.
-	testStep := testStepPersistent
+	// PR workflows publish reports in either the local or local-upgrade step.
+	// Select the first step with report files; an empty or malformed report is
+	// authoritative and must not be replaced by results from another step.
+	testSteps := []string{testStepPersistent}
 	if info.IsPullRequest() {
-		testStep = testStepLocal
+		testSteps = []string{testStepLocal, testStepLocalUpgrade}
 	}
-	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
-	testResultFiles, err := listObjects(ctx, gcsClient, info.GCSBucket, testResultsPrefix)
-	if err != nil {
-		if strict && artifactAbsent(err) {
-			ReportProwArtifactProblem(ctx, "e2e", "absent")
-			return nil, nil
+	var testResultsPrefix string
+	var testResultFiles []string
+	for _, testStep := range testSteps {
+		testResultsPrefix = fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
+		testResultFiles, err = listObjects(ctx, gcsClient, info.GCSBucket, testResultsPrefix)
+		if err != nil {
+			if strict && artifactAbsent(err) {
+				ReportProwArtifactProblem(ctx, "e2e", "absent")
+				return nil, nil
+			}
+			return nil, fmt.Errorf("failed to list test result files: %w", err)
 		}
-		return nil, fmt.Errorf("failed to list test result files: %w", err)
+		if len(testResultFiles) > 0 {
+			break
+		}
 	}
 	if len(testResultFiles) == 0 {
 		if strict {

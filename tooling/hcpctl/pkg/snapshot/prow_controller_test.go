@@ -125,6 +125,109 @@ func TestProwControllerStrictAndSnapshotBestEffort(t *testing.T) {
 	}
 }
 
+func TestProwJobTestResultsStepSelection(t *testing.T) {
+	const root = "logs/job/123/artifacts/e2e/"
+	for _, tc := range []struct {
+		name, jobName string
+		reports       map[string]string
+		wantName      string
+		wantEmpty     bool
+	}{
+		{
+			name: "local", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local": `[{"name":"local test","result":"passed"}]`},
+			wantName: "local test",
+		},
+		{
+			name: "upgrade", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed","error":"upgrade failed"}]`},
+			wantName: "upgrade test",
+		},
+		{
+			name: "rehearsal upgrade", jobName: "rehearse-123-pull-ci-Azure-ARO-HCP-main-e2e",
+			reports:  map[string]string{"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed","error":"upgrade failed"}]`},
+			wantName: "upgrade test",
+		},
+		{
+			name: "persistent", jobName: "periodic-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-persistent":    `[{"name":"persistent test","result":"passed"}]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantName: "persistent test",
+		},
+		{
+			name: "local takes precedence", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-local":         `[{"name":"local test","result":"passed"}]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantName: "local test",
+		},
+		{
+			name: "empty local report is authoritative", jobName: "pull-ci-Azure-ARO-HCP-main-e2e",
+			reports: map[string]string{
+				"aro-hcp-test-local":         `[]`,
+				"aro-hcp-test-local-upgrade": `[{"name":"upgrade test","result":"failed"}]`,
+			},
+			wantEmpty: true,
+		},
+	} {
+		for _, strict := range []bool{false, true} {
+			mode := "snapshot"
+			if strict {
+				mode = "controller"
+			}
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				client := &http.Client{Transport: controllerArtifactTransport(func(r *http.Request) (*http.Response, error) {
+					prefix := r.URL.Query().Get("prefix")
+					body := `{}`
+					if prefix == "logs/job/123/artifacts/" {
+						body = `{"prefixes":["` + root + `"]}`
+					}
+					for step, report := range tc.reports {
+						resultPrefix := root + step + "/artifacts/extension_test_result_e2e_"
+						if prefix == resultPrefix {
+							body = `{"items":[{"name":"` + resultPrefix + `1.json"}]}`
+						}
+						if r.URL.Path == "/bucket/"+resultPrefix+"1.json" {
+							body = report
+						}
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				})}
+				gcs, err := controllerGCSClient(t.Context(), client)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer gcs.Close()
+				var strictClient *http.Client
+				if strict {
+					strictClient = client
+				}
+				results, err := fetchProwJobTestResults(t.Context(), gcs, &ProwJobInfo{
+					GCSBucket: "bucket", GCSPrefix: "logs/job/123", JobName: tc.jobName,
+				}, strictClient)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.wantEmpty {
+					if len(results) != 0 || (strict && results == nil) {
+						t.Fatalf("expected valid empty report, got %+v", results)
+					}
+					return
+				}
+				if len(results) != 1 || results[0].Name != tc.wantName {
+					t.Fatalf("results=%+v, want only %q", results, tc.wantName)
+				}
+				if tc.wantName == "upgrade test" && (!results[0].Failed || results[0].Error != "upgrade failed") {
+					t.Fatalf("lost upgrade failure evidence: %+v", results[0])
+				}
+			})
+		}
+	}
+}
+
 func TestProwArtifactProblemHandlerBoundedCategories(t *testing.T) {
 	var problems []string
 	ctx := WithProwArtifactProblemHandler(t.Context(), func(source, reason string) { problems = append(problems, source+"/"+reason) })
