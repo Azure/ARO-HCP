@@ -446,12 +446,12 @@ func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.Reso
 	return nil
 }
 
-func ClusterServiceIDForCluster(cluster *coreapi.Cluster) string {
-	if cluster.ServiceProviderProperties.PendingClusterServiceID != nil {
-		return cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
+func ClusterServiceIDForCluster(cluster *coreapi.ServiceProviderCluster) string {
+	if cluster.PendingClusterServiceID != nil {
+		return cluster.PendingClusterServiceID.ClusterID()
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-		return cluster.ServiceProviderProperties.ClusterServiceID.ClusterID()
+	if cluster.ClusterServiceID != nil {
+		return cluster.ClusterServiceID.ClusterID()
 	}
 	return ""
 }

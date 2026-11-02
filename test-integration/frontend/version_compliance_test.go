@@ -26,8 +26,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -241,5 +243,16 @@ func loadCosmosFromArtifact(
 	t.Helper()
 
 	content := metadataapi.Must(artifacts.ReadFile(artifactPath))
-	require.NoError(t, testInfo.LoadContent(ctx, content))
+	var document struct {
+		ResourceID string                         `json:"resourceID"`
+		Properties coreapi.ServiceProviderCluster `json:"properties"`
+	}
+	require.NoError(t, json.Unmarshal(content, &document))
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(document.ResourceID)).Parent
+	provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, testInfo.ResourcesDBClient(), resourceID)
+	require.NoError(t, err)
+	provider.Spec = document.Properties.Spec
+	provider.Status = document.Properties.Status
+	_, err = testInfo.ResourcesDBClient().ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, provider, nil)
+	require.NoError(t, err)
 }

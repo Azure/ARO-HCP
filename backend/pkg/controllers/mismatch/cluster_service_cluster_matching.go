@@ -92,16 +92,20 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
 			ret = append(ret, cluster)
+			provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+			if err != nil {
+				return nil, nil, utils.TrackError(err)
+			}
 			// we skip items without a ClusterServiceID or PendingClusterServiceID because they may be about to get them and shouldn't be deleted.
-			if cluster.ServiceProviderProperties.ClusterServiceID == nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil {
+			if provider.ClusterServiceID == nil && provider.PendingClusterServiceID == nil {
 				continue
 			}
 
 			var clusterServiceID string
-			if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-				clusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.String()
+			if provider.ClusterServiceID != nil {
+				clusterServiceID = provider.ClusterServiceID.String()
 			} else {
-				clusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.String()
+				clusterServiceID = provider.PendingClusterServiceID.String()
 			}
 
 			existingCluster, exists := clusterServiceIDToCluster[clusterServiceID]

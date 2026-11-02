@@ -285,6 +285,12 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tt.setupDB(db)
+			for _, provider := range tt.spcLister.ServiceProviderClusters {
+				csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
+				provider.ClusterServiceID = &csID
+				_, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, provider, nil)
+				require.NoError(t, err)
+			}
 
 			kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 			if tt.registerKubeApplierClient {

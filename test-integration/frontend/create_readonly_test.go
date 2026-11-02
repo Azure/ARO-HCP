@@ -93,6 +93,7 @@ func TestCreateIgnoresReadOnlyFields(t *testing.T) {
 					if tc.kind != "Cluster" {
 						createClusterAndComplete(t, ctx, ti, v20261001, subscriptionID, clusterName)
 						require.NoError(t, integrationutils.StampRandomClusterServiceID(ctx, ti.ResourcesDBClient(), clusterResourceID(clusterName)))
+						require.NoError(t, ti.WaitForFrontendCaches(ctx))
 					}
 
 					var payload map[string]any

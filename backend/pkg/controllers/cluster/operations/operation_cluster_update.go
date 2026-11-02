@@ -185,9 +185,15 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
+	var clusterCSID *metadataapi.InternalID
 	errs := []error{}
 	operationStates := []*operationbase.OperationState{}
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, existingCluster.ID)
+	if err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		clusterCSID = provider.ClusterServiceID
+	}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 

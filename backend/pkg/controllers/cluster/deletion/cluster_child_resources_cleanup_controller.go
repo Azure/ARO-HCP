@@ -96,10 +96,11 @@ func NewClusterChildResourcesCleanupController(
 	return controller
 }
 
-func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *coreapi.Cluster) bool {
+func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID == nil
+		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted &&
+		(provider == nil || (provider.ClusterServiceID == nil && provider.PendingClusterServiceID == nil))
 }
 
 func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -112,7 +113,7 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if !c.NeedsWork(cachedCluster) {
+	if cachedCluster.ServiceProviderProperties.DeletionTimestamp == nil || cachedCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
 		return nil
 	}
 
@@ -124,7 +125,13 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
-	if !c.NeedsWork(cluster) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		provider = nil
+	} else if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.NeedsWork(cluster, provider) {
 		return nil
 	}
 

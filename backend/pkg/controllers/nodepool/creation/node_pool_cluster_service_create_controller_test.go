@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -228,6 +229,9 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			resources := []any{}
+			if tc.listerCluster != nil {
+				resources = append(resources, coreapitesting.ServiceProviderIDsForCluster(tc.listerCluster))
+			}
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}

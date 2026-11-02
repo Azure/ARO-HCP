@@ -142,6 +142,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+			seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.setupMockCSClient != nil {

@@ -73,12 +73,12 @@ func NewClusterBaseDomainPrefixSyncController(
 	return controller
 }
 
-func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster) bool {
+func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
-		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if provider.ClusterServiceID == nil ||
+		len(provider.ClusterServiceID.String()) == 0 {
 		return false
 	}
 
@@ -86,6 +86,13 @@ func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.Clust
 }
 
 func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -95,7 +102,7 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if !c.needsWork(cachedCluster) {
+	if !c.needsWork(cachedCluster, provider) {
 		return nil
 	}
 
@@ -107,14 +114,14 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	if !c.needsWork(existingCluster) {
+	if !c.needsWork(existingCluster, provider) {
 		return nil
 	}
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	csCluster, err := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	csCluster, err := c.clusterServiceClient.GetCluster(csCtx, *provider.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}

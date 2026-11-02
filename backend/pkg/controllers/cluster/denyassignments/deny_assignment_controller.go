@@ -109,7 +109,7 @@ func (c *clusterDenyAssignmentSyncer) SyncOnce(ctx context.Context, key controll
 }
 
 func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	if len(controllerutils.ClusterServiceIDForCluster(cluster)) == 0 {
+	if len(controllerutils.ClusterServiceIDForCluster(serviceProviderCluster)) == 0 {
 		return false
 	}
 	// Deny assignments are scoped to the managed resource group, so wait until it is confirmed.
@@ -189,7 +189,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 		return utils.TrackError(fmt.Errorf("failed to build managed resource group resource ID: %w", err))
 	}
 
-	requiredDenyAssignmentReferences, err := allDenyAssignmentReferences(cluster)
+	requiredDenyAssignmentReferences, err := allDenyAssignmentReferences(cluster, serviceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -890,6 +890,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingOperation)
 			}
 			if tc.existingServiceProviderCluster != nil {
+				if tc.existingCluster != nil {
+					tc.existingServiceProviderCluster.ClusterServiceID = tc.existingCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				}
 				resources = append(resources, tc.existingServiceProviderCluster)
 			}
 

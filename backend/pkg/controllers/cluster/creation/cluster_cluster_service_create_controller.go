@@ -93,12 +93,6 @@ func NewClusterClusterServiceCreateController(
 }
 
 func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, cluster *coreapi.Cluster) bool {
-	if cluster.ServiceProviderProperties.DeletionTimestamp != nil ||
-		cluster.ServiceProviderProperties.PendingClusterServiceID == nil ||
-		(cluster.ServiceProviderProperties.ClusterServiceID != nil &&
-			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) > 0) {
-		return false
-	}
 
 	// Placement gate: creating the Cluster Service cluster needs the scheduler's
 	// chosen management cluster (ServiceProviderCluster.Spec.ManagementClusterResourceID)
@@ -116,6 +110,12 @@ func (c *clusterClusterServiceCreateSyncer) needsWork(ctx context.Context, clust
 		if !cosmosstorageutils.IsNotFoundError(err) {
 			utils.LoggerFromContext(ctx).Error(err, "failed to get ServiceProviderCluster from cache; treating placement as unresolved")
 		}
+		return false
+	}
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil ||
+		serviceProviderCluster.PendingClusterServiceID == nil ||
+		(serviceProviderCluster.ClusterServiceID != nil &&
+			len(serviceProviderCluster.ClusterServiceID.String()) > 0) {
 		return false
 	}
 	return serviceProviderCluster.Spec.ManagementClusterResourceID != nil
@@ -150,11 +150,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	existingServiceProviderCluster, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	if existingServiceProviderCluster.PendingClusterServiceID == nil || (existingServiceProviderCluster.ClusterServiceID != nil && existingServiceProviderCluster.ClusterServiceID.String() != "") {
+		return nil
+	}
 	ready, err := c.createPreconditionDesiredVersionResolved(ctx, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -214,11 +217,11 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 
-	logger.Info("Storing ClusterServiceID on cluster document", "clusterServiceID", csInternalID.String())
+	logger.Info("Storing ClusterServiceID on provider document", "clusterServiceID", csInternalID.String())
 	replacement := cluster.DeepCopy()
-	replacement.ServiceProviderProperties.PendingClusterServiceID = nil
-	replacement.ServiceProviderProperties.ClusterServiceID = &csInternalID
-	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, replacement)
+	existingServiceProviderCluster.PendingClusterServiceID = nil
+	existingServiceProviderCluster.ClusterServiceID = &csInternalID
+	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, replacement, existingServiceProviderCluster)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -294,7 +297,7 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	// Pin the CS provision shard for the scheduler-selected management cluster via
 	// the SDK builder method.
 	csClusterBuilder.ProvisionShardID(provisionShardID)
-	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
+	clusterServiceUID := serviceProviderCluster.PendingClusterServiceID.ClusterID()
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -53,6 +54,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			c.ServiceProviderProperties.ClusterServiceID = nil
+			c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 		})
 	}
 
@@ -193,6 +195,9 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+			if tc.existingCluster != nil && tc.existingCluster.ServiceProviderProperties.ClusterServiceID != nil {
+				seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
+			}
 
 			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
@@ -264,6 +269,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceID = nil
+				c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			want: true,
 		},
@@ -272,7 +278,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			controller := &clusterDeletionController{}
-			assert.Equal(t, tc.want, controller.NeedsWork(tc.cluster))
+			assert.Equal(t, tc.want, controller.NeedsWork(tc.cluster, coreapitesting.ServiceProviderIDsForCluster(tc.cluster)))
 		})
 	}
 }
