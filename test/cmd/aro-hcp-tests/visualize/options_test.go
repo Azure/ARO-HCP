@@ -16,7 +16,6 @@ package visualize
 
 import (
 	"encoding/json"
-	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -25,34 +24,6 @@ import (
 
 	"github.com/go-echarts/go-echarts/v2/opts"
 )
-
-func TestTestTimingChartLinearData(t *testing.T) {
-	for _, count := range []int{1, 10, 77, 1000} {
-		t.Run(fmt.Sprint(count), func(t *testing.T) {
-			start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-			var times []TestInfo
-			for i := range count {
-				times = append(times, TestInfo{
-					Identifier: []string{fmt.Sprintf("test-%d", i)},
-					StartedAt:  start, FinishedAt: start.Add(time.Second),
-					Steps: []StepTimingMetadata{{Name: "step", StartedAt: start, FinishedAt: start.Add(time.Second)}},
-				})
-			}
-			chart := testTimingChart(times)
-			if len(chart.MultiSeries) != 2 {
-				t.Fatalf("expected two series regardless of test count, got %d", len(chart.MultiSeries))
-			}
-			for _, series := range chart.MultiSeries {
-				if got := len(series.Data.([]opts.BarData)); got != 2*count {
-					t.Errorf("%s: expected one item per test/step row, got %d", series.Name, got)
-				}
-			}
-			if chart.Animation == nil || *chart.Animation || chart.Initialization.Renderer != "canvas" {
-				t.Fatal("expected nonanimated canvas chart")
-			}
-		})
-	}
-}
 
 func TestTestTimingChartTimings(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 123000000, time.UTC)
@@ -64,34 +35,17 @@ func TestTestTimingChartTimings(t *testing.T) {
 		}},
 		{Identifier: []string{"first"}, StartedAt: start.Add(4 * time.Second), FinishedAt: start.Add(5 * time.Second)},
 	})
-	var offsets, durations []opts.BarData
-	allOffsets := chart.MultiSeries[0].Data.([]opts.BarData)
-	for i, row := range chart.MultiSeries[1].Data.([]opts.BarData) {
-		if strings.Contains(row.Name, ": Untracked") {
-			continue
-		}
-		offsets = append(offsets, allOffsets[i])
-		durations = append(durations, row)
-	}
+	offsets := chart.MultiSeries[0].Data.([]opts.BarData)
+	durations := chart.MultiSeries[1].Data.([]opts.BarData)
 	for i, want := range []struct {
 		name             string
 		offset, duration float64
 	}{
-		{"first", 0, 2000}, {"first: zero", 1000, 0}, {"first: short", 1500.5, 0.001},
-		{"later", 3000, 0}, {"first", 4000, 1000},
+		{"first", 0, 2000}, {"later", 3000, 0}, {"first", 4000, 1000},
 	} {
 		if offsets[i].Value != want.offset || durations[i].Value != want.duration || durations[i].Name != want.name {
 			t.Errorf("row %d: got %v / %+v, expected %+v", i, offsets[i].Value, durations[i], want)
 		}
-	}
-	if durations[0].ItemStyle.Color != durations[1].ItemStyle.Color || durations[0].ItemStyle.Color != durations[4].ItemStyle.Color {
-		t.Error("steps and repeated tests must keep their test color")
-	}
-	if durations[0].ItemStyle.Color == durations[3].ItemStyle.Color {
-		t.Error("adjacent tests should have distinct colors")
-	}
-	if durations[0].ItemStyle.BorderWidth != 1 || durations[1].ItemStyle.BorderWidth != 0 {
-		t.Error("test rows, but not step rows, should have borders")
 	}
 	if !strings.Contains(string(chart.RenderContent()), "2026-01-01T00:00:00.123Z") {
 		t.Error("axis formatter must retain the fractional-second start time")
@@ -138,14 +92,226 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 	}
 	script += `
 	const options = [];
+	const listeners = {};
+	const windowListeners = {};
+	const sort = {value:'start', addEventListener:(event, handler) => listeners[event] = handler};
+	let containerTop = 405;
+	const state = {};
+	const chart = {
+		height: 600,
+		dom: {style:{height:'60vh'}, getBoundingClientRect:() => ({top:435})},
+		setOption: option => {
+			options.push(option);
+			if (option.xAxis) state.xAxis = (Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]).map((axis, i) => ({...state.xAxis?.[i], ...axis}));
+			if (option.yAxis) state.yAxis = (Array.isArray(option.yAxis) ? option.yAxis : [option.yAxis]).map((axis, i) => ({...state.yAxis?.[i], ...axis}));
+			if (option.series) state.series = option.series.map((series, i) => ({...state.series?.[i], ...series}));
+			if (option.dataZoom) state.dataZoom = option.dataZoom;
+			if (option.tooltip) state.tooltip = {...state.tooltip, ...option.tooltip};
+		},
+		getOption: () => state,
+		getHeight: () => chart.height,
+		getDom: () => chart.dom,
+		resize: ({height}) => chart.height = height,
+		on: (event, handler) => listeners['chart:' + event] = handler,
+		dispatchAction: action => {
+			const zoom = state.dataZoom.find(item => item.id === action.dataZoomId);
+			if (zoom) Object.assign(zoom, {start:action.start, end:action.end});
+			listeners['chart:datazoom']?.({batch:[action]});
+		}
+	};
+	const vmDocument = {
+		body: {}, documentElement: {},
+		createElement: global.document.createElement,
+		getElementById: id => id === 'timing-sort' ? sort : {},
+		querySelector: selector => selector === '.container' ? {getBoundingClientRect:() => ({top:containerTop})} : null
+	};
+	const vmWindow = {
+		innerHeight: 1000, scrollY: 0,
+		addEventListener: (event, handler) => windowListeners[event] = handler,
+		matchMedia: () => ({addEventListener: () => {}})
+	};
 	require('node:vm').runInNewContext(` + string(encodedScript) + `, {
-		document: {getElementById: () => ({})},
-		window: {addEventListener: () => {}},
-		echarts: {init: () => ({setOption: o => options.push(o)})}
+		document: vmDocument, window: vmWindow, getComputedStyle: () => ({color:'#000', backgroundColor:'#fff'}),
+		MutationObserver: class {observe() {}},
+		echarts: {init: () => chart}, Math, Number
 	});
 	assert.equal(options[0].series[1].data[0].name, ` + string(encodedName) + `);
-	assert.equal(options[0].yAxis[0].data[0], ` + string(encodedName) + `);`
+	assert.equal(options[0].yAxis[0].data[0], ` + string(encodedName) + `);
+	assert.equal(state.tooltip.formatter([{dataIndex:0}]).textContent, ` + string(encodedName) + ` + '\n0s');`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("tooltip regression: %v\n%s", err, output)
+	}
+}
+func TestTimingChartSortingScriptEscapesFunctionMarkers(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	name := "__f__alert(1)__f__"
+	chart := testTimingChart([]TestInfo{{
+		Identifier: []string{name}, StartedAt: start, FinishedAt: start.Add(time.Second),
+	}})
+	html := string(chart.RenderContent())
+	if strings.Contains(html, name) {
+		t.Fatal("sorting group names must not expose go-echarts function markers to renderer substitution")
+	}
+	if !strings.Contains(html, `\u005f\u005ff\u005f\u005falert(1)\u005f\u005ff\u005f\u005f`) {
+		t.Fatal("sorting group names must remain encoded as JavaScript string data")
+	}
+}
+
+func TestTimingChartSortingScript(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to execute chart sorting regression tests")
+	}
+	groups := []timingChartGroup{
+		{Name: "alpha", StartTime: 200, Duration: 7000, FirstRow: 0, Segments: []timingChartSegment{
+			{Name: "create", Kind: "create-cluster", Color: "#2563eb", Start: 0, End: 5000},
+			{Name: "nodepool", Kind: "create-nodepool", Color: "#0d9488", Start: 3000, End: 7000},
+		}},
+		{Name: "beta", StartTime: 100, Duration: 12000, FirstRow: 1},
+	}
+	sorting, err := json.Marshal(timingChartSortingJS("mockChart", groups, 120000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `const assert = require('node:assert/strict');
+const listeners = {};
+const windowListeners = {};
+const sort = {value: 'start', addEventListener: (event, handler) => listeners[event] = handler};
+let containerTop = 405;
+const document = {getElementById: id => id === 'timing-sort' ? sort : null, querySelector: selector => selector === '.container' ? {getBoundingClientRect:()=>({top:containerTop})} : null};
+const window = {innerHeight:1000,scrollY:0,addEventListener:(event,handler)=>windowListeners[event]=handler};
+const labels = ['alpha', 'beta'];
+const offsets = [{value:0},{value:50000}];
+const durations = [{value:7000},{value:12000}];
+const state = {yAxis:[{data:labels}],series:[{data:offsets},{data:durations}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
+const chart = {
+  updates: [],
+  height: 600,
+  dom: {style:{height:'60vh'},getBoundingClientRect:()=>({top:435})},
+  getOption: () => state,
+  getHeight: () => chart.height,
+  getDom: () => chart.dom,
+	resize: ({height}) => chart.height = height,
+	on: (event, handler) => listeners['chart:' + event] = handler,
+	setOption: option => {
+		chart.updates.push(option);
+		if (option.yAxis) state.yAxis = [{...state.yAxis[0], ...option.yAxis}];
+		if (option.series) state.series = option.series.map((s, i) => ({...state.series[i], ...s}));
+		if (option.dataZoom) state.dataZoom = option.dataZoom;
+	},
+	dispatchAction: action => {
+		const zoom = state.dataZoom.find(item => item.id === action.dataZoomId);
+		Object.assign(zoom, {start:action.start,end:action.end});
+		listeners['chart:datazoom']({batch:[action]});
+	}
+};
+require('node:vm').runInNewContext(` + string(sorting) + `, {mockChart:chart, document, window, Math, Number, echarts:{graphic:{clipRectByRect:shape=>shape}}});
+containerTop = 435;
+windowListeners.load();
+const sortedLabels = () => state.yAxis[0].data;
+assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels())), ['beta','alpha']);
+assert.equal(chart.height, 549);
+assert.equal(chart.dom.style.height, '549px');
+assert.equal(state.dataZoom[0].end, 100);
+sort.value = 'name'; listeners.change();
+assert.equal(sortedLabels()[0], 'alpha');
+const shapes = state.series[0].renderItem({dataIndex:0,coordSys:{}}, {value:i=>state.series[0].data[0].value[i], coord:([x,y])=>[x,y*26], size:()=>[0,26]}).children;
+assert.deepEqual(Array.from(shapes, s=>[s.shape.x,s.shape.width,s.style.fill]), [[0,3000,'#2563eb'],[3000,2000,'#2563eb'],[3000,2000,'#0d9488'],[5000,2000,'#0d9488']]);
+sort.value = 'duration'; listeners.change();
+assert.equal(sortedLabels()[0], 'beta');
+assert.equal(chart.height, 549);
+assert.equal(state.dataZoom[0].end, 100);
+const initialTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
+Object.assign(state.dataZoom[0], {start:0,end:40});
+listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:40}]});
+assert.equal(chart.height, 320);
+assert.equal(chart.dom.style.height, '320px');
+const zoomedTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
+assert.ok(zoomedTimeSpan < initialTimeSpan);
+Object.assign(state.dataZoom[0], {start:0,end:100});
+listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:100}]});
+assert.equal(chart.height, 549);
+assert.equal(chart.dom.style.height, '549px');
+assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > zoomedTimeSpan);
+window.innerHeight = 800;
+windowListeners.resize();
+assert.equal(chart.height, 349);
+assert.equal(chart.dom.style.height, '349px');
+containerTop = 700;
+window.innerHeight = 600;
+windowListeners.resize();
+assert.equal(chart.height, 320);
+assert.equal(chart.dom.style.height, '320px');
+assert.equal(sortedLabels().length, 2);
+assert.equal(state.dataZoom[0].end, 100);`
+	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
+		t.Fatalf("chart sorting and zoom regression: %v\n%s", err, output)
+	}
+}
+
+func TestTimingChartZoomIncludesBoundaryTests(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to execute chart zoom regression tests")
+	}
+	for _, count := range []int{1, 75} {
+		groups := make([]timingChartGroup, count)
+		for i := range groups {
+			duration := float64(1000)
+			if i == 15 || count == 1 {
+				duration = 80000
+			}
+			groups[i] = timingChartGroup{Name: "test", StartTime: int64(i), Duration: duration, FirstRow: i}
+		}
+		encodedGroups, err := json.Marshal(groups)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encodedScript, err := json.Marshal(timingChartSortingJS("mockChart", groups, 200000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		script := `const assert = require('node:assert/strict');
+const groups = ` + string(encodedGroups) + `;
+const listeners = {};
+const state = {
+	yAxis:[{data:groups.map(g=>g.name)}],
+	series:[{data:groups.map((_,i)=>({value:i*1000}))},{data:groups.map(g=>({value:g.duration}))}],
+	dataZoom:[{start:0,end:100},{start:0,end:100}]
+};
+const dom = {style:{height:'600px'}};
+let height = 600;
+const chart = {
+	getOption:()=>state, getDom:()=>dom, getHeight:()=>height, resize:o=>height=o.height,
+	on:(event,handler)=>listeners[event]=handler,
+	setOption:option=>{
+		if (option.yAxis) state.yAxis=[option.yAxis];
+		if (option.series) state.series=option.series;
+		if (option.dataZoom) state.dataZoom=option.dataZoom;
+	},
+	dispatchAction:action=>Object.assign(state.dataZoom[1],action)
+};
+require('node:vm').runInNewContext(` + string(encodedScript) + `, {
+	mockChart:chart,
+	document:{getElementById:()=>({value:'start',addEventListener:()=>{}}),querySelector:()=>({getBoundingClientRect:()=>({top:400})})},
+	window:{innerHeight:1000,scrollY:0,addEventListener:()=>{}}
+});
+for (const [start,end] of [[0,20],[20,40],[20,20],[0,100]]) {
+	Object.assign(state.dataZoom[0],{start,end});
+	listeners.datazoom({dataZoomId:'timing-rows',start,end});
+	const zoom = state.dataZoom[1];
+	const boundaryStart = groups.length === 1 ? 0 : 15000;
+	const boundaryEnd = boundaryStart + 80000;
+	assert.ok(zoom.start/100*200000 <= boundaryStart, 'time zoom clips boundary test start');
+	assert.ok(zoom.end/100*200000 >= boundaryEnd, 'time zoom clips boundary test end');
+	if (start !== 0 || end !== 100) {
+		const first = Math.round((groups.length-1)*start/100);
+		const last = Math.round((groups.length-1)*end/100);
+		assert.equal(height,Math.max(320,130+(last-first+1)*26));
+	}
+}`
+		if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
+			t.Fatalf("boundary zoom regression with %d tests: %v\n%s", count, err, output)
+		}
 	}
 }

@@ -127,7 +127,9 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 			} else if clipped.Kind != "" {
 				clipped.Name += " (outcome unknown)"
 			}
-			clipped.Kind = "operation"
+			if clipped.Kind == "phase" || clipped.Kind == "gap" || timingColor(clipped.Kind) == "" {
+				clipped.Kind = "operation"
+			}
 			rows = append(rows, clipped)
 		}
 	}
@@ -170,11 +172,67 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 	return rows
 }
 
+// Selects consistent row colors with contrast against both light and dark backgrounds.
+func timingColor(kind string) string {
+	switch kind {
+	case timing.KindCreateCluster, timing.KindCreateClusterRequest:
+		return "#2563eb"
+	case timing.KindCreateNodePool:
+		return "#0d9488"
+	case timing.KindDeleteCluster:
+		return "#d97706"
+	case timing.KindResourceGroupCleanup:
+		return "#db2777"
+	case "phase":
+		return "#9333ea"
+	case "gap":
+		return "#64748b"
+	default:
+		return ""
+	}
+}
+
 type durationSummary struct {
 	Name       string
+	Color      string
 	Count      int
 	Total      time.Duration
+	Min        time.Duration
+	Max        time.Duration
 	Incomplete int
+}
+
+// Records one successful sample without merging overlapping resource operations.
+func (s *durationSummary) add(duration time.Duration) {
+	if s.Count == 0 {
+		s.Min, s.Max = duration, duration
+	} else {
+		s.Min = min(s.Min, duration)
+		s.Max = max(s.Max, duration)
+	}
+	s.Count++
+	s.Total += duration
+}
+
+// Minimum formats the shortest successful sample, including a valid zero duration.
+func (s durationSummary) Minimum() string {
+	if s.Count == 0 {
+		return "N/A"
+	}
+	return formatTimingDuration(s.Min)
+}
+
+// Maximum formats the longest successful sample when one exists.
+func (s durationSummary) Maximum() string {
+	if s.Count == 0 {
+		return "N/A"
+	}
+	return formatTimingDuration(s.Max)
+}
+
+// Formats durations as whole seconds without rounding up.
+func formatTimingDuration(duration time.Duration) string {
+	return duration.Truncate(time.Second).String()
 }
 
 // Mean formats a duration only when the category has successful complete samples.
@@ -182,7 +240,7 @@ func (s durationSummary) Mean() string {
 	if s.Count == 0 {
 		return "N/A"
 	}
-	return (s.Total / time.Duration(s.Count)).String()
+	return formatTimingDuration(s.Total / time.Duration(s.Count))
 }
 
 type lifecycleSummary struct {
@@ -191,14 +249,14 @@ type lifecycleSummary struct {
 	Other, Full, Legacy               int
 }
 
-// Summarizes successful operations in passed tests independently of enclosing cleanup.
+// Summarizes successful operation duration ranges independently of enclosing cleanup.
 func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 	summary := lifecycleSummary{Rows: []durationSummary{
-		{Name: timing.KindCreateCluster},
-		{Name: timing.KindCreateNodePool},
-		{Name: timing.KindDeleteCluster},
-		{Name: timing.KindResourceGroupCleanup},
-		{Name: "Full cleanup"},
+		{Name: timing.KindCreateCluster, Color: timingColor(timing.KindCreateCluster)},
+		{Name: timing.KindCreateNodePool, Color: timingColor(timing.KindCreateNodePool)},
+		{Name: timing.KindDeleteCluster, Color: timingColor(timing.KindDeleteCluster)},
+		{Name: timing.KindResourceGroupCleanup, Color: timingColor(timing.KindResourceGroupCleanup)},
+		{Name: "Full cleanup", Color: timingColor("phase")},
 	}}
 	for _, item := range times {
 		if hasFullLifecycle(item) {
@@ -236,8 +294,7 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 				}
 				if clipped, ok := clipSpan(step, item.StartedAt, item.FinishedAt); ok {
 					// Each typed span records one resource operation, even when operations overlap.
-					summary.Rows[i].Count++
-					summary.Rows[i].Total += clipped.FinishedAt.Sub(clipped.StartedAt)
+					summary.Rows[i].add(clipped.FinishedAt.Sub(clipped.StartedAt))
 				}
 			}
 		}
@@ -256,8 +313,7 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 			if incomplete {
 				summary.Rows[4].Incomplete++
 			} else {
-				summary.Rows[4].Count++
-				summary.Rows[4].Total += item.FinishedAt.Sub(item.CleanupStartedAt)
+				summary.Rows[4].add(item.FinishedAt.Sub(item.CleanupStartedAt))
 			}
 		}
 	}
@@ -272,14 +328,22 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 .timing-summary p { margin: 8px 0; }
 .timing-summary table { width: 100%; border-collapse: collapse; text-align: left; }
 .timing-summary th, .timing-summary td { padding: 6px 8px; border-bottom: 1px solid GrayText; }
+.timing-controls { display: flex; gap: 12px; align-items: center; margin: 12px 0; }
+.timing-controls label { display: flex; gap: 8px; align-items: center; }
+.timing-controls select { color: CanvasText; background: Canvas; border: 1px solid GrayText; border-radius: 4px; padding: 6px; }
+@media (max-width: 640px) { .timing-controls { align-items: flex-start; flex-direction: column; } }
 </style><section class="timing-summary">
-<h2>Operation averages</h2>
+<h2>Operation durations</h2>
 <p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
-<table><thead><tr><th>Operation</th><th>Average</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr><td>{{.Name}}</td><td>{{.Mean}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Outline: test · Shaded: phase · Gray: untracked work.</p>
+<table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
+<p>Bar colors match the table · Purple: phase · Slate: untracked work. Each bar is one test; concurrent operations share the bar height. Vertical zoom expands selected tests for detail.</p>
+<div class="timing-controls">
+<label for="timing-sort">Sort tests by
+<select id="timing-sort"><option value="start">Start time (earliest first)</option><option value="duration">Total duration (longest first)</option><option value="name">Test name (A–Z)</option></select></label>
+</div>
 </section>`))
 
-// LifecycleSummaryHTML renders an escaped, visible summary above the timing chart.
+// Renders the duration summary and chart controls above the timing graph.
 func lifecycleSummaryHTML(times []TestInfo) ([]byte, error) {
 	var output bytes.Buffer
 	if err := summaryTemplate.Execute(&output, summarizeLifecycle(times)); err != nil {

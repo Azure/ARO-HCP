@@ -329,14 +329,21 @@ collected before deletion; final timing metadata and the spec outcome are saved
 after teardown, including failed or timed-out cleanup. SDK logging stays open
 through teardown.
 
-The report shows full test intervals, separate lifecycle phases and nested
-operation steps. Gray intervals identify work without a named operation span.
+The report shows one segmented bar per test. Operation colors occupy their actual
+time intervals within that bar; concurrent operations share its height rather
+than extending its duration. Phases fill intervals without a named operation,
+and gray identifies untracked work. Hover a test for its phase and operation timings.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
-The compact summary and chart follow the browser's light/dark color scheme.
+The summary and chart follow the browser's light/dark color scheme. The
+overview shows all tests within the available screen height. The
+vertical slider expands selected test bars for detail and the horizontal slider
+navigates the full time range. Sort tests by start time, total duration
+(longest first) or name.
 
-The summary reports means and sample counts for recorded cluster creation,
-nodepool creation, cluster deletion, resource-group cleanup and full cleanup.
+The summary reports minimum, mean and maximum durations plus sample counts for
+recorded cluster creation, nodepool creation, cluster deletion, resource-group
+cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
 or unknown-outcome tests are excluded. Typed resource-operation averages also
 require an explicit successful operation outcome: failed attempts, including
