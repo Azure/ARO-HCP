@@ -33,7 +33,7 @@ import (
 const observabilityArtifactPath = "aro-hcp-gather-observability/artifacts/"
 
 func fetchObservabilityRows(ctx context.Context, client *http.Client, prowURL string) ([]ciTestResult, []ciTestName, error) {
-	logger := utils.LoggerFromContext(ctx).WithValues("source", "observability")
+	logger := utils.LoggerFromContext(ctx).WithValues("source", sourceObservability)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	info, err := snapshot.ParseProwURL(prowURL)
 	if err != nil {
@@ -44,16 +44,16 @@ func fetchObservabilityRows(ctx context.Context, client *http.Client, prowURL st
 		return nil, nil, err
 	}
 	if len(data) == 0 {
-		snapshot.ReportProwArtifactProblem(ctx, "observability", "absent")
+		snapshot.ReportProwArtifactProblem(ctx, sourceObservability, "absent")
 		return nil, nil, nil
 	}
 	results, err := parseObservabilityFailures(data)
 	if err != nil {
 		logger.Error(err, "Observability JUnit absent or malformed, skipping source")
-		snapshot.ReportProwArtifactProblem(ctx, "observability", "malformed")
+		snapshot.ReportProwArtifactProblem(ctx, sourceObservability, "malformed")
 		return nil, nil, nil
 	}
-	rows, names := testRowsFor(info.ProwID, results)
+	rows, names := testRowsFor(info.ProwID, sourceObservability, results)
 	if len(rows) == 0 {
 		return rows, names, nil
 	}
@@ -63,7 +63,7 @@ func fetchObservabilityRows(ctx context.Context, client *http.Client, prowURL st
 		return nil, names, err
 	}
 	if len(data) == 0 {
-		snapshot.ReportProwArtifactProblem(ctx, "observability", "absent")
+		snapshot.ReportProwArtifactProblem(ctx, sourceObservability, "absent")
 		return rows, names, nil
 	}
 	var alerts struct {
@@ -74,7 +74,7 @@ func fetchObservabilityRows(ctx context.Context, client *http.Client, prowURL st
 	}
 	if err := json.Unmarshal(data, &alerts); err != nil {
 		logger.Error(err, "Observation window absent or malformed, keeping failures without timing")
-		snapshot.ReportProwArtifactProblem(ctx, "observability", "malformed")
+		snapshot.ReportProwArtifactProblem(ctx, sourceObservability, "malformed")
 	} else {
 		for i := range rows {
 			rows[i].StartedAt = alerts.TimeWindow.Start.UTC()

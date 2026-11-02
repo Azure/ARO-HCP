@@ -144,11 +144,11 @@ func TestOneShotDefaultChecksLiveTagsWithoutIngestors(t *testing.T) {
 		})
 		var output bytes.Buffer
 		require.NoError(t, w.RunOnce(t.Context(), OneShotOptions{JobURIs: []JobURI{testJobURI}}, &output))
-		require.Equal(t, int32(5), queries.Load(), "fresh commands check live tags regardless of cached batches")
+		require.Equal(t, int32(len(batchKinds)), queries.Load(), "fresh commands check live tags regardless of cached batches")
 		if exists {
-			require.Equal(t, 5, strings.Count(output.String(), `"status":"existing"`))
+			require.Equal(t, len(batchKinds), strings.Count(output.String(), `"status":"existing"`))
 		} else {
-			require.Equal(t, 5, strings.Count(output.String(), `"status":"would-submit"`))
+			require.Equal(t, len(batchKinds), strings.Count(output.String(), `"status":"would-submit"`))
 		}
 	}
 }
@@ -177,8 +177,8 @@ func TestOneShotIngestAndPendingReturnWithoutRetry(t *testing.T) {
 			require.Zero(t, submitted)
 			require.Contains(t, output.String(), `"status":"pending"`)
 		} else {
-			require.Equal(t, 5, submitted)
-			require.Equal(t, 5, strings.Count(output.String(), `"status":"submitted"`))
+			require.Equal(t, len(batchKinds), submitted)
+			require.Equal(t, len(batchKinds), strings.Count(output.String(), `"status":"submitted"`))
 		}
 		require.Contains(t, output.String(), `"status":"waiting"`)
 		require.NotContains(t, output.String(), `"payload"`)

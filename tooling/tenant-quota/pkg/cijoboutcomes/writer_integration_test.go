@@ -197,7 +197,8 @@ func TestWriterKustoIntegration(t *testing.T) {
 		for _, guard := range []struct {
 			kind             batchKind
 			column, dataType string
-		}{{runBatch, "adoBuildId", "string"}, {testsBatch, "message", "string"}, {discoveredBatch, "jobUri", "string"},
+		}{{runBatch, "adoBuildId", "string"}, {testsBatch, "message", "string"}, {testsBatch, "source", "string"},
+			{discoveredBatch, "jobUri", "string"},
 			{runBatch, "runtimeRegion", "string"}, {runBatch, "leasedSlot", "string"}, {runBatch, "leasedAssets", "dynamic"},
 			{discoveredBatch, "buildId", "string"}, {discoveredBatch, "jobName", "string"}, {processedBatch, "buildId", "string"}} {
 			require.NoError(t, w.checkMapping(ctx, client, w.target(guard.kind), guard.column, guard.dataType))
@@ -257,5 +258,19 @@ func TestWriterKustoIntegration(t *testing.T) {
 			[]string{"slot-empty"})
 		check(`ciJobOutcomes | where buildId == "slot-absent" and isnull(leasedAssets) | project value = buildId`,
 			[]string{"slot-absent"})
+	})
+	t.Run("pipeline sources in test results", func(t *testing.T) {
+		rows := []ciTestResult{
+			{BuildID: "rp-build", TestID: "step", Source: sourceRPProvision, Result: "passed"},
+			{BuildID: "rp-build", TestID: "step", Source: sourceRPUpgrade, Result: "failed", Failed: true, Message: "boom"},
+		}
+		payload, err := encodeRows(rows)
+		require.NoError(t, err)
+		exec(t, (&kql.Builder{}).AddUnsafe(
+			`.ingest inline into table ciTestResults with (format="multijson", ingestionMappingReference="ciTestResultsMapping") <| `+payload.String()))
+		got, err := queryStrings(ctx, client, database, (&kql.Builder{}).AddUnsafe(
+			`ciTestResults | where buildId == "rp-build" | project value = strcat(source, "/", result, "/", message)`), "value")
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"rp-provision/passed/", "rp-upgrade/failed/boom"}, got)
 	})
 }
