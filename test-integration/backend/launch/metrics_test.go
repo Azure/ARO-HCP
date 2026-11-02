@@ -47,10 +47,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -126,9 +128,10 @@ func TestBackendExposesMetrics(t *testing.T) {
 			AzureLocation:           "fake-location",
 			LeaderElectionLock:      newFakeLeaderElectionLock("metrics-test"),
 			StorageFactory: &metricsTestStorageFactory{
-				resources: resourcesDBClient,
-				billing:   billingDBClient,
-				fleet:     fleetcosmosstoragetesting.NewMockFleetDBClient(),
+				resources:      resourcesDBClient,
+				billing:        billingDBClient,
+				fleet:          fleetcosmosstoragetesting.NewMockFleetDBClient(),
+				azureResources: azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
 			},
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
 			VersionProfileSource:               emptyVersionProfileSource{},
@@ -330,9 +333,10 @@ func (l *fakeLeaderElectionLock) store(record resourcelock.LeaderElectionRecord)
 
 // The metrics smoke test shares its in-memory fixtures between all controllers.
 type metricsTestStorageFactory struct {
-	resources corecosmosstorage.ResourcesDBClient
-	billing   billingcosmosstorage.BillingDBClient
-	fleet     fleetcosmosstorage.FleetDBClient
+	resources      corecosmosstorage.ResourcesDBClient
+	billing        billingcosmosstorage.BillingDBClient
+	fleet          fleetcosmosstorage.FleetDBClient
+	azureResources azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 func (f *metricsTestStorageFactory) ResourcesStorageClient(string) corecosmosstorage.ResourcesDBClient {
@@ -343,6 +347,9 @@ func (f *metricsTestStorageFactory) BillingStorageClient(string) billingcosmosst
 }
 func (f *metricsTestStorageFactory) FleetStorageClient(string) fleetcosmosstorage.FleetDBClient {
 	return f.fleet
+}
+func (f *metricsTestStorageFactory) AzureResourcesStorageClient(string) azureresourcescosmosstorage.AzureResourcesDBClient {
+	return f.azureResources
 }
 func (f *metricsTestStorageFactory) KubeApplierStorageClients(string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return nil

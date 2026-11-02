@@ -31,13 +31,18 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -58,10 +63,11 @@ const (
 // Historical assignments outside the desired set are not discovered or adopted.
 type roleAssignmentsSyncer struct {
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient        azureresourcescosmosstorage.AzureResourcesDBClient
 	clusterLister                 corelisters.ClusterLister
 	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
 	subscriptionLister            corelisters.SubscriptionLister
-	stackDesireLister             corelisters.StackDesireLister
+	stackDesireLister             azureresourceslisters.DeploymentStackDesireLister
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
 }
 
@@ -69,17 +75,20 @@ var _ controllerutils.ClusterSyncer = (*roleAssignmentsSyncer)(nil)
 
 func NewRoleAssignmentsController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	subscriptionLister corelisters.SubscriptionLister,
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 	informers coreinformers.BackendInformers,
+	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
-	stackInformer, stackLister := informers.StackDesires()
+	stackInformer, stackLister := azureResourcesInformers.DeploymentStackDesires()
 
 	syncer := &roleAssignmentsSyncer{
 		resourcesDBClient:             resourcesDBClient,
+		azureResourcesDBClient:        azureResourcesDBClient,
 		clusterLister:                 clusterLister,
 		serviceProviderClusterLister:  serviceProviderClusterLister,
 		subscriptionLister:            subscriptionLister,
@@ -96,7 +105,7 @@ func NewRoleAssignmentsController(
 	if err := controller.QueueForChildInformers(5*time.Minute, stackInformer); err != nil {
 		panic(err)
 	}
-	controller.AddInterestingResource(coreapi.StackDesireResourceType, RoleAssignmentsDesireName)
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, RoleAssignmentsDesireName)
 
 	return controller
 }
@@ -106,7 +115,10 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	desires := c.resourcesDBClient.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	desires, err2 := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err2 != nil {
+		return utils.TrackError(fmt.Errorf("failed to resolve DeploymentStackDesire CRUD: %w", err2))
+	}
 	if cosmosstorageutils.IsNotFoundError(err) || cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		// MRG deletion removes the stack and assignments. Stop publishing immediately;
 		// do not ask the generic applier to issue an Azure DELETE during cluster teardown.
@@ -130,11 +142,11 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 	}
-	hash, err := coreapi.StackDesireSpecHash(spec)
+	hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(spec)
 	if err != nil {
 		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 	}
-	existing, err := c.stackDesireLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName)
+	existing, err := c.stackDesireLister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName))
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get StackDesire: %w", err))
 	}
@@ -143,13 +155,13 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 	ready := false
 	if existing != nil {
-		existingHash, err := coreapi.StackDesireSpecHash(existing.Spec)
+		existingHash, err := azureresourcesapi.DeploymentStackDesireSpecHash(existing.Spec)
 		if err != nil {
 			return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 		}
 		stack := existing.Status.Stack
 		ready = existingHash == hash && existing.Status.ObservedSpecHash == hash &&
-			meta.IsStatusConditionTrue(existing.Status.Conditions, coreapi.StackDesireConditionSuccessfullyApplied) &&
+			meta.IsStatusConditionTrue(existing.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied) &&
 			stack != nil && stack.Properties != nil && stack.Properties.ProvisioningState != nil &&
 			strings.EqualFold(string(*stack.Properties.ProvisioningState), string(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded))
 	}
@@ -157,7 +169,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err := c.setStackReady(ctx, cluster, spc, ready); err != nil {
 		return err
 	}
-	var replacement *coreapi.StackDesire
+	var replacement *azureresourcesapi.DeploymentStackDesire
 	if existing != nil {
 		replacement = existing.DeepCopy()
 		replacement.Spec = spec
@@ -178,11 +190,11 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 	if existing == nil {
-		resourceID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/" + coreapi.StackDesireResourceTypeName + "/" + RoleAssignmentsDesireName)
+		resourceID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/" + RoleAssignmentsDesireName)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		_, err = desires.Create(ctx, &coreapi.StackDesire{
+		_, err = desires.Create(ctx, &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(key.SubscriptionID)},
 			Spec:           spec,
 		}, nil)
@@ -205,25 +217,25 @@ func (c *roleAssignmentsSyncer) setStackReady(ctx context.Context, cluster *core
 	return nil
 }
 
-func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (coreapi.StackDesireSpec, error) {
+func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (azureresourcesapi.DeploymentStackDesireSpec, error) {
 	expected, err := c.expectedRoleAssignments(cluster, spc)
 	if err != nil {
-		return coreapi.StackDesireSpec{}, err
+		return azureresourcesapi.DeploymentStackDesireSpec{}, err
 	}
 	subscription, err := c.subscriptionLister.Get(ctx, cluster.ID.SubscriptionID)
 	if err != nil {
-		return coreapi.StackDesireSpec{}, fmt.Errorf("failed to get subscription: %w", err)
+		return azureresourcesapi.DeploymentStackDesireSpec{}, fmt.Errorf("failed to get subscription: %w", err)
 	}
 	if subscription.Properties == nil || subscription.Properties.TenantId == nil || len(*subscription.Properties.TenantId) == 0 {
-		return coreapi.StackDesireSpec{}, fmt.Errorf("subscription %q has no tenant ID", cluster.ID.SubscriptionID)
+		return azureresourcesapi.DeploymentStackDesireSpec{}, fmt.Errorf("subscription %q has no tenant ID", cluster.ID.SubscriptionID)
 	}
 	scope, err := coreapihelpers.ToResourceGroupResourceID(cluster.ID.SubscriptionID, cluster.CustomerProperties.Platform.ManagedResourceGroup)
 	if err != nil {
-		return coreapi.StackDesireSpec{}, err
+		return azureresourcesapi.DeploymentStackDesireSpec{}, err
 	}
 	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + RoleAssignmentsStackName)
 	if err != nil {
-		return coreapi.StackDesireSpec{}, err
+		return azureresourcesapi.DeploymentStackDesireSpec{}, err
 	}
 	resources := make([]any, 0, len(expected))
 	for _, assignment := range expected {
@@ -239,10 +251,10 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 		})
 	}
 	// Resource-group-scoped stacks use the resource group's location.
-	return coreapi.StackDesireSpec{
+	return azureresourcesapi.DeploymentStackDesireSpec{
 		TargetResourceID: target,
-		Authentication:   coreapi.StackDesireAuthentication{Type: coreapi.StackDesireAuthenticationTypeFPA, TenantID: *subscription.Properties.TenantId},
-		Action:           coreapi.StackDesireActionApply,
+		Authentication:   azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, TenantID: *subscription.Properties.TenantId},
+		Action:           azureresourcesapi.DeploymentStackDesireActionApply,
 		Stack: &armdeploymentstacks.DeploymentStack{
 			Properties: &armdeploymentstacks.DeploymentStackProperties{
 				ActionOnUnmanage: &armdeploymentstacks.ActionOnUnmanage{

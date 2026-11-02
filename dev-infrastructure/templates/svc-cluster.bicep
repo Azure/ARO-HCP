@@ -428,6 +428,7 @@ param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
 param fleetContainerMaxScale int
+param azureResourcesContainerMaxScale int
 
 @description('The name of the Exporter managed identity')
 param exporterMIName string
@@ -842,6 +843,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') 
     billingContainerMaxScale: billingContainerMaxScale
     locksContainerMaxScale: locksContainerMaxScale
     fleetContainerMaxScale: fleetContainerMaxScale
+    azureResourcesContainerMaxScale: azureResourcesContainerMaxScale
   }
 }
 

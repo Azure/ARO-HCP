@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -42,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -642,9 +644,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
 			syncer := &clusterChildResourcesCleanupController{
-				clusterLister:        &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
-				resourcesDBClient:    mockResourcesDBClient,
-				kubeApplierDBClients: mockKubeApplierDBClients,
+				clusterLister:          &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
+				resourcesDBClient:      mockResourcesDBClient,
+				azureResourcesDBClient: azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient(),
+				kubeApplierDBClients:   mockKubeApplierDBClients,
 			}
 
 			if tc.clientError != nil {
@@ -727,7 +730,7 @@ func TestChildCleanupGateResolutionErrors(t *testing.T) {
 	}
 }
 
-func TestStackDesireGenericCleanup(t *testing.T) {
+func TestDeploymentStackDesireExplicitCleanup(t *testing.T) {
 	for _, orphaned := range []bool{false, true} {
 		t.Run(fmt.Sprintf("orphaned=%t", orphaned), func(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -736,30 +739,36 @@ func TestStackDesireGenericCleanup(t *testing.T) {
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = cluster.ServiceProviderProperties.DeletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			})
-			desire := &coreapi.StackDesire{CosmosMetadata: coreapi.CosmosMetadata{
-				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + coreapi.StackDesireResourceTypeName + "/role-assignments")),
+			desire := &azureresourcesapi.DeploymentStackDesire{CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/role-assignments")),
 				PartitionKey: strings.ToLower(testSubscriptionID),
 			}}
-			resources := []any{desire}
+			azureResourcesDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{desire})
+			require.NoError(t, err)
+
+			resources := []any{}
 			if !orphaned {
 				resources = append(resources, cluster)
 			}
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 			if orphaned {
-				controller := mismatch.NewDeleteOrphanedCosmosResourcesController(nil, db, nil, nil, &fleetlistertesting.SliceManagementClusterLister{})
+				controller := mismatch.NewDeleteOrphanedCosmosResourcesController(nil, db, azureResourcesDB, nil, nil, &fleetlistertesting.SliceManagementClusterLister{})
 				require.NoError(t, controller.SyncOnce(ctx, testSubscriptionID))
 			} else {
 				controller := &clusterChildResourcesCleanupController{
-					clusterLister:     &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
-					resourcesDBClient: db,
+					clusterLister:          &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+					resourcesDBClient:      db,
+					azureResourcesDBClient: azureResourcesDB,
 				}
 				require.NoError(t, controller.SyncOnce(ctx, controllerutils.HCPClusterKey{
 					SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName,
 				}))
 			}
-			_, err = db.StackDesires(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, "role-assignments")
-			require.True(t, cosmosstorageutils.IsNotFoundError(err), "generic Resources sweep must remove StackDesire without a type-specific hook")
+			desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			_, err = desires.Get(ctx, "role-assignments")
+			require.True(t, cosmosstorageutils.IsNotFoundError(err), "explicit DeploymentStackDesire cleanup hook must remove the desire from the AzureResources container")
 		})
 	}
 }

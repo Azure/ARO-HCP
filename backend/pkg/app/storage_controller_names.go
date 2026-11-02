@@ -88,13 +88,14 @@ func BackendStorageFactoryOptions(controllerContext ControllerContext) StorageFa
 	}
 
 	return StorageFactoryOptions{
-		ResourcesRUsPerSecond:   19000,
-		BillingRUsPerSecond:     4000,
-		FleetRUsPerSecond:       4000,
-		KubeApplierRUsPerSecond: 19000,
-		KubeApplierUtilization:  0.3,
-		ControllerNames:         controllerNames,
-		ControllerFractions:     controllerFractions,
+		ResourcesRUsPerSecond:      19000,
+		BillingRUsPerSecond:        4000,
+		FleetRUsPerSecond:          4000,
+		KubeApplierRUsPerSecond:    19000,
+		AzureResourcesRUsPerSecond: 4000,
+		KubeApplierUtilization:     0.3,
+		ControllerNames:            controllerNames,
+		ControllerFractions:        controllerFractions,
 		UnlimitedControllerNames: []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,

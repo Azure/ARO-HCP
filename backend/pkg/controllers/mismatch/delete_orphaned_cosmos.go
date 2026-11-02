@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -65,6 +66,7 @@ type deleteOrphanedCosmosResources struct {
 	subscriptionLister      corelisters.SubscriptionLister
 	managementClusterLister fleetlisters.ManagementClusterLister
 	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient  azureresourcescosmosstorage.AzureResourcesDBClient
 	kubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -86,6 +88,7 @@ const DeleteOrphanedCosmosResourcesControllerName = "DeleteOrphanedCosmosResourc
 func NewDeleteOrphanedCosmosResourcesController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	subscriptionLister corelisters.SubscriptionLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
@@ -99,6 +102,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 		subscriptionLister:      subscriptionLister,
 		managementClusterLister: managementClusterLister,
 		resourcesDBClient:       resourcesDBClient,
+		azureResourcesDBClient:  azureResourcesDBClient,
 		kubeApplierDBClients:    kubeApplierDBClients,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
@@ -164,6 +168,78 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err != nil {
 		errs = append(errs, err)
 	}
+	if err := c.sweepOrphanedAzureResources(ctx, subscriptionResourceID, allSubscriptionResourceIDs, sweepStart); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+// sweepOrphanedAzureResources mirrors sweepOrphanedResources but walks the
+// separate AzureResources container (today: DeploymentStackDesire), which is
+// never reached by the Resources-container listing above. Parent existence is
+// still checked against allSubscriptionResourceIDs, since parents such as
+// Clusters continue to live in the Resources container.
+func (c *deleteOrphanedCosmosResources) sweepOrphanedAzureResources(
+	ctx context.Context,
+	subscriptionResourceID *azcorearm.ResourceID,
+	allSubscriptionResourceIDs map[string]*cosmosstorageutils.TypedDocument,
+	sweepStart time.Time,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	if c.azureResourcesDBClient == nil {
+		logger.V(2).Info("azure resources client unavailable; skipping azure resources sweep")
+		return nil
+	}
+
+	untypedCRUD, err := c.azureResourcesDBClient.UntypedCRUD(*subscriptionResourceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if untypedCRUD == nil {
+		logger.V(2).Info("azure resources client unavailable; skipping incomplete subscription sweep")
+		return nil
+	}
+
+	resourceIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	errs := []error{}
+	for _, resource := range resourceIterator.Items(ctx) {
+		if resource.ResourceID == nil {
+			localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(resource.CosmosResourceID))
+			localLogger.Error(errors.New("cosmos document has no resource ID"), "found invalid document")
+			continue
+		}
+
+		resourceIDString := strings.ToLower(resource.ResourceID.String())
+		logger := logger.WithValues(
+			utils.LogValues{}.
+				AddCosmosResourceID(resourceIDString).
+				AddLogValuesForResourceID(resource.ResourceID)...)
+		ctxWithLogger := utils.ContextWithLogger(ctx, logger)
+
+		if resource.ResourceID.Parent == nil {
+			logger.Error(nil, "azure resources cosmos resource has no parent", "cosmosResourceID", resourceIDString)
+			continue
+		}
+		if !canDeleteOrphan(ctxWithLogger, allSubscriptionResourceIDs, resource, sweepStart) {
+			continue
+		}
+
+		logger.Info("deleting orphaned azure resources cosmos resource by cosmos ID")
+		if err := untypedCRUD.DeleteByCosmosID(ctxWithLogger, resource.PartitionKey, resource.ID); err != nil {
+			logger.Error(err, "unable to delete orphaned azure resources cosmos resource")
+			errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", resourceIDString, resource.ResourceID.Parent.String(), err)))
+			continue
+		}
+	}
+	if err := resourceIterator.GetError(); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	}
+
 	return errors.Join(errs...)
 }
 

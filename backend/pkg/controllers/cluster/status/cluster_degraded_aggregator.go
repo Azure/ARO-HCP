@@ -29,12 +29,15 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -65,7 +68,7 @@ type clusterDegradedAggregator struct {
 	// folded into the same aggregate Degraded condition.
 	applyDesireLister kubeapplierlisters.ApplyDesireLister
 	readDesireLister  kubeapplierlisters.ReadDesireLister
-	stackDesireLister corelisters.StackDesireLister
+	stackDesireLister azureresourceslisters.DeploymentStackDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
@@ -93,6 +96,7 @@ func NewClusterDegradedAggregatorController(
 	clusterLister corelisters.ClusterLister,
 	controllerLister corelisters.ControllerLister,
 	informers coreinformers.BackendInformers,
+	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {
@@ -104,7 +108,7 @@ func NewClusterDegradedAggregatorController(
 	// wiring in the caller is needed.
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
-	stackInformer, stackDesireLister := informers.StackDesires()
+	stackInformer, stackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 	syncer := &clusterDegradedAggregator{
 		clusterLister:     clusterLister,
 		controllerLister:  controllerLister,
@@ -137,7 +141,7 @@ func NewClusterDegradedAggregatorController(
 	if err := controller.QueueForChildInformers(1*time.Minute, stackInformer); err != nil {
 		panic(err)
 	}
-	controller.AddInterestingResource(coreapi.StackDesireResourceType, "*")
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, "*")
 
 	return controller
 }
@@ -194,11 +198,11 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	// Stack outcomes describe only their observed spec. Pending desires without
 	// a Degraded condition are not failures and must not synthesize degradation.
 	for _, desire := range stackDesires {
-		condition := apimeta.FindStatusCondition(desire.Status.Conditions, coreapi.StackDesireConditionDegraded)
+		condition := apimeta.FindStatusCondition(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionDegraded)
 		if desire.ResourceID == nil || condition == nil || condition.Status == metav1.ConditionFalse {
 			continue
 		}
-		hash, err := coreapi.StackDesireSpecHash(desire.Spec)
+		hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to hash StackDesire %s: %w", desire.ResourceID, err))
 		}

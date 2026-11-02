@@ -31,7 +31,8 @@ DEEPCOPY_GEN="${DEEPCOPY_GEN:-deepcopy-gen}"
   github.com/Azure/ARO-HCP/internal/api/metadataapi \
   github.com/Azure/ARO-HCP/internal/api/coreapi \
   github.com/Azure/ARO-HCP/internal/api/fleetapi \
-  github.com/Azure/ARO-HCP/internal/api/kubeapplierapi
+  github.com/Azure/ARO-HCP/internal/api/kubeapplierapi \
+  github.com/Azure/ARO-HCP/internal/api/azureresourcesapi
 
 # Post-process generated files.
 #
@@ -49,7 +50,8 @@ for f in \
   "${REPO_ROOT}/internal/api/metadataapi/zz_generated.deepcopy.go" \
   "${REPO_ROOT}/internal/api/coreapi/zz_generated.deepcopy.go" \
   "${REPO_ROOT}/internal/api/fleetapi/zz_generated.deepcopy.go" \
-  "${REPO_ROOT}/internal/api/kubeapplierapi/zz_generated.deepcopy.go"; do
+  "${REPO_ROOT}/internal/api/kubeapplierapi/zz_generated.deepcopy.go" \
+  "${REPO_ROOT}/internal/api/azureresourcesapi/zz_generated.deepcopy.go"; do
 
   if [[ ! -f "${f}" ]]; then
     continue

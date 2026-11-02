@@ -175,6 +175,7 @@ param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScal
 param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 param fleetContainerMaxScale = {{ .frontend.cosmosDB.fleetContainerMaxScale }}
+param azureResourcesContainerMaxScale = {{ .frontend.cosmosDB.azureResourcesContainerMaxScale }}
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

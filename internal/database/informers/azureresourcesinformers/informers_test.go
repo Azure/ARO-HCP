@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreinformers
+package azureresourcesinformers
 
 import (
 	"context"
@@ -24,28 +24,33 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 )
 
-func TestStackDesireInformer(t *testing.T) {
+func TestDeploymentStackDesireInformer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	db := corecosmosstoragetesting.NewMockResourcesDBClient()
-	informer := NewStackDesireInformer(db.ResourcesGlobalListers().StackDesires(), db)
-	lister := corelisters.NewStackDesireLister(informer.GetIndexer())
+	db := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient()
+	informer := NewDeploymentStackDesireInformer(db.GlobalListers().DeploymentStackDesires(), db)
+	lister := azureresourceslisters.NewDeploymentStackDesireLister(informer.GetIndexer())
 	var workers sync.WaitGroup
 	workers.Go(func() { informer.RunWithContext(ctx) })
 	defer workers.Wait()
 	defer cancel()
 	require.True(t, cache.WaitForCacheSync(ctx.Done(), informer.HasSynced))
 	for _, cluster := range []string{"cluster", "other"} {
-		id := mustParseResourceID(t, "/subscriptions/Sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+cluster+"/stackDesires/Desire")
-		_, err := db.StackDesires("sub", "rg", cluster).Create(ctx, &coreapi.StackDesire{
+		crud, err := db.DeploymentStackDesiresForCluster("sub", "rg", cluster)
+		require.NoError(t, err)
+		id := mustParseResourceID(t, "/subscriptions/Sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+cluster+"/azureDeploymentStackDesires/Desire")
+		_, err = crud.Create(ctx, &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub"},
-			Spec:           coreapi.StackDesireSpec{Action: coreapi.StackDesireActionApply, Stack: &armdeploymentstacks.DeploymentStack{}},
+			Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionApply, Stack: &armdeploymentstacks.DeploymentStack{}},
 		}, nil)
 		require.NoError(t, err)
 	}
@@ -56,20 +61,29 @@ func TestStackDesireInformer(t *testing.T) {
 	items, err := lister.ListForCluster(ctx, "SUB", "rg", "CLUSTER")
 	require.NoError(t, err)
 	require.Len(t, items, 1, "cluster index must isolate desires by owning cluster")
-	item, err := lister.Get(ctx, "SUB", "rg", "CLUSTER", "DESIRE")
+	item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString("SUB", "rg", "CLUSTER", "DESIRE"))
 	require.NoError(t, err)
 	require.Same(t, items[0], item)
 	updated := item.DeepCopy()
 	updated.Status.ObservedSpecHash = "updated"
-	_, err = db.StackDesires("sub", "rg", "cluster").Replace(ctx, updated, nil)
+	crud, err := db.DeploymentStackDesiresForCluster("sub", "rg", "cluster")
+	require.NoError(t, err)
+	_, err = crud.Replace(ctx, updated, nil)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		item, err := lister.Get(ctx, "sub", "rg", "cluster", "desire")
+		item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString("sub", "rg", "cluster", "desire"))
 		return err == nil && item.Status.ObservedSpecHash == "updated"
 	}, 10*time.Second, 20*time.Millisecond)
-	require.NoError(t, db.StackDesires("sub", "rg", "cluster").Delete(ctx, "desire"))
+	require.NoError(t, crud.Delete(ctx, "desire"))
 	require.Eventually(t, func() bool {
 		items, err := lister.ListForCluster(ctx, "sub", "rg", "cluster")
 		return err == nil && len(items) == 0
 	}, 10*time.Second, 20*time.Millisecond, "deletion must stop management through the change feed")
+}
+
+func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
+	t.Helper()
+	rid, err := azcorearm.ParseResourceID(id)
+	require.NoError(t, err)
+	return rid
 }
