@@ -648,62 +648,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'OrphanedMRGDetected'
-        enabled: true
-        labels: {
-          component: 'backend'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
-          description: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
-          info: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-        }
-        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'OrphanedMRGDeletionFailing'
-        enabled: true
-        labels: {
-          component: 'backend'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
-          description: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
-          info: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-        }
-        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
     ]
     scopes: [
       azureMonitoring

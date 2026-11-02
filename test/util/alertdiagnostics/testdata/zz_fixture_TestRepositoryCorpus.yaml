@@ -619,50 +619,6 @@
           - operator: ==
             value: 1
         unsupported: ""
-- source: backend/alerts/backend-prometheusRule.yaml
-  group: backend
-  alert: OrphanedMRGDeletionFailing
-  occurrence: 1
-  input: |
-    max by (location, subscription_id, managed_resource_group_name, cluster) (
-      max without(prometheus_replica) (
-        increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])
-      )
-    ) > 0
-  plan:
-    expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
-    conditions:
-      - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
-        path: root
-        queries:
-          - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: backend/alerts/backend-prometheusRule.yaml
-  group: backend
-  alert: OrphanedMRGDetected
-  occurrence: 1
-  input: |
-    max by (location, subscription_id, managed_resource_group_name, cluster) (
-      max without(prometheus_replica) (
-        aro_hcp_orphaned_managed_resource_groups_present
-      )
-    ) > 0
-  plan:
-    expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0
-    conditions:
-      - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0
-        path: root
-        queries:
-          - expression: max by (location, subscription_id, managed_resource_group_name, cluster) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
 - source: backend/alerts/backend-retryhotloop-prometheusRule.yaml
   group: backend-retryhotloop
   alert: BackendControllerRetryHotLoop
@@ -1303,40 +1259,6 @@
         thresholds:
           - operator: ==
             value: 1
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
-  group: backend
-  alert: OrphanedMRGDeletionFailing
-  occurrence: 1
-  input: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
-  plan:
-    expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
-    conditions:
-      - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0
-        path: root
-        queries:
-          - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
-        unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
-  group: backend
-  alert: OrphanedMRGDetected
-  occurrence: 1
-  input: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0
-  plan:
-    expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0
-    conditions:
-      - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0
-        path: root
-        queries:
-          - expression: max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present))
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedDevServicesPrometheusAlertingRules.bicep
   group: backend-async-operations

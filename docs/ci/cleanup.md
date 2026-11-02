@@ -239,9 +239,7 @@ The backend remains read-only unless
 `CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE=readwrite` is explicitly configured.
 This ownership check does not apply the sweeper's retention or `createdAt`
 policy, repair missing tags, or prove a live cluster exists. Periodic cleanup
-remains responsible for background hygiene; the `OrphanedMRGDetected` known-issue
-classification must be reassessed separately after rollout and backlog
-verification.
+remains responsible for background hygiene.
 
 #### Tracing sweeper deletions
 
