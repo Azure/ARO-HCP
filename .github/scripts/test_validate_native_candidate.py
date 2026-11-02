@@ -828,6 +828,39 @@ class CommandBoundaryTests(unittest.TestCase):
         self.root.mkdir()
         self.validator = runner.Validator(self.root, self.directory / "artifacts")
 
+    def test_inherited_make_controls_cannot_hide_recipe_failures(self):
+        (self.root / "Makefile").write_text("check:\n\t@echo executed > marker\n\t@exit 37\n")
+        for name in ("MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS"):
+            for flag in ("-i", "-n", "-q", "-t"):
+                with self.subTest(variable=name, flag=flag):
+                    (self.root / "marker").unlink(missing_ok=True)
+                    with patch.dict(os.environ, {name: flag}):
+                        with self.assertRaisesRegex(ValueError, "exited"):
+                            self.validator.run("make-consumer", ("make", "check"))
+                    self.assertEqual((self.root / "marker").read_text(), "executed\n")
+                    step = self.validator.results["steps"][-1]
+                    self.assertNotEqual(step["returncode"], 0)
+                    self.assertEqual(step["status"], "failed")
+                    self.assertIn("37", Path(step["log"]).read_text())
+
+    def test_inherited_makefiles_cannot_override_consumers_or_recursive_checks(self):
+        (self.root / "Makefile").write_text("check:\n\t@$(MAKE) -f child.mk verify\n")
+        (self.root / "child.mk").write_text("verify:\n\t@echo checked > marker\n\t@exit 37\n")
+        extra = self.directory / "inherited.mk"
+        extra.write_text("override MAKEFLAGS += -i\n")
+        controls = {"MAKEFILES": str(extra), "MAKELEVEL": "10", "MAKEOVERRIDES": "MAKEFLAGS=-i"}
+        with patch.dict(os.environ, controls):
+            with self.assertRaisesRegex(ValueError, "exited"):
+                self.validator.run("recursive-consumer", ("make", "check"))
+        self.assertEqual((self.root / "marker").read_text(), "checked\n")
+        self.assertNotEqual(self.validator.results["steps"][-1]["returncode"], 0)
+
+    def test_consumer_overrides_cannot_reenable_make_dry_run(self):
+        (self.root / "Makefile").write_text("check:\n\t@echo checked > marker\n\t@exit 37\n")
+        with self.assertRaisesRegex(ValueError, "exited"):
+            self.validator.run("make-consumer", ("make", "check"), env_overrides={"MAKEFLAGS": "-n"})
+        self.assertEqual((self.root / "marker").read_text(), "checked\n")
+
     def test_nonzero_preserves_full_combined_output_and_exit_status(self):
         text = "diagnostic" * 1000
         with self.assertRaisesRegex(ValueError, "exited 7"):

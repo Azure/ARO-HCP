@@ -254,6 +254,9 @@ class Validator:
         env = os.environ.copy()
         env["CI"] = "true"
         env.update(env_overrides or {})
+        # Inherited Make controls must not skip recipes or ignore their failures.
+        for key in ("MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEOVERRIDES", "MAKEFILES", "MAKELEVEL"):
+            env.pop(key, None)
         try:
             with log.open("wb") as output:
                 process = subprocess.Popen(list(argv), cwd=cwd, env=env, stdout=output,
