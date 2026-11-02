@@ -77,6 +77,79 @@ def assess(data, expected=HEAD):
     return guard.assess(data, REPO, NUMBER, expected)
 
 
+class InventoryTests(TestCase):
+    def issue(self, number):
+        return {"number": number, "pull_request": {"url": f"repos/{REPO}/pulls/{number}"},
+                "user": {"login": guard.ROBOT}}
+
+    def test_branch_identity_comes_from_pr_details_not_issue_rows(self):
+        image = snapshot()["pull"]
+        image.update(number=7894, title="Automated - Update component image digests")
+        image["head"]["ref"] = "update-component-images"
+        owned = snapshot()["pull"]
+        rows = [self.issue(7894), self.issue(NUMBER)]
+        self.assertTrue(all("head" not in row for row in rows))
+        with patch.object(guard, "gh_lines", return_value=rows), \
+                patch.object(guard, "fetch_pull", side_effect=[image, owned]) as details, \
+                patch.object(guard, "fetch_snapshot", return_value=snapshot()):
+            result = guard.inventory(REPO)
+        self.assertEqual([row["pull_request"] for row in result], [NUMBER])
+        self.assertEqual(result[0]["kind"], "upgrade")
+        self.assertEqual(details.call_count, 2)
+
+    def test_all_owned_kinds_are_selected_but_label_and_branch_spoofs_are_not(self):
+        pulls = []
+        for kind in ("dependency", "tool", "upgrade", "spoof"):
+            pull = snapshot(dependency=kind == "dependency")["pull"]
+            pull["number"] = len(pulls) + 1
+            if kind == "tool":
+                pull.update(title="chore(tools): bump yamlfmt", labels=[{"name": "agentic-tool-upgrade"}])
+            if kind == "spoof":
+                pull["head"]["ref"] = "not-the-compiler-branch"
+            pulls.append(pull)
+        evidence = {pull["number"]: {**snapshot(), "pull": pull} for pull in pulls}
+        with patch.object(guard, "gh_lines", return_value=[self.issue(p["number"]) for p in pulls]), \
+                patch.object(guard, "fetch_pull", side_effect=pulls), \
+                patch.object(guard, "fetch_snapshot", side_effect=lambda repo, number, sha: evidence[number]):
+            self.assertEqual([row["pull_request"] for row in guard.inventory(REPO)], [1, 2, 3])
+
+    def test_unrelated_issues_empty_inventory_and_closed_prs_are_noops(self):
+        closed = snapshot()["pull"]
+        closed["state"] = "closed"
+        for rows in ([], [{"number": 1, "user": {"login": guard.ROBOT}}],
+                     [self.issue(NUMBER)]):
+            with self.subTest(rows=rows), patch.object(guard, "gh_lines", return_value=rows), \
+                    patch.object(guard, "fetch_pull", return_value=closed), \
+                    patch.object(guard, "execute") as execute:
+                self.assertEqual(guard.inventory(REPO), [])
+                execute.assert_not_called()
+
+    def test_paginated_cli_rows_include_a_later_owned_pr(self):
+        rows = [self.issue(7894), self.issue(NUMBER)]
+        image = snapshot()["pull"]
+        image.update(number=7894, title="Automated - Update component image digests")
+        output = subprocess.CompletedProcess([], 0, "\n".join(json.dumps(row) for row in rows))
+        with patch.object(guard.subprocess, "run", return_value=output), \
+                patch.object(guard, "fetch_pull", side_effect=[image, snapshot()["pull"]]), \
+                patch.object(guard, "fetch_snapshot", return_value=snapshot()):
+            self.assertEqual([row["pull_request"] for row in guard.inventory(REPO)], [NUMBER])
+
+    def test_cli_api_errors_and_incomplete_details_fail_without_partial_output(self):
+        failures = [subprocess.CalledProcessError(1, ["gh"]), ValueError("partial API evidence")]
+        for error in failures:
+            with self.subTest(error=error), patch.object(guard, "gh_lines", side_effect=error), \
+                    patch("sys.stdout", new_callable=io.StringIO) as out, \
+                    patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(guard.main(["inventory", REPO]), 1)
+                self.assertEqual(out.getvalue(), "")
+        with patch.object(guard, "gh_lines", return_value=[self.issue(NUMBER)]), \
+                patch.object(guard, "fetch_pull", return_value={"number": NUMBER}), \
+                patch("sys.stdout", new_callable=io.StringIO) as out, \
+                patch("sys.stderr", new_callable=io.StringIO):
+            self.assertEqual(guard.main(["inventory", REPO]), 1)
+            self.assertEqual(out.getvalue(), "")
+
+
 class OwnershipTests(TestCase):
     def test_exact_owned_upgrade_and_dependency_are_recognized(self):
         for dependency, kind in ((False, "upgrade"), (True, "dependency")):

@@ -92,6 +92,10 @@ steps:
       ref: ${{ github.event.repository.default_branch }}
       persist-credentials: false
       fetch-depth: 0
+  - name: Setup Python
+    uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+    with:
+      python-version: '3.12'
   - name: Set up sandbox Go from go.work
     uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
     with:
@@ -123,14 +127,7 @@ steps:
       REPO: ${{ github.repository }}
     run: |
       set -euo pipefail
-      gh api --paginate "repos/$REPO/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100" --jq '
-        .[] | select(.pull_request != null and .user.login == "aro-hcp-robot[bot]") |
-        select((.title | startswith("fix(deps): ")) or
-               ((.title | startswith("chore(tools): bump ")) and any(.labels[]; .name == "agentic-tool-upgrade")) or
-               (.head.ref | startswith("upgrade-agentic-workflows-"))) | .number
-      ' | while read -r number; do
-        python3 .github/scripts/agentic_pr_maintenance.py inspect "$REPO" "$number"
-      done | jq -s '.' > agentic-maintenance-inventory.json
+      python3 .github/scripts/agentic_pr_maintenance.py inventory "$REPO" > agentic-maintenance-inventory.json
   - name: Inventory native Dependabot groups and verified robot replacements
     env:
       GH_TOKEN: ${{ github.token }}
