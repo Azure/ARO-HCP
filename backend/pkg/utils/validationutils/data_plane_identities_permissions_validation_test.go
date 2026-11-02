@@ -1566,6 +1566,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_Validate(t *testing.T) {
 				config,
 				&cachedreader.BackendIdentityAzureCachedReaders{RoleDefinitionsCachedReader: mockCachedReader},
 				mockCheckAccessBuilder,
+				nil,
 			)
 
 			result := v.Validate(context.Background(), clusterSubscription, cluster)

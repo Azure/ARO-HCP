@@ -17,12 +17,15 @@ package validationutils
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -36,6 +39,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
 func TestCreateAuthorizationRequestForControlPlaneIdentity(t *testing.T) {
@@ -1468,6 +1474,8 @@ func TestValidate(t *testing.T) {
 				mockCheckAccessBuilder,
 				mockTokenBuilder,
 				testCheckAccessScope,
+				nil,
+				nil,
 			)
 
 			result := v.Validate(context.Background(), clusterSubscription, cluster)
@@ -1475,6 +1483,66 @@ func TestValidate(t *testing.T) {
 			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)
 			if tt.wantInternalMessage != "" {
 				assert.Contains(t, result.InternalMessage(), tt.wantInternalMessage)
+			}
+		})
+	}
+}
+
+func TestControlPlaneFailureWithPropagationGuidance(t *testing.T) {
+	const subscriptionID = "00000000-0000-0000-0000-000000000000"
+	const tenantID = "11111111-1111-1111-1111-111111111111"
+	const principalID = "22222222-2222-2222-2222-222222222222"
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID + "/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+	identityID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID + "/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID + "/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+	cluster := &coreapi.Cluster{TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterID}}}
+	subscription := &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To(tenantID)}}
+	missing := []*identityResourceMissingPermissions{{Resource: resourceID, Identity: identityID, Decisions: []*checkaccessv2AuthorizationDecisionData{{ActionID: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: azurecheckaccessv2client.NotAllowed}}}}
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name         string
+		metadata     *coreapi.ManagedIdentityMetadata
+		wantGuidance bool
+	}{
+		{name: "resolved ARM principal", metadata: &coreapi.ManagedIdentityMetadata{MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{PrincipalID: ptr.To(principalID)}}, wantGuidance: true},
+		{name: "missing metadata"},
+		{name: "missing ARM principal", metadata: &coreapi.ManagedIdentityMetadata{MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{}}},
+		{name: "failed ARM retrieval", metadata: &coreapi.ManagedIdentityMetadata{MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{PrincipalID: ptr.To(principalID), RetrievalError: ptr.To("failed")}}},
+		{name: "mock principal is not the real identity", metadata: &coreapi.ManagedIdentityMetadata{MetadataFromHardcodedIdentity: &coreapi.IdentityMetadataValue{PrincipalID: ptr.To(principalID)}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			fpaBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+			spc := &coreapi.ServiceProviderCluster{Status: coreapi.ServiceProviderClusterStatus{ManagedIdentityDetails: map[string]*coreapi.ManagedIdentityMetadata{strings.ToLower(identityID.String()): tt.metadata}}}
+			ctx := context.Background()
+			resourcesDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+			_, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, resourcesDB, clusterID)
+			require.NoError(t, err)
+			spcClient := resourcesDB.ServiceProviderClusters(subscriptionID, "test-rg", "test-cluster")
+			stored, err := spcClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			stored.Status.ManagedIdentityDetails = spc.Status.ManagedIdentityDetails
+			_, err = spcClient.Replace(ctx, stored, nil)
+			require.NoError(t, err)
+			lister := &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB}
+			if tt.wantGuidance {
+				assignment := newTestRoleAssignment("recent", resourceID.String(), principalID, now.Add(-time.Minute))
+				roleAssignments := azureclient.NewMockRoleAssignmentsClient(ctrl)
+				roles := azureclient.NewMockRoleDefinitionsClient(ctrl)
+				fpaBuilder.EXPECT().RoleAssignmentsClient(tenantID, subscriptionID).Return(roleAssignments, nil)
+				roleAssignments.EXPECT().NewListForScopePager("/subscriptions/"+subscriptionID, gomock.Any()).Return(newRoleAssignmentsPager(nil, []*armauthorization.RoleAssignment{assignment}))
+				fpaBuilder.EXPECT().RoleDefinitionsClient(tenantID).Return(roles, nil)
+				roles.EXPECT().GetByID(gomock.Any(), *assignment.Properties.RoleDefinitionID, nil).Return(armauthorization.RoleDefinitionsClientGetByIDResponse{
+					RoleDefinition: armauthorization.RoleDefinition{Properties: &armauthorization.RoleDefinitionProperties{Permissions: []*armauthorization.Permission{{Actions: []*string{ptr.To("Microsoft.Network/networkSecurityGroups/read")}}}}},
+				}, nil)
+			}
+			detector := NewRoleAssignmentPropagationDetector(fpaBuilder, DefaultRoleAssignmentPropagationWindow, clocktesting.NewFakePassiveClock(now))
+			validation := NewControlPlaneIdentitiesPermissionsClusterValidation(nil, nil, nil, nil, nil, "", detector, lister)
+			result, gotGuidance := validation.failureWithPropagationGuidance(ctx, subscription, cluster, missing, "missing permissions")
+			assert.Equal(t, tt.wantGuidance, gotGuidance)
+			if tt.wantGuidance {
+				assert.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+				assert.Equal(t, missingPermissionsPendingPropagationReason, result.Reason())
 			}
 		})
 	}

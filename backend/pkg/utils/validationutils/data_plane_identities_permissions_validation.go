@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
@@ -52,6 +53,9 @@ type DataPlaneIdentitiesPermissionsValidation struct {
 	clusterScopedIdentitiesConfig     *azure.ClusterScopedIdentitiesConfig
 	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
 	checkAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
+	// propagationDetector, when non-nil, adds guidance to failures backed by recent matching
+	// role grants; the failure retains the operation's normal terminal timeout.
+	propagationDetector *RoleAssignmentPropagationDetector
 }
 
 func NewDataPlaneIdentitiesPermissionsValidation(
@@ -59,12 +63,14 @@ func NewDataPlaneIdentitiesPermissionsValidation(
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders,
 	checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder,
+	propagationDetector *RoleAssignmentPropagationDetector,
 ) *DataPlaneIdentitiesPermissionsValidation {
 	return &DataPlaneIdentitiesPermissionsValidation{
 		smiClientBuilder:                  smiClientBuilder,
 		clusterScopedIdentitiesConfig:     clusterScopedIdentitiesConfig,
 		backendIdentityAzureCachedReaders: backendIdentityAzureCachedReaders,
 		checkAccessV2ClientBuilder:        checkAccessV2ClientBuilder,
+		propagationDetector:               propagationDetector,
 	}
 }
 
@@ -128,6 +134,7 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 	}
 
 	var missingPermissions []*identityResourceMissingPermissions
+	principalIDs := map[string]string{}
 	for operatorName, identity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		identityObjectID, err := v.retrieveIdentityObjectID(ctx, userAssignedIdentitiesClient, identity)
 		if err != nil {
@@ -138,6 +145,7 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 				ControllerReportingPolicyTypeError,
 			)
 		}
+		principalIDs[strings.ToLower(identity.String())] = identityObjectID
 
 		results, err := v.findMissingActionsForIdentity(ctx, checkAccessV2Client, identityObjectID, cluster, operatorName, identity, &subnet.Subnet)
 		if err != nil {
@@ -162,6 +170,10 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 			)
 		}
 		internalAndUserMsg := fmt.Sprintf("Data plane operators missing required permissions: %s", string(jsonBytes))
+		if withGuidance, ok := failureWithPropagationGuidance(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs,
+			internalAndUserMsg); ok {
+			return withGuidance
+		}
 		return FailedValidation(
 			"MissingRequiredPermissions",
 			internalAndUserMsg,

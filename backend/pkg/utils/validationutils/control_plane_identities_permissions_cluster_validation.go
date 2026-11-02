@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -31,6 +32,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -44,6 +46,10 @@ type ControlPlaneIdentitiesPermissionsClusterValidation struct {
 	// checkAccessV2Scope is the OAuth scope (typically a "<resource>/.default" App ID URI. public, gov, and China clouds
 	// each use a different App ID URI respectively) passed to MI Dataplane when minting an access token for each control plane operator identity.
 	checkAccessV2Scope string
+	// propagationDetector, when non-nil, adds guidance to failures backed by recent matching
+	// role grants; the failure retains the operation's normal terminal timeout.
+	propagationDetector          *RoleAssignmentPropagationDetector
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 func NewControlPlaneIdentitiesPermissionsClusterValidation(
@@ -53,6 +59,8 @@ func NewControlPlaneIdentitiesPermissionsClusterValidation(
 	checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder,
 	miDataplaneBasedAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 	checkAccessV2Scope string,
+	propagationDetector *RoleAssignmentPropagationDetector,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 ) *ControlPlaneIdentitiesPermissionsClusterValidation {
 	return &ControlPlaneIdentitiesPermissionsClusterValidation{
 		smiClientBuilder:                            smiClientBuilder,
@@ -61,6 +69,8 @@ func NewControlPlaneIdentitiesPermissionsClusterValidation(
 		checkAccessV2ClientBuilder:                  checkAccessV2ClientBuilder,
 		miDataplaneBasedAccessTokenRetrieverBuilder: miDataplaneBasedAccessTokenRetrieverBuilder,
 		checkAccessV2Scope:                          checkAccessV2Scope,
+		propagationDetector:                         propagationDetector,
+		serviceProviderClusterLister:                serviceProviderClusterLister,
 	}
 }
 
@@ -137,6 +147,9 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 			)
 		}
 		internalAndUserMsg := fmt.Sprintf("Control plane operators missing required permissions: %s", string(jsonBytes))
+		if withGuidance, ok := v.failureWithPropagationGuidance(ctx, clusterSubscription, cluster, missingPermissions, internalAndUserMsg); ok {
+			return withGuidance
+		}
 		return FailedValidation(
 			"MissingRequiredPermissions",
 			internalAndUserMsg,
@@ -149,6 +162,32 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 		"Control plane operators have all required permissions.",
 		"Control plane operators have all required permissions.",
 	)
+}
+
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) failureWithPropagationGuidance(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.Cluster, missingPermissions []*identityResourceMissingPermissions, missingPermissionsMessage string) (ValidationResult, bool) {
+	if v.propagationDetector == nil {
+		return ValidationResult{}, false
+	}
+	if !onlyNotAllowedMissingPermissions(missingPermissions) {
+		return ValidationResult{}, false
+	}
+	serviceProviderCluster, err := v.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return ValidationResult{}, false
+	}
+	principalIDs := map[string]string{}
+	for _, entry := range missingPermissions {
+		metadata := serviceProviderCluster.Status.ManagedIdentityDetails[strings.ToLower(entry.Identity.String())]
+		if metadata == nil || metadata.MetadataFromARMUserAssignedIdentitiesAPI == nil {
+			return ValidationResult{}, false
+		}
+		resolved := metadata.MetadataFromARMUserAssignedIdentitiesAPI
+		if resolved.RetrievalError != nil || resolved.PrincipalID == nil || *resolved.PrincipalID == "" {
+			return ValidationResult{}, false
+		}
+		principalIDs[strings.ToLower(entry.Identity.String())] = *resolved.PrincipalID
+	}
+	return failureWithPropagationGuidance(ctx, v.propagationDetector, v.Name(), *clusterSubscription.Properties.TenantId, missingPermissions, principalIDs, missingPermissionsMessage)
 }
 
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOperator(ctx context.Context, operatorName string) ([]string, error) {
