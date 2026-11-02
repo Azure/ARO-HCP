@@ -75,6 +75,9 @@ def stage_candidate(root, base, *, index=None):
     # The index starts at HEAD, which may already contain a committed candidate.
     # Include HEAD-relative restorations even when their bytes now equal base.
     changed = sorted(set(paths(root, base)) | set(paths(root, "HEAD")))
+    tracked = set(git(root, "ls-files", "-z", index=index).split("\0"))
+    # Absent paths already deleted from this index need no further staging.
+    changed = [path for path in changed if path in tracked or os.path.lexists(Path(root) / path)]
     vendor = [path for path in changed if path.startswith(native.VENDORS)]
     ordinary = [path for path in changed if not path.startswith(native.VENDORS)]
     if ordinary:
@@ -255,7 +258,7 @@ class Validator:
         env["CI"] = "true"
         env.update(env_overrides or {})
         # Inherited Make controls must not skip recipes or ignore their failures.
-        for key in ("MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEOVERRIDES", "MAKEFILES", "MAKELEVEL"):
+        for key in ("MAKE", "MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEOVERRIDES", "MAKEFILES", "MAKELEVEL"):
             env.pop(key, None)
         try:
             with log.open("wb") as output:

@@ -703,6 +703,40 @@ class CandidateFixture(unittest.TestCase):
         self.assertIn("go-build", request["body"])
         self.assertIn("go-test-unit", request["body"])
 
+    def assert_deleted_vendor_files_survive_rerun(self, *, committed):
+        self.prepare_go()
+        obsolete = [directory + "example.com/library/obsolete.go" for directory in native.VENDORS]
+        for path in obsolete:
+            self.write(path, "package library\nconst Obsolete = true\n")
+        git(self.repo, "add", "--", *obsolete)
+        git(self.repo, "commit", "-m", "vendor deletion baseline")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        inventory = json.loads(self.inventory.read_text())
+        inventory["base_sha"] = self.base
+        self.inventory.write_text(json.dumps(inventory))
+        git(self.repo, "rm", "--", *obsolete)
+        if committed:
+            git(self.repo, "commit", "-m", "record vendor removals")
+        self.validate()
+        request = json.loads((self.artifacts / native.REQUEST_FILE).read_text())
+        for path in obsolete:
+            self.assertIn(path, native.patch_paths(request["patch"]))
+            self.assertFalse((self.repo / path).exists())
+            self.assertEqual(git(self.repo, "ls-files", "--", path), "")
+        tree = git(self.repo, "write-tree")
+        head = git(self.repo, "rev-parse", "HEAD")
+        self.validate()
+        self.assertEqual(git(self.repo, "write-tree"), tree)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), head)
+        self.assertEqual(git(self.repo, "status", "--porcelain"), "")
+        self.assertEqual(json.loads((self.artifacts / native.REQUEST_FILE).read_text())["patch"], request["patch"])
+
+    def test_staged_vendor_deletions_are_published_and_rerunnable(self):
+        self.assert_deleted_vendor_files_survive_rerun(committed=False)
+
+    def test_committed_vendor_deletions_are_published_and_rerunnable(self):
+        self.assert_deleted_vendor_files_survive_rerun(committed=True)
+
     def test_ignored_vendor_additions_are_in_committed_patch_but_ignored_cache_is_not(self):
         self.prepare_go()
         self.ignore_vendor_and_scratch()
@@ -854,6 +888,20 @@ class CommandBoundaryTests(unittest.TestCase):
                 self.validator.run("recursive-consumer", ("make", "check"))
         self.assertEqual((self.root / "marker").read_text(), "checked\n")
         self.assertNotEqual(self.validator.results["steps"][-1]["returncode"], 0)
+
+    def test_inherited_make_command_cannot_hide_recursive_failures(self):
+        (self.root / "Makefile").write_text("check:\n\t@$(MAKE) -f child.mk verify\n")
+        (self.root / "child.mk").write_text("verify:\n\t@echo executed > marker\n\t@exit 37\n")
+        for command in ("make -i", "make -n", "true"):
+            with self.subTest(command=command):
+                (self.root / "marker").unlink(missing_ok=True)
+                with patch.dict(os.environ, {"MAKE": command}):
+                    with self.assertRaisesRegex(ValueError, "exited"):
+                        self.validator.run("recursive-consumer", ("make", "check"))
+                self.assertEqual((self.root / "marker").read_text(), "executed\n")
+                step = self.validator.results["steps"][-1]
+                self.assertNotEqual(step["returncode"], 0)
+                self.assertIn("37", Path(step["log"]).read_text())
 
     def test_consumer_overrides_cannot_reenable_make_dry_run(self):
         (self.root / "Makefile").write_text("check:\n\t@echo checked > marker\n\t@exit 37\n")

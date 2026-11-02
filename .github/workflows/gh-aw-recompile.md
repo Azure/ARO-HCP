@@ -376,7 +376,7 @@ The checksum-verified pinned compiler is available inside the original checkout 
 
 Inspect the **complete** candidate diff and exclude inventory, scratch files, binaries, logs and other groups. Run the trusted validation runner below instead of assembling validation shell commands. It runs the ecosystem consumers, commits the sandbox candidate before clean-tree checks, runs `make verify-yamlfmt` and `make -C config detect-change`, and constructs a publication request only after every gate passes. Full logs and exit statuses are retained outside the checkout. Nonzero exits, timeouts, unexpected changes and unsupported consumers block request creation. Do not pipe consumers through `head` or `tail`, substitute a green baseline for candidate validation, or emit publication after failed or incomplete checks.
 
-The runner clears inherited Make execution controls before launching consumers, including recursive Make invocations. Dry-run, touch, question and ignore-error flags cannot stand in for executed, successful checks.
+The runner clears inherited Make execution controls, including `MAKE`, before launching consumers and their recursive Make invocations. Dry-run, touch, question and ignore-error flags cannot stand in for executed, successful checks. Snapshot and commit staging preserve deletions already recorded in the target index, allowing validation reruns after generated files are removed.
 
 ### Emit one validated replacement request
 
