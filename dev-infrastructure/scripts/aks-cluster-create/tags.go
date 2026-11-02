@@ -30,9 +30,8 @@ func hasProvisioningTag(tags map[string]*string) bool {
 	return ptr.Deref(tags[agentpools.ProvisioningTagKey], "") == agentpools.ProvisioningTagValue
 }
 
-// initialClusterTags builds the creation-time tag set: the cluster tags plus
-// the provisioning marker that makes this tool own pool provisioning until
-// reconcileClusterTags removes it.
+// initialClusterTags adds a bootstrap-in-progress marker to the configured tags.
+// Marker removal records provisioning completion, not registration or a lock.
 func initialClusterTags(clusterTags map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(clusterTags)+1)
 	for key, value := range clusterTags {
@@ -60,19 +59,20 @@ func mergeClusterTags(clusterTags map[string]*string, overlayTags map[string]str
 	return merged, changed
 }
 
-// reconcileClusterTags overlays the configured cluster tags and clears the
-// provisioning marker once the cluster has finished provisioning, handing pool
-// management to the controller. The result is written in one conditional tag
-// update.
+// reconcileClusterTags overlays configured tags and finalizes the provisioning
+// marker after successful deployment. The tag update is ETag-conditional;
+// configured pools are still deployed by subsequent invocations.
 func (o *completedOptions) reconcileClusterTags(ctx context.Context, cluster *armcontainerservice.ManagedCluster) error {
 	tags, changed := mergeClusterTags(cluster.Tags, o.clusterTags)
 
-	// Clear the provisioning marker once the cluster and all its pools report
-	// success, handing pool management over to the controller.
+	// Finalize only after the refreshed cluster and observed pools report success.
 	needsFinalization := hasProvisioningTag(cluster.Tags)
 	if needsFinalization {
 		if err := requireProvisioned(cluster); err != nil {
 			return err
+		}
+		if o.clusterType == clusterTypeSvc && len(cluster.Properties.AgentPoolProfiles) == 0 {
+			return fmt.Errorf("cannot finalize svc tags with a missing agent pool observation")
 		}
 		delete(tags, agentpools.ProvisioningTagKey)
 	}

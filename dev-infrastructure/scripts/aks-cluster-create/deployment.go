@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -34,6 +35,16 @@ import (
 const aksAPIVersion = "2026-04-02-preview"
 
 func (o *validatedOptions) buildDeployment(existing *armcontainerservice.ManagedCluster, pools []compute.Pool) (armdeployments.Deployment, []string, error) {
+	if o.clusterType == clusterTypeSvc && existing != nil {
+		if existing.Properties == nil || len(existing.Properties.AgentPoolProfiles) == 0 {
+			return armdeployments.Deployment{}, nil, fmt.Errorf("svc cluster agent pool observation is missing")
+		}
+		for _, pool := range existing.Properties.AgentPoolProfiles {
+			if pool == nil || ptr.Deref(pool.Name, "") == "" {
+				return armdeployments.Deployment{}, nil, fmt.Errorf("svc cluster agent pool observation has no name")
+			}
+		}
+	}
 	// Locate the system pool, which is created inline with the cluster resource.
 	bootstrapIndex := slices.IndexFunc(pools, func(pool compute.Pool) bool { return pool.AgentPoolMode == armcontainerservice.AgentPoolModeSystem })
 	if bootstrapIndex < 0 {
@@ -70,7 +81,13 @@ func (o *validatedOptions) buildDeployment(existing *armcontainerservice.Managed
 		if existing == nil && i == bootstrapIndex {
 			continue
 		}
-		resource, err := deploymentResource(armcontainerservice.AgentPool{Properties: agentpoolspec.Build(pool, network)}, "Microsoft.ContainerService/managedClusters/agentPools", o.clusterName+"/"+pool.Name)
+		properties := agentpoolspec.Build(pool, network)
+		if o.clusterType == clusterTypeSvc && !observedPool(existing, pool.Name) {
+			// Count seeds only a newly observed pool. Resending it for an
+			// existing autoscaled pool would reset its current capacity.
+			properties.Count = ptr.To(pool.MinCount)
+		}
+		resource, err := deploymentResource(armcontainerservice.AgentPool{Properties: properties}, "Microsoft.ContainerService/managedClusters/agentPools", o.clusterName+"/"+pool.Name)
 		if err != nil {
 			return armdeployments.Deployment{}, nil, err
 		}
@@ -91,6 +108,15 @@ func (o *validatedOptions) buildDeployment(existing *armcontainerservice.Managed
 			},
 		},
 	}, changed, nil
+}
+
+func observedPool(existing *armcontainerservice.ManagedCluster, name string) bool {
+	if existing == nil {
+		return false
+	}
+	return slices.ContainsFunc(existing.Properties.AgentPoolProfiles, func(pool *armcontainerservice.ManagedClusterAgentPoolProfile) bool {
+		return strings.EqualFold(ptr.Deref(pool.Name, ""), name)
+	})
 }
 
 // Use the SDK's wire representation instead of maintaining a second resource schema.

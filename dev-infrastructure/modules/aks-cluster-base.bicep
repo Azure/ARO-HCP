@@ -15,9 +15,6 @@ param systemAgentVMSize string
 param systemAgentPoolZones array
 param systemZoneRedundantMode string
 
-@description('CI service clusters only: schedule all workloads on the system pool and omit other pools.')
-param systemPoolOnly bool = false
-
 // User agentpool spec (Worker)
 param userAgentPoolName string
 param userAgentMinCount int
@@ -53,7 +50,7 @@ param istioVersions array = []
 param vnetName string
 param nodeSubnetId string
 param podSubnetPrefix string
-@description('CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true)')
+@description('CSV of key=value tag pairs for the AKS cluster resource')
 param aksClusterTags string
 
 @description('Owning team tag value for alert rule routing')
@@ -67,11 +64,6 @@ param upgradeSettingsMaxSurge string
 param upgradeSettingsMaxUnavailable string
 
 param aksClusterUserDefinedManagedIdentityName string
-
-@description('Reference workload and image-puller identities from a persistent resource group.')
-param useLeasedInfrastructureIdentities bool = false
-
-param infrastructureIdentityResourceGroup string = ''
 
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
@@ -218,7 +210,6 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
 
 resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: aksClusterUserDefinedManagedIdentityName
-  scope: resourceGroup(useLeasedInfrastructureIdentities ? infrastructureIdentityResourceGroup : resourceGroup().name)
 }
 
 resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -335,11 +326,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
         nodeLabels: {
           'aro-hcp.azure.com/role': 'system'
         }
-        nodeTaints: systemPoolOnly
-          ? []
-          : [
-              'CriticalAddonsOnly=true:NoSchedule'
-            ]
+        nodeTaints: [
+          'CriticalAddonsOnly=true:NoSchedule'
+        ]
         tags: swiftNodepoolTags
       }
     ]
@@ -423,20 +412,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
     serviceMeshProfile: (deployIstio)
       ? {
           mode: 'Istio'
-          // ISTIO REVISION DECOUPLING
-          //
-          // Mesh revisions are managed in two places:
-          //   1. Here (bicep) — sets serviceMeshProfile.istio.revisions at cluster create
-          //   2. IstioUpgrade pipeline step (svc-pipeline.yaml) — manages revisions at
-          //      deploy time via ARO-Tools istio-upgrade, reading svc.istio.versions
-          //      from config
-          //
-          // If bicep always set a concrete revision list, every ARM deployment would
-          // overwrite whatever the pipeline step had installed — potentially rolling
-          // back a completed upgrade. So istioVersions defaults to [], and we omit
-          // the revisions property entirely (ARM treats explicit null as "clear",
-          // which could wipe existing mesh revisions). Callers only pass a value
-          // for initial cluster bootstrap; after that, the pipeline step owns it.
+          // The opstool caller supplies its configured revisions. An empty
+          // list omits the property rather than clearing the live revisions.
           istio: union(
             {
               components: {
@@ -486,7 +463,7 @@ module maintenanceWindows 'aks/maintenance.bicep' = {
   }
 }
 
-module userAgentPools '../modules/aks/pool.bicep' = if (!systemPoolOnly) {
+module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
   params: {
     aksClusterName: aksCluster.name
@@ -509,7 +486,7 @@ module userAgentPools '../modules/aks/pool.bicep' = if (!systemPoolOnly) {
   }
 }
 
-module infraAgentPools '../modules/aks/pool.bicep' = if (!systemPoolOnly) {
+module infraAgentPools '../modules/aks/pool.bicep' = {
   name: 'infra-agent-pools'
   params: {
     aksClusterName: aksCluster.name
@@ -570,7 +547,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exis
 ]
 
 resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
+  for i in range(0, length(workloadIdentities)): {
     parent: uami[i]
     name: '${workloadIdentities[i].value.uamiName}-${location}-fedcred'
     properties: {
@@ -587,28 +564,17 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
 //  A C R   P U L L   C O N T R O L L E R
 //
 
-resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useLeasedInfrastructureIdentities) {
+resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
   name: 'image-puller'
 }
-
-// Avoid declaring the same identity twice when the leased RG is empty in default mode.
-var leasedPullerIdentityId = resourceId(
-  subscription().subscriptionId,
-  infrastructureIdentityResourceGroup,
-  'Microsoft.ManagedIdentity/userAssignedIdentities',
-  'image-puller'
-)
-var pullerIdentityPrincipalId = useLeasedInfrastructureIdentities
-  ? reference(leasedPullerIdentityId, '2023-01-31').principalId
-  : pullerIdentity!.properties.principalId
 
 module acrPullerRoles 'acr/acr-permissions.bicep' = [
   for acrRef in acrReferences: {
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalIds: [pullerIdentityPrincipalId]
+      principalIds: [pullerIdentity.properties.principalId]
       acrName: acrRef.name
       grantPullAccess: true
     }
@@ -617,7 +583,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
 
 @batchSize(1)
 resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, length(workloadIdentities)): if (!useLeasedInfrastructureIdentities) {
+  for i in range(0, length(workloadIdentities)): {
     parent: pullerIdentity
     name: '${workloadIdentities[i].value.uamiName}-${location}-puller-fedcred'
     properties: {
@@ -629,16 +595,6 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
     }
   }
 ]
-
-module leasedFederatedCredentials 'managed-identity-federated-credentials.bicep' = if (useLeasedInfrastructureIdentities) {
-  name: 'infrastructure-identity-federated-credentials'
-  scope: resourceGroup(infrastructureIdentityResourceGroup)
-  params: {
-    location: location
-    oidcIssuerUrl: aksCluster.properties.oidcIssuerProfile.issuerURL
-    workloadIdentities: workloadIdentities
-  }
-}
 
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster

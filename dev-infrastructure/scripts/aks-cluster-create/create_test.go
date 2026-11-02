@@ -60,6 +60,7 @@ func testSystemPool() compute.Pool {
 
 func testValidatedOptions() *validatedOptions {
 	return &validatedOptions{
+		clusterType:    clusterTypeMgmt,
 		subscriptionID: "sub1",
 		resourceGroup:  "rg1",
 		clusterName:    "cluster1",

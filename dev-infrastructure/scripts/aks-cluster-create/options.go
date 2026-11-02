@@ -30,20 +30,34 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
+type clusterType string
+
+const (
+	clusterTypeMgmt clusterType = "mgmt"
+	clusterTypeSvc  clusterType = "svc"
+)
+
 // rawPoolOptions holds one pool block's inputs sourced from environment
 // variables, unvalidated.
 type rawPoolOptions struct {
-	name         string
-	vmSize       string
-	osDiskSizeGB string
-	minCount     string
-	maxCount     string
-	poolCount    string
-	zones        string
+	name              string
+	vmSize            string
+	osDiskSizeGB      string
+	minCount          string
+	maxCount          string
+	poolCount         string
+	zones             string
+	zoneRedundantMode string
+	maxSurge          string
+	maxUnavailable    string
 }
 
 // rawOptions holds all inputs sourced from environment variables, unvalidated.
 type rawOptions struct {
+	clusterType                 string
+	systemPoolOnly              string
+	locationAvailabilityZones   string
+	istioVersions               string
 	subscriptionID              string
 	resourceGroup               string
 	clusterName                 string
@@ -77,6 +91,10 @@ type rawOptions struct {
 // shape validation happens in Validate.
 func newRawOptionsFromEnv(env func(string) string) *rawOptions {
 	o := &rawOptions{
+		clusterType:                 env("CLUSTER_TYPE"),
+		systemPoolOnly:              env("SYSTEM_POOL_ONLY"),
+		locationAvailabilityZones:   env("LOCATION_AVAILABILITY_ZONES"),
+		istioVersions:               env("ISTIO_VERSIONS"),
 		subscriptionID:              env("SUBSCRIPTION_ID"),
 		resourceGroup:               env("RESOURCE_GROUP"),
 		clusterName:                 env("CLUSTER_NAME"),
@@ -84,30 +102,37 @@ func newRawOptionsFromEnv(env func(string) string) *rawOptions {
 		regionAvailabilityZoneCount: env("REGION_AVAILABILITY_ZONE_COUNT"),
 
 		system: rawPoolOptions{
-			name:         env("SYSTEM_POOL_NAME"),
-			vmSize:       env("SYSTEM_POOL_VM_SIZE"),
-			osDiskSizeGB: env("SYSTEM_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("SYSTEM_POOL_MIN_COUNT"),
-			maxCount:     env("SYSTEM_POOL_MAX_COUNT"),
-			zones:        env("SYSTEM_POOL_ZONES"),
+			name:              env("SYSTEM_POOL_NAME"),
+			vmSize:            env("SYSTEM_POOL_VM_SIZE"),
+			osDiskSizeGB:      env("SYSTEM_POOL_OS_DISK_SIZE_GB"),
+			minCount:          env("SYSTEM_POOL_MIN_COUNT"),
+			maxCount:          env("SYSTEM_POOL_MAX_COUNT"),
+			zones:             env("SYSTEM_POOL_ZONES"),
+			zoneRedundantMode: env("SYSTEM_POOL_ZONE_REDUNDANT_MODE"),
 		},
 		user: rawPoolOptions{
-			name:         env("USER_POOL_NAME"),
-			vmSize:       env("USER_POOL_VM_SIZE"),
-			osDiskSizeGB: env("USER_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("USER_POOL_MIN_COUNT"),
-			maxCount:     env("USER_POOL_MAX_COUNT"),
-			poolCount:    env("USER_POOL_COUNT"),
-			zones:        env("USER_POOL_ZONES"),
+			name:              env("USER_POOL_NAME"),
+			vmSize:            env("USER_POOL_VM_SIZE"),
+			osDiskSizeGB:      env("USER_POOL_OS_DISK_SIZE_GB"),
+			minCount:          env("USER_POOL_MIN_COUNT"),
+			maxCount:          env("USER_POOL_MAX_COUNT"),
+			poolCount:         env("USER_POOL_COUNT"),
+			zones:             env("USER_POOL_ZONES"),
+			zoneRedundantMode: env("USER_POOL_ZONE_REDUNDANT_MODE"),
+			maxSurge:          env("USER_POOL_MAX_SURGE"),
+			maxUnavailable:    env("USER_POOL_MAX_UNAVAILABLE"),
 		},
 		infra: rawPoolOptions{
-			name:         env("INFRA_POOL_NAME"),
-			vmSize:       env("INFRA_POOL_VM_SIZE"),
-			osDiskSizeGB: env("INFRA_POOL_OS_DISK_SIZE_GB"),
-			minCount:     env("INFRA_POOL_MIN_COUNT"),
-			maxCount:     env("INFRA_POOL_MAX_COUNT"),
-			poolCount:    env("INFRA_POOL_COUNT"),
-			zones:        env("INFRA_POOL_ZONES"),
+			name:              env("INFRA_POOL_NAME"),
+			vmSize:            env("INFRA_POOL_VM_SIZE"),
+			osDiskSizeGB:      env("INFRA_POOL_OS_DISK_SIZE_GB"),
+			minCount:          env("INFRA_POOL_MIN_COUNT"),
+			maxCount:          env("INFRA_POOL_MAX_COUNT"),
+			poolCount:         env("INFRA_POOL_COUNT"),
+			zones:             env("INFRA_POOL_ZONES"),
+			zoneRedundantMode: env("INFRA_POOL_ZONE_REDUNDANT_MODE"),
+			maxSurge:          env("INFRA_POOL_MAX_SURGE"),
+			maxUnavailable:    env("INFRA_POOL_MAX_UNAVAILABLE"),
 		},
 
 		nodeSubnetID:         env("NODE_SUBNET_ID"),
@@ -132,18 +157,23 @@ func newRawOptionsFromEnv(env func(string) string) *rawOptions {
 // poolConfig is a rawPoolOptions after required-field checks, integer parsing,
 // and CSV zone parsing.
 type poolConfig struct {
-	name         string
-	vmSize       string
-	osDiskSizeGB int32
-	minCount     int32
-	maxCount     int32
-	poolCount    int
-	zones        []string
+	name           string
+	vmSize         string
+	osDiskSizeGB   int32
+	minCount       int32
+	maxCount       int32
+	poolCount      int
+	zones          []string
+	maxSurge       string
+	maxUnavailable string
 }
 
 // validatedOptions is rawOptions after required-field checks, integer parsing,
 // and CSV zone parsing.
 type validatedOptions struct {
+	clusterType    clusterType
+	systemPoolOnly bool
+	istioVersions  []string
 	subscriptionID string
 	resourceGroup  string
 	clusterName    string
@@ -173,12 +203,30 @@ type validatedOptions struct {
 // builds the per-pool configuration. It performs no side effects; Azure
 // credentials and clients are built in Complete.
 func (o *rawOptions) Validate() (*validatedOptions, error) {
+	kind := clusterType(o.clusterType)
+	if kind != clusterTypeMgmt && kind != clusterTypeSvc {
+		return nil, fmt.Errorf("CLUSTER_TYPE must be mgmt or svc, got %q", o.clusterType)
+	}
+	systemPoolOnly := false
+	if o.systemPoolOnly != "" {
+		var err error
+		systemPoolOnly, err = strconv.ParseBool(o.systemPoolOnly)
+		if err != nil {
+			return nil, fmt.Errorf("SYSTEM_POOL_ONLY: %w", err)
+		}
+	}
+	if kind == clusterTypeMgmt && systemPoolOnly {
+		return nil, fmt.Errorf("SYSTEM_POOL_ONLY is not supported for mgmt")
+	}
+	istioVersions := parseCSVList(o.istioVersions)
+	if kind == clusterTypeSvc && len(istioVersions) == 0 {
+		return nil, fmt.Errorf("ISTIO_VERSIONS is required for svc bootstrap")
+	}
 	required := []struct{ key, val string }{
 		{"SUBSCRIPTION_ID", o.subscriptionID},
 		{"RESOURCE_GROUP", o.resourceGroup},
 		{"CLUSTER_NAME", o.clusterName},
 		{"REGION", o.region},
-		{"REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount},
 		{"NODE_SUBNET_ID", o.nodeSubnetID},
 		{"POD_SUBNET_ID", o.podSubnetID},
 		{"NETWORK_DATAPLANE", o.networkDataplane},
@@ -187,6 +235,9 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 		{"MANAGED_IDENTITY_ID", o.managedIdentityID},
 		{"ETCD_KMS_KEY_URI", o.etcdKMSKeyURI},
 		{"KUBERNETES_VERSION", o.kubernetesVersion},
+	}
+	if kind == clusterTypeMgmt {
+		required = append(required, struct{ key, val string }{"REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount})
 	}
 	var missing []string
 	for _, kv := range required {
@@ -198,25 +249,41 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
-	regionAvailabilityZoneCount, err := parseInt("REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount)
+	var regionAvailabilityZoneCount int
+	if kind == clusterTypeMgmt {
+		var err error
+		regionAvailabilityZoneCount, err = parseInt("REGION_AVAILABILITY_ZONE_COUNT", o.regionAvailabilityZoneCount)
+		if err != nil {
+			return nil, err
+		}
+		if regionAvailabilityZoneCount < compute.RequiredAvailabilityZones {
+			return nil, fmt.Errorf("REGION_AVAILABILITY_ZONE_COUNT must be at least %d, got %d", compute.RequiredAvailabilityZones, regionAvailabilityZoneCount)
+		}
+	}
+	resolveZones := func(prefix string, raw rawPoolOptions) ([]string, error) {
+		if kind == clusterTypeSvc {
+			return resolveSvcZones(prefix, raw, o.locationAvailabilityZones)
+		}
+		zones, err := compute.ResolveZones(raw.zones, regionAvailabilityZoneCount)
+		if err != nil {
+			return nil, fmt.Errorf("%s_ZONES: %w", prefix, err)
+		}
+		return zones, nil
+	}
+	system, err := validatePool("SYSTEM_POOL", o.system, resolveZones)
 	if err != nil {
 		return nil, err
 	}
-	// Fail fast with a clear message rather than a confusing per-pool error.
-	if regionAvailabilityZoneCount < compute.RequiredAvailabilityZones {
-		return nil, fmt.Errorf("REGION_AVAILABILITY_ZONE_COUNT must be at least %d, got %d", compute.RequiredAvailabilityZones, regionAvailabilityZoneCount)
-	}
-	system, err := validatePool("SYSTEM_POOL", o.system, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
-	}
-	user, err := validatePool("USER_POOL", o.user, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
-	}
-	infra, err := validatePool("INFRA_POOL", o.infra, regionAvailabilityZoneCount)
-	if err != nil {
-		return nil, err
+	var user, infra poolConfig
+	if !systemPoolOnly {
+		user, err = validatePool("USER_POOL", o.user, resolveZones)
+		if err != nil {
+			return nil, err
+		}
+		infra, err = validatePool("INFRA_POOL", o.infra, resolveZones)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tags, err := parseTags(o.clusterTags)
@@ -227,6 +294,9 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 	tags["owningTeam"] = o.owningTeamTagValue
 
 	return &validatedOptions{
+		clusterType:    kind,
+		systemPoolOnly: systemPoolOnly,
+		istioVersions:  istioVersions,
 		subscriptionID: o.subscriptionID,
 		resourceGroup:  o.resourceGroup,
 		clusterName:    o.clusterName,
@@ -253,11 +323,27 @@ func (o *rawOptions) Validate() (*validatedOptions, error) {
 	}, nil
 }
 
-// validatePool parses one pool block into a poolConfig. prefix is the block's
-// env-var prefix (e.g. "USER_POOL"), used in lookups and error messages. See
-// compute.ResolveZones for how raw.zones and regionAvailabilityZoneCount
-// resolve to zones.
-func validatePool(prefix string, raw rawPoolOptions, regionAvailabilityZoneCount int) (poolConfig, error) {
+// resolveSvcZones mirrors svc-cluster.bicep's explicit CSV / regional fallback,
+// then the base/pool modules' redundancy switch. No exact-three-zone policy
+// applies to svc, including regions with no availability zones.
+func resolveSvcZones(prefix string, raw rawPoolOptions, regionalCSV string) ([]string, error) {
+	switch raw.zoneRedundantMode {
+	case "Auto", "Enabled", "Disabled":
+	default:
+		return nil, fmt.Errorf("%s_ZONE_REDUNDANT_MODE must be Auto, Enabled, or Disabled", prefix)
+	}
+	zones := parseCSVList(raw.zones)
+	if len(zones) == 0 {
+		zones = parseCSVList(regionalCSV)
+	}
+	if raw.zoneRedundantMode == "Disabled" {
+		return nil, nil
+	}
+	return zones, nil
+}
+
+// validatePool parses the common pool settings, with profile-specific placement.
+func validatePool(prefix string, raw rawPoolOptions, resolveZones func(string, rawPoolOptions) ([]string, error)) (poolConfig, error) {
 	if len(raw.name) == 0 {
 		return poolConfig{}, fmt.Errorf("%s_NAME is required", prefix)
 	}
@@ -301,19 +387,21 @@ func validatePool(prefix string, raw rawPoolOptions, regionAvailabilityZoneCount
 		}
 	}
 
-	zones, err := compute.ResolveZones(raw.zones, regionAvailabilityZoneCount)
+	zones, err := resolveZones(prefix, raw)
 	if err != nil {
-		return poolConfig{}, fmt.Errorf("%s_ZONES: %w", prefix, err)
+		return poolConfig{}, err
 	}
 
 	return poolConfig{
-		name:         raw.name,
-		vmSize:       raw.vmSize,
-		osDiskSizeGB: osDiskSizeGB,
-		minCount:     minCount,
-		maxCount:     maxCount,
-		poolCount:    poolCount,
-		zones:        zones,
+		name:           raw.name,
+		vmSize:         raw.vmSize,
+		osDiskSizeGB:   osDiskSizeGB,
+		minCount:       minCount,
+		maxCount:       maxCount,
+		poolCount:      poolCount,
+		zones:          zones,
+		maxSurge:       raw.maxSurge,
+		maxUnavailable: raw.maxUnavailable,
 	}, nil
 }
 

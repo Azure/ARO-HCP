@@ -140,15 +140,19 @@ func (o *completedOptions) desiredPools(ctx context.Context) ([]compute.Pool, er
 	// inline agentPoolProfiles entry in aks-cluster-base.bicep), while the
 	// worker and infra blocks expand into one pool per zone plus non-zonal
 	// pools (matching modules/aks/pool.bicep).
-	systemPools, err := buildPools(o.system, compute.PoolRoleSystem, metadata)
+	systemPools, err := o.buildPools(o.system, compute.PoolRoleSystem, metadata)
 	if err != nil {
 		return nil, err
 	}
-	workerPools, err := buildPools(o.user, compute.PoolRoleWorker, metadata)
+	if o.systemPoolOnly {
+		logger.Info("configured pools", "system", len(systemPools), "worker", 0, "infra", 0)
+		return systemPools, nil
+	}
+	workerPools, err := o.buildPools(o.user, compute.PoolRoleWorker, metadata)
 	if err != nil {
 		return nil, err
 	}
-	infraPools, err := buildPools(o.infra, compute.PoolRoleInfra, metadata)
+	infraPools, err := o.buildPools(o.infra, compute.PoolRoleInfra, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +170,7 @@ func (o *completedOptions) desiredPools(ctx context.Context) ([]compute.Pool, er
 // the role. PoolModeRegional builds a single pool spanning all zones;
 // PoolModePerZone expands into per-zone and non-zonal pools. Worker pools attach
 // the SKU's secondary NIC ceiling; system and infra pools attach none.
-func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skucache.SKUMetadata) ([]compute.Pool, error) {
+func (o *validatedOptions) buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skucache.SKUMetadata) ([]compute.Pool, error) {
 	meta := metadata[cfg.vmSize]
 	if meta == nil {
 		return nil, fmt.Errorf("%s pool VM size %q not found in region SKUs", role, cfg.vmSize)
@@ -195,10 +199,16 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 		taints = []string{compute.TaintInfra}
 		mode = compute.PoolModePerZone
 	}
+	if o.clusterType == clusterTypeSvc {
+		enableSwift = false
+		if o.systemPoolOnly {
+			taints = nil
+		}
+	}
 
 	spec := compute.NewVMSpecFromSKU(meta)
 	var secondaryNICs int64
-	if role == compute.PoolRoleWorker {
+	if role == compute.PoolRoleWorker && enableSwift {
 		secondaryNICs = spec.SecondaryNICs
 	}
 
@@ -207,7 +217,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 		placements = []poolPlacement{{name: cfg.name, zones: cfg.zones}}
 	} else {
 		var err error
-		placements, err = expandPoolPlacements(cfg.name, cfg.zones, cfg.poolCount)
+		placements, err = expandPoolPlacements(cfg.name, cfg.zones, cfg.poolCount, o.clusterType == clusterTypeSvc)
 		if err != nil {
 			return nil, err
 		}
@@ -230,6 +240,10 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 			Taints:            taints,
 			EnableSwift:       enableSwift,
 		})
+		if o.clusterType == clusterTypeSvc && role != compute.PoolRoleSystem {
+			pools[len(pools)-1].MaxSurge = cfg.maxSurge
+			pools[len(pools)-1].MaxUnavailable = cfg.maxUnavailable
+		}
 	}
 	return pools, nil
 }
@@ -237,16 +251,20 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 // expandPoolPlacements creates one pool per zone (named base+zone), one for
 // each of the first poolCount zones. Names are truncated to 12 characters,
 // matching the Bicep take(name, 12).
-func expandPoolPlacements(base string, zones []string, poolCount int) ([]poolPlacement, error) {
-	if poolCount > len(zones) {
+func expandPoolPlacements(base string, zones []string, poolCount int, nonzonalOverflow bool) ([]poolPlacement, error) {
+	if poolCount > len(zones) && !nonzonalOverflow {
 		return nil, fmt.Errorf("pool count %d exceeds available zones %d", poolCount, len(zones))
 	}
 	placements := make([]poolPlacement, 0, poolCount)
 	for i := range poolCount {
-		placements = append(placements, poolPlacement{
-			name:  truncate12(base + zones[i]),
-			zones: []string{zones[i]},
-		})
+		if i < len(zones) {
+			placements = append(placements, poolPlacement{
+				name:  truncate12(base + zones[i]),
+				zones: []string{zones[i]},
+			})
+			continue
+		}
+		placements = append(placements, poolPlacement{name: truncate12(fmt.Sprintf("%snz%d", base, i-len(zones)+1))})
 	}
 	return placements, nil
 }

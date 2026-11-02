@@ -24,6 +24,7 @@ import (
 
 func fullEnv() map[string]string {
 	return map[string]string{
+		"CLUSTER_TYPE":                   "mgmt",
 		"SUBSCRIPTION_ID":                "sub1",
 		"RESOURCE_GROUP":                 "rg1",
 		"CLUSTER_NAME":                   "cluster1",

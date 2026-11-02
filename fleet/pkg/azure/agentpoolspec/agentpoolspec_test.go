@@ -186,6 +186,26 @@ func TestBuild_NetworkConfig(t *testing.T) {
 	assert.Nil(t, properties.PodSubnetID)
 }
 
+func TestBuild_UpgradeOverrides(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		pool compute.Pool
+		wantSurge string
+		wantUnavailable *string
+	}{
+		{name: "shared Fleet default", wantSurge: "10%"},
+		{name: "svc surge", pool: compute.Pool{MaxSurge: "25%", MaxUnavailable: "0"}, wantSurge: "25%", wantUnavailable: ptr.To("0")},
+		{name: "svc unavailable", pool: compute.Pool{MaxSurge: "0", MaxUnavailable: "1"}, wantSurge: "0", wantUnavailable: ptr.To("1")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			properties := Build(test.pool, compute.NetworkConfig{})
+			assert.Equal(t, ptr.To(test.wantSurge), properties.UpgradeSettings.MaxSurge)
+			assert.Equal(t, test.wantUnavailable, properties.UpgradeSettings.MaxUnavailable)
+			assert.Nil(t, properties.Count, "shared builder must not own autoscaled capacity")
+		})
+	}
+}
+
 func TestIsSwiftEnabled(t *testing.T) {
 	tests := []struct {
 		name string

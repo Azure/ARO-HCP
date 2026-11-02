@@ -108,6 +108,9 @@ type Pool struct {
 	EnableSwift  bool              `json:"enableSwift,omitempty"`
 	// SecondaryNICs is the number attached per node, not the SKU maximum.
 	SecondaryNICs int64 `json:"secondaryNICs"`
+	// Optional upgrade overrides; empty values retain the shared AKS defaults.
+	MaxSurge       string `json:"maxSurge,omitempty"`
+	MaxUnavailable string `json:"maxUnavailable,omitempty"`
 }
 
 // ZoneString returns a comma-separated zone list for logging.

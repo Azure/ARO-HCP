@@ -121,6 +121,12 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		NodeTaints: taints,
 		Tags:       tags,
 	}
+	if pool.MaxSurge != "" {
+		properties.UpgradeSettings.MaxSurge = ptr.To(pool.MaxSurge)
+	}
+	if pool.MaxUnavailable != "" {
+		properties.UpgradeSettings.MaxUnavailable = ptr.To(pool.MaxUnavailable)
+	}
 
 	if len(networkConfig.VnetSubnetID) > 0 {
 		properties.VnetSubnetID = ptr.To(networkConfig.VnetSubnetID)

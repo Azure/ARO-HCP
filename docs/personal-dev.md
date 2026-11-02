@@ -71,7 +71,7 @@ New personal DEV service clusters run all workloads on one autoscaling system po
 > [!IMPORTANT]
 > A personal environment created before this change cannot be redeployed. Its system pool was created as `Standard_D2s_v3` with a 32 GB OS disk, and AKS does not allow either property to change on an existing pool, so the service-cluster deployment fails with `PropertyChangeNotAllowed`. Delete and recreate the environment to pick up this topology — personal environments are meant to be short-lived. If you need to keep an existing one running, set `svc.aks.systemPoolOnly` to `false` and remove the `systemAgentPool` override in the `pers` section of your local `config/config.yaml`.
 
-Note also that redeploying would not consolidate such a cluster even if the system pool were compatible: ARM does not delete the user and infra pools once the Bicep stops emitting them.
+Note also that redeploying would not consolidate such a cluster even if the system pool were compatible: incremental ARM deployment does not delete user and infra pools omitted by the Go provisioning tool.
 
 ### Local Cluster Service Development Setup
 

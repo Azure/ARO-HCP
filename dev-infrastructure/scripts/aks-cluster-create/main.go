@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// aks-cluster-create creates a management cluster's AKS ManagedCluster
+// aks-cluster-create creates a management or service cluster's AKS ManagedCluster
 // resource and all its node pools (system, infra, worker) from static
 // per-pool configuration through one incremental ARM deployment. The template
 // is built in memory using fleet/pkg/compute and fleet/pkg/azure/agentpoolspec;
@@ -21,11 +21,11 @@
 // Subsequent runs deploy the cluster only for configuration changes or failed/
 // canceled provisioning recovery, avoiding no-op AKS cluster reconciliation.
 // Configured pools are still redeployed. Unowned cluster configuration is
-// preserved; Kubernetes versions and unconfigured pools are left alone.
+// preserved; established Kubernetes/Istio versions and unconfigured pools are left alone.
 // Interrupted runs wait for the previous deployment before observing resources
 // and submitting a fresh template. Failed deployments leave the provisioning
 // marker intact; only successful provisioning permits the conditional tag
-// update that hands pool management over to Fleet.
+// update that finalizes bootstrap. This does not register svc pools with Fleet.
 //
 // The identity needs resource-group deployment read/write permissions as well
 // as AKS permissions. Serialize writers for each cluster: deployment resource
@@ -33,11 +33,13 @@
 //
 // Inputs (environment variables):
 //
+//	CLUSTER_TYPE                     - required: mgmt or svc
 //	SUBSCRIPTION_ID, RESOURCE_GROUP, CLUSTER_NAME, REGION
-//	REGION_AVAILABILITY_ZONE_COUNT   - EV2-backed regional zone count
-//	NODE_SUBNET_ID, POD_SUBNET_ID     - from the mgmt-infra bicep outputs
+//	REGION_AVAILABILITY_ZONE_COUNT   - mgmt: EV2-backed regional zone count
+//	LOCATION_AVAILABILITY_ZONES      - svc: Bicep regional CSV, preserving zone identifiers
+//	NODE_SUBNET_ID, POD_SUBNET_ID     - prerequisite Bicep outputs
 //	NETWORK_DATAPLANE, NETWORK_POLICY
-//	OUTBOUND_IP_RESOURCE_ID           - from the mgmt-infra bicep outputs
+//	OUTBOUND_IP_RESOURCE_ID           - prerequisite Bicep output
 //	MANAGED_IDENTITY_ID               - cluster user-assigned identity resource ID
 //	ETCD_KMS_KEY_URI                  - versioned etcd KMS key URI (keyUriWithVersion)
 //	KUBERNETES_VERSION
@@ -46,7 +48,7 @@
 //	METRIC_LABELS_ALLOWLIST, METRIC_ANNOTATIONS_ALLOWLIST - optional, default ""
 //	LOG_VERBOSITY    - optional slog verbosity (default 0)
 //
-// Per-pool configuration (from config.yaml mgmt.aks.{systemAgentPool,userAgentPool,infraAgentPool}):
+// Per-pool configuration (from config.yaml {mgmt,svc}.aks pool blocks):
 //
 //	SYSTEM_POOL_NAME, SYSTEM_POOL_VM_SIZE, SYSTEM_POOL_OS_DISK_SIZE_GB,
 //	SYSTEM_POOL_MIN_COUNT, SYSTEM_POOL_MAX_COUNT,
@@ -60,11 +62,22 @@
 //	INFRA_POOL_MIN_COUNT, INFRA_POOL_MAX_COUNT, INFRA_POOL_COUNT,
 //	INFRA_POOL_ZONES (CSV)
 //
-// Every pool spans exactly 3 zones (see compute.ResolveZones):
-// REGION_AVAILABILITY_ZONE_COUNT must be at least 3, empty per-pool zones
-// default to the region's first 3, and an explicit *_ZONES list must name
-// exactly 3 valid zones. User and infra pools select the first POOL_COUNT
-// zones from the resolved list; the system pool spans all of them.
+// Mgmt retains compute.ResolveZones' exact-three-zone policy and SWIFT settings.
+// Svc additionally accepts SYSTEM_POOL_ONLY (default false), ISTIO_VERSIONS
+// (required bootstrap CSV), and {SYSTEM,USER,INFRA}_POOL_ZONE_REDUNDANT_MODE
+// (Auto, Enabled, Disabled). Empty svc pool zones use LOCATION_AVAILABILITY_ZONES;
+// user/infra pools beyond the zonal count use the original nz suffixes.
+// USER_POOL_MAX_SURGE, USER_POOL_MAX_UNAVAILABLE, INFRA_POOL_MAX_SURGE,
+// INFRA_POOL_MAX_UNAVAILABLE override shared upgrade defaults for svc only.
+// System-only skips user/infra validation and SKU lookup, preserves System mode
+// and role=system, and removes the CriticalAddonsOnly taint. It does not delete
+// omitted pools or convert an existing environment's topology.
+//
+// Svc recovery preserves nonempty live revisions (including canary pairs).
+// Only a marked Failed/Canceled cluster without revisions reuses configured
+// bootstrap revisions; missing provenance is an error. Retry the same rendered
+// configuration/artifact. Marker retention and AKS acceptance after actual
+// failures remain live validation gates, not guarantees of this tool.
 package main
 
 import (

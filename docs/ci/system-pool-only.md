@@ -6,7 +6,7 @@ environments or on management clusters. Personal DEV uses three to five
 `Standard_D4ds_v5` nodes with 64 GB OS disks instead of the CI sizing below;
 see [Service Cluster Node Pools](../personal-dev.md#service-cluster-node-pools).
 
-In this mode the service-cluster Bicep deployment:
+In this mode the shared Go AKS provisioning tool (`CLUSTER_TYPE=svc`):
 
 - Retains the AKS System-mode pool and its `aro-hcp.azure.com/role=system` label.
 - Removes the `CriticalAddonsOnly=true:NoSchedule` taint so application pods and
@@ -33,8 +33,8 @@ Use a freshly created CI or personal DEV cluster to exercise this topology.
 This is not a live migration tool, and enabling the flag on an existing cluster
 is not supported:
 
-- Incremental ARM deployments do not delete pools omitted by a conditional
-  module, so the user and infra pools survive.
+- Incremental ARM deployments do not delete unconfigured pools, so omitted user
+  and infra pools survive.
 - Clearing the system pool taint makes system nodes eligible for new pods but
   does not move running pods there or remove the old nodes.
 - If the environment also changes the system pool's VM size or OS disk size, as
@@ -52,11 +52,14 @@ planning for the restored taint and monitoring placement.
 make -C config materialize
 make test-helm-fixtures
 go test ./tooling/templatize/internal -run TestSystemPoolOnlyConfigSchema
+go test ./dev-infrastructure/scripts/aks-cluster-create
+az bicep build --file dev-infrastructure/templates/svc-infra.bicep --stdout
 az bicep build --file dev-infrastructure/templates/svc-cluster.bicep --stdout
 ```
 
-The tests cover CI and personal DEV opt-in, rejection in other environments and
-on management clusters, the Bicep parameter path, conditional pool creation, and
-both rendered Prometheus affinities for service, management, and opstool
-clusters. Local compilation is not a substitute for a fresh deployment in each
-environment.
+The schema tests cover CI and personal DEV opt-in and rejection in other
+environments and on management clusters. Go provisioning tests cover the
+system-only pool selection and taint behavior; Helm fixtures cover rendered
+Prometheus affinities for service, management, and opstool clusters. Local
+payload checks and compilation are not substitutes for a fresh deployment in
+each environment.

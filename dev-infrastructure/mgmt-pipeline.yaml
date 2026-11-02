@@ -393,6 +393,8 @@ resourceGroups:
         step: output
         name: globalMSIId
     variables:
+    - name: CLUSTER_TYPE
+      value: mgmt
     - name: SUBSCRIPTION_ID
       input:
         resourceGroup: management

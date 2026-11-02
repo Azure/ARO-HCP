@@ -12,6 +12,50 @@ The Bicep templates are responsible for provisioning the infrastructure required
 
 Beyond provisioning infrastructure, the Bicep templates also manage access control by configuring managed identities and assigning Azure RBAC roles as needed. This ensures that each deployed component has the correct permissions and authentication mechanisms in place to operate securely within its designated scope. The templates ensure that all required dependencies, identities, and permissions are correctly configured to support reliable system operation.
 
+### AKS provisioning ownership
+
+Service and management clusters share the Go tool in
+[`dev-infrastructure/scripts/aks-cluster-create`](../dev-infrastructure/scripts/aks-cluster-create),
+selected by the pipeline's `CLUSTER_TYPE=svc|mgmt`. The tool accepts scalar
+configuration and prerequisite resource IDs, not a Bicep template. It builds
+and submits an incremental ARM JSON deployment named `aks-cluster-create`.
+
+The tool uses `armcontainerservice/v8 v8.3.0-beta.2` so Gateway API installation
+is represented in both observed and desired configuration, including drift
+detection. Its SDK cluster GET uses `2025-10-02-preview`; generated cluster/pool
+resources use `2026-04-02-preview`. These are distinct API paths, and neither
+local transport tests nor SDK field support prove live Failed-resource recovery.
+
+The service pipeline separates ownership into three phases:
+
+1. `infra` (`svc-infra.bicep`): identities or leased-identity resolution,
+   VNet/subnets/NSG, public IPs, KMS vault/key, and prerequisite RBAC.
+2. `cluster-create` (Go): AKS configuration and configured node pools.
+3. `cluster` (`svc-cluster.bicep`): post-cluster federation, access,
+   maintenance, monitoring, and service integrations. The step name remains
+   the downstream readiness barrier.
+
+Creation supplies the Kubernetes version and one inline System pool; other
+configured pools depend on the cluster as child resources. Subsequent runs
+omit inline pools and Kubernetes version from the cluster payload, and update
+every configured pool—including the same System pool—as a child resource.
+New svc child pools receive their configured minimum as the initial count;
+existing pools do not have their autoscaled count reset. Unconfigured pools
+are not deleted. Service placement preserves per-role zone policies and does
+not enable management-cluster SWIFT networking.
+
+The tool merges owned cluster settings with live unowned configuration.
+A healthy matching cluster is omitted to avoid an unnecessary AKS PUT;
+configured pools are still submitted. Subsequent Kubernetes upgrades use
+`upgrade-aks-cluster.sh`; service mesh revision ownership and recovery are
+described in [Istio installation](istio.md#installation-and-configuration).
+
+Successful deployment, refreshed provisioning-state checks, and an
+ETag-conditional tag update gate removal of `aro-hcp-provisioning=true`.
+The marker is neither Fleet registration nor a concurrency lock. Serialize
+same-cluster writers. Local payload/compilation checks do not establish live
+Azure authorization, Failed-resource recovery, or private EV2 compatibility.
+
 ## Bicep Structure
 
 ### Templates

@@ -1,11 +1,7 @@
-// Everything that needs the management cluster's AKS ManagedCluster resource to
-// already exist: maintenance schedules, ACR pull roles, workload-identity
-// federated credentials, the image-puller identity, and the cluster-admin role.
-// This is the post-ManagedCluster half of aks-cluster-base.bicep (the module
-// svc-cluster.bicep still uses as-is); management clusters call this module
-// instead, from mgmt-cluster.bicep, since their ManagedCluster + node pools are
-// created by the aks-cluster-create Go tool rather than a bicep resource in this
-// same deployment.
+// Wiring that requires an existing AKS ManagedCluster: maintenance schedules,
+// ACR pull roles, workload federation, image-puller identity and cluster-admin
+// access. Both svc and mgmt invoke this after the shared Go provisioning step;
+// the opstool cluster retains aks-cluster-base.bicep.
 import * as res from 'resource.bicep'
 
 @description('Azure Region Location')

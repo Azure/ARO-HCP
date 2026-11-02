@@ -630,10 +630,9 @@ defaults:
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
-    # Consumed by the IstioUpgrade pipeline step (svc-pipeline.yaml, action:
-    # IstioUpgrade) via config path svc.istio.versions — not read by bicep,
-    # because passing revisions through ARM would overwrite upgrades the
-    # pipeline step had already applied.
+    # The Go cluster-create step uses svc.istio.versions for initial mesh bootstrap.
+    # Established-cluster provisioning omits revisions from ARM updates; the
+    # IstioUpgrade step owns subsequent upgrades and canary progression.
 
     istio:
       tag: "prod-stable"

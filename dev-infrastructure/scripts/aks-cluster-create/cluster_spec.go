@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
@@ -158,6 +159,30 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 			SupportPlan: ptr.To(armcontainerservice.KubernetesSupportPlanKubernetesOfficial),
 		},
 	}
+	bootstrapRevisions, err := o.bootstrapIstioRevisions(existing)
+	if err != nil {
+		return armcontainerservice.ManagedCluster{}, nil, err
+	}
+	if o.clusterType == clusterTypeSvc {
+		desired.Properties.ServiceMeshProfile = &armcontainerservice.ServiceMeshProfile{
+			Mode: ptr.To(armcontainerservice.ServiceMeshModeIstio),
+			Istio: &armcontainerservice.IstioServiceMesh{
+				Components: &armcontainerservice.IstioComponents{
+					IngressGateways: []*armcontainerservice.IstioIngressGateway{
+						{Enabled: ptr.To(true), Mode: ptr.To(armcontainerservice.IstioIngressGatewayModeExternal)},
+					},
+				},
+			},
+		}
+		for _, revision := range bootstrapRevisions {
+			desired.Properties.ServiceMeshProfile.Istio.Revisions = append(desired.Properties.ServiceMeshProfile.Istio.Revisions, ptr.To(revision))
+		}
+		desired.Properties.IngressProfile = &armcontainerservice.ManagedClusterIngressProfile{
+			GatewayAPI: &armcontainerservice.ManagedClusterIngressProfileGatewayConfiguration{
+				Installation: ptr.To(armcontainerservice.ManagedGatewayType("Standard")),
+			},
+		}
+	}
 
 	if existing == nil {
 		if bootstrap == nil {
@@ -202,6 +227,18 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 	// Ref: https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/create-or-update
 	properties.AgentPoolProfiles = nil
 	properties.KubernetesVersion = nil
+	if o.clusterType == clusterTypeSvc && len(bootstrapRevisions) == 0 && properties.ServiceMeshProfile != nil {
+		// The ordinary merger preserves live unowned values. Revisions are
+		// different: upgrade/canary ownership requires actual wire omission,
+		// including on Failed clusters that still have the bootstrap marker.
+		mesh := *properties.ServiceMeshProfile
+		properties.ServiceMeshProfile = &mesh
+		if mesh.Istio != nil {
+			istio := *mesh.Istio
+			mesh.Istio = &istio
+			istio.Revisions = nil
+		}
+	}
 
 	// Merge the wire representation so explicit false/empty values are owned,
 	// while nested server defaults and fields owned by other actors survive.
@@ -227,6 +264,35 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 	}
 	slices.Sort(changed)
 	return update, changed, nil
+}
+
+// bootstrapIstioRevisions classifies bootstrap using live evidence, not existence
+// or Failed state alone. Retries must use the same rendered configuration.
+func (o *validatedOptions) bootstrapIstioRevisions(existing *armcontainerservice.ManagedCluster) ([]string, error) {
+	if o.clusterType != clusterTypeSvc {
+		return nil, nil
+	}
+	if existing == nil {
+		return o.istioVersions, nil
+	}
+	if existing.Properties == nil || ptr.Deref(existing.Properties.ProvisioningState, "") == "" {
+		return nil, fmt.Errorf("svc cluster provisioning state is missing")
+	}
+	mesh := existing.Properties.ServiceMeshProfile
+	if mesh != nil && mesh.Istio != nil && len(mesh.Istio.Revisions) > 0 {
+		for _, revision := range mesh.Istio.Revisions {
+			if revision == nil || *revision == "" {
+				return nil, fmt.Errorf("svc cluster contains an invalid observed Istio revision")
+			}
+		}
+		return nil, nil
+	}
+	state := *existing.Properties.ProvisioningState
+	marked := ptr.Deref(existing.Tags[agentpools.ProvisioningTagKey], "") == agentpools.ProvisioningTagValue
+	if marked && (state == provisioningStateFailed || state == provisioningStateCanceled) {
+		return o.istioVersions, nil
+	}
+	return nil, fmt.Errorf("ambiguous svc bootstrap recovery: existing cluster has no Istio revisions; automatic recovery requires the provisioning marker and Failed/Canceled state")
 }
 
 // toClusterAgentPoolProfile adapts pool properties built by agentpoolspec.Build
