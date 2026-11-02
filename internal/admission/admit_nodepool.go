@@ -51,9 +51,11 @@ type NodePoolAdmissionContext struct {
 	Cluster                 *coreapi.Cluster
 	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 	ServiceProviderCluster  *coreapi.ServiceProviderCluster
-	// ClusterNodePools is every node pool for the parent cluster, including the one
-	// being updated. It is populated on UPDATE only and is used to enforce the
-	// cluster-wide minimum worker-node floor in admitReplicas.
+	// ClusterNodePools is every node pool for the parent cluster. It is populated
+	// on both CREATE and UPDATE for cluster-wide, cross-node-pool checks. On
+	// UPDATE this includes the node pool being updated, carrying its stored
+	// (pre-update) state. On CREATE the node pool being admitted does not exist
+	// yet, so it is never included here.
 	ClusterNodePools []*coreapi.NodePool
 }
 
@@ -266,6 +268,7 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 	errs = append(errs, admitNodePoolVersion(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToNodePoolPropertiesVersion))...)
 	errs = append(errs, admitNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
 	errs = append(errs, admitReplicas(ctx, admissionContext, op, fldPath.Child("replicas"), newObj, oldObj)...)
+	errs = append(errs, admitClusterComputeNodeCapacity(ctx, admissionContext, op, fldPath, newObj)...)
 	return errs
 }
 
@@ -382,10 +385,126 @@ func admitReplicas(_ context.Context, admissionContext *NodePoolAdmissionContext
 // cluster autoscaler keeps nodes that running workloads need and can scale up from
 // zero; it is never a forced zero.
 func canRunWorkerNodes(np *coreapi.NodePoolProperties) bool {
+	return nodePoolNodeCapacity(np) > 0
+}
+
+// nodePoolNodeCapacity returns the maximum number of compute nodes a node pool can
+// run: AutoScaling.Max when autoscaling is enabled (the cluster autoscaler may
+// scale up to that many nodes regardless of the current replica count), otherwise
+// the fixed Replicas count.
+func nodePoolNodeCapacity(np *coreapi.NodePoolProperties) int32 {
 	if np.AutoScaling != nil {
-		return np.AutoScaling.Max > 0
+		return np.AutoScaling.Max
 	}
-	return np.Replicas > 0
+	return np.Replicas
+}
+
+// maxClusterComputeNodes is the hard cap on the total number of compute nodes a
+// single cluster may have, summed across every node pool. 500 is the maximum
+// that has been PerfScale validated and tested; exceeding it should not
+// hard-break the cluster but may cause control-plane strain and noisy-neighbor
+// effects. This limit is not discoverable at runtime and must be updated here
+// manually if it ever changes.
+const maxClusterComputeNodes = 500
+
+// clusterAutoscalerMaxNodesTotal returns the cluster-wide, cross-node-pool
+// autoscaler cap configured on the cluster, or 0 if none is configured. When
+// set, a single shared cap governs every autoscaling-enabled node pool on the
+// cluster collectively, instead of each pool being allowed to independently
+// reach its own AutoScaling.Max.
+func clusterAutoscalerMaxNodesTotal(cluster *coreapi.Cluster) int32 {
+	if cluster == nil {
+		return 0
+	}
+	return cluster.CustomerProperties.Autoscaling.MaxNodesTotal
+}
+
+// admitClusterComputeNodeCapacity enforces maxClusterComputeNodes at admission
+// time, on both CREATE and UPDATE. It sums every node pool on the cluster (newObj
+// plus the siblings in admissionContext.ClusterNodePools) into fixedReplicas
+// (pools without autoscaling) and minReplicas/maxReplicas (sum of
+// AutoScaling.Min/Max for pools with autoscaling), then runs two checks:
+//
+//  1. Reject if the guaranteed floor, fixedReplicas+minReplicas, already exceeds
+//     the limit — every autoscaling pool keeps at least its Min nodes running,
+//     so this can never be satisfied even when pools are scaled all the way down.
+//  2. Otherwise reject if the worst-case ceiling exceeds the limit. Ordinarily
+//     that ceiling is fixedReplicas+maxReplicas (every autoscaling pool scaled
+//     all the way up independently). But when the cluster has a cluster-wide
+//     autoscaler cap (clusterAutoscalerMaxNodesTotal), that single shared cap
+//     replaces the per-pool maxReplicas sum: fixedReplicas+minReplicas+globalMax.
+func admitClusterComputeNodeCapacity(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.NodePoolProperties) field.ErrorList {
+	if op.Type != operation.Create && op.Type != operation.Update {
+		return nil
+	}
+
+	// On UPDATE, admissionContext.ClusterNodePools includes the pool being updated
+	// (its stored, pre-update state); skip it so it isn't counted twice alongside
+	// newObj. On CREATE, the pool being admitted doesn't exist in that list yet,
+	// so OriginalNodePool.ID never matches anything there.
+	var existingNodePoolID string
+	if admissionContext.OriginalNodePool != nil && admissionContext.OriginalNodePool.ID != nil {
+		existingNodePoolID = admissionContext.OriginalNodePool.ID.String()
+	}
+
+	var fixedReplicas, minReplicas, maxReplicas int32
+	addNodePool := func(np *coreapi.NodePoolProperties) {
+		if np.AutoScaling != nil {
+			minReplicas += np.AutoScaling.Min
+			maxReplicas += np.AutoScaling.Max
+			return
+		}
+		fixedReplicas += np.Replicas
+	}
+
+	addNodePool(newObj)
+	for _, np := range admissionContext.ClusterNodePools {
+		if len(existingNodePoolID) > 0 && strings.EqualFold(np.ID.String(), existingNodePoolID) {
+			continue
+		}
+		// A node pool being deleted will not hold its capacity going forward.
+		if np.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
+		addNodePool(&np.Properties)
+	}
+
+	// Errors are reported against newObj's own replicas/autoScaling fields (the
+	// node pool actually being admitted), even though the sum spans every node
+	// pool on the cluster.
+	floorPath, ceilingPath := fldPath.Child("replicas"), fldPath.Child("replicas")
+	if newObj.AutoScaling != nil {
+		floorPath, ceilingPath = fldPath.Child("autoScaling").Child("min"), fldPath.Child("autoScaling").Child("max")
+	}
+
+	if floor := fixedReplicas + minReplicas; floor > maxClusterComputeNodes {
+		return field.ErrorList{field.Invalid(floorPath, floor, fmt.Sprintf(
+			"the guaranteed minimum number of compute nodes for this cluster '%d' (sum of fixed-size replicas and autoscaling minimums across all node pools) exceeds the maximum allowed '%d'; reduce the replica count or autoscaling minimum to be within the maximum allowed",
+			floor, maxClusterComputeNodes))}
+	}
+
+	// Without a cluster-wide autoscaler, each autoscaling pool can independently
+	// scale up to its own AutoScaling.Max, so the worst case is the sum of all
+	// per-pool Max values plus fixed-size pools.
+	ceiling := fixedReplicas + maxReplicas
+	if globalMax := clusterAutoscalerMaxNodesTotal(admissionContext.Cluster); globalMax > 0 {
+		// When a cluster-wide autoscaler is configured, it replaces the per-pool
+		// Max values with a single shared cap (MaxNodesTotal) that governs all
+		// autoscaling pools collectively. The worst case then becomes: fixed-size
+		// pools (always running) + autoscaling pools' guaranteed minimums (always
+		// running) + the shared autoscaler budget. Note: globalMax is the
+		// user-configured cluster autoscaler cap, NOT the 500-node hard limit —
+		// it is already validated to be <= 500 by static validation on the
+		// Cluster resource (validate_cluster.go).
+		ceiling = fixedReplicas + minReplicas + globalMax
+	}
+	if ceiling > maxClusterComputeNodes {
+		return field.ErrorList{field.Invalid(ceilingPath, ceiling, fmt.Sprintf(
+			"the maximum possible number of compute nodes for this cluster '%d' (sum of fixed-size replicas and autoscaling maximums across all node pools) exceeds the maximum allowed '%d'; reduce the replica count or autoscaling maximum to be within the maximum allowed",
+			ceiling, maxClusterComputeNodes))}
+	}
+
+	return nil
 }
 
 // validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.
