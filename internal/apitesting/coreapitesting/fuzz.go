@@ -185,6 +185,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.RevokeCredentialsOperationID = ""
 			j.PendingClusterServiceID = nil
 			j.ClusterServiceID = nil
+			j.ClusterServiceDeletionCompleted = false
+			j.ServiceProviderClusterInitialized = false
 			j.ExperimentalFeatures = coreapi.ExperimentalFeatures{}
 			j.ManagedIdentitiesDataPlaneIdentityURL = ""
 			j.ClusterUID = ""
