@@ -79,8 +79,6 @@ func GetOrCreateServiceProviderCluster(
 		return nil, utils.TrackError(fmt.Errorf("provider state missing for initialized or deleting cluster %s", clusterResourceID))
 	}
 	initialServiceProviderCluster := newInitialServiceProviderCluster(clusterResourceID)
-	initialServiceProviderCluster.PendingClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
-	initialServiceProviderCluster.ClusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
 	cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
 	transaction := dbClient.NewTransaction(cluster.GetPartitionKey())
 	if _, err := clusterCRUD.AddReplaceToTransaction(ctx, transaction, cluster, nil); err != nil {

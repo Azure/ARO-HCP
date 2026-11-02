@@ -221,6 +221,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				coreapitesting.TestTenantID,
 				coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL,
 				csVersionID,
+				coreapitesting.ServiceProviderIDsForCluster(cluster),
 			)
 			require.NoError(t, err)
 			result, err := builder.Azure(azureBuilder).Build()
@@ -1540,6 +1541,9 @@ func TestBuildCSCluster(t *testing.T) {
 			}
 
 			// Build actual CS cluster
+			if serviceProviderCluster != nil {
+				serviceProviderCluster.PendingClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
+			}
 			actualClusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
 
 			if tc.expectedError != "" {

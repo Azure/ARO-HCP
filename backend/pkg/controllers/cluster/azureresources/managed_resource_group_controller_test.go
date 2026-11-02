@@ -905,8 +905,8 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion(t *testing.T) {
 
 			cluster := newTestCluster(true) // creates cluster with deletion timestamp set
 			cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = tc.clusterServiceDeletionTimestamp
-			cluster.ServiceProviderProperties.ClusterServiceID = tc.clusterServiceID
 			serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
+			serviceProviderCluster.ClusterServiceID = tc.clusterServiceID
 
 			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
 			require.NoError(t, err)

@@ -202,6 +202,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		c.ServiceProviderProperties.ClusterServiceID = nil
+		c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 	}
 
 	testKey := controllerutils.HCPClusterKey{
@@ -250,6 +251,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				c.ServiceProviderProperties.ClusterServiceID = nil
+				c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			childResources: []any{newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
@@ -629,6 +631,9 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			resources = append(resources, tc.childResources...)
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+			if tc.existingCluster != nil && tc.existingCluster.ServiceProviderProperties.ClusterServiceID != nil {
+				seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
+			}
 
 			clustersForLister := []*coreapi.Cluster{}
 			if tc.existingCluster != nil {

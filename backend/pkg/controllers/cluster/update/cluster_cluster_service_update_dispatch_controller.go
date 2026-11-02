@@ -113,12 +113,12 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(cluster *coreapi.Cluster) bool {
+func needsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
 
-	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	csID := provider.ClusterServiceID
 	if csID == nil || len(csID.String()) == 0 {
 		return false
 	}
@@ -127,6 +127,13 @@ func needsWork(cluster *coreapi.Cluster) bool {
 }
 
 func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
@@ -145,7 +152,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if !needsWork(cachedCluster) {
+	if !needsWork(cachedCluster, provider) {
 		return nil
 	}
 
@@ -157,7 +164,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
-	if !needsWork(cluster) {
+	if !needsWork(cluster, provider) {
 		return nil
 	}
 
@@ -172,7 +179,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return utils.TrackError(fmt.Errorf("subscription properties or subscription tenant ID is nil"))
 	}
 
-	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
+	clusterCSID := provider.ClusterServiceID
 	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// We expect the service provider cluster to be created when the cluster exists. If it doesn't exist, we wait for the next sync.

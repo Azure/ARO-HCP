@@ -50,9 +50,14 @@ state requires operator investigation, not a new pending ID.
 Only after that gate, deploy provider-based readers. Remove the old-authoritative
 backfill in this stage; otherwise it could restore stale IDs after stage 3 stops
 updating the legacy representation. All lifecycle mutations still update both
-documents atomically. Missing provider state must not authorize creation or
-premature deletion; terminal deletion must remain able to finish after its provider
-child has been removed. Historical diagnostic snapshots may still contain legacy
+documents atomically. The provider initializer also handles a delete arriving before
+initialization, but stops recreating provider state after CS deletion is dispatched.
+Deletion cleanup requires the durable completion marker, not just dispatch or
+provider absence. The ID clearer records completion when both provider IDs are
+absent after dispatch. Cleanup reads live provider IDs after the live cluster
+deletion markers and blocks if either ID remains. Once the provider child is
+removed, the surviving completion marker lets parent deletion finish.
+Historical diagnostic snapshots may still contain legacy
 fields and are distinct from live operational reads.
 
 Before stage 3, deploy stage 2 everywhere and retire all stage-1 reconcilers and

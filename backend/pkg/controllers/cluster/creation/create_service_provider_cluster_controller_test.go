@@ -92,76 +92,6 @@ func (b *boomServiceProviderClusterLister) Get(_ context.Context, _, _, _ string
 	return nil, b.err
 }
 
-func TestCreateServiceProviderClusterSyncer_BackfillsMarkersWithMatchingIDs(t *testing.T) {
-	for _, scenario := range []struct {
-		name         string
-		withID       bool
-		initialized  bool
-		deleting     bool
-		emptyPending bool
-		completed    bool
-	}{
-		{name: "existing IDs", withID: true},
-		{name: "empty IDs"},
-		{name: "completed deletion", initialized: true, deleting: true},
-		{name: "empty pending deletion", initialized: true, deleting: true, emptyPending: true},
-		{name: "empty pending marked deletion", initialized: true, deleting: true, emptyPending: true, completed: true},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			ctx := t.Context()
-			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			cluster := newCreatorTestCluster(t)
-			cluster.SetPartitionKey(creatorTestSubscriptionID)
-			cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = scenario.initialized
-			cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = scenario.completed
-			if scenario.emptyPending {
-				cluster.ServiceProviderProperties.PendingClusterServiceID = &metadataapi.InternalID{}
-			}
-			if scenario.withID {
-				cluster.ServiceProviderProperties.ClusterServiceID = ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/existing")))
-			}
-			if scenario.deleting {
-				cluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
-				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = ptr.To(metav1.Now())
-			}
-			clusterCRUD := db.HCPClusters(creatorTestSubscriptionID, creatorTestResourceGroup)
-			cluster, err := clusterCRUD.Create(ctx, cluster, nil)
-			require.NoError(t, err)
-			providerCRUD := db.ServiceProviderClusters(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName)
-			provider := &coreapi.ServiceProviderCluster{
-				CosmosMetadata:          coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default"))},
-				ClusterServiceID:        cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy(),
-				PendingClusterServiceID: cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy(),
-			}
-			provider.SetPartitionKey(creatorTestSubscriptionID)
-			provider, err = providerCRUD.Create(ctx, provider, nil)
-			require.NoError(t, err)
-			syncer := &createServiceProviderClusterSyncer{
-				resourcesDBClient:            db,
-				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{provider}},
-			}
-			require.NoError(t, syncer.SyncOnce(ctx, newCreatorTestClusterKey()))
-			observed, err := clusterCRUD.Get(ctx, creatorTestClusterName)
-			require.NoError(t, err)
-			require.True(t, observed.ServiceProviderProperties.ServiceProviderClusterInitialized)
-			require.Nil(t, observed.ServiceProviderProperties.PendingClusterServiceID)
-			require.Equal(t, scenario.deleting, observed.ServiceProviderProperties.ClusterServiceDeletionCompleted)
-			observedProvider, err := providerCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			require.Equal(t, provider.ClusterServiceID, observedProvider.ClusterServiceID)
-			require.Nil(t, observedProvider.PendingClusterServiceID)
-			require.NoError(t, syncer.SyncOnce(ctx, newCreatorTestClusterKey()))
-			repeated, err := clusterCRUD.Get(ctx, creatorTestClusterName)
-			require.NoError(t, err)
-			require.Equal(t, observed.GetEtag(), repeated.GetEtag())
-			repeatedProvider, err := providerCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-			require.NoError(t, err)
-			require.Equal(t, observedProvider.GetEtag(), repeatedProvider.GetEtag())
-		})
-	}
-}
-
 func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 	clusterResourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
 	listerBoom := errors.New("lister exploded")
@@ -201,13 +131,11 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 		{
 			name: "ServiceProviderCluster already in lister is a no-op",
 			buildSyncer: func(t *testing.T, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
-				cluster := newCreatorTestCluster(t)
-				cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
 				spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName))
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*coreapi.Cluster{cluster},
+						Clusters: []*coreapi.Cluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 						ServiceProviderClusters: []*coreapi.ServiceProviderCluster{{

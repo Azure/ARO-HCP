@@ -506,6 +506,8 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.existingServiceProviderCluster != nil {
+				tt.existingServiceProviderCluster.PendingClusterServiceID = tt.dbCluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
+				tt.existingServiceProviderCluster.ClusterServiceID = tt.dbCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
 				_, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, tt.existingServiceProviderCluster, nil)
 				require.NoError(t, err)
 			}

@@ -147,7 +147,7 @@ func (syncer *ingressCertificateSyncer) ensureSecretSyncDesiresCreated(
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	readCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 ) error {
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	if serviceProviderCluster.ClusterServiceID == nil {
 		return nil
 	}
 	if managementClusterID.Parent == nil {

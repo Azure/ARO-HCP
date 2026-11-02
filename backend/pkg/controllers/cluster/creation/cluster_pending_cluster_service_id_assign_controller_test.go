@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -125,6 +126,14 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newTestSubscription(), tt.dbCluster})
 			require.NoError(t, err)
+			if tt.dbCluster != nil {
+				provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, tt.dbCluster.ID)
+				require.NoError(t, err)
+				provider.PendingClusterServiceID = tt.dbCluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
+				provider.ClusterServiceID = tt.dbCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Replace(ctx, provider, nil)
+				require.NoError(t, err)
+			}
 
 			var listerClusters []*coreapi.Cluster
 			if tt.listCluster != nil {
