@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreapi
+package azureresourcesapi
 
 import (
 	"encoding/json"
@@ -31,31 +31,33 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
+
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-func TestStackDesireSDKJSONPreservesReadonlyStatus(t *testing.T) {
+func TestDeploymentStackDesireSDKJSONPreservesReadonlyStatus(t *testing.T) {
 	const response = `{"id":"/stack","name":"stack","type":"Microsoft.Resources/deploymentStacks","systemData":{"createdBy":"creator"},"properties":{"correlationId":"correlation","deploymentId":"/deployment","duration":"PT1S","provisioningState":"Succeeded","outputs":{"result":{"value":"value"}},"error":{"code":"Error"}}}`
 	var stack armdeploymentstacks.DeploymentStack
 	require.NoError(t, json.Unmarshal([]byte(response), &stack))
 	data, err := json.Marshal(stack)
 	require.NoError(t, err)
 	require.JSONEq(t, response, string(data), "SDK marshaling must retain readonly response fields")
-	status := &StackDesireStatus{Stack: &stack}
+	status := &DeploymentStackDesireStatus{Stack: &stack}
 	require.Equal(t, status, status.DeepCopy(), "readonly response fields must survive deepcopy")
 }
 
-func TestStackDesireSpecHash(t *testing.T) {
+func TestDeploymentStackDesireSpecHash(t *testing.T) {
 	target, err := azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Resources/deploymentStacks/stack")
 	require.NoError(t, err)
-	spec := StackDesireSpec{
+	spec := DeploymentStackDesireSpec{
 		TargetResourceID: target,
-		Authentication:   StackDesireAuthentication{Type: StackDesireAuthenticationTypeFPA},
-		Action:           StackDesireActionApply,
+		Authentication:   DeploymentStackDesireAuthentication{Type: DeploymentStackDesireAuthenticationTypeFPA},
+		Action:           DeploymentStackDesireActionApply,
 		Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{
 			Template: map[string]any{"b": float64(42), "a": []any{float64(1), float64(2)}},
 		}},
 	}
-	hash, err := StackDesireSpecHash(spec)
+	hash, err := DeploymentStackDesireSpecHash(spec)
 	require.NoError(t, err)
 	require.Len(t, hash, 64)
 	for _, stack := range []string{
@@ -64,66 +66,70 @@ func TestStackDesireSpecHash(t *testing.T) {
 	} {
 		other := *spec.DeepCopy()
 		require.NoError(t, json.Unmarshal([]byte(stack), &other.Stack))
-		actual, err := StackDesireSpecHash(other)
+		actual, err := DeploymentStackDesireSpecHash(other)
 		require.NoError(t, err)
 		require.Equal(t, hash, actual, "object order, whitespace and string escaping must not affect the hash")
 	}
-	for name, mutate := range map[string]func(*StackDesireSpec){
-		"array order": func(spec *StackDesireSpec) {
+	for name, mutate := range map[string]func(*DeploymentStackDesireSpec){
+		"array order": func(spec *DeploymentStackDesireSpec) {
 			spec.Stack.Properties.Template.(map[string]any)["a"] = []any{float64(2), float64(1)}
 		},
-		"template": func(spec *StackDesireSpec) {
+		"template": func(spec *DeploymentStackDesireSpec) {
 			spec.Stack.Properties.Template.(map[string]any)["b"] = float64(43)
 		},
-		"delete policy": func(spec *StackDesireSpec) {
+		"delete policy": func(spec *DeploymentStackDesireSpec) {
 			spec.Stack.Properties.ActionOnUnmanage = &armdeploymentstacks.ActionOnUnmanage{Resources: ptr.To(armdeploymentstacks.UnmanageActionResourceModeDelete)}
 		},
-		"bypass out of sync": func(spec *StackDesireSpec) {
+		"bypass out of sync": func(spec *DeploymentStackDesireSpec) {
 			spec.Stack.Properties.BypassStackOutOfSyncError = ptr.To(true)
 		},
-		"target": func(spec *StackDesireSpec) {
+		"target": func(spec *DeploymentStackDesireSpec) {
 			spec.TargetResourceID, _ = azcorearm.ParseResourceID(target.String() + "-other")
 		},
-		"action":              func(spec *StackDesireSpec) { spec.Action = StackDesireActionDelete },
-		"authentication type": func(spec *StackDesireSpec) { spec.Authentication.Type = StackDesireAuthenticationTypeSMI },
-		"tenant":              func(spec *StackDesireSpec) { spec.Authentication.TenantID = "tenant" },
-		"SMI": func(spec *StackDesireSpec) {
+		"action": func(spec *DeploymentStackDesireSpec) { spec.Action = DeploymentStackDesireActionDelete },
+		"authentication type": func(spec *DeploymentStackDesireSpec) {
+			spec.Authentication.Type = DeploymentStackDesireAuthenticationTypeSMI
+		},
+		"tenant": func(spec *DeploymentStackDesireSpec) { spec.Authentication.TenantID = "tenant" },
+		"SMI": func(spec *DeploymentStackDesireSpec) {
 			spec.Authentication.SMIResourceID, _ = azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")
 		},
-		"identity URL": func(spec *StackDesireSpec) { spec.Authentication.ClusterIdentityURL = "https://identity.example.com" },
-		"interval":     func(spec *StackDesireSpec) { spec.ReconcileInterval.Duration = 6 * time.Hour },
+		"identity URL": func(spec *DeploymentStackDesireSpec) {
+			spec.Authentication.ClusterIdentityURL = "https://identity.example.com"
+		},
+		"interval": func(spec *DeploymentStackDesireSpec) { spec.ReconcileInterval.Duration = 6 * time.Hour },
 	} {
 		t.Run(name, func(t *testing.T) {
 			other := spec.DeepCopy()
 			mutate(other)
-			actual, err := StackDesireSpecHash(*other)
+			actual, err := DeploymentStackDesireSpecHash(*other)
 			require.NoError(t, err)
 			require.NotEqual(t, hash, actual, "the whole spec must contribute to the hash")
 		})
 	}
 	spec.Stack.Properties.Template = map[string]any{"number": json.Number("9007199254740993")}
-	hash, err = StackDesireSpecHash(spec)
+	hash, err = DeploymentStackDesireSpecHash(spec)
 	require.NoError(t, err)
 	spec.Stack.Properties.Template = map[string]any{"number": json.Number("9007199254740992")}
-	otherHash, err := StackDesireSpecHash(spec)
+	otherHash, err := DeploymentStackDesireSpecHash(spec)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, otherHash, "canonicalization must retain the numbers marshaled by the SDK")
 	spec.Stack.Properties.Template = make(chan int)
-	_, err = StackDesireSpecHash(spec)
+	_, err = DeploymentStackDesireSpecHash(spec)
 	require.Error(t, err, "non-JSON SDK data must fail hashing")
 }
 
-func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
-	id, err := azcorearm.ParseResourceID("/subscriptions/Sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/Cluster/stackDesires/Desire")
+func TestDeploymentStackDesireRuntimeAndDeepCopy(t *testing.T) {
+	id, err := azcorearm.ParseResourceID("/subscriptions/Sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/Cluster/azureDeploymentStackDesires/Desire")
 	require.NoError(t, err)
 	target, err := azcorearm.ParseResourceID("/subscriptions/sub/providers/Microsoft.Resources/deploymentStacks/stack")
 	require.NoError(t, err)
 	now := metav1.Now()
-	desire := &StackDesire{
-		CosmosMetadata: CosmosMetadata{ResourceID: id, InstanceVersion: 42},
-		Spec: StackDesireSpec{
+	desire := &DeploymentStackDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, InstanceVersion: 42},
+		Spec: DeploymentStackDesireSpec{
 			TargetResourceID: target,
-			Authentication:   StackDesireAuthentication{SMIResourceID: target},
+			Authentication:   DeploymentStackDesireAuthentication{SMIResourceID: target},
 			Stack: &armdeploymentstacks.DeploymentStack{
 				Tags: map[string]*string{"tag": ptr.To("value")},
 				Properties: &armdeploymentstacks.DeploymentStackProperties{
@@ -134,7 +140,7 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 				},
 			},
 		},
-		Status: StackDesireStatus{
+		Status: DeploymentStackDesireStatus{
 			ObservedSpecHash: "hash",
 			ObservedAt:       &now,
 			Stack: &armdeploymentstacks.DeploymentStack{
@@ -154,7 +160,7 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 				Details:        []*armdeploymentstacks.ErrorDetail{{Message: ptr.To("detail")}},
 				AdditionalInfo: []*armdeploymentstacks.ErrorAdditionalInfo{{Info: map[string]any{"nested": []any{"info"}}}},
 			},
-			Conditions: []metav1.Condition{{Type: StackDesireConditionSuccessfullyApplied}},
+			Conditions: []metav1.Condition{{Type: DeploymentStackDesireConditionSuccessfullyApplied}},
 		},
 	}
 	metadata, err := meta.Accessor(desire)
@@ -165,8 +171,8 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, metadata.GetName(), key)
 	require.Equal(t, schema.EmptyObjectKind, desire.GetObjectKind())
-	require.Empty(t, (&StackDesire{}).GetObjectMeta().GetName())
-	copy := desire.DeepCopyObject().(*StackDesire)
+	require.Empty(t, (&DeploymentStackDesire{}).GetObjectMeta().GetName())
+	copy := desire.DeepCopyObject().(*DeploymentStackDesire)
 	require.Equal(t, desire, copy)
 	require.NotSame(t, desire.ResourceID.Parent, copy.ResourceID.Parent)
 	require.NotSame(t, desire.Spec.TargetResourceID, copy.Spec.TargetResourceID)
@@ -204,20 +210,20 @@ func TestStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	require.Equal(t, "detail", *desire.Status.Error.Details[0].Message)
 	require.Equal(t, "info", desire.Status.Error.AdditionalInfo[0].Info.(map[string]any)["nested"].([]any)[0])
 	require.False(t, desire.Status.ObservedAt.IsZero())
-	require.Equal(t, StackDesireConditionSuccessfullyApplied, desire.Status.Conditions[0].Type)
-	list := &StackDesireList{Items: []StackDesire{*desire}}
+	require.Equal(t, DeploymentStackDesireConditionSuccessfullyApplied, desire.Status.Conditions[0].Type)
+	list := &DeploymentStackDesireList{Items: []DeploymentStackDesire{*desire}}
 	var object runtime.Object = list
 	items, err := meta.ExtractList(object.DeepCopyObject())
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	require.Equal(t, desire, items[0])
-	require.NotSame(t, desire.Spec.TargetResourceID, items[0].(*StackDesire).Spec.TargetResourceID)
-	require.Equal(t, &StackDesireStatus{}, (&StackDesireStatus{}).DeepCopy(), "absent outcomes must remain nil")
-	require.Equal(t, &StackDesireSpec{}, (&StackDesireSpec{}).DeepCopy(), "absent spec fields must remain nil")
+	require.NotSame(t, desire.Spec.TargetResourceID, items[0].(*DeploymentStackDesire).Spec.TargetResourceID)
+	require.Equal(t, &DeploymentStackDesireStatus{}, (&DeploymentStackDesireStatus{}).DeepCopy(), "absent outcomes must remain nil")
+	require.Equal(t, &DeploymentStackDesireSpec{}, (&DeploymentStackDesireSpec{}).DeepCopy(), "absent spec fields must remain nil")
 	require.Panics(t, func() {
-		(&StackDesireSpec{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: make(chan int)}}}).DeepCopy()
+		(&DeploymentStackDesireSpec{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: make(chan int)}}}).DeepCopy()
 	}, "non-JSON SDK data cannot be persisted or deep-copied")
 	require.Panics(t, func() {
-		(&StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: make(chan int)}}}).DeepCopy()
+		(&DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: make(chan int)}}}).DeepCopy()
 	}, "non-JSON SDK data cannot be persisted or deep-copied")
 }

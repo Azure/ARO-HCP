@@ -26,9 +26,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -41,8 +43,9 @@ import (
 // watching controller that processes each subscription exactly once per process
 // lifetime.
 type cosmosMigrationController struct {
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient
+	kubeApplierDBClients   kubeappliercosmosstorage.KubeApplierDBClients
 
 	// completedSubscriptions tracks subscription IDs that have been fully
 	// migrated. Each subscription is processed at most once per process lifetime.
@@ -59,14 +62,16 @@ const CosmosMigrationControllerName = "CosmosMigration"
 // cycle to force Cosmos DB re-serialization.
 func NewCosmosMigrationController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 ) controllerutils.Controller {
 	syncer := &cosmosMigrationController{
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
-		cooldown:             controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
+		resourcesDBClient:      resourcesDBClient,
+		azureResourcesDBClient: azureResourcesDBClient,
+		kubeApplierDBClients:   kubeApplierDBClients,
+		cooldown:               controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
 	controller := controllerutils.NewSubscriptionWatchingController(
 		CosmosMigrationControllerName,
@@ -91,6 +96,7 @@ func NewCosmosMigrationController(
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, "*")
 
 	return controller
 }
@@ -104,11 +110,12 @@ func (c *cosmosMigrationController) CooldownChecker() controllerutil.CooldownChe
 // unrecoverable error. It is intended for integration-test setup where the
 // long-running subscription-watching controller is not wired in; production
 // migration runs as the controller returned by NewCosmosMigrationController.
-func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients) {
+func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient, kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients) {
 	logger := utils.LoggerFromContext(ctx)
 	c := &cosmosMigrationController{
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
+		resourcesDBClient:      resourcesDBClient,
+		azureResourcesDBClient: azureResourcesDBClient,
+		kubeApplierDBClients:   kubeApplierDBClients,
 	}
 	subscriptionIterator, err := resourcesDBClient.Subscriptions().List(ctx, nil)
 	if err != nil {
@@ -247,16 +254,6 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 			migrationErrors = append(migrationErrors, err)
 		}
 
-		// Stack desires live in Resources, independently of management-cluster placement.
-		if err := migrateDesireDocuments(clusterCtx, clusterLogger, c.resourcesDBClient.StackDesires(clusterSubID, clusterRG, clusterName), "stack desire", func(desire *coreapi.StackDesire) string {
-			if desire.ResourceID == nil {
-				return ""
-			}
-			return desire.ResourceID.Name
-		}); err != nil {
-			migrationErrors = append(migrationErrors, err)
-		}
-
 		// Resolve the kube-applier client for this cluster's management cluster.
 		// Returns nil if no ServiceProviderCluster exists yet (e.g. placement is
 		// pending) or the management cluster is unknown.
@@ -274,6 +271,11 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 		// Migrate external auths and their nested resources.
 		if err := c.migrateExternalAuths(clusterCtx, clusterLogger, clusterSubID, clusterRG, clusterName); err != nil {
 			migrationErrors = append(migrationErrors, err)
+		}
+
+		// Migrate cluster-scoped deployment stack desires.
+		if err := c.migrateDeploymentStackDesires(clusterCtx, clusterLogger, clusterSubID, clusterRG, clusterName); err != nil {
+			migrationErrors = append(migrationErrors, fmt.Errorf("deployment stack desires: %w", err))
 		}
 
 		// Migrate cluster-scoped kube-applier desires.
@@ -433,6 +435,23 @@ func (c *cosmosMigrationController) migrateExternalAuths(ctx context.Context, lo
 		logger.Info("migrated external auths", "count", count)
 	}
 	return errors.Join(migrationErrors...)
+}
+
+// migrateDeploymentStackDesires migrates DeploymentStackDesire documents under a cluster.
+func (c *cosmosMigrationController) migrateDeploymentStackDesires(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string) error {
+	crud, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return fmt.Errorf("failed to construct CRUD for deployment stack desire: %w", err)
+	}
+	return migrateDesireDocuments(ctx, logger, crud, "deployment stack desire", deploymentStackDesireName)
+}
+
+// deploymentStackDesireName returns the document name from a DeploymentStackDesire, or empty string if ResourceID is nil.
+func deploymentStackDesireName(d *azureresourcesapi.DeploymentStackDesire) string {
+	if d.ResourceID == nil {
+		return ""
+	}
+	return d.ResourceID.Name
 }
 
 // resolveKubeApplierClient looks up the ServiceProviderCluster "default" for the

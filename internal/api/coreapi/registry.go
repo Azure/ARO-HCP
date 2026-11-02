@@ -67,7 +67,6 @@ func init() {
 const (
 	ProviderNamespace                               = "Microsoft.RedHatOpenShift"
 	ClusterResourceTypeName                         = "hcpOpenShiftClusters"
-	StackDesireResourceTypeName                     = "stackDesires"
 	ServiceProviderClusterResourceTypeName          = "serviceProviderClusters"
 	ServiceProviderNodePoolResourceTypeName         = "serviceProviderNodePools"
 	ServiceProviderExternalAuthResourceTypeName     = "serviceProviderExternalAuths"
@@ -113,7 +112,6 @@ var (
 	SystemAdminCredentialRevocationResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialRevocationResourceTypeName)
 	// SystemAdminCredentialRevocationControllerResourceType is controllers nested under systemAdminCredentialRevocations
 	SystemAdminCredentialRevocationControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ControllerResourceTypeName))
-	StackDesireResourceType                               = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+StackDesireResourceTypeName)
 )
 
 type VersionedResource interface {

@@ -1006,6 +1006,7 @@ defaults:
       billingContainerMaxScale: 4000
       locksContainerMaxScale: 4000
       fleetContainerMaxScale: 4000
+      azureResourcesContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       san: ''

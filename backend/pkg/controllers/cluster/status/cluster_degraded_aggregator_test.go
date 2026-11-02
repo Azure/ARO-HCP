@@ -32,12 +32,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
@@ -504,11 +505,11 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 }
 
 type sliceStackDesireLister struct {
-	corelisters.StackDesireLister
-	desires []*coreapi.StackDesire
+	azureresourceslisters.DeploymentStackDesireLister
+	desires []*azureresourcesapi.DeploymentStackDesire
 }
 
-func (l *sliceStackDesireLister) ListForCluster(context.Context, string, string, string) ([]*coreapi.StackDesire, error) {
+func (l *sliceStackDesireLister) ListForCluster(context.Context, string, string, string) ([]*azureresourcesapi.DeploymentStackDesire, error) {
 	return l.desires, nil
 }
 
@@ -542,7 +543,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 		},
 		{
 			name:       "known success omitted",
-			conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}},
+			conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}},
 			wantStatus: metav1.ConditionFalse,
 		},
 		{
@@ -558,18 +559,18 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cluster := newTestClusterForAggregator()
-			desire := &coreapi.StackDesire{
-				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + coreapi.StackDesireResourceTypeName + "/any-stack"))},
-				Spec:           coreapi.StackDesireSpec{Action: coreapi.StackDesireActionApply},
-				Status:         coreapi.StackDesireStatus{Conditions: tc.conditions},
+			desire := &azureresourcesapi.DeploymentStackDesire{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/any-stack"))},
+				Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionApply},
+				Status:         azureresourcesapi.DeploymentStackDesireStatus{Conditions: tc.conditions},
 			}
 			if !tc.unobserved {
 				var err error
-				desire.Status.ObservedSpecHash, err = coreapi.StackDesireSpecHash(desire.Spec)
+				desire.Status.ObservedSpecHash, err = azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
 				require.NoError(t, err)
 			}
 			if tc.oldHash {
-				desire.Spec.Action = coreapi.StackDesireActionDelete
+				desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionDelete
 			}
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{cluster})
 			require.NoError(t, err)
@@ -583,7 +584,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 				applyDesireLister: &kubeapplierlistertesting.SliceApplyDesireLister{},
 				readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
-				stackDesireLister: &sliceStackDesireLister{desires: []*coreapi.StackDesire{desire}},
+				stackDesireLister: &sliceStackDesireLister{desires: []*azureresourcesapi.DeploymentStackDesire{desire}},
 			}
 			key := controllerutils.HCPClusterKey{SubscriptionID: statusutils.TestSubscriptionID, ResourceGroupName: statusutils.TestResourceGroupName, HCPClusterName: statusutils.TestClusterName}
 			for range 2 {

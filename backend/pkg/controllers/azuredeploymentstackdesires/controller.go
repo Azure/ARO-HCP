@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package stackdesires
+package azuredeploymentstackdesires
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -29,6 +30,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
@@ -41,66 +46,206 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const StackDesiresControllerName = "StackDesires"
+const AzureDeploymentStackDesiresControllerName = "AzureDeploymentStackDesires"
 const defaultInterval = 6 * time.Hour
 const pendingInterval = 30 * time.Second
 
 var errExecutionFailed = errors.New("deployment stack execution failed")
 
+// Key identifies a single DeploymentStackDesire by its parent resource ID and
+// name. ParentResourceID is parent-agnostic (mirrors
+// kube-applier's keys.ApplyDesireKey) so this controller does not assume the
+// parent is specifically a Cluster — today only Cluster-scoped desires exist,
+// but a future scope needs no change here.
 type Key struct {
-	SubscriptionID, ResourceGroupName, HCPClusterName, Name string
+	ParentResourceID string
+	Name             string
+}
+
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k Key) CRUD(client azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD) (cosmosstorageutils.ResourceCRUD[azureresourcesapi.DeploymentStackDesire, *azureresourcesapi.DeploymentStackDesire], error) {
+	id, err := azcorearm.ParseResourceID(k.ParentResourceID)
+	if err != nil {
+		return nil, err
+	}
+	parent, err := azureresourcescosmosstorage.ParseDeploymentStackDesireScope(id)
+	if err != nil {
+		return nil, err
+	}
+	return client.DeploymentStackDesiresFor(parent)
+}
+
+// GetResourceID returns the desire's full resource ID.
+func (k Key) GetResourceID() *azcorearm.ResourceID {
+	s := strings.ToLower(path.Join(k.ParentResourceID, azureresourcesapi.DeploymentStackDesireResourceTypeName, k.Name))
+	return metadataapi.Must(azcorearm.ParseResourceID(s))
 }
 
 func (k Key) AddLoggerValues(logger logr.Logger) logr.Logger {
-	cluster := controllerutils.HCPClusterKey{SubscriptionID: k.SubscriptionID, ResourceGroupName: k.ResourceGroupName, HCPClusterName: k.HCPClusterName}
-	id, err := azcorearm.ParseResourceID(cluster.GetResourceID().String() + "/stackDesires/" + k.Name)
-	if err != nil {
-		return cluster.AddLoggerValues(logger)
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
+// KeyFromResourceID parses a Key out of a DeploymentStackDesire's resource ID.
+// The desire is the leaf; everything above it is the parent. Mirrors
+// kube-applier's keys.ApplyDesireKeyFromResourceID.
+func KeyFromResourceID(id *azcorearm.ResourceID) (Key, error) {
+	if id == nil {
+		return Key{}, errors.New("resource ID is nil")
 	}
-	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(id)...)
+	if id.Parent == nil {
+		return Key{}, fmt.Errorf("desire %q has no parent in its resource ID", id.String())
+	}
+	return Key{ParentResourceID: strings.ToLower(id.Parent.String()), Name: id.Name}, nil
 }
 
+// controller reconciles DeploymentStackDesires directly off its informer's
+// event stream, mirroring kube-applier's ApplyDesireController rather than
+// backend's generic Cluster-aggregator framework (GenericWatchingController):
+// a single informer already scoped to this document type is the only source
+// of truth for what to reconcile, so there is no resource-type gate or
+// interesting-resource filter to maintain. Adding a future scope means
+// widening the informer's GlobalLister, not this controller.
 type controller struct {
-	resourcesDB corecosmosstorage.ResourcesDBClient
-	lister      corelisters.StackDesireLister
-	fpa         azureclient.FirstPartyApplicationClientBuilder
-	smi         azureclient.ServiceManagedIdentityClientBuilder
-	clock       clock.PassiveClock
-	enqueue     controllerutil.AfterEnqueuer
+	controllerutil.CacheSyncWaiter
+	name         string
+	crudByParent azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD
+	lister       azureresourceslisters.DeploymentStackDesireLister
+	fpa          azureclient.FirstPartyApplicationClientBuilder
+	smi          azureclient.ServiceManagedIdentityClientBuilder
+	clock        clock.PassiveClock
+	queue        workqueue.TypedRateLimitingInterface[Key]
 }
 
-func NewController(resourcesDB corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers,
+// NewController wires up the informer event handler and returns a
+// ready-to-Run controller.
+func NewController(crudByParent azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD, informers azureresourcesinformers.AzureResourcesInformers,
 	fpa azureclient.FirstPartyApplicationClientBuilder, smi azureclient.ServiceManagedIdentityClientBuilder,
 	clk clock.PassiveClock,
-) controllerutils.Controller {
-	informer, lister := informers.StackDesires()
-	syncer := &controller{resourcesDB: resourcesDB, lister: lister, fpa: fpa, smi: smi, clock: clk}
-	watcher := controllerutil.NewGenericWatchingController(StackDesiresControllerName, coreapi.StackDesireResourceType, syncer, controllerutils.ReconcileTotal)
-	syncer.enqueue = watcher
-	if err := watcher.QueueForInformersWithMaxDepth(time.Minute, 0, informer); err != nil {
+) *controller {
+	deploymentStackDesiresInformer, deploymentStackDesiredLister := informers.DeploymentStackDesires()
+	c := &controller{
+		name:         AzureDeploymentStackDesiresControllerName,
+		crudByParent: crudByParent,
+		lister:       deploymentStackDesiredLister,
+		fpa:          fpa,
+		smi:          smi,
+		clock:        clk,
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[Key](),
+			workqueue.TypedRateLimitingQueueConfig[Key]{Name: AzureDeploymentStackDesiresControllerName},
+		),
+	}
+
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(AzureDeploymentStackDesiresControllerName)...)
+
+	registration, err := deploymentStackDesiresInformer.AddEventHandlerWithOptions(cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj any) { c.handleAdd(obj) },
+		UpdateFunc: func(_, newObj any) { c.handleUpdate(newObj) },
+	}, cache.HandlerOptions{
+		Logger:       &logger,
+		ResyncPeriod: ptr.To(time.Minute),
+	})
+	if err != nil {
 		panic(err)
 	}
-	return watcher
+	c.AddCacheSyncs(deploymentStackDesiresInformer.HasSynced, registration.HasSynced)
+	return c
 }
 
-func (c *controller) MakeKey(id *azcorearm.ResourceID) Key {
-	return Key{SubscriptionID: id.SubscriptionID, ResourceGroupName: id.ResourceGroupName, HCPClusterName: id.Parent.Name, Name: id.Name}
+// handleAdd queues every observed Add unconditionally.
+func (c *controller) handleAdd(obj any) {
+	d, ok := obj.(*azureresourcesapi.DeploymentStackDesire)
+	if !ok {
+		return
+	}
+	c.enqueue(d)
 }
 
-func (c *controller) CooldownChecker() controllerutil.CooldownChecker { return nil }
+// handleUpdate enqueues the key unconditionally. The informer's ResyncPeriod
+// controls how often unchanged items are re-delivered.
+func (c *controller) handleUpdate(newObj any) {
+	d, ok := newObj.(*azureresourcesapi.DeploymentStackDesire)
+	if !ok {
+		return
+	}
+	c.enqueue(d)
+}
+
+func (c *controller) enqueue(d *azureresourcesapi.DeploymentStackDesire) {
+	key, err := KeyFromResourceID(d.GetResourceID())
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	c.queue.Add(key)
+}
+
+// Run starts threadiness workers. It returns when ctx is cancelled.
+func (c *controller) Run(ctx context.Context, threadiness int) {
+	defer utilruntime.HandleCrash()
+	defer c.queue.ShutDown()
+
+	if !c.WaitForCacheSync(ctx) {
+		return
+	}
+
+	ctx = utils.ContextWithControllerName(ctx, c.name)
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting")
+
+	for i := 0; i < threadiness; i++ {
+		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
+	}
+	logger.Info("Started workers")
+
+	<-ctx.Done()
+	logger.Info("Shutting down")
+}
+
+func (c *controller) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
+	}
+}
+
+// processNextWorkItem deals with one item off the queue. It returns false
+// when it's time to quit.
+func (c *controller) processNextWorkItem(ctx context.Context) bool {
+	key, shutdown := c.queue.Get()
+	if shutdown {
+		return false
+	}
+	defer c.queue.Done(key)
+
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
+
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
+	err := c.SyncOnce(ctx, key)
+	if err == nil {
+		c.queue.Forget(key)
+		return true
+	}
+
+	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", key)
+	c.queue.AddRateLimited(key)
+	return true
+}
 
 func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 	logger := utils.LoggerFromContext(ctx)
-	desire, err := c.lister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.Name)
+	desire, err := c.lister.GetByResourceID(ctx, key.GetResourceID().String())
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
@@ -122,7 +267,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		if err != nil {
 			return err
 		}
-		hash, err := coreapi.StackDesireSpecHash(desire.Spec)
+		hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
 		if err != nil {
 			return err
 		}
@@ -130,7 +275,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		if result.action == applyStack {
 			stack, err := submitApply(ctx, client, desire.Spec)
 			if err != nil {
-				status, executionErr = stackDesireStatusForRejectedSubmission(hash, coreapi.StackDesireConditionSuccessfullyApplied, err)
+				status, executionErr = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, err)
 			} else {
 				status, executionErr = stackDesireStatusForAssociatedApply(hash, stack)
 				properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})
@@ -156,14 +301,19 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		}
 	case noOp:
 		if result.requeue > 0 {
-			c.enqueue.EnqueueAfter(key, result.requeue)
+			c.queue.AddAfter(key, result.requeue)
 		}
 		return result.err
 	}
 	if status != nil {
 		updated := desire.DeepCopy()
 		updated.Status = *status
-		_, err := c.resourcesDB.StackDesires(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, updated, &azcosmos.ItemOptions{IfMatchEtag: &desire.CosmosETag})
+		crud, err := key.CRUD(c.crudByParent)
+		if err != nil {
+			logger.Info("Could not resolve DeploymentStackDesire CRUD; reconciliation will observe Azure again", "observedSpecHash", status.ObservedSpecHash)
+			return errors.Join(executionErr, err)
+		}
+		_, err = crud.Replace(ctx, updated, &azcosmos.ItemOptions{IfMatchEtag: &desire.CosmosETag})
 		if err != nil {
 			logger.Info("Could not persist stack observation; reconciliation will observe Azure again", "observedSpecHash", status.ObservedSpecHash)
 		}
@@ -174,9 +324,9 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 }
 
 // stackClient assumes the desire's routing and authentication have been validated.
-func (c *controller) stackClient(ctx context.Context, desire *coreapi.StackDesire) (*armdeploymentstacks.Client, error) {
+func (c *controller) stackClient(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (*armdeploymentstacks.Client, error) {
 	authentication := desire.Spec.Authentication
-	if authentication.Type == coreapi.StackDesireAuthenticationTypeSMI {
+	if authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI {
 		return c.smi.DeploymentStacksClient(ctx, authentication.ClusterIdentityURL, authentication.SMIResourceID, desire.Spec.TargetResourceID.SubscriptionID)
 	}
 	return c.fpa.DeploymentStacksClient(authentication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
@@ -193,7 +343,7 @@ const (
 
 type decision struct {
 	action  action
-	status  *coreapi.StackDesireStatus
+	status  *azureresourcesapi.DeploymentStackDesireStatus
 	err     error
 	requeue time.Duration
 	// Only logged at submission, after the client and hash are ready.
@@ -220,14 +370,14 @@ func (result decision) validate() {
 }
 
 // All events use this decision. GET is lazy and occurs at most once.
-func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time.Time, lazyGET func() (*armdeploymentstacks.DeploymentStack, error)) decision {
+func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentStackDesire, now time.Time, lazyGET func() (*armdeploymentstacks.DeploymentStack, error)) decision {
 	var desiredConditionType string
 	var mutation action
 	switch desire.Spec.Action {
-	case coreapi.StackDesireActionApply:
-		desiredConditionType, mutation = coreapi.StackDesireConditionSuccessfullyApplied, applyStack
-	case coreapi.StackDesireActionDelete:
-		desiredConditionType, mutation = coreapi.StackDesireConditionSuccessfullyDeleted, deleteStack
+	case azureresourcesapi.DeploymentStackDesireActionApply:
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, applyStack
+	case azureresourcesapi.DeploymentStackDesireActionDelete:
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, deleteStack
 	}
 	var validationErr error
 	target := desire.Spec.TargetResourceID
@@ -236,11 +386,11 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 		validationErr = errors.New("stack target and scope are required")
 	case !strings.EqualFold(target.ResourceType.String(), "Microsoft.Resources/deploymentStacks"):
 		validationErr = errors.New("stack target must be a Microsoft.Resources/deploymentStacks resource")
-	case desire.Spec.Action != coreapi.StackDesireActionApply && desire.Spec.Action != coreapi.StackDesireActionDelete:
+	case desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionApply && desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionDelete:
 		validationErr = fmt.Errorf("unsupported stack action %q", desire.Spec.Action)
-	case desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeFPA && desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeSMI:
+	case desire.Spec.Authentication.Type != azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA && desire.Spec.Authentication.Type != azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI:
 		validationErr = fmt.Errorf("unsupported stack authentication %q", desire.Spec.Authentication.Type)
-	case desire.Spec.Authentication.Type == coreapi.StackDesireAuthenticationTypeSMI && desire.Spec.Authentication.SMIResourceID == nil:
+	case desire.Spec.Authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI && desire.Spec.Authentication.SMIResourceID == nil:
 		validationErr = errors.New("SMI authentication requires smiResourceID")
 	default:
 		switch strings.ToLower(target.Parent.ResourceType.String()) {
@@ -249,18 +399,18 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 			validationErr = fmt.Errorf("unsupported stack scope %q", target.Parent.ResourceType)
 		}
 	}
-	hash, hashErr := coreapi.StackDesireSpecHash(desire.Spec)
+	hash, hashErr := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
 	validationErr = errors.Join(validationErr, hashErr)
 	if validationErr != nil {
 		status := desire.Status
 		if desiredConditionType == "" {
 			status.Conditions = []metav1.Condition{
-				{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
 			}
 		} else {
 			status.Conditions = []metav1.Condition{
 				{Type: desiredConditionType, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
-				{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
 			}
 		}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
@@ -288,9 +438,9 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 		if mutation == applyStack {
 			return decision{action: applyStack, submissionMessage: "Attempting to create the deployment stack because it is absent"}
 		}
-		status := coreapi.StackDesireStatus{ObservedSpecHash: hash, ObservedAt: ptr.To(metav1.NewTime(now)), Conditions: []metav1.Condition{
-			{Type: coreapi.StackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent"},
-			{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+		status := azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, ObservedAt: ptr.To(metav1.NewTime(now)), Conditions: []metav1.Condition{
+			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
 			logger.Info("Confirmed deployment stack deletion", "desiredSpecHash", hash)
@@ -310,7 +460,7 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 	if terminal && !associatedWithRecordedApply {
 		return decision{action: mutation, submissionMessage: "Attempting the desired stack operation because the completed Azure operation is not associated with the recorded Apply"}
 	}
-	var status *coreapi.StackDesireStatus
+	var status *azureresourcesapi.DeploymentStackDesireStatus
 	var executionErr error
 	if associatedWithRecordedApply {
 		// Only Apply submissions establish a correlated Stack/hash pair. Delete
@@ -321,9 +471,9 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 			executionErr = nil
 		}
 	} else {
-		status = &coreapi.StackDesireStatus{Stack: stack, Conditions: []metav1.Condition{
+		status = &azureresourcesapi.DeploymentStackDesireStatus{Stack: stack, Conditions: []metav1.Condition{
 			{Type: desiredConditionType, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
-			{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}}
 	}
 	status.ObservedAt = ptr.To(metav1.NewTime(now))
@@ -352,9 +502,9 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 
 // Unchanged observations do not write; completed-operation metadata and
 // diagnostics updates do not renew the cooldown.
-func changedObservationStatus(previous, status coreapi.StackDesireStatus, now time.Time) *coreapi.StackDesireStatus {
+func changedObservationStatus(previous, status azureresourcesapi.DeploymentStackDesireStatus, now time.Time) *azureresourcesapi.DeploymentStackDesireStatus {
 	if cmp.Equal(previous, status,
-		cmpopts.IgnoreFields(coreapi.StackDesireStatus{}, "ObservedAt"),
+		cmpopts.IgnoreFields(azureresourcesapi.DeploymentStackDesireStatus{}, "ObservedAt"),
 		cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")) {
 		return nil
 	}
@@ -363,7 +513,7 @@ func changedObservationStatus(previous, status coreapi.StackDesireStatus, now ti
 
 // Preserve condition age while truth values match and preserve the attempt
 // clock for metadata-only changes to the same completed operation.
-func normalizeStatusTimes(previous, status coreapi.StackDesireStatus, now time.Time) *coreapi.StackDesireStatus {
+func normalizeStatusTimes(previous, status azureresourcesapi.DeploymentStackDesireStatus, now time.Time) *azureresourcesapi.DeploymentStackDesireStatus {
 	// Own the conditions slice without changing the desire or SDK objects.
 	status.Conditions = append([]metav1.Condition(nil), status.Conditions...)
 	for index := range status.Conditions {
@@ -452,7 +602,7 @@ func getStack(ctx context.Context, client *armdeploymentstacks.Client, target *a
 	return &stack, nil
 }
 
-func submitApply(ctx context.Context, client *armdeploymentstacks.Client, spec coreapi.StackDesireSpec) (*armdeploymentstacks.DeploymentStack, error) {
+func submitApply(ctx context.Context, client *armdeploymentstacks.Client, spec azureresourcesapi.DeploymentStackDesireSpec) (*armdeploymentstacks.DeploymentStack, error) {
 	target := spec.TargetResourceID
 	var response *http.Response
 	// BeginCreateOrUpdate returns a poller, whose Result cannot expose the initial
@@ -490,7 +640,7 @@ func submitApply(ctx context.Context, client *armdeploymentstacks.Client, spec c
 	return &initialStack, nil
 }
 
-func submitDelete(ctx context.Context, client *armdeploymentstacks.Client, spec coreapi.StackDesireSpec) error {
+func submitDelete(ctx context.Context, client *armdeploymentstacks.Client, spec azureresourcesapi.DeploymentStackDesireSpec) error {
 	target := spec.TargetResourceID
 	stack := ptr.Deref(spec.Stack, armdeploymentstacks.DeploymentStack{})
 	properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})
@@ -524,8 +674,8 @@ func submitDelete(ctx context.Context, client *armdeploymentstacks.Client, spec 
 	return err
 }
 
-func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks.DeploymentStack) (*coreapi.StackDesireStatus, error) {
-	status := &coreapi.StackDesireStatus{ObservedSpecHash: hash, Stack: stack}
+func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks.DeploymentStack) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
+	status := &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Stack: stack}
 	associatedStack := ptr.Deref(stack, armdeploymentstacks.DeploymentStack{})
 	properties := ptr.Deref(associatedStack.Properties, armdeploymentstacks.DeploymentStackProperties{})
 	state := ptr.Deref(properties.ProvisioningState, "")
@@ -533,61 +683,61 @@ func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks
 	switch state {
 	case armdeploymentstacks.DeploymentStackProvisioningStateSucceeded:
 		status.Conditions = []metav1.Condition{
-			{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation"},
-			{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}
 	case armdeploymentstacks.DeploymentStackProvisioningStateFailed, armdeploymentstacks.DeploymentStackProvisioningStateCanceled:
 		message, invalid := classifyError(properties.Error)
 		if invalid {
 			status.Conditions = []metav1.Condition{
-				{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
-				{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
 			}
 		} else {
 			status.Conditions = []metav1.Condition{
-				{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: message},
-				{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: message},
 			}
 			err = errExecutionFailed
 		}
 	default:
 		status.Conditions = []metav1.Condition{
-			{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
-			{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}
 	}
 	return status, err
 }
 
-func stackDesireStatusForDeleteSubmission(hash string, err error) (*coreapi.StackDesireStatus, error) {
+func stackDesireStatusForDeleteSubmission(hash string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	if err != nil {
-		return stackDesireStatusForRejectedSubmission(hash, coreapi.StackDesireConditionSuccessfullyDeleted, err)
+		return stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, err)
 	}
 	// Even a synchronous Delete response is only acceptance; GET proves absence.
-	return &coreapi.StackDesireStatus{ObservedSpecHash: hash, Conditions: []metav1.Condition{
-		{Type: coreapi.StackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionFalse, Reason: "WaitingForDeletion", Message: "Waiting for the deployment stack to disappear"},
-		{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+	return &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Conditions: []metav1.Condition{
+		{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionFalse, Reason: "WaitingForDeletion", Message: "Waiting for the deployment stack to disappear"},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 	}}, nil
 }
 
-func stackDesireStatusForRejectedSubmission(hash, conditionType string, err error) (*coreapi.StackDesireStatus, error) {
+func stackDesireStatusForRejectedSubmission(hash, conditionType string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	var responseErr *azcore.ResponseError
 	if !errors.As(err, &responseErr) {
 		return nil, err
 	}
 	detail := &armdeploymentstacks.ErrorDetail{Code: ptr.To(responseErr.ErrorCode), Message: ptr.To(err.Error())}
-	status := &coreapi.StackDesireStatus{ObservedSpecHash: hash, Error: detail}
+	status := &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Error: detail}
 	_, invalid := classifyError(detail)
 	if invalid {
 		status.Conditions = []metav1.Condition{
 			{Type: conditionType, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
-			{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
 		}
 		return status, nil
 	}
 	status.Conditions = []metav1.Condition{
 		{Type: conditionType, Status: metav1.ConditionFalse, Reason: "RequestFailed", Message: err.Error()},
-		{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: err.Error()},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: err.Error()},
 	}
 	return status, err
 }
