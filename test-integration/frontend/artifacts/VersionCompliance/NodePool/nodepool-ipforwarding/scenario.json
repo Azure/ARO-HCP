@@ -1,0 +1,7 @@
+{
+	"clusterResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01",
+	"createVersion": "2027-02-01",
+	"description": "NodePool created with an explicit ipForwarding value, verify it persists and all versions produce valid responses",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01/nodePools/ipfwd-np",
+	"resourceType": "nodePool"
+}
