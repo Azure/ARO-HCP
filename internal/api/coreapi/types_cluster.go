@@ -119,9 +119,9 @@ type ClusterCustomerProperties struct {
 type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
-	// Written by: ClusterPendingClusterServiceIDAssign
+	// Written by: ClusterPendingClusterServiceIDAssign, ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch
 	PendingClusterServiceID *metadataapi.InternalID `json:"pendingClusterServiceID,omitempty"`
-	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
+	// Written by: ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, ClusterDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
@@ -169,6 +169,12 @@ type ClusterServiceProviderProperties struct {
 	// The timestamp is in UTC.
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+	// ClusterServiceDeletionCompleted survives provider child cleanup and records that no CS IDs remain after dispatch.
+	// Written by: CreateServiceProviderCluster, ClusterDeletionClusterServiceIDClearer
+	ClusterServiceDeletionCompleted bool `json:"clusterServiceDeletionCompleted,omitempty"`
+	// ServiceProviderClusterInitialized prevents lost provider state from being treated as a fresh cluster.
+	// Written by: CreateServiceProviderCluster, GetOrCreateServiceProviderCluster, cluster ID transaction writers
+	ServiceProviderClusterInitialized bool `json:"serviceProviderClusterInitialized,omitempty"`
 
 	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
