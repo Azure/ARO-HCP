@@ -837,7 +837,8 @@ def validate_replacement_paths(paths, group):
         require(allowed, "protected or unrelated replacement path: " + path)
 
 
-def validate_tree(cwd, base, tree, paths, group):
+def validate_tree(cwd, base, tree, paths, group, *, complete=True):
+    """Check dependency scope; only sandbox preflight may defer generated coverage."""
     validate_replacement_paths(paths, group)
     actual = git(cwd, "diff", "--name-only", base, tree).splitlines()
     require(sorted(actual) == sorted(paths), "patch path list does not match resulting tree")
@@ -898,7 +899,7 @@ def validate_tree(cwd, base, tree, paths, group):
                     validate_npm_overrides(git(cwd, "show", f"{tree}:{manifest_path}"),
                                            json.loads(git(cwd, "show", f"{tree}:{lock_path}")))
     available = set(git(cwd, "ls-tree", "-r", "--name-only", tree).splitlines())
-    if ecosystem == "go":
+    if ecosystem == "go" and complete:
         family_targets = {item["package"]: item["target"] for source in group["sources"]
                           for item in source["intents"] if item["target"] is not None
                           and upgrade_family("go", item["package"]) == group["family"]}
@@ -925,8 +926,9 @@ def validate_tree(cwd, base, tree, paths, group):
                             for package, target in old_versions.items()
                             if upgrade_family("go", package) == group["family"]),
                         "vendor replacement downgrades/removes a current-base family resolution")
-    for source in group["sources"]:
-        verify_coverage(source["intents"], lambda path: git(cwd, "show", f"{tree}:{path}"), available)
+    if complete:
+        for source in group["sources"]:
+            verify_coverage(source["intents"], lambda path: git(cwd, "show", f"{tree}:{path}"), available)
 
 
 def version_covers(actual, target):
@@ -1288,7 +1290,7 @@ def validate_replacement_request(request):
 
 
 def prepare_request(repo, inventory_file, group_id, title_file, body_file, artifact_dir, *, cwd=None):
-    """Write the fixed request artifact offline and return its safe-output digest."""
+    """Build the offline request artifact after the candidate validator succeeds."""
     validate_repo(repo)
     observed = replacement_json(Path(inventory_file).read_text(encoding="utf-8"))
     require(isinstance(observed, dict) and observed.get("repository") == repo
@@ -1656,17 +1658,14 @@ def reconcile(repo, request):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
-        require(bool(argv) and argv[0] in ("inventory", "prepare-request", "stage-detection", "publish", "reconcile")
+        require(bool(argv) and argv[0] in ("inventory", "stage-detection", "publish", "reconcile")
                 and len(argv) >= 2,
-                "usage: native_dependabot_maintenance.py inventory REPO | prepare-request REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR | stage-detection REPO OUTPUT_FILE DETECTION_DIR | publish/reconcile REPO OUTPUT_FILE")
+                "usage: native_dependabot_maintenance.py inventory REPO | stage-detection REPO OUTPUT_FILE DETECTION_DIR | publish/reconcile REPO OUTPUT_FILE")
         mode, repo = argv[:2]
         validate_repo(repo)
         if mode == "inventory":
             require(len(argv) == 2, "inventory takes only REPO")
             result = inventory(repo)
-        elif mode == "prepare-request":
-            require(len(argv) == 7, "prepare-request requires REPO INVENTORY_FILE GROUP TITLE_FILE BODY_FILE ARTIFACT_DIR")
-            result = prepare_request(repo, *argv[2:])
         elif mode == "stage-detection":
             require(len(argv) == 4, "stage-detection requires REPO OUTPUT_FILE DETECTION_DIR")
             result = stage_detection(repo, *argv[2:])

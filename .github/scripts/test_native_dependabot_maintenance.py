@@ -308,21 +308,28 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(self.pulls[result["number"]]["title"], request["title"])
         self.assertTrue(self.pulls[result["number"]]["body"].startswith(request["body"] + "\n\n"))
 
-    def test_prepare_request_cli_emits_only_digest_tool_arguments(self):
+    def test_prepare_request_returns_digest_for_exact_payload_and_normalizes_title_newline(self):
         inputs = self.prepare_inputs()
         inputs[2].write_text("chore(deps): upgrade example library\n")
         self.upgrade_consumers()
         artifact_root = self.root / "artifacts"
-        command = [sys.executable, str(Path(native.__file__).resolve()), "prepare-request", REPO,
-                   *map(str, inputs), str(artifact_root / "agent")]
-        result = subprocess.run(command, cwd=self.seed, capture_output=True, text=True, check=True)
-        arguments = json.loads(result.stdout)
+        arguments = native.prepare_request(REPO, *inputs, artifact_root / "agent", cwd=self.seed)
         self.assertEqual(set(arguments), {"request_sha256"})
         payload = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
         self.assertEqual(arguments["request_sha256"], hashlib.sha256(payload).hexdigest())
         self.assertEqual(json.loads(payload)["expected_base_sha"], self.base)
         self.assertEqual(json.loads(payload)["title"], "chore(deps): upgrade example library")
-        self.assertEqual(result.stderr, "")
+
+    def test_removed_prepare_request_cli_cannot_emit_unvalidated_request(self):
+        inputs = self.prepare_inputs()
+        self.upgrade_consumers()
+        artifact_root = self.root / "artifacts"
+        command = [sys.executable, str(Path(native.__file__).resolve()), "prepare-request", REPO,
+                   *map(str, inputs), str(artifact_root / "agent")]
+        result = subprocess.run(command, cwd=self.seed, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertFalse(artifact_root.exists())
 
     def test_detection_cli_stages_full_patch_and_exact_nonnotifying_publication_metadata(self):
         request = self.request()
