@@ -35,7 +35,7 @@ const (
 	ManagementClusterSchedulingRelistDuration = 2 * time.Minute
 	ControlPlaneVersionRolloutRelistDuration  = 2 * time.Minute
 	HCPResourceRequirementsRelistDuration     = 2 * time.Minute
-	StuckClusterCleanupRelistDuration         = 2 * time.Minute
+	NamespaceDeletionRelistDuration           = 2 * time.Minute
 )
 
 func NewDNSClaimInformer(lister cosmosstorageutils.GlobalLister[fleetapi.DNSClaim], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
@@ -201,17 +201,17 @@ func NewHCPResourceRequirementsInformerWithRelistDuration(lister cosmosstorageut
 	)
 }
 
-// NewStuckClusterCleanupInformer creates an unstarted SharedIndexInformer for
+// NewNamespaceDeletionInformer creates an unstarted SharedIndexInformer for
 // stuck cluster cleanups with the default relist duration.
-func NewStuckClusterCleanupInformer(lister cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
-	return NewStuckClusterCleanupInformerWithRelistDuration(lister, cosmosClient, StuckClusterCleanupRelistDuration)
+func NewNamespaceDeletionInformer(lister cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewNamespaceDeletionInformerWithRelistDuration(lister, cosmosClient, NamespaceDeletionRelistDuration)
 }
 
-// NewStuckClusterCleanupInformerWithRelistDuration creates an unstarted
+// NewNamespaceDeletionInformerWithRelistDuration creates an unstarted
 // SharedIndexInformer for stuck cluster cleanups with a configurable relist duration.
-func NewStuckClusterCleanupInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
-		[]azcorearm.ResourceType{fleetapi.ManagementClusterStuckClusterCleanupResourceType},
+func NewNamespaceDeletionInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterNamespaceDeletionResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -220,11 +220,11 @@ func NewStuckClusterCleanupInformerWithRelistDuration(lister cosmosstorageutils.
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "StuckClusterCleanups"},
-		&fleetapi.StuckClusterCleanup{},
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "NamespaceDeletions"},
+		&fleetapi.NamespaceDeletion{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
-			ObjectDescription: "StuckClusterCleanup",
+			ObjectDescription: "NamespaceDeletion",
 		},
 	)
 }

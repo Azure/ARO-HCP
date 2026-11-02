@@ -192,15 +192,15 @@ func (o *DNSClaim) GetObjectMeta() metav1.Object {
 }
 
 var (
-	_ runtime.Object            = &StuckClusterCleanup{}
-	_ metav1.ObjectMetaAccessor = &StuckClusterCleanup{}
+	_ runtime.Object            = &NamespaceDeletion{}
+	_ metav1.ObjectMetaAccessor = &NamespaceDeletion{}
 )
 
-func (o *StuckClusterCleanup) GetObjectKind() schema.ObjectKind {
+func (o *NamespaceDeletion) GetObjectKind() schema.ObjectKind {
 	return schema.EmptyObjectKind
 }
 
-func (o *StuckClusterCleanup) GetObjectMeta() metav1.Object {
+func (o *NamespaceDeletion) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
@@ -210,16 +210,16 @@ func (o *StuckClusterCleanup) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// StuckClusterCleanupList is a list of StuckClusterCleanup resources.
+// NamespaceDeletionList is a list of NamespaceDeletion resources.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type StuckClusterCleanupList struct {
+type NamespaceDeletionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []StuckClusterCleanup `json:"items"`
+	Items           []NamespaceDeletion `json:"items"`
 }
 
-var _ runtime.Object = &StuckClusterCleanupList{}
+var _ runtime.Object = &NamespaceDeletionList{}
 
-func (l *StuckClusterCleanupList) GetObjectKind() schema.ObjectKind {
+func (l *NamespaceDeletionList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }

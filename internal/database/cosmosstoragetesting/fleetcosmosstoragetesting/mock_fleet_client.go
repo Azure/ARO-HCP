@@ -87,8 +87,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addHCPResourceRequirements(ctx, r)
 	case *fleetapi.ControlPlaneVersionRollout:
 		return m.addControlPlaneVersionRollout(ctx, r)
-	case *fleetapi.StuckClusterCleanup:
-		return m.addStuckClusterCleanup(ctx, r)
+	case *fleetapi.NamespaceDeletion:
+		return m.addNamespaceDeletion(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -124,12 +124,12 @@ func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, 
 	return err
 }
 
-func (m *MockFleetDBClient) addStuckClusterCleanup(ctx context.Context, cleanup *fleetapi.StuckClusterCleanup) error {
+func (m *MockFleetDBClient) addNamespaceDeletion(ctx context.Context, cleanup *fleetapi.NamespaceDeletion) error {
 	stampIdentifier := cleanup.PartitionKey
 	if len(stampIdentifier) == 0 {
 		return fmt.Errorf("stuck cluster cleanup has empty partition key")
 	}
-	crud := m.Stamps().ManagementClusters(stampIdentifier).StuckClusterCleanups()
+	crud := m.Stamps().ManagementClusters(stampIdentifier).NamespaceDeletions()
 	_, err := crud.Create(ctx, cleanup, nil)
 	return err
 }
@@ -353,17 +353,17 @@ func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRU
 	)
 }
 
-func (m *mockManagementClustersCRUD) StuckClusterCleanups() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup] {
+func (m *mockManagementClustersCRUD) NamespaceDeletions() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion] {
 	managementClusterResourceID, err := fleetapihelpers.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	inner := newMockFleetResourceCRUD[fleetapi.StuckClusterCleanup, *fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
-		m.store, managementClusterResourceID, fleetapi.ManagementClusterStuckClusterCleanupResourceType,
+	inner := newMockFleetResourceCRUD[fleetapi.NamespaceDeletion, *fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterNamespaceDeletionResourceType,
 	)
 	return cosmosstorageutils.NewValidatingCRUD(inner,
-		validation.ValidateStuckClusterCleanupCreate,
-		validation.ValidateStuckClusterCleanupUpdate,
+		validation.ValidateNamespaceDeletionCreate,
+		validation.ValidateNamespaceDeletionUpdate,
 	)
 }
 
@@ -414,9 +414,9 @@ func (g *mockFleetGlobalListers) HCPResourceRequirements() cosmosstorageutils.Gl
 	)
 }
 
-func (g *mockFleetGlobalListers) StuckClusterCleanups() cosmosstorageutils.GlobalLister[fleetapi.StuckClusterCleanup] {
-	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.StuckClusterCleanup, cosmosstorageutils.GenericDocument[fleetapi.StuckClusterCleanup]](
+func (g *mockFleetGlobalListers) NamespaceDeletions() cosmosstorageutils.GlobalLister[fleetapi.NamespaceDeletion] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.NamespaceDeletion, cosmosstorageutils.GenericDocument[fleetapi.NamespaceDeletion]](
 		g.client,
-		[]azcorearm.ResourceType{fleetapi.ManagementClusterStuckClusterCleanupResourceType},
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterNamespaceDeletionResourceType},
 	)
 }

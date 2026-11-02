@@ -73,7 +73,7 @@ func TestFleetInformersHasSynced(t *testing.T) {
 		{"HCPResourceRequirements", func(informers *fleetInformers) {
 			informers.hcpResourceRequirementsInformer = unsyncedInformer
 		}},
-		{"StuckClusterCleanups", func(informers *fleetInformers) {
+		{"NamespaceDeletions", func(informers *fleetInformers) {
 			informers.stuckClusterCleanupInformer = unsyncedInformer
 		}},
 	}
