@@ -56,12 +56,6 @@ type createClusterScopedReadDesiresSyncer struct {
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
-
-	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
-	// CDNamespace (ocm-<envName>-<csClusterID>). Historically the maestro
-	// source identifier doubled as this value; we keep the same parameter
-	// name for continuity with the deployment config.
-	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.ClusterSyncer = (*createClusterScopedReadDesiresSyncer)(nil)
@@ -82,15 +76,13 @@ func NewCreateClusterScopedReadDesiresController(
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createClusterScopedReadDesiresSyncer{
-		activeOperationLister:               activeOperationLister,
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		readDesireLister:                    readDesireLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		activeOperationLister:        activeOperationLister,
+		resourcesDBClient:            resourcesDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -150,7 +142,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
-	if mcResourceID == nil {
+	if mcResourceID == nil || len(serviceProviderCluster.Status.HostedClusterNamespace) == 0 {
 		return nil
 	}
 
@@ -162,7 +154,6 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if len(csClusterDomainPrefix) == 0 {
 		return nil
 	}
-	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
 	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if err != nil {
@@ -179,12 +170,12 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 
 	desiredReadDesires := []desiredReadDesire{
-		{readDesireNameReadonlyHostedCluster, hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
-		{kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler, clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
+		{readDesireNameReadonlyHostedCluster, hostedClusterTarget(serviceProviderCluster.Status.HostedClusterNamespace, csClusterDomainPrefix)},
 	}
 
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
+		desiredReadDesires = append(desiredReadDesires, desiredReadDesire{kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler, clusterAutoscalerTarget(controlPlaneNamespace)})
 		desiredReadDesires = append(desiredReadDesires, desiredReadDesire{kubeapplierhelpers.ReadDesireNameServingCA, servingCATarget(controlPlaneNamespace)})
 	}
 
@@ -245,30 +236,25 @@ type desiredReadDesire struct {
 // ManagementClusterContent document path stays stable across the migration.
 const readDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
-// hostedClusterTarget builds the ResourceReference that points at the
-// cluster's HostedCluster object in the management cluster. The naming
-// rules (namespace = "ocm-<env>-<csClusterID>", name = csClusterDomainPrefix)
-// match what CS itself uses; see the corresponding pre-migration code in
-// createClusterScopedMaestroReadonlyBundlesSyncer.buildClusterEmptyHostedCluster
-// for the original derivation.
-func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
+// hostedClusterTarget observes the HostedCluster in its assigned namespace.
+func hostedClusterTarget(namespace, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
 	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "hostedclusters",
-		Namespace: controllerutils.HostedClusterNamespace(envIdentifier, csClusterID),
+		Namespace: namespace,
 		Name:      csClusterDomainPrefix,
 	}
 }
 
 // clusterAutoscalerTarget builds the ResourceReference for the cluster-autoscaler
 // ControlPlaneComponent in the HCP control plane namespace.
-func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
+func clusterAutoscalerTarget(namespace string) kubeapplierapi.ResourceReference {
 	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "controlplanecomponents",
-		Namespace: controllerutils.HostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix),
+		Namespace: namespace,
 		Name:      "cluster-autoscaler",
 	}
 }

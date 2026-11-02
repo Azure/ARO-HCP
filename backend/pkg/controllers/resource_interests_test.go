@@ -184,7 +184,7 @@ func TestControllerResourceInterests(t *testing.T) {
 				return clusterproperties.NewServiceProviderClusterPropertiesSyncController(db, inf, union, nil)
 			},
 			events: []event{
-				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyHostedCluster, true},
+				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyHostedCluster, false},
 				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameServingCA, true},
 				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler, false},
 				{"spc", "/serviceProviderClusters/DEFAULT", true},
@@ -245,7 +245,7 @@ func TestControllerResourceInterests(t *testing.T) {
 			name: "cluster read desire creator observes its own mirrors",
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				_, readLister := union.ReadDesires()
-				return clusterreaddesires.NewCreateClusterScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
+				return clusterreaddesires.NewCreateClusterScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf)
 			},
 			events: []event{
 				{"read", "/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyHostedCluster, true},
@@ -259,7 +259,7 @@ func TestControllerResourceInterests(t *testing.T) {
 			name: "node pool read desire creator observes its own mirror", nodePool: true,
 			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				_, readLister := union.ReadDesires()
-				return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
+				return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf)
 			},
 			events: []event{
 				{"read", "/nodePools/np/readDesires/" + kubeapplierapi.ReadDesireNameReadonlyNodePool, true},

@@ -267,7 +267,7 @@ func (syncer *namespaceSyncer) needsWork(cluster *coreapi.Cluster, serviceProvid
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return true
 	}
-	return cluster.ServiceProviderProperties.ClusterServiceID != nil
+	return cluster.ServiceProviderProperties.ClusterServiceID != nil && len(serviceProviderCluster.Status.HostedClusterNamespace) != 0
 }
 
 func buildControlPlaneNamespaceDesire(key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (*kubeapplierapi.ApplyDesire, error) {
@@ -316,7 +316,7 @@ func buildHostedClusterNamespaceDesire(key controllerutils.HCPClusterKey, cluste
 		return nil, fmt.Errorf("environment identifier is required for the HostedCluster namespace")
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
-	namespaceName := controllerutils.HostedClusterNamespace(envIdentifier, csID)
+	namespaceName := serviceProviderCluster.Status.HostedClusterNamespace
 	resourceID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, HostedClusterNamespaceDesireName))
 	if err != nil {
 		return nil, err

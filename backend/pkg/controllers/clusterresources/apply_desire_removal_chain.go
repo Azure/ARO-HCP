@@ -248,26 +248,6 @@ func applyDesireCRUDFor(
 	return crud, nil
 }
 
-// readDesireCRUDFor resolves the Cosmos handle for a ReadDesire at the same
-// scope as the given ApplyDesire (cluster- or nodepool-scoped).
-func readDesireCRUDFor(
-	kubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient,
-	applyDesire *kubeapplierapi.ApplyDesire,
-) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	desireName := applyDesire.ResourceID.Name
-
-	scope, err := kubeappliercosmosstorage.ParseDesireScope(applyDesire.ResourceID.Parent)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("parse scope for ReadDesire %s: %w", desireName, err))
-	}
-	crud, err := kubeApplierDBClient.ReadDesiresFor(scope)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("get CRUD for ReadDesire %s: %w", desireName, err))
-	}
-
-	return crud, nil
-}
-
 // sweepOrphanedReadDesires deletes any ReadDesires owned by this controller
 // that no longer have a corresponding ApplyDesire. This catches orphans that
 // arose from a transient ReadDesire deletion failure after the ApplyDesire was

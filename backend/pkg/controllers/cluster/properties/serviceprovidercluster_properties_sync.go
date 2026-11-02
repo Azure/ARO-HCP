@@ -17,7 +17,6 @@ package properties
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -35,10 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// serviceProviderClusterPropertiesSyncer synchronizes namespace fields on the
-// ServiceProviderCluster from the observed HostedCluster ReadDesire content:
-//   - Status.HostedClusterNamespace
-//   - Status.ControlPlaneNamespace
+// serviceProviderClusterPropertiesSyncer mirrors the serving CA bundle from ReadDesire content.
 type serviceProviderClusterPropertiesSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -49,9 +45,7 @@ var _ controllerutils.ClusterSyncer = (*serviceProviderClusterPropertiesSyncer)(
 
 const ServiceProviderClusterPropertiesSyncControllerName = "ServiceProviderClusterPropertiesSync"
 
-// NewServiceProviderClusterPropertiesSyncController creates a controller that
-// synchronizes HostedClusterNamespace and ControlPlaneNamespace from the
-// HostedCluster ReadDesire mirror to the ServiceProviderCluster in Cosmos DB.
+// NewServiceProviderClusterPropertiesSyncController mirrors the serving CA bundle to Cosmos DB.
 func NewServiceProviderClusterPropertiesSyncController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
@@ -76,7 +70,6 @@ func NewServiceProviderClusterPropertiesSyncController(
 	)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
-	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameServingCA)
 
 	return controller
@@ -93,25 +86,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
 
-	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
-	}
-	if hostedCluster == nil {
-		return nil
-	}
-
-	hostedClusterNamespace := hostedCluster.Namespace
-	hostedClusterName := hostedCluster.Name
-	if len(hostedClusterNamespace) == 0 || len(hostedClusterName) == 0 {
-		return nil
-	}
-
-	controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, strings.ReplaceAll(hostedClusterName, ".", "-"))
-
 	replacement := existing.DeepCopy()
-	replacement.Status.HostedClusterNamespace = hostedClusterNamespace
-	replacement.Status.ControlPlaneNamespace = controlPlaneNamespace
 
 	servingCABundle, err := c.resolveServingCABundle(ctx, key)
 	if err != nil {
@@ -131,10 +106,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
-	logger.Info("synced service provider cluster properties",
-		"hostedClusterNamespace", hostedClusterNamespace,
-		"controlPlaneNamespace", controlPlaneNamespace,
-	)
+	logger.Info("synced service provider cluster properties")
 	return nil
 }
 

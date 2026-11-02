@@ -111,7 +111,6 @@ func TestNamespaceContentsAdoptionAndIdempotence(t *testing.T) {
 
 func TestNamespaceBootstrapWithoutHostedClusterObservation(t *testing.T) {
 	fixture, syncer := newNamespaceFixture(t)
-	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.serviceProvider.Status.ControlPlaneNamespace = ""
 	require.NoError(t, syncer.SyncOnce(t.Context(), fixture.key))
 	desires := fixture.applies(t)
@@ -212,4 +211,22 @@ func TestNamespaceDeletionSweepsOrphanReads(t *testing.T) {
 	}
 	require.NoError(t, syncer.SyncOnce(ctx, fixture.key))
 	require.Empty(t, fixture.reads(t))
+}
+
+func TestNamespaceWaitsForAssignedHostedClusterNamespace(t *testing.T) {
+	fixture, syncer := newNamespaceFixture(t)
+	fixture.serviceProvider.Status.HostedClusterNamespace = ""
+	require.NoError(t, syncer.SyncOnce(t.Context(), fixture.key))
+	require.Empty(t, fixture.applies(t))
+	require.Empty(t, fixture.reads(t))
+}
+
+func TestNamespaceUsesAssignedHostedClusterNamespace(t *testing.T) {
+	fixture, syncer := newNamespaceFixture(t)
+	fixture.serviceProvider.Status.HostedClusterNamespace = "assigned-namespace"
+	fixture.serviceProvider.Status.ControlPlaneNamespace = ""
+	require.NoError(t, syncer.SyncOnce(t.Context(), fixture.key))
+	desires := fixture.applies(t)
+	require.Len(t, desires, 1)
+	require.Equal(t, "assigned-namespace", desires[0].Spec.TargetItem.Name)
 }

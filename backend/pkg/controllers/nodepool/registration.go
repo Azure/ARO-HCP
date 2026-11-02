@@ -252,7 +252,7 @@ func instantiateCreateNodePoolScopedReadDesiresController(controllerContext cont
 	return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
 		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
-		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
+		controllerContext.BackendInformers,
 	), nil
 }
 

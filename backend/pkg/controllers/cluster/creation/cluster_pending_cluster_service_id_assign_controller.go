@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -31,6 +33,7 @@ import (
 )
 
 type clusterPendingClusterServiceIDAssignSyncer struct {
+	envIdentifier     string
 	clusterLister     corelisters.ClusterLister
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
@@ -39,9 +42,10 @@ var _ controllerutils.ClusterSyncer = (*clusterPendingClusterServiceIDAssignSync
 
 const ClusterPendingClusterServiceIDAssignControllerName = "ClusterPendingClusterServiceIDAssign"
 
-func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecosmosstorage.ResourcesDBClient, backendInformers coreinformers.BackendInformers) controllerutils.Controller {
+func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecosmosstorage.ResourcesDBClient, backendInformers coreinformers.BackendInformers, envIdentifier string) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	syncer := &clusterPendingClusterServiceIDAssignSyncer{
+		envIdentifier:     envIdentifier,
 		clusterLister:     clusterLister,
 		resourcesDBClient: resourcesDBClient,
 	}
@@ -55,6 +59,7 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 		syncer,
 	)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 
 	return controller
 }
@@ -77,7 +82,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
-	if !c.needsWork(cluster) {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
 
@@ -89,6 +94,13 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
+	if !c.needsWork(cluster) {
+		return c.syncNamespaces(ctx, key, cluster)
+	}
+
 	uid := ocm.NewCSClusterUID()
 	pendingID, err := metadataapi.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s", uid))
 	if err != nil {
@@ -96,8 +108,9 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	}
 
 	logger.Info("Assigning PendingClusterServiceID", "pendingClusterServiceID", pendingID.String())
-	cluster.ServiceProviderProperties.PendingClusterServiceID = &pendingID
-	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
+	replacement := cluster.DeepCopy()
+	replacement.ServiceProviderProperties.PendingClusterServiceID = &pendingID
+	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -105,5 +118,53 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
-	return nil
+	return c.syncNamespaces(ctx, key, replacement)
+}
+
+func (c *clusterPendingClusterServiceIDAssignSyncer) syncNamespacesNeedsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return false
+	}
+	return len(serviceProviderCluster.Status.HostedClusterNamespace) == 0 || len(serviceProviderCluster.Status.ControlPlaneNamespace) == 0
+}
+
+// syncNamespaces also runs for clusters with an assigned ID so a later domain
+// prefix update or ServiceProviderCluster creation completes namespace assignment.
+func (c *clusterPendingClusterServiceIDAssignSyncer) syncNamespaces(ctx context.Context, key controllerutils.HCPClusterKey, cluster *coreapi.Cluster) error {
+	crud := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	existing, err := crud.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.syncNamespacesNeedsWork(cluster, existing) {
+		return nil
+	}
+
+	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	if csID == nil || len(csID.ID()) == 0 {
+		csID = cluster.ServiceProviderProperties.PendingClusterServiceID
+	}
+	if csID == nil || len(csID.ID()) == 0 {
+		return nil
+	}
+	if len(c.envIdentifier) == 0 {
+		return utils.TrackError(fmt.Errorf("environment identifier is required for namespace assignment"))
+	}
+
+	replacement := existing.DeepCopy()
+	replacement.Status.HostedClusterNamespace = controllerutils.HostedClusterNamespace(c.envIdentifier, csID.ID())
+	if prefix := cluster.CustomerProperties.DNS.BaseDomainPrefix; len(prefix) != 0 {
+		replacement.Status.ControlPlaneNamespace = controllerutils.ControlPlaneNamespace(c.envIdentifier, csID.ID(), prefix)
+	}
+	if equality.Semantic.DeepEqual(existing, replacement) {
+		return nil
+	}
+	_, err = crud.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	return utils.TrackError(err)
 }

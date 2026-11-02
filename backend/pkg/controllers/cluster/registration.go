@@ -319,6 +319,7 @@ func instantiateClusterPendingClusterServiceIDAssignController(controllerContext
 	return clustercreation.NewClusterPendingClusterServiceIDAssignController(
 		controllerContext.ResourcesDBClient,
 		controllerContext.BackendInformers,
+		controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }
 
@@ -752,7 +753,7 @@ func instantiateCreateClusterScopedReadDesiresController(controllerContext contr
 	return clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
 		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
-		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
+		controllerContext.BackendInformers,
 	), nil
 }
 

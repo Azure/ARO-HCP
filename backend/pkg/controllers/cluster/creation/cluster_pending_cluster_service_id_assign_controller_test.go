@@ -16,6 +16,7 @@ package creation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -134,6 +135,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			}
 			syncer := &clusterPendingClusterServiceIDAssignSyncer{
 				resourcesDBClient: mockDB,
+				envIdentifier:     "test",
 				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: listerClusters},
 			}
 
@@ -155,5 +157,73 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 				tt.verifyDB(t, ctx, mockDB)
 			}
 		})
+	}
+}
+
+func TestClusterPendingClusterServiceIDAssign_Namespaces(t *testing.T) {
+	for _, resolved := range []bool{false, true} {
+		for _, lateSPC := range []bool{false, true} {
+			t.Run(fmt.Sprintf("resolved=%t/lateSPC=%t", resolved, lateSPC), func(t *testing.T) {
+				ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+				cluster := newTestCluster(func(c *coreapi.Cluster) { c.CustomerProperties.DNS.BaseDomainPrefix = "" })
+				if resolved {
+					id := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+					cluster.ServiceProviderProperties.ClusterServiceID = &id
+				}
+				spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) { spc.Status.ServingCABundle = "preserved" })
+				resources := []any{newTestSubscription(), cluster}
+				if !lateSPC {
+					resources = append(resources, spc)
+				}
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+				require.NoError(t, err)
+				syncer := &clusterPendingClusterServiceIDAssignSyncer{
+					resourcesDBClient: db,
+					clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: db},
+					envIdentifier:     "test",
+				}
+				key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				clusterCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName)
+				cluster, err = clusterCRUD.Get(ctx, testClusterName)
+				require.NoError(t, err)
+				id := cluster.ServiceProviderProperties.ClusterServiceID
+				if id == nil {
+					id = cluster.ServiceProviderProperties.PendingClusterServiceID
+				}
+				require.NotNil(t, id)
+				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				if lateSPC {
+					_, err = spcCRUD.Create(ctx, spc, nil)
+					require.NoError(t, err)
+					require.NoError(t, syncer.SyncOnce(ctx, key))
+				}
+				assigned, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Equal(t, "ocm-test-"+id.ID(), assigned.Status.HostedClusterNamespace)
+				require.Empty(t, assigned.Status.ControlPlaneNamespace)
+				require.Equal(t, "preserved", assigned.Status.ServingCABundle)
+
+				cluster.CustomerProperties.DNS.BaseDomainPrefix = "my.cluster"
+				_, err = clusterCRUD.Replace(ctx, cluster, nil)
+				require.NoError(t, err)
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				assigned, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Equal(t, "ocm-test-"+id.ID()+"-my-cluster", assigned.Status.ControlPlaneNamespace)
+				require.Equal(t, "preserved", assigned.Status.ServingCABundle)
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				unchanged, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Equal(t, assigned, unchanged, "unchanged namespaces must not rewrite the document")
+				cluster, err = clusterCRUD.Get(ctx, testClusterName)
+				require.NoError(t, err)
+				if resolved {
+					require.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				} else {
+					require.Equal(t, id, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				}
+			})
+		}
 	}
 }
