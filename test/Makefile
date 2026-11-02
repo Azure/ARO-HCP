@@ -119,7 +119,7 @@ int-e2e:
 
 stage-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.stg.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
-	REGION="uksouth" \
+	REGION="westus3" \
 	ENVIRONMENT="stg" \
 	$(MAKE) e2e
 

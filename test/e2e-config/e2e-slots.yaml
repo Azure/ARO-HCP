@@ -313,15 +313,12 @@ environments:
     deployment_environment:
       name: stg
     pools:
-    # This catalog selects the West US 3 identity inventory in Stage-00.
-    # Retain the separate UK South inventory and its existing Boskos slot externally.
-    # They share subscription limits: do not run their jobs concurrently.
-    - name: westus3-shard0
+    - name: shard0
       subscriptions:
         e2e: "ARO HCP E2E Hosted Clusters - Stage - 00"
       region: westus3
-      region_mode: runtime-selected
-      resource_type: aro-hcp-stg-westus3-shard0-slot
+      region_mode: fixed
+      resource_type: aro-hcp-stg-shard0-slot
       slot_count: 1
       identity_container_provisioning_count: 100
       vm_family_policy:
@@ -339,7 +336,32 @@ environments:
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
-          resource_group_prefix: aro-hcp-msi-container-stg-westus3-shard0
+          resource_group_prefix: aro-hcp-msi-container-stg
+          resource_group_count: 75
+    - name: shard1
+      subscriptions:
+        e2e: "ARO HCP E2E Hosted Clusters - Stage - 01 (MCA Sponsorship)"
+      region: westus3
+      region_mode: fixed
+      resource_type: aro-hcp-stg-shard1-slot
+      slot_count: 1
+      identity_container_provisioning_count: 100
+      vm_family_policy:
+        regions:
+          westus3:
+            worker_families:
+            - StandardDsv6Family
+            - standardDSv5Family
+            - standardDASv5Family
+            helper_families:
+            - StandardDdsv6Family
+            - standardDDSv5Family
+            - standardDADSv5Family
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-stg
           resource_group_count: 75
   prod:
     deployment_environment:
