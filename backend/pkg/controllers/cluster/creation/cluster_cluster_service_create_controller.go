@@ -218,7 +218,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	replacement := cluster.DeepCopy()
 	replacement.ServiceProviderProperties.PendingClusterServiceID = nil
 	replacement.ServiceProviderProperties.ClusterServiceID = &csInternalID
-	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil)
+	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, replacement)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}

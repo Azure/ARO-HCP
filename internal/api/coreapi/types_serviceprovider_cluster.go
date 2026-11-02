@@ -27,6 +27,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -66,6 +67,11 @@ type ServiceProviderCluster struct {
 	// it will be the ServiceProviderCluster type and the name default.
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
+
+	// Written by: ClusterPendingClusterServiceIDAssign, ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, CreateServiceProviderCluster
+	PendingClusterServiceID *metadataapi.InternalID `json:"pendingClusterServiceID,omitempty"`
+	// Written by: ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, ClusterDeletionClusterServiceIDClearer, CreateServiceProviderCluster
+	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
