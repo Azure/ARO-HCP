@@ -99,6 +99,12 @@ type completedOptions struct {
 	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
 	// percentage. Nil-safe callers tolerate an unset lookup.
 	cosmosAutoscaleMax autoscaleMaxLookup
+	// regionRGScope is the fully qualified ID of the region resource group
+	// (regionRG in the rendered config) that holds the regional infrastructure
+	// and the monitoring workspaces. It only exists once the environment has
+	// been provisioned, so its absence is reported as a skip rather than a
+	// collection failure.
+	regionRGScope string
 }
 
 type Options struct {
@@ -242,6 +248,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
+	regionRGScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", o.SubscriptionID, regionRG)
+
 	return &Options{completedOptions: &completedOptions{
 		AMWOnly:            o.AMWOnly,
 		OutputDir:          o.OutputDir,
@@ -252,7 +260,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		SeverityThreshold:  o.severityThreshold,
 		cred:               cred,
 		knownIssues:        knownIssues,
-		resourceGroups:     sets.New(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", o.SubscriptionID, regionRG)),
+		resourceGroups:     sets.New(regionRGScope),
+		regionRGScope:      regionRGScope,
 		workspaceErrors:    workspaceErrors,
 		queriesError:       queriesError,
 		knownIssuesError:   knownIssuesError,
@@ -303,27 +312,29 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 
 // Explicit dependencies let orchestration tests exercise failures without Azure.
 type gatherDependencies struct {
-	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
-	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
-	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
-	lookupEndpoint        func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
-	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
-	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
-	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
-	collectAMW            func(context.Context) amwReport
-	renderAMW             func(amwReport) ([]byte, error)
-	renderAlerts          func(any) ([]byte, error)
-	renderPanel           func(panelPageData) ([]byte, error)
-	renderUtilization     func(utilizationReport) ([]byte, error)
-	renderResourceHistory func(utilizationReport) ([]byte, error)
-	renderPage            func(string, []observabilityTab) error
-	writeFile             func(string, []byte, os.FileMode) error
-	writeJUnit            func(string, *junit.TestSuites) error
+	checkResourceGroupExists func(context.Context, azcore.TokenCredential, string) (bool, error)
+	fetchAlerts              func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
+	fetchMetricAlertRules    func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
+	fetchAlertRules          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
+	lookupEndpoint           func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
+	queryRange               func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
+	queryMetrics             func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
+	collectUtilization       func(context.Context, map[string]*workspaceData) utilizationReport
+	collectAMW               func(context.Context) amwReport
+	renderAMW                func(amwReport) ([]byte, error)
+	renderAlerts             func(any) ([]byte, error)
+	renderPanel              func(panelPageData) ([]byte, error)
+	renderUtilization        func(utilizationReport) ([]byte, error)
+	renderResourceHistory    func(utilizationReport) ([]byte, error)
+	renderPage               func(string, []observabilityTab) error
+	writeFile                func(string, []byte, os.FileMode) error
+	writeJUnit               func(string, *junit.TestSuites) error
 }
 
 func (o Options) dependencies() gatherDependencies {
 	return gatherDependencies{
-		fetchAlerts: fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
+		checkResourceGroupExists: resourceGroupExists,
+		fetchAlerts:              fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
 		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
@@ -358,6 +369,41 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	record(o.queriesError)
 	record(o.cosmosError)
 	record(o.knownIssuesError)
+
+	// Ask whether the region resource group exists before collecting anything.
+	// The condition cannot be inferred from a failing API call: listing alerts
+	// for a missing resource group returns an empty 200, so only the later rule
+	// and workspace lookups 404. Probing it directly keeps the decision honest
+	// and cheap (a single HEAD request).
+	//
+	// The region resource group is created by provisioning. When it is missing
+	// the run never got far enough to have something to observe (provision was
+	// aborted before creating anything, or gather ran against the write-config
+	// step's less accurate config), so report a skip instead of failing alert
+	// collection. Note this is about existence, not about provisioning having
+	// succeeded: a run that failed halfway still has real infrastructure and
+	// real alerts, and those must be collected.
+	if o.regionRGScope != "" {
+		exists, err := deps.checkResourceGroupExists(ctx, o.cred, o.regionRGScope)
+		switch {
+		case err != nil:
+			// The probe itself failed (403, timeout, ...). Do not upgrade that to
+			// "the environment is gone", and do not fail an otherwise clean run on
+			// a transient HEAD request: log it and let the collectors report their
+			// own failures, which they do loudly when access is really broken.
+			logger.Error(err, "failed to check region resource group; continuing with collection", "resourceGroup", o.regionRGScope)
+		case !exists:
+			reason := fmt.Errorf("region resource group %s does not exist", o.regionRGScope)
+			logger.Info("skipping alert collection", "reason", reason.Error())
+			if err := o.writeUnprovisionedArtifacts(deps, reason); err != nil {
+				// Only artifact-write problems and the setup errors recorded above
+				// can fail the run: the missing environment itself is a skip.
+				record(err)
+			}
+			return utils.TrackError(errors.Join(fatalErrors...))
+		}
+	}
+
 	resourceGroups := uniqueResourceGroups(o.Workspaces).Union(o.resourceGroups)
 
 	var allAlerts []alert
