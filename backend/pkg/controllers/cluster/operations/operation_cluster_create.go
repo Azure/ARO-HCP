@@ -121,7 +121,7 @@ func (c *operationClusterCreate) newStatusCalculators() (operationbase.Operation
 		&clusterCreateValidationCheck{clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateHostedClusterCheck{readDesireLister: c.readDesireLister},
 		&clusterCreateResourceCheck{clusterLister: c.clusterLister},
-		&clusterCreateClusterServiceCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient},
+		&clusterCreateClusterServiceCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient, resourcesDBClient: c.resourcesDBClient},
 		&clusterCreatePlacementCheck{clusterLister: c.clusterLister, clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateServingCACheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDefaultIngressCertificateCheck{readDesireLister: c.readDesireLister},

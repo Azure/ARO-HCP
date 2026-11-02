@@ -52,7 +52,9 @@ type clusterDeleteOperationStatusInput struct {
 
 // clusterDeleteClusterServiceDeletionCheck reports whether the Cluster Service
 // deletion has been dispatched and whether the Cluster Service cluster is gone.
-type clusterDeleteClusterServiceDeletionCheck struct{}
+type clusterDeleteClusterServiceDeletionCheck struct {
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+}
 
 var _ operationbase.OperationStatusCalculator[clusterDeleteOperationStatusInput] = (*clusterDeleteClusterServiceDeletionCheck)(nil)
 
@@ -61,22 +63,27 @@ func (c *clusterDeleteClusterServiceDeletionCheck) GetSourceName() string {
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func (c *clusterDeleteClusterServiceDeletionCheck) CalculateOperationStatus(_ context.Context, _ *coreapi.Operation, input clusterDeleteOperationStatusInput) (*operationbase.OperationState, error) {
+func (c *clusterDeleteClusterServiceDeletionCheck) CalculateOperationStatus(ctx context.Context, _ *coreapi.Operation, input clusterDeleteOperationStatusInput) (*operationbase.OperationState, error) {
 	cluster := input.Cluster
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "ClusterService deletion not yet dispatched"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService cluster %s still exists (deletion dispatched at %s)",
-		cluster.ServiceProviderProperties.ClusterServiceID,
+		provider.ClusterServiceID,
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Format(time.RFC3339))), nil
 }
 
 // clusterDeleteClusterServiceStatusCheck reports the live Cluster Service state
 // for a cluster that is still being torn down.
 type clusterDeleteClusterServiceStatusCheck struct {
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -89,14 +96,18 @@ func (c *clusterDeleteClusterServiceStatusCheck) GetSourceName() string {
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
 func (c *clusterDeleteClusterServiceStatusCheck) CalculateOperationStatus(ctx context.Context, _ *coreapi.Operation, input clusterDeleteOperationStatusInput) (*operationbase.OperationState, error) {
 	cluster := input.Cluster
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *cluster.ServiceProviderProperties.ClusterServiceID)
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *provider.ClusterServiceID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {

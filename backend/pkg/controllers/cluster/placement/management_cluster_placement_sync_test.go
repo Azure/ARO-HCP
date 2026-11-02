@@ -265,6 +265,12 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			// Setup mock DB
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
+			if tc.cachedCluster != nil {
+				tc.existingSPC.ClusterServiceID = tc.cachedCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				if tc.cachedSPC != nil {
+					tc.cachedSPC.ClusterServiceID = tc.existingSPC.ClusterServiceID.DeepCopy()
+				}
+			}
 			// Create the SPC in cosmos
 			spcCRUD := mockDB.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
 			_, err := spcCRUD.Create(ctx, tc.existingSPC, nil)

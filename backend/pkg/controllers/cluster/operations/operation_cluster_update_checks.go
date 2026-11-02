@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -156,6 +157,7 @@ func (c *clusterUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.
 }
 
 type clusterUpdateClusterServiceStatusCheck struct {
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterLister        corelisters.ClusterLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -172,19 +174,23 @@ func (c *clusterUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx co
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	// Deletion may have cleared the ID since SynchronizeOperation read the cluster.
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service ID is not set"), nil
 	}
 	csClusterGetter := input.ClusterServiceOnceGetter
-	csCluster, err := csClusterGetter(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
+	csCluster, err := csClusterGetter(ctx, provider.ClusterServiceID)
 	if err != nil && ocm.IsOCMErrorStatus404(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service cluster is not available"), nil
 	}
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service cluster from cluster service: %w", err))
 	}
-	existingCSClusterStatus, clusterServiceID := csCluster.Status(), *cluster.ServiceProviderProperties.ClusterServiceID
+	existingCSClusterStatus, clusterServiceID := csCluster.Status(), *provider.ClusterServiceID
 	logger := utils.LoggerFromContext(ctx)
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
@@ -205,7 +211,8 @@ func (c *clusterUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx co
 }
 
 type clusterUpdateClusterServiceSpecCheck struct {
-	clusterLister corelisters.ClusterLister
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	clusterLister     corelisters.ClusterLister
 }
 
 var _ operationbase.OperationStatusCalculator[clusterUpdateOperationStatusInput] = (*clusterUpdateClusterServiceSpecCheck)(nil)
@@ -220,11 +227,15 @@ func (c *clusterUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx cont
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service ID is not set"), nil
 	}
 	csClusterGetter := input.ClusterServiceOnceGetter
-	csCluster, err := csClusterGetter(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
+	csCluster, err := csClusterGetter(ctx, provider.ClusterServiceID)
 	if err != nil && ocm.IsOCMErrorStatus404(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service cluster is not available"), nil
 	}

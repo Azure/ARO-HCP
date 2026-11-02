@@ -1,0 +1,15 @@
+{
+	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"id": "18579d22-894e-5e90-8933-24b0b23bb84f",
+	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+	"properties": {
+		"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
+		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating/serviceProviderClusters/default"
+		}
+	},
+	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

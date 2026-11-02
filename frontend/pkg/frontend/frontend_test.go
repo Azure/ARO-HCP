@@ -880,6 +880,8 @@ func TestRequestAdminCredential(t *testing.T) {
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+			require.NoError(t, err)
 
 			// Add active revoke operation if needed
 			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) > 0 {
@@ -996,6 +998,8 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				},
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
 			require.NoError(t, err)
 
 			subs := map[string]*coreapi.Subscription{
@@ -1124,6 +1128,8 @@ func TestRevokeCredentials(t *testing.T) {
 				},
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
 			require.NoError(t, err)
 
 			// Add active revoke operation if needed

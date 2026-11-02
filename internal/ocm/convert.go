@@ -495,6 +495,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, cluster *
 			tenantID,
 			cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
 			csVersionID,
+			serviceProviderCluster,
 		)
 		if err != nil {
 			return nil, err
@@ -589,7 +590,10 @@ func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing co
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, cluster *coreapi.Cluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, cluster *coreapi.Cluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string, serviceProviderCluster *coreapi.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
+	if serviceProviderCluster == nil || serviceProviderCluster.PendingClusterServiceID == nil || serviceProviderCluster.PendingClusterServiceID.String() == "" {
+		return nil, nil, fmt.Errorf("pending cluster service ID is unavailable")
+	}
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(cluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, nil, err
@@ -604,7 +608,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	}
 
 	clusterBuilder.
-		ID(cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()).
+		ID(serviceProviderCluster.PendingClusterServiceID.ClusterID()).
 		Name(strings.ToLower(cluster.Name)).
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(cluster.Location)).

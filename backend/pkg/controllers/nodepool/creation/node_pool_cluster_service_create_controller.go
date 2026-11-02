@@ -116,10 +116,14 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
 	}
-	clusterCSInternalID := *cluster.ServiceProviderProperties.ClusterServiceID
+	clusterCSInternalID := *provider.ClusterServiceID
 
 	// GET must target the same href POST would use: {clusterHref}/node_pools/{id} where id is
 	// lowercased ARM name (see ocm.BuildCSNodePool). We reconstruct it here:

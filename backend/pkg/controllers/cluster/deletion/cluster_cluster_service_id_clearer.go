@@ -80,8 +80,7 @@ func NewClusterClusterServiceIDClearerController(
 // ClusterServiceID is still recorded that needs verification before clearing.
 func (c *clusterClusterServiceIDClearer) NeedsWork(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil && len(cluster.ServiceProviderProperties.ClusterServiceID.String()) > 0
+		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil
 }
 
 // SyncOnce reads the Cluster from cluster-service. If cluster-service reports
@@ -112,7 +111,23 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 		return nil
 	}
 
-	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	csID := provider.ClusterServiceID
+	if csID == nil {
+		if provider.PendingClusterServiceID == nil && !cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted {
+			return corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster, provider)
+		}
+		return nil
+	}
+	if len(csID.String()) == 0 {
+		return nil
+	}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
@@ -124,8 +139,8 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 		}
 		// 404 - cluster-service has finished deleting the Cluster, clear the CS ID.
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
-		cluster.ServiceProviderProperties.ClusterServiceID = nil
-		err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster)
+		provider.ClusterServiceID = nil
+		err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster, provider)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 			return nil

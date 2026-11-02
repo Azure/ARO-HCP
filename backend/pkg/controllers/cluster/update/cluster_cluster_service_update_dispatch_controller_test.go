@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -236,6 +237,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				seedResources = append(seedResources, tc.existingCluster)
 			}
 			if tc.existingServiceProviderCluster != nil {
+				tc.existingServiceProviderCluster.ClusterServiceID = tc.existingCluster.ServiceProviderProperties.ClusterServiceID
 				seedResources = append(seedResources, tc.existingServiceProviderCluster)
 			}
 
@@ -325,7 +327,7 @@ func TestNeedsWork(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, needsWork(tt.cluster))
+			assert.Equal(t, tt.want, needsWork(tt.cluster, coreapitesting.ServiceProviderIDsForCluster(tt.cluster)))
 		})
 	}
 }

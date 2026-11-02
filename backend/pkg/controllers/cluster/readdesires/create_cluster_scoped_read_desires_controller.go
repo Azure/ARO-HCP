@@ -130,10 +130,6 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// We don't have a CS reference yet; we'll retrigger once it's set.
-		return nil
-	}
 
 	// In the per-management-cluster container model, every kube-applier
 	// container holds exactly one MC's documents. The placement-sync
@@ -149,6 +145,10 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
+	if serviceProviderCluster.ClusterServiceID == nil {
+		// We don't have a CS reference yet; we'll retrigger once it's set.
+		return nil
+	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
@@ -162,7 +162,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if len(csClusterDomainPrefix) == 0 {
 		return nil
 	}
-	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
+	csClusterID := serviceProviderCluster.ClusterServiceID.ID()
 
 	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if err != nil {

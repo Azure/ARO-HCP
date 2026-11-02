@@ -36,7 +36,7 @@ func TestProviderInitialization(t *testing.T) {
 		wantError                                 bool
 	}{
 		{name: "fresh"},
-		{name: "legacy IDs", legacy: true},
+		{name: "lost legacy backfilled state", legacy: true, initialized: true, wantError: true},
 		{name: "lost state", initialized: true, wantError: true},
 		{name: "delete before initialization", deleting: true},
 		{name: "delete after dispatch", deleting: true, dispatched: true, wantError: true},

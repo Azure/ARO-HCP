@@ -85,7 +85,8 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				for _, item := range allItems.Items(ctx) {
 					if item.ID == "718f75e1-6967-5ce1-ab3c-4f991504b7eb" ||
 						item.ID == "f7583c84-ae03-56f3-b91d-55bbb849164d" ||
-						item.ID == "464bdca5-4108-5ef3-ab4a-15c13eddcf8e" {
+						item.ID == "464bdca5-4108-5ef3-ab4a-15c13eddcf8e" ||
+						item.ID == "198cbd63-0ee6-50e5-9805-73c7a84927e1" {
 						continue
 					}
 					t.Errorf("unexpected resource found: %v", item.ID)

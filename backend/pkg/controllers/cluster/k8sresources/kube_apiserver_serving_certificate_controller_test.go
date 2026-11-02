@@ -198,7 +198,7 @@ func TestKubeAPIServerServingCertificateTeardown(test *testing.T) {
 	require.NoError(test, err)
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
-	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
+	fixture.serviceProvider.ClusterServiceID = nil
 	fixture.serviceProvider.Status.AzureResources.KubeAPIServerCertificate = &coreapi.TLSCertificate{PendingReference: kubeAPIServerTestReference()}
 	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
@@ -239,7 +239,7 @@ func TestKubeAPIServerServingCertificatePrerequisites(test *testing.T) {
 			fixture.syncer.kubeApplierDBClients = kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 		},
 		"cluster service ID absent": func(fixture *kubeAPIServerCertificateFixture) {
-			fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
+			fixture.serviceProvider.ClusterServiceID = nil
 		},
 		"namespace absent": func(fixture *kubeAPIServerCertificateFixture) {
 			fixture.serviceProvider.Status.HostedClusterNamespace = ""

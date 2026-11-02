@@ -71,7 +71,8 @@ func newCertificateFixture(test *testing.T) *certificateFixture {
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterServiceID: &csID},
 	}
 	serviceProvider := &coreapi.ServiceProviderCluster{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderID, PartitionKey: key.SubscriptionID},
+		ClusterServiceID: &csID,
+		CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: serviceProviderID, PartitionKey: key.SubscriptionID},
 		Status: coreapi.ServiceProviderClusterStatus{
 			AzureResources:              coreapi.AzureResources{IngressCertificate: &coreapi.TLSCertificate{AzureReference: ingressTestReference()}},
 			ManagementClusterResourceID: managementClusterID,
@@ -226,7 +227,7 @@ func TestIngressCertificateTeardown(test *testing.T) {
 	require.NoError(test, err)
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
-	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
+	fixture.serviceProvider.ClusterServiceID = nil
 	fixture.serviceProvider.Status.AzureResources.IngressCertificate = &coreapi.TLSCertificate{PendingReference: ingressTestReference()}
 	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
@@ -264,7 +265,7 @@ func TestIngressCertificatePrerequisites(test *testing.T) {
 		"client absent": func(fixture *certificateFixture) {
 			fixture.syncer.kubeApplierDBClients = kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 		},
-		"cluster service ID absent": func(fixture *certificateFixture) { fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil },
+		"cluster service ID absent": func(fixture *certificateFixture) { fixture.serviceProvider.ClusterServiceID = nil },
 		"namespace absent":          func(fixture *certificateFixture) { fixture.serviceProvider.Status.HostedClusterNamespace = "" },
 		"management cluster absent": func(fixture *certificateFixture) {
 			fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}

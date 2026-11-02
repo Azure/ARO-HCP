@@ -68,9 +68,9 @@ type ServiceProviderCluster struct {
 	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// Written by: ClusterPendingClusterServiceIDAssign, ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, CreateServiceProviderCluster
+	// Written by: ClusterPendingClusterServiceIDAssign, ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch
 	PendingClusterServiceID *metadataapi.InternalID `json:"pendingClusterServiceID,omitempty"`
-	// Written by: ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, ClusterDeletionClusterServiceIDClearer, CreateServiceProviderCluster
+	// Written by: ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, ClusterDeletionClusterServiceIDClearer
 	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`

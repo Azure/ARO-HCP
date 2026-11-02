@@ -96,8 +96,8 @@ func newTLSCertificateObservationFixture(test *testing.T, field tlsCertificateFi
 	test.Helper()
 	cluster := newTestCluster(false)
 	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
-	cluster.ServiceProviderProperties.ClusterServiceID = &clusterServiceID
 	serviceProvider := newTestServiceProviderCluster(coreapi.AzureReference{})
+	serviceProvider.ClusterServiceID = &clusterServiceID
 	managementID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/test/managementClusters/default"))
 	serviceProvider.Status.ManagementClusterResourceID = managementID
 	database, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(test.Context(), []any{cluster, serviceProvider})
@@ -266,4 +266,13 @@ func TestTLSCertificateOptionalReferences(test *testing.T) {
 	copied.Status.AzureResources.IngressCertificate.AzureReference.CertificateName = "changed-ingress"
 	require.Equal(test, "kas", original.Status.AzureResources.KubeAPIServerCertificate.PendingReference.CertificateName)
 	require.Equal(test, "ingress", original.Status.AzureResources.IngressCertificate.AzureReference.CertificateName)
+}
+func clearTLSProviderID(test *testing.T, syncer *tlsCertificateSyncer, cluster *coreapi.Cluster) {
+	test.Helper()
+	providerCRUD := syncer.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	provider, err := providerCRUD.Get(test.Context(), coreapi.ServiceProviderClusterResourceName)
+	require.NoError(test, err)
+	provider.ClusterServiceID = nil
+	_, err = providerCRUD.Replace(test.Context(), provider, nil)
+	require.NoError(test, err)
 }

@@ -266,7 +266,11 @@ func TestAdmissionProviderCacheHandlers(t *testing.T) {
 				require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
 				if missing != "cluster" {
 					informer, _ := f.informers.ServiceProviderClusters()
-					require.NoError(t, informer.GetStore().Add(newTestServiceProviderCluster(cluster.ID)))
+					require.NoError(t, informer.GetStore().Add(func() *coreapi.ServiceProviderCluster {
+						provider := newTestServiceProviderCluster(cluster.ID)
+						provider.ClusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID
+						return provider
+					}()))
 				}
 				if missing != "node pool" {
 					informer, _ := f.informers.ServiceProviderNodePools()

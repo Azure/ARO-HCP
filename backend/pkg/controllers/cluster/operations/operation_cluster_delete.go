@@ -183,7 +183,14 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
-	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.shouldReconcileOperationAndResourceStatus(cluster, provider) {
 		return nil
 	}
 	err = c.reconcileOperationAndResourceStatus(ctx, operation, cluster)
@@ -194,16 +201,26 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
+func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+		provider.ClusterServiceID != nil
 }
 
 func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clusterCSID := provider.ClusterServiceID
+	if clusterCSID == nil {
+		return nil
+	}
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
@@ -247,8 +264,8 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 // shared input.
 func (c *operationClusterDelete) newStatusCalculators() (operationbase.OperationStatusCalculators[clusterDeleteOperationStatusInput], error) {
 	return operationbase.NewOperationStatusCalculators[clusterDeleteOperationStatusInput](
-		&clusterDeleteClusterServiceDeletionCheck{},
-		&clusterDeleteClusterServiceStatusCheck{clusterServiceClient: c.clusterServiceClient},
+		&clusterDeleteClusterServiceDeletionCheck{resourcesDBClient: c.resourcesDBClient},
+		&clusterDeleteClusterServiceStatusCheck{clusterServiceClient: c.clusterServiceClient, resourcesDBClient: c.resourcesDBClient},
 		&clusterDeleteDescendantResourcesCheck{resourcesDBClient: c.resourcesDBClient, kubeApplierDBClients: c.kubeApplierDBClients},
 		&clusterDeleteHostedClusterCheck{readDesireLister: c.readDesireLister},
 		&clusterDeleteResourceTeardownCheck{resourcesDBClient: c.resourcesDBClient, applyDesireLister: c.applyDesireLister},

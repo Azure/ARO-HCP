@@ -1,0 +1,15 @@
+{
+	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"id": "198cbd63-0ee6-50e5-9805-73c7a84927e1",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"clusterServiceID": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/serviceProviderClusters/default"
+		}
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

@@ -86,8 +86,9 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 				clusters = append(clusters, c)
 			}
 			syncer := &revocationDesires{
-				resourcesDBClient: db,
-				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: clusters},
+				resourcesDBClient:            db,
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)

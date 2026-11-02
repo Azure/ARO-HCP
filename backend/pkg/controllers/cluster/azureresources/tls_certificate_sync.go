@@ -53,8 +53,8 @@ type tlsCertificateField struct {
 
 // getCertificateName returns the Key Vault certificate/backing secret name for the
 // given cluster, matching CS's utils.GetApiTlsCertName or utils.GetIngressTlsCertName.
-func (field tlsCertificateField) getCertificateName(cluster *coreapi.Cluster) string {
-	return field.label + "-tls-cert-" + cluster.ServiceProviderProperties.ClusterServiceID.ID()
+func (field tlsCertificateField) getCertificateName(provider *coreapi.ServiceProviderCluster) string {
+	return field.label + "-tls-cert-" + provider.ClusterServiceID.ID()
 }
 
 // tlsCertificateSyncer is a read-only observer for a TLS certificate created by Cluster
@@ -93,7 +93,7 @@ func (syncer *tlsCertificateSyncer) needsWork(cluster *coreapi.Cluster, serviceP
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return current != nil
 	}
-	return cluster.ServiceProviderProperties.ClusterServiceID != nil && (current == nil || current.AzureReference == nil)
+	return serviceProviderCluster.ClusterServiceID != nil && (current == nil || current.AzureReference == nil)
 }
 
 func (syncer *tlsCertificateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -180,7 +180,7 @@ func (syncer *tlsCertificateSyncer) syncCreationObservationWork(ctx context.Cont
 	if tlsCertificate == nil {
 		tlsCertificate = &coreapi.TLSCertificate{}
 	}
-	certificateName := syncer.field.getCertificateName(cluster)
+	certificateName := syncer.field.getCertificateName(existing)
 	if tlsCertificate.AzureReference == nil && tlsCertificate.PendingReference == nil {
 		tlsCertificate.PendingReference = &coreapi.AzureTLSCertificateReference{KeyVaultURL: managementCluster.Status.HostedClustersSecretsKeyVaultURL, CertificateName: certificateName}
 		syncer.field.set(&replacement.Status.AzureResources, tlsCertificate)

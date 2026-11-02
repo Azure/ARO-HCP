@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -197,6 +198,7 @@ func (c *clusterCreateResourceCheck) CalculateOperationStatus(ctx context.Contex
 }
 
 type clusterCreateClusterServiceCheck struct {
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterLister        corelisters.ClusterLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -215,16 +217,23 @@ func (c *clusterCreateClusterServiceCheck) CalculateOperationStatus(ctx context.
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "provider state is unavailable"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	// The Cluster Service resource is created asynchronously; until its ID is
 	// populated there is nothing to query, so report the operation as still
 	// provisioning rather than dereferencing a nil ClusterServiceID.
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster service has not been successfully created"), nil
 	}
 
-	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+	clusterServiceID := *provider.ClusterServiceID
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()

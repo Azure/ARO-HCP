@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -468,7 +469,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctrl := gomock.NewController(t)
 
-			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation})
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation, coreapitesting.ServiceProviderIDsForCluster(tc.existingCluster)})
 			require.NoError(t, err)
 
 			listerOperation, err := mockResourcesDBClient.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -686,7 +687,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 			}
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 			operation.StartTime = startTime
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation, coreapitesting.ServiceProviderIDsForCluster(cluster)})
 			require.NoError(t, err)
 			operation, err = db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 			require.NoError(t, err)
@@ -1305,10 +1306,16 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 					},
 				},
 			}
+			clusterArg := fixture.NewCluster(nil)
+			if tt.clusterOverride != nil {
+				clusterArg = tt.clusterOverride
+			}
+			resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{coreapitesting.ServiceProviderIDsForCluster(clusterArg)})
+			controller.resourcesDBClient = resourcesDB
+			require.NoError(t, err)
 			calculators, err := controller.newStatusCalculators()
 			require.NoError(t, err)
 			controller.statusCalculators = calculators
-
 			result, err := controller.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 			if !tt.expectError && tt.expectedState == coreapi.ProvisioningStateSucceeded {
 				serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]

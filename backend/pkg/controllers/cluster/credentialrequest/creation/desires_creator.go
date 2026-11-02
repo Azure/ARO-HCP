@@ -107,11 +107,11 @@ func NewDesiresCreatorController(
 // credential request. It bundles the preconditions that gate creation: the
 // cluster must be live (not being deleted, and already mapped to a
 // cluster-service ID) and the credential must still be pending issuance.
-func (c *desiresCreator) needsWork(cluster *coreapi.Cluster, cred *coreapi.SystemAdminCredentialRequest) bool {
+func (c *desiresCreator) needsWork(cluster *coreapi.Cluster, cred *coreapi.SystemAdminCredentialRequest, provider *coreapi.ServiceProviderCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	if provider.ClusterServiceID == nil {
 		return false
 	}
 	return credentialrequest.IsCredentialRequestPending(cred)
@@ -138,7 +138,15 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
 
-	if !c.needsWork(existingCluster, cred) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetClusterResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if !c.needsWork(existingCluster, cred, provider) {
 		return nil
 	}
 

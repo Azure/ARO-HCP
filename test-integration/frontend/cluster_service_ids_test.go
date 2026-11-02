@@ -46,9 +46,7 @@ func (db *clusterIDConflictDB) NewTransaction(partitionKey string) cosmosstorage
 }
 
 func replaceClusterIDsForTransactionTest(ctx context.Context, db corecosmosstorage.ResourcesDBClient, cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) error {
-	cluster.ServiceProviderProperties.PendingClusterServiceID = provider.PendingClusterServiceID.DeepCopy()
-	cluster.ServiceProviderProperties.ClusterServiceID = provider.ClusterServiceID.DeepCopy()
-	return corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, db, cluster)
+	return corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, db, cluster, provider)
 }
 
 func TestClusterIDTransactionalRollback(t *testing.T) {

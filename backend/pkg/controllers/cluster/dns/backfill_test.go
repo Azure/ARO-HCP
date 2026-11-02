@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -108,6 +109,9 @@ func TestBackfillSyncOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resources := newRecordingResources()
+			if tt.cluster != nil {
+				resources.providers.getObject = coreapitesting.ServiceProviderIDsForCluster(tt.cluster)
+			}
 			resources.clusters.writeErr = tt.writeErr
 			fleet := &recordingFleet{}
 			fleet.claims.writeErr = tt.writeErr

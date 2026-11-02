@@ -84,7 +84,7 @@ func TestIngressTLSCertificateDeletionClearsReference(test *testing.T) {
 	require.NoError(test, err)
 	now := metav1.Now()
 	cluster.ServiceProviderProperties.DeletionTimestamp = &now
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	clearTLSProviderID(test, syncer, cluster)
 
 	// The certificate still exists in Key Vault, so the deletion branch must leave the
 	// reference in place until it's actually confirmed gone.
@@ -167,8 +167,9 @@ func TestIngressTLSCertificateObserveErrorPreservesPendingReference(test *testin
 }
 
 func TestIngressTLSCertificateNeedsWork(test *testing.T) {
-	syncer, _, cluster := newIngressObservationFixture(test)
-	status := &coreapi.ServiceProviderCluster{}
+	syncer, key, cluster := newIngressObservationFixture(test)
+	status, err := syncer.serviceProviderClusterLister.Get(test.Context(), key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	require.NoError(test, err)
 	require.True(test, syncer.needsWork(cluster, status))
 	status.Status.AzureResources.IngressCertificate = expectedTLSCertificate("ingress-tls-cert-abc123", true)
 	require.False(test, syncer.needsWork(cluster, status))
@@ -178,7 +179,7 @@ func TestIngressTLSCertificateNeedsWork(test *testing.T) {
 	cluster.ServiceProviderProperties.DeletionTimestamp = &now
 	require.True(test, syncer.needsWork(cluster, status))
 	cluster.ServiceProviderProperties.DeletionTimestamp = nil
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	status.ClusterServiceID = nil
 	require.False(test, syncer.needsWork(cluster, status))
 }
 
@@ -212,8 +213,8 @@ func TestIngressTLSCertificatePrerequisites(test *testing.T) {
 			now := metav1.Now()
 			cluster.ServiceProviderProperties.DeletionTimestamp = &now
 		},
-		"no CS ID": func(_ *tlsCertificateSyncer, cluster *coreapi.Cluster) {
-			cluster.ServiceProviderProperties.ClusterServiceID = nil
+		"no CS ID": func(syncer *tlsCertificateSyncer, cluster *coreapi.Cluster) {
+			clearTLSProviderID(test, syncer, cluster)
 		},
 		"no cluster": func(syncer *tlsCertificateSyncer, _ *coreapi.Cluster) {
 			syncer.clusterLister = &corelistertesting.SliceClusterLister{}

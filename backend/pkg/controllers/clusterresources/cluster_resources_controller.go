@@ -164,7 +164,7 @@ func NewClusterResourcesController(
 // It requires the cluster to be placed on a management cluster. Beyond that:
 // - Clusters being deleted need ApplyDesire cleanup
 // - Clusters with a ClusterServiceID need resource syncing
-func (c *clusterResourcesController) NeedsWork(cluster *coreapi.Cluster, managementCluster *azcorearm.ResourceID) bool {
+func (c *clusterResourcesController) NeedsWork(cluster *coreapi.Cluster, managementCluster *azcorearm.ResourceID, provider *coreapi.ServiceProviderCluster) bool {
 	if managementCluster == nil {
 		return false
 	}
@@ -173,7 +173,7 @@ func (c *clusterResourcesController) NeedsWork(cluster *coreapi.Cluster, managem
 		return true
 	}
 
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	if provider.ClusterServiceID == nil {
 		return false
 	}
 
@@ -201,7 +201,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	}
 	managementCluster := spc.Status.ManagementClusterResourceID
 
-	if !c.NeedsWork(cluster, managementCluster) {
+	if !c.NeedsWork(cluster, managementCluster, spc) {
 		return nil
 	}
 
@@ -209,7 +209,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 		return c.deleteAllOwnedApplyDesires(ctx, key, managementCluster)
 	}
 
-	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+	clusterServiceID := *spc.ClusterServiceID
 	if err := c.fetchAndProcessClusterResources(ctx, key, managementCluster, clusterServiceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster resources: %w", err))
 	}
