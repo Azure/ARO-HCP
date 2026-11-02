@@ -335,7 +335,8 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 		active := semver.MustParse(activeVersion)
 		desired := semver.MustParse(desiredVersion)
 		return &coreapi.ServiceProviderCluster{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+			ClusterServiceID: ptr.To(testClusterServiceID),
+			CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: spcResourceID},
 			Spec: coreapi.ServiceProviderClusterSpec{
 				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: &desired},
 			},

@@ -115,10 +115,6 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// if we have no clusterService cluster, we have nothing to trigger.
-		return nil
-	}
 
 	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -127,6 +123,10 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if existingServiceProviderCluster.ClusterServiceID == nil {
+		// if we have no clusterService cluster, we have nothing to trigger.
+		return nil
 	}
 
 	// here we check to see if we should be triggering an upgrade. We do this by
@@ -158,7 +158,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingServiceProviderCluster.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.

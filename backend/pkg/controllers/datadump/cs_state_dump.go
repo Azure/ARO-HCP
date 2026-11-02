@@ -37,9 +37,10 @@ import (
 )
 
 type csStateDump struct {
-	clusterLister  corelisters.ClusterLister
-	nodePoolLister corelisters.NodePoolLister
-	csClient       ocm.ClusterServiceClientSpec
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	nodePoolLister               corelisters.NodePoolLister
+	csClient                     ocm.ClusterServiceClientSpec
 
 	// nextDumpChecker ensures we don't hotloop from any source.
 	nextDumpChecker controllerutil.CooldownChecker
@@ -58,11 +59,13 @@ func NewCSStateDumpController(
 	backendInformers coreinformers.BackendInformers,
 	csClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
+	_, providerLister := backendInformers.ServiceProviderClusters()
 	syncer := &csStateDump{
-		clusterLister:   clusterLister,
-		nodePoolLister:  nodePoolLister,
-		csClient:        csClient,
-		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		serviceProviderClusterLister: providerLister,
+		clusterLister:                clusterLister,
+		nodePoolLister:               nodePoolLister,
+		csClient:                     csClient,
+		nextDumpChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	// kubeApplierInformers is intentionally omitted. SyncOnce only logs Cluster Service
@@ -91,7 +94,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get the cluster from the informer cache to retrieve the ClusterServiceID
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	cluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// Cluster doesn't exist in the informer cache, nothing to dump
 		return nil
@@ -101,11 +104,11 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		return nil // best effort, don't fail
 	}
 
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if cluster.ClusterServiceID == nil || len(cluster.ClusterServiceID.String()) == 0 {
 		// No ClusterServiceID yet, cluster hasn't been registered with CS
 		return nil
 	}
-	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	csID := cluster.ClusterServiceID
 
 	readCtx, cancelRead := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 

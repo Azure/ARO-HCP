@@ -541,7 +541,11 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, f.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("cannot load provider state for cluster %s: %v", cluster.ID, err))
+	}
+	if provider.ClusterServiceID == nil {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
@@ -610,7 +614,11 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, f.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("cannot load provider state for cluster %s: %v", cluster.ID, err))
+	}
+	if provider.ClusterServiceID == nil {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
@@ -638,7 +646,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	operationDoc := cosmosstorageutils.NewOperation(
 		operationRequest,
 		clusterResourceID,
-		*cluster.ServiceProviderProperties.ClusterServiceID,
+		*provider.ClusterServiceID,
 		f.azureLocation,
 		request.Header.Get(coreapi.HeaderNameHomeTenantID),
 		request.Header.Get(coreapi.HeaderNameClientObjectID),

@@ -3,6 +3,7 @@
 	"id": "7de6e0ae-f384-51a8-97e2-1177ac229b7c",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
+		"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
 		"cosmosMetadata": {
 			"instanceVersion": 0,
 			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",

@@ -117,6 +117,13 @@ func NewBackfillController(
 }
 
 func (c *backfillController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	logger := utils.LoggerFromContext(ctx)
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -125,7 +132,7 @@ func (c *backfillController) SyncOnce(ctx context.Context, key controllerutils.H
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if !c.needsWork(cluster) {
+	if !c.needsWork(cluster, provider) {
 		return nil
 	}
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -188,9 +195,9 @@ func (c *backfillController) SyncOnce(ctx context.Context, key controllerutils.H
 	return utils.TrackError(err)
 }
 
-func (c *backfillController) needsWork(cluster *coreapi.Cluster) bool {
+func (c *backfillController) needsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	// ClusterBaseDomainPrefixSync must first recover the legacy CS prefix.
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil &&
+		provider.ClusterServiceID != nil &&
 		len(cluster.CustomerProperties.DNS.BaseDomainPrefix) != 0
 }

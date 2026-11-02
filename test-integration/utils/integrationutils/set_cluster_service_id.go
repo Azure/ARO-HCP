@@ -94,20 +94,19 @@ func StampRandomClusterServiceID(
 }
 
 func clusterClusterServiceID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, childResourceID *azcorearm.ResourceID) (metadataapi.InternalID, error) {
-	cluster, err := resourcesDBClient.HCPClusters(childResourceID.SubscriptionID, childResourceID.ResourceGroupName).
-		Get(ctx, childResourceID.Parent.Name)
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, resourcesDBClient, childResourceID.Parent)
 	if err != nil {
 		return metadataapi.InternalID{}, utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil ||
-		len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if provider.ClusterServiceID == nil ||
+		len(provider.ClusterServiceID.String()) == 0 {
 		return metadataapi.InternalID{}, utils.TrackError(fmt.Errorf(
 			"cluster %s has no clusterServiceID; set cluster clusterServiceID before child resource %s",
 			childResourceID.Parent.Name,
 			childResourceID.Name,
 		))
 	}
-	return *cluster.ServiceProviderProperties.ClusterServiceID, nil
+	return *provider.ClusterServiceID, nil
 }
 
 // SetClusterServiceID updates the Cosmos document for a cluster, node pool, or external auth
@@ -149,16 +148,25 @@ func setClusterClusterServiceID(
 	resourceID *azcorearm.ResourceID,
 	csInternalID metadataapi.InternalID,
 ) error {
+	_, err := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, resourcesDBClient, resourceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	cluster, err := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID.String() == csInternalID.String() {
+	if provider.ClusterServiceID != nil &&
+		provider.ClusterServiceID.String() == csInternalID.String() {
 		return nil
 	}
-	cluster.ServiceProviderProperties.ClusterServiceID = csInternalID.DeepCopy()
-	_, err = resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Replace(ctx, cluster, nil)
+	provider.ClusterServiceID = csInternalID.DeepCopy()
+	provider.PendingClusterServiceID = nil
+	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, resourcesDBClient, cluster, provider)
 	return utils.TrackError(err)
 }
 

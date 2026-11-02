@@ -1,0 +1,28 @@
+{
+	"_etag": "\"fixture-provider-etag\"",
+	"id": "df96e82d-9ee7-5973-8fdf-594c877fb5b4",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"cosmosMetadata": {
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missing-required-fields/serviceProviderClusters/default"
+		},
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missing-required-fields/serviceProviderClusters/default",
+		"spec": {
+			"control_plane_version": {
+				"desired_version": "4.20.8"
+			}
+		},
+		"status": {
+			"control_plane_version": {
+				"active_versions": [
+					{
+						"version": "4.20.8"
+					}
+				]
+			}
+		}
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missing-required-fields/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

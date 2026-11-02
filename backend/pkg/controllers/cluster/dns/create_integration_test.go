@@ -63,7 +63,7 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 					cluster.ServiceProviderProperties.ClusterServiceID = nil
 					cluster.ServiceProviderProperties.PendingClusterServiceID = &pending
 					managementID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1"))
-					spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
+					spc := &coreapi.ServiceProviderCluster{PendingClusterServiceID: &pending, CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
 					spc.Spec.ManagementClusterResourceID = managementID
 					spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
 					// Satisfy ClusterClusterServiceCreate's data-plane OIDC federation precondition so

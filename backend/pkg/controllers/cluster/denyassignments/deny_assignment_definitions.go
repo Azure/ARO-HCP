@@ -200,9 +200,9 @@ func denyAssignmentDefinitions(cluster *coreapi.Cluster) []denyAssignmentDefinit
 	return defs
 }
 
-func allDenyAssignmentReferences(cluster *coreapi.Cluster) ([]coreapi.DenyAssignmentReference, error) {
+func allDenyAssignmentReferences(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) ([]coreapi.DenyAssignmentReference, error) {
 	defs := denyAssignmentDefinitions(cluster)
-	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
+	csClusterID := controllerutils.ClusterServiceIDForCluster(provider)
 	subscriptionID := cluster.ID.SubscriptionID
 	managedResourceGroup := cluster.CustomerProperties.Platform.ManagedResourceGroup
 

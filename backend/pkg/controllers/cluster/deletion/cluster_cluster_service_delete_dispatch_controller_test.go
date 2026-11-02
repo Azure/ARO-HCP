@@ -235,6 +235,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+			seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.setupMockCSClient != nil {
@@ -289,6 +290,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterInDB})
 	require.NoError(t, err)
+	seedProviderIDs(t, ctx, mockResourcesDBClient, clusterInDB)
 
 	// Here the cached cluster does not have a DeletionTimestamp set, so the syncer will short-circuit.
 	cachedCluster := newTestCluster(t, nil)
@@ -325,6 +327,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
 	require.NoError(t, err)
+	seedProviderIDs(t, ctx, mockResourcesDBClient, cluster)
 
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
@@ -359,6 +362,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
 	require.NoError(t, err)
+	seedProviderIDs(t, ctx, mockResourcesDBClient, cluster)
 
 	cacheKey := strings.ToLower(cluster.ID.String())
 	firstSeenDeletionTimestampCache := lru.New(10)

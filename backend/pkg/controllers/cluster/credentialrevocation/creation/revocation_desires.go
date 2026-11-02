@@ -116,15 +116,12 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err = c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return nil
 	}
 
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -133,6 +130,9 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if serviceProviderCluster.ClusterServiceID == nil {
+		return nil
 	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {

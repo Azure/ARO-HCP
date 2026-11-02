@@ -155,13 +155,20 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 		c.firstSeenDeletionTimestampCache.Add(cacheKey, firstSeenClusterDeletionTimestamp)
 	}
 
-	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	csID := provider.ClusterServiceID
 	// CS may have accepted POST while the response or the subsequent Cosmos
 	// replacement was lost. Creation stops reconciling once deletion begins, so
 	// recover its persisted target here instead of timing out and abandoning CS.
-	if replacement := recoverPendingDeletionTarget(cluster); replacement != nil {
-		logger.Info("Recovering pending CS creation as deletion target", "clusterServiceID", replacement.ServiceProviderProperties.ClusterServiceID.String())
-		err := corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, replacement)
+	if replacement := recoverPendingDeletionTarget(cluster, provider); replacement != nil {
+		logger.Info("Recovering pending CS creation as deletion target", "clusterServiceID", replacement.ClusterServiceID.String())
+		err := corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster, replacement)
 		return err
 	}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
@@ -212,19 +219,19 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 
 // recoverPendingDeletionTarget produces only the replacement needed to route
 // deletion and its absence observer through the ordinary CS lifecycle.
-func recoverPendingDeletionTarget(cluster *coreapi.Cluster) *coreapi.Cluster {
+func recoverPendingDeletionTarget(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) *coreapi.ServiceProviderCluster {
 	properties := cluster.ServiceProviderProperties
 	if properties.DeletionTimestamp == nil || properties.ClusterServiceDeletionTimestamp != nil {
 		return nil
 	}
-	if properties.ClusterServiceID != nil && properties.ClusterServiceID.String() != "" {
+	if provider.ClusterServiceID != nil && provider.ClusterServiceID.String() != "" {
 		return nil
 	}
-	if properties.PendingClusterServiceID == nil || properties.PendingClusterServiceID.String() == "" {
+	if provider.PendingClusterServiceID == nil || provider.PendingClusterServiceID.String() == "" {
 		return nil
 	}
-	updated := cluster.DeepCopy()
-	updated.ServiceProviderProperties.ClusterServiceID = properties.PendingClusterServiceID
-	updated.ServiceProviderProperties.PendingClusterServiceID = nil
+	updated := provider.DeepCopy()
+	updated.ClusterServiceID = provider.PendingClusterServiceID
+	updated.PendingClusterServiceID = nil
 	return updated
 }

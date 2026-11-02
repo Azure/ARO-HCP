@@ -37,6 +37,7 @@ import (
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -207,7 +208,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 			resources := []any{operation}
 			if tc.existingCluster != nil {
-				resources = append(resources, tc.existingCluster)
+				resources = append(resources, tc.existingCluster, coreapitesting.ServiceProviderIDsForCluster(tc.existingCluster))
 			}
 			for _, nodePool := range tc.nodePools {
 				resources = append(resources, nodePool)

@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -110,6 +111,7 @@ func newSPC(mcResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster 
 			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
 	))
 	return &coreapi.ServiceProviderCluster{
+		ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
@@ -174,7 +176,7 @@ func TestNeedsWork(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			c := &clusterResourcesController{}
-			got := c.NeedsWork(tt.cluster, tt.managementCluster)
+			got := c.NeedsWork(tt.cluster, tt.managementCluster, coreapitesting.ServiceProviderIDsForCluster(tt.cluster))
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -263,7 +265,11 @@ func TestSyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			dbResources: []any{
-				newSPC(testManagementClusterResourceID),
+				func() *coreapi.ServiceProviderCluster {
+					provider := newSPC(testManagementClusterResourceID)
+					provider.ClusterServiceID = nil
+					return provider
+				}(),
 			},
 			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)

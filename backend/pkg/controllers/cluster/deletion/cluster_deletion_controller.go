@@ -112,10 +112,11 @@ func NewClusterDeletionController(
 // - DeletionTimestamp must be set
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
-func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
+func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID == nil
+		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted &&
+		(provider == nil || (provider.ClusterServiceID == nil && provider.PendingClusterServiceID == nil))
 }
 
 // SyncOnce deletes a Cluster document from Cosmos after verifying that all
@@ -137,7 +138,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if !c.NeedsWork(cachedCluster) {
+	if cachedCluster.ServiceProviderProperties.DeletionTimestamp == nil || cachedCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
 		return nil
 	}
 
@@ -152,7 +153,13 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
-	if !c.NeedsWork(cluster) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, key.GetResourceID())
+	if cosmosstorageutils.IsNotFoundError(err) {
+		provider = nil
+	} else if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.NeedsWork(cluster, provider) {
 		return nil
 	}
 

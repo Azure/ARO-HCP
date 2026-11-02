@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -107,7 +108,8 @@ func TestSynchronizeAllClusters(t *testing.T) {
 			subscription := testSubscription()
 			cosmosResources := []any{subscription}
 			if testCase.cosmosClusterBuilder != nil {
-				cosmosResources = append(cosmosResources, testCase.cosmosClusterBuilder(t))
+				cluster := testCase.cosmosClusterBuilder(t)
+				cosmosResources = append(cosmosResources, cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
 			}
 
 			resourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, cosmosResources)
