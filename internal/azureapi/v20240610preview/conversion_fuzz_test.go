@@ -36,6 +36,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		// IPForwarding was added in v20270201 and does not exist in v20240610preview.
+		func(j *coreapi.NodePoolPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j.SubnetID != nil {
+				j.SubnetID = coreapitesting.FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", coreapitesting.GenName(c))
+			}
+			j.IPForwarding = ""
+		},
 		// ImageDigestMirrors, Ingress, and CryptoRestrictions do not exist in v20240610preview.
 		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

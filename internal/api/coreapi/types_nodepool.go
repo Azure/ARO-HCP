@@ -182,6 +182,8 @@ type NodePoolPlatformProfile struct {
 	// * It is a logical Availability Zone
 	// * It is optional during creation and immutable
 	AvailabilityZone string `json:"availabilityZone,omitempty"`
+	// IPForwarding controls Azure NIC source/destination address checking. Optional, immutable.
+	IPForwarding metadataapi.IPForwarding `json:"ipForwarding,omitempty"`
 }
 
 // OSDiskProfile represents a OS Disk configuration.
@@ -224,6 +226,7 @@ func NewDefaultNodePool(resourceID *azcorearm.ResourceID, azureLocation string) 
 					DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 					DiskType:               metadataapi.OsDiskTypeManaged,
 				},
+				IPForwarding: metadataapi.IPForwardingInterfaceAddressesOnly,
 			},
 			AutoRepair: true,
 		},
@@ -244,6 +247,9 @@ func (np *NodePool) EnsureDefaults() {
 	}
 	if len(np.Properties.Platform.OSDisk.DiskType) == 0 {
 		np.Properties.Platform.OSDisk.DiskType = metadataapi.OsDiskTypeManaged
+	}
+	if len(np.Properties.Platform.IPForwarding) == 0 {
+		np.Properties.Platform.IPForwarding = metadataapi.IPForwardingInterfaceAddressesOnly
 	}
 }
 

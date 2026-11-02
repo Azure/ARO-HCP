@@ -331,6 +331,7 @@ var (
 	toNodePoolPlatformProfileEnableEncryptionAtHost = func(oldObj *coreapi.NodePoolPlatformProfile) *bool { return &oldObj.EnableEncryptionAtHost }
 	toNodePoolPlatformProfileOSDisk                 = func(oldObj *coreapi.NodePoolPlatformProfile) *coreapi.OSDiskProfile { return &oldObj.OSDisk }
 	toNodePoolPlatformProfileAvailabilityZone       = func(oldObj *coreapi.NodePoolPlatformProfile) *string { return &oldObj.AvailabilityZone }
+	toNodePoolPlatformProfileIPForwarding           = func(oldObj *coreapi.NodePoolPlatformProfile) *metadataapi.IPForwarding { return &oldObj.IPForwarding }
 )
 
 func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolPlatformProfile) field.ErrorList {
@@ -354,6 +355,10 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 
 	//AvailabilityZone       string        `json:"availabilityZone,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("availabilityZone"), &newObj.AvailabilityZone, safe.Field(oldObj, toNodePoolPlatformProfileAvailabilityZone))...)
+
+	//IPForwarding           IPForwarding  `json:"ipForwarding,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("ipForwarding"), &newObj.IPForwarding, safe.Field(oldObj, toNodePoolPlatformProfileIPForwarding))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("ipForwarding"), &newObj.IPForwarding, safe.Field(oldObj, toNodePoolPlatformProfileIPForwarding), metadataapi.ValidIPForwarding, nil)...)
 
 	return errs
 }
