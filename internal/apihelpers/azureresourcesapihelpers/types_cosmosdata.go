@@ -1,0 +1,40 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package azureresourcesapihelpers
+
+import (
+	"path"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+)
+
+// ToDeploymentStackDesireResourceID returns the resource ID for a DeploymentStackDesire
+// nested directly under a cluster.
+func ToDeploymentStackDesireResourceID(subscriptionID, resourceGroupName, clusterName, name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name))
+}
+
+// ToDeploymentStackDesireResourceIDString returns the resource ID string for a
+// DeploymentStackDesire nested directly under a cluster.
+func ToDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name string) string {
+	return strings.ToLower(path.Join(
+		coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName),
+		coreapihelpers.LeafTypeName(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType), name,
+	))
+}

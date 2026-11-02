@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -50,6 +51,7 @@ type StorageIntegrationTestInfo interface {
 	ResourcesDBClient() corecosmosstorage.ResourcesDBClient
 	BillingDBClient() billingcosmosstorage.BillingDBClient
 	FleetDBClient() fleetcosmosstorage.FleetDBClient
+	AzureResourcesDBClient() azureresourcescosmosstorage.AzureResourcesDBClient
 
 	Cleanup(ctx context.Context)
 }

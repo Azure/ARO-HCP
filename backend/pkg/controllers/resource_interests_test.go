@@ -43,8 +43,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -114,6 +116,15 @@ func (i *interestBackendInformers) SystemAdminCredentialRevocations() (cache.Sha
 	return i.sources["revocation"], i.revocations
 }
 
+type interestAzureResourcesInformers struct {
+	azureresourcesinformers.AzureResourcesInformers
+	sources map[string]*interestInformer
+}
+
+func (i *interestAzureResourcesInformers) DeploymentStackDesires() (cache.SharedIndexInformer, azureresourceslisters.DeploymentStackDesireLister) {
+	return i.sources["stack"], nil
+}
+
 type interestDesireInformers struct {
 	kubeapplierinformers.KubeApplierInformers
 	sources map[string]*interestInformer
@@ -149,7 +160,7 @@ func (l *interestNodePoolLister) Get(_ context.Context, _, _, cluster, _ string)
 }
 
 func TestControllerResourceInterests(t *testing.T) {
-	type constructor func(corecosmosstorage.ResourcesDBClient, coreinformers.BackendInformers, *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller
+	type constructor func(corecosmosstorage.ResourcesDBClient, coreinformers.BackendInformers, azureresourcesinformers.AzureResourcesInformers, *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller
 	type event struct {
 		source string
 		suffix string
@@ -163,7 +174,7 @@ func TestControllerResourceInterests(t *testing.T) {
 	}{
 		{
 			name: "cluster properties read only the HostedCluster mirror",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterproperties.NewClusterPropertiesSyncController(db, inf, union, nil)
 			},
 			events: []event{
@@ -179,7 +190,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "service provider properties also read the serving CA and singleton",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterproperties.NewServiceProviderClusterPropertiesSyncController(db, inf, union, nil)
 			},
 			events: []event{
@@ -194,7 +205,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name:     "node pool active versions read only the NodePool mirror",
 			nodePool: true,
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return nodepoolversion.NewNodePoolActiveVersionController(db, inf, union, nil)
 			},
 			events: []event{
@@ -209,8 +220,8 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster degradation consumes arbitrary direct desire names",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				return clusterstatus.NewClusterDegradedAggregatorController(db, nil, nil, inf, union, nil)
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clusterstatus.NewClusterDegradedAggregatorController(db, nil, nil, inf, azureResources, union, nil)
 			},
 			events: []event{
 				{"controller", "/hcpOpenShiftControllers/worker", true},
@@ -227,7 +238,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		{
 			name:     "node pool degradation consumes arbitrary node pool desire names",
 			nodePool: true,
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return nodepoolstatus.NewNodePoolDegradedAggregatorController(db, nil, nil, inf, union, nil)
 			},
 			events: []event{
@@ -242,7 +253,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster read desire creator observes its own mirrors",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				_, readLister := union.ReadDesires()
 				return clusterreaddesires.NewCreateClusterScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
 			},
@@ -256,7 +267,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "node pool read desire creator observes its own mirror", nodePool: true,
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				_, readLister := union.ReadDesires()
 				return nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(nil, db, nil, nil, readLister, union, inf, "test")
 			},
@@ -268,8 +279,8 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster child cleanup observes deletion gates",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
-				return clusterdeletion.NewClusterChildResourcesCleanupController(db, nil, inf, union)
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+				return clusterdeletion.NewClusterChildResourcesCleanupController(db, nil, nil, inf, union)
 			},
 			events: []event{
 				{"nodepool", "/nodePools/np", true}, {"externalauth", "/externalAuths/auth", true},
@@ -280,7 +291,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster credential marker observes request and revocation children",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, _ *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, _ *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterdeletion.NewClusterCredentialDeletionMarkerController(nil, db, inf)
 			},
 			events: []event{
@@ -291,7 +302,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster final deletion observes deletion gates",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, union *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterdeletion.NewClusterDeletionController(nil, db, nil, inf, nil, union)
 			},
 			events: []event{
@@ -302,14 +313,14 @@ func TestControllerResourceInterests(t *testing.T) {
 		},
 		{
 			name: "cluster resources observes node pools",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, u *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return clusterresources.NewClusterResourcesController(db, nil, inf, u, nil)
 			},
 			events: []event{{"nodepool", "/nodePools/np", true}},
 		},
 		{
 			name: "minor upgrade observes node pool provider state",
-			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, _ *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
+			newController: func(db corecosmosstorage.ResourcesDBClient, inf coreinformers.BackendInformers, azureResources azureresourcesinformers.AzureResourcesInformers, _ *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 				return rollout.NewMinorUpgradeNormalClusterDesiredVersionController(nil, db, inf, nil)
 			},
 			events: []event{{"nodepool", "/nodePools/np", true}, {"spnp", "/nodePools/np/serviceProviderNodePools/default", true}, {"spnp", "/nodePools/np/serviceProviderNodePools/other", false}, {"spnp", "/nodePools/np/nested/n/serviceProviderNodePools/default", false}},
@@ -319,7 +330,7 @@ func TestControllerResourceInterests(t *testing.T) {
 		for _, mode := range []string{"add", "update", "resync", "delete", "tombstone"} {
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				sources := map[string]*interestInformer{}
-				for _, name := range []string{"cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation"} {
+				for _, name := range []string{"cluster", "nodepool", "spc", "spnp", "content", "read", "apply", "controller", "externalauth", "request", "revocation", "stack"} {
 					sources[name] = &interestInformer{}
 				}
 				observed := make(chan string, len(tc.events)+1)
@@ -328,16 +339,22 @@ func TestControllerResourceInterests(t *testing.T) {
 					clusters:  &interestClusterLister{observed: observed},
 					nodePools: &interestNodePoolLister{observed: observed},
 				}
+				azureResources := &interestAzureResourcesInformers{sources: sources}
 				union := unionkubeapplierinformers.NewUnionKubeApplierInformers()
 				mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
 				require.NoError(t, union.Add(mcID, &interestDesireInformers{sources: sources}))
-				controller := tc.newController(corecosmosstoragetesting.NewMockResourcesDBClient(), backend, union)
+				controller := tc.newController(corecosmosstoragetesting.NewMockResourcesDBClient(), backend, azureResources, union)
 				primarySource := "cluster"
 				if tc.nodePool {
 					primarySource = "nodepool"
 				}
 				for name, source := range sources {
-					if name == primarySource {
+					// stack desires are deliberately queued with a periodic resync
+					// fallback (role_assignments_controller.go and
+					// cluster_degraded_aggregator.go both pass a non-zero duration to
+					// QueueForChildInformers for the stack informer), unlike every
+					// other supplementary informer here.
+					if name == primarySource || name == "stack" {
 						continue
 					}
 					for _, options := range source.options {

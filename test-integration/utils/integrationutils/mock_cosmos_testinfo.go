@@ -21,10 +21,12 @@ import (
 	"path"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
@@ -34,21 +36,24 @@ import (
 type MockCosmosIntegrationTestInfo struct {
 	ArtifactsDir string
 
-	mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient
-	mockBillingDBClient   *billingcosmosstoragetesting.MockBillingDBClient
-	mockFleetDBClient     *fleetcosmosstoragetesting.MockFleetDBClient
+	mockResourcesDBClient      *corecosmosstoragetesting.MockResourcesDBClient
+	mockBillingDBClient        *billingcosmosstoragetesting.MockBillingDBClient
+	mockFleetDBClient          *fleetcosmosstoragetesting.MockFleetDBClient
+	mockAzureResourcesDBClient *azureresourcescosmosstoragetesting.MockAzureResourcesDBClient
 }
 
 func NewMockCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrationTestInfo, error) {
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 	mockFleetDBClient := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	mockAzureResourcesDBClient := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient()
 
 	testInfo := &MockCosmosIntegrationTestInfo{
-		ArtifactsDir:          path.Join(getArtifactDir(), t.Name()),
-		mockResourcesDBClient: mockResourcesDBClient,
-		mockBillingDBClient:   mockBillingDBClient,
-		mockFleetDBClient:     mockFleetDBClient,
+		ArtifactsDir:               path.Join(getArtifactDir(), t.Name()),
+		mockResourcesDBClient:      mockResourcesDBClient,
+		mockBillingDBClient:        mockBillingDBClient,
+		mockFleetDBClient:          mockFleetDBClient,
+		mockAzureResourcesDBClient: mockAzureResourcesDBClient,
 	}
 	return testInfo, nil
 }
@@ -65,6 +70,10 @@ func (m *MockCosmosIntegrationTestInfo) FleetDBClient() fleetcosmosstorage.Fleet
 	return m.mockFleetDBClient
 }
 
+func (m *MockCosmosIntegrationTestInfo) AzureResourcesDBClient() azureresourcescosmosstorage.AzureResourcesDBClient {
+	return m.mockAzureResourcesDBClient
+}
+
 func (m *MockCosmosIntegrationTestInfo) LoadContent(ctx context.Context, content []byte) error {
 	document, container, err := prepareCosmosDocument(content)
 	if err != nil {
@@ -75,6 +84,8 @@ func (m *MockCosmosIntegrationTestInfo) LoadContent(ctx context.Context, content
 		m.mockResourcesDBClient.StoreDocument(document.ID, content)
 	case "Fleet":
 		m.mockFleetDBClient.StoreDocument(document.ID, content)
+	case "AzureResources":
+		m.mockAzureResourcesDBClient.StoreDocument(document.ID, content)
 	}
 	return nil
 }
@@ -100,7 +111,15 @@ func (m *MockCosmosIntegrationTestInfo) ListDocumentsByContainer(ctx context.Con
 		}
 		fleet = append(fleet, &document)
 	}
-	return map[string][]*cosmosstorageutils.TypedDocument{"Resources": resources, "Fleet": fleet}, nil
+	var azureResources []*cosmosstorageutils.TypedDocument
+	for _, content := range m.mockAzureResourcesDBClient.GetAllDocuments() {
+		var document cosmosstorageutils.TypedDocument
+		if err := json.Unmarshal(content, &document); err != nil {
+			return nil, fmt.Errorf("failed to decode AzureResources document: %w", err)
+		}
+		azureResources = append(azureResources, &document)
+	}
+	return map[string][]*cosmosstorageutils.TypedDocument{"Resources": resources, "Fleet": fleet, "AzureResources": azureResources}, nil
 }
 
 func (m *MockCosmosIntegrationTestInfo) Cleanup(ctx context.Context) {

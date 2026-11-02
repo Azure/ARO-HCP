@@ -33,13 +33,16 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/azureresourcescosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
@@ -48,12 +51,24 @@ const testSubscriptionID = "00000000-0000-0000-0000-000000000000"
 var testKey = controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: "test-rg", HCPClusterName: "test-cluster"}
 
 type dbStackDesireLister struct {
-	corelisters.StackDesireLister
-	db corecosmosstorage.ResourcesDBClient
+	azureresourceslisters.DeploymentStackDesireLister
+	db azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
-func (l dbStackDesireLister) Get(ctx context.Context, sub, rg, cluster, name string) (*coreapi.StackDesire, error) {
-	return l.db.StackDesires(sub, rg, cluster).Get(ctx, name)
+func (l dbStackDesireLister) GetByResourceID(ctx context.Context, resourceID string) (*azureresourcesapi.DeploymentStackDesire, error) {
+	id, err := azcorearm.ParseResourceID(resourceID)
+	if err != nil {
+		return nil, err
+	}
+	parent, err := azureresourcescosmosstorage.ParseDeploymentStackDesireScope(id.Parent)
+	if err != nil {
+		return nil, err
+	}
+	crud, err := l.db.DeploymentStackDesiresFor(parent)
+	if err != nil {
+		return nil, err
+	}
+	return crud.Get(ctx, id.Name)
 }
 
 func testInputs() (*coreapi.Cluster, *coreapi.ServiceProviderCluster) {
@@ -85,21 +100,23 @@ func testInputs() (*coreapi.Cluster, *coreapi.ServiceProviderCluster) {
 	return cluster, spc
 }
 
-func testSyncer(t *testing.T, resources ...any) (*roleAssignmentsSyncer, *corecosmosstoragetesting.MockResourcesDBClient) {
+func testSyncer(t *testing.T, resources ...any) (*roleAssignmentsSyncer, *corecosmosstoragetesting.MockResourcesDBClient, *azureresourcescosmosstoragetesting.MockAzureResourcesDBClient) {
 	t.Helper()
 	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), resources)
 	require.NoError(t, err)
+	azureResourcesDB := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClient()
 	return &roleAssignmentsSyncer{
 		resourcesDBClient:            db,
+		azureResourcesDBClient:       azureResourcesDB,
 		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: db},
 		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: db},
-		stackDesireLister:            dbStackDesireLister{db: db},
+		stackDesireLister:            dbStackDesireLister{db: azureResourcesDB},
 		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))},
 			Properties:     &coreapi.SubscriptionProperties{TenantId: ptr.To("customer-tenant")},
 		}}},
 		clusterScopedIdentitiesConfig: azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
-	}, db
+	}, db, azureResourcesDB
 }
 
 func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
@@ -107,9 +124,10 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	legacy := []*azcorearm.ResourceID{metadataapi.Must(azcorearm.ParseResourceID(spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String() + "/providers/Microsoft.Authorization/roleAssignments/historical"))}
 	spc.Status.AzureResources.RoleAssignments.AzureResources = legacy
 	spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{RoleAssignmentsControllerName: {Time: time.Now().Add(24 * time.Hour)}}
-	syncer, db := testSyncer(t, cluster, spc)
+	syncer, db, azureResourcesDB := testSyncer(t, cluster, spc)
 	require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
-	desires := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+	desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+	require.NoError(t, err)
 	desire, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
 	require.NoError(t, err)
 	require.Equal(t, "Apply", desire.Spec.Action)
@@ -117,7 +135,7 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	require.Equal(t, "customer-tenant", desire.Spec.Authentication.TenantID)
 	require.Equal(t, 6*time.Hour, desire.Spec.ReconcileInterval.Duration)
 	require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String()+"/providers/Microsoft.Resources/deploymentStacks/aro-hcp-role-assignments", desire.Spec.TargetResourceID.String())
-	require.Equal(t, cluster.ID.String()+"/"+coreapi.StackDesireResourceTypeName+"/"+RoleAssignmentsDesireName, desire.ResourceID.String())
+	require.Equal(t, cluster.ID.String()+"/"+azureresourcesapi.DeploymentStackDesireResourceTypeName+"/"+RoleAssignmentsDesireName, desire.ResourceID.String())
 	require.NotNil(t, desire.ParentResourceID)
 	require.Equal(t, strings.ToLower(cluster.ID.String()), strings.ToLower(desire.ParentResourceID.String()))
 	require.Equal(t, strings.ToLower(cluster.ID.SubscriptionID), desire.PartitionKey)
@@ -164,44 +182,45 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 }
 
 func TestStackReadiness(t *testing.T) {
-	applied := []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	applied := []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}}
 	succeeded := &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded)}}
 	for _, tc := range []struct {
 		name            string
 		observed        bool
 		changeSpec      bool
 		changePersisted bool
-		status          coreapi.StackDesireStatus
+		status          azureresourcesapi.DeploymentStackDesireStatus
 		want            bool
 	}{
 		{name: "pending without success"},
-		{name: "current hash succeeded", observed: true, status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: applied}, want: true},
-		{name: "Azure provisioning state casing", observed: true, status: coreapi.StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningState("Succeeded"))}}, Conditions: applied}, want: true},
-		{name: "older hash cannot satisfy new intent", observed: true, changeSpec: true, status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: applied}},
-		{name: "persisted spec must also match intent", observed: true, changePersisted: true, status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: applied}},
-		{name: "unobserved spec cannot satisfy intent", status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: applied}},
-		{name: "different observed hash cannot satisfy intent", status: coreapi.StackDesireStatus{ObservedSpecHash: "other", Stack: succeeded, Conditions: applied}},
-		{name: "same hash repair pending revokes success", observed: true, status: coreapi.StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateDeploying)}}, Conditions: applied}},
-		{name: "same hash repair failed revokes success", observed: true, status: coreapi.StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateFailed)}}, Conditions: applied}},
-		{name: "error outcome revokes success", observed: true, status: coreapi.StackDesireStatus{Error: &armdeploymentstacks.ErrorDetail{Code: ptr.To("AuthorizationFailed")}, Conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionDegraded, Status: metav1.ConditionTrue}}}},
-		{name: "missing success condition", observed: true, status: coreapi.StackDesireStatus{Stack: succeeded}},
-		{name: "false success condition", observed: true, status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse}}}},
-		{name: "unknown success condition", observed: true, status: coreapi.StackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyApplied, Status: metav1.ConditionUnknown}}}},
-		{name: "deleted is not applied", observed: true, status: coreapi.StackDesireStatus{Conditions: []metav1.Condition{{Type: coreapi.StackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue}}}},
-		{name: "absent stack", observed: true, status: coreapi.StackDesireStatus{Conditions: applied}},
-		{name: "absent stack properties", observed: true, status: coreapi.StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{}, Conditions: applied}},
-		{name: "absent provisioning state", observed: true, status: coreapi.StackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{}}, Conditions: applied}},
+		{name: "current hash succeeded", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: applied}, want: true},
+		{name: "Azure provisioning state casing", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningState("Succeeded"))}}, Conditions: applied}, want: true},
+		{name: "older hash cannot satisfy new intent", observed: true, changeSpec: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: applied}},
+		{name: "persisted spec must also match intent", observed: true, changePersisted: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: applied}},
+		{name: "unobserved spec cannot satisfy intent", status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: applied}},
+		{name: "different observed hash cannot satisfy intent", status: azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: "other", Stack: succeeded, Conditions: applied}},
+		{name: "same hash repair pending revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateDeploying)}}, Conditions: applied}},
+		{name: "same hash repair failed revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateFailed)}}, Conditions: applied}},
+		{name: "error outcome revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Error: &armdeploymentstacks.ErrorDetail{Code: ptr.To("AuthorizationFailed")}, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue}}}},
+		{name: "missing success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded}},
+		{name: "false success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse}}}},
+		{name: "unknown success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionUnknown}}}},
+		{name: "deleted is not applied", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue}}}},
+		{name: "absent stack", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Conditions: applied}},
+		{name: "absent stack properties", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{}, Conditions: applied}},
+		{name: "absent provisioning state", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{}}, Conditions: applied}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cluster, spc := testInputs()
-			syncer, db := testSyncer(t, cluster, spc)
+			syncer, db, azureResourcesDB := testSyncer(t, cluster, spc)
 			require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
-			desires := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
 			desire, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
 			require.NoError(t, err)
 			desire.Status = *tc.status.DeepCopy()
 			if tc.observed {
-				desire.Status.ObservedSpecHash, err = coreapi.StackDesireSpecHash(desire.Spec)
+				desire.Status.ObservedSpecHash, err = azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
 				require.NoError(t, err)
 				desire.Status.ObservedAt = ptr.To(metav1.Now())
 			}
@@ -287,9 +306,10 @@ func TestUnresolvedInputsNeverPublishPartialTemplate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cluster, spc := testInputs()
-			syncer, db := testSyncer(t, cluster, spc)
+			syncer, db, azureResourcesDB := testSyncer(t, cluster, spc)
 			require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
-			desires := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
 			before, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
 			require.NoError(t, err)
 			spc.Status.AzureResources.RoleAssignments.StackReady = true
@@ -322,7 +342,7 @@ func TestUnresolvedInputsNeverPublishPartialTemplate(t *testing.T) {
 
 func TestDeletionPurgesDesireWithoutPrerequisites(t *testing.T) {
 	cluster, spc := testInputs()
-	syncer, db := testSyncer(t, cluster, spc)
+	syncer, _, azureResourcesDB := testSyncer(t, cluster, spc)
 	require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 	cluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
 	syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}
@@ -330,7 +350,9 @@ func TestDeletionPurgesDesireWithoutPrerequisites(t *testing.T) {
 	syncer.subscriptionLister = nil
 	for range 2 {
 		require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
-		_, err := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), RoleAssignmentsDesireName)
+		desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+		require.NoError(t, err)
+		_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
 		require.True(t, cosmosstorageutils.IsNotFoundError(err))
 	}
 }
@@ -340,7 +362,7 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 		for _, missing := range []bool{false, true} {
 			t.Run(fmt.Sprintf("existing=%t/missing=%t", existing, missing), func(t *testing.T) {
 				cluster, spc := testInputs()
-				syncer, db := testSyncer(t, cluster, spc)
+				syncer, db, azureResourcesDB := testSyncer(t, cluster, spc)
 				if existing {
 					require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 					spc.Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID = ptr.To("44444444-4444-4444-4444-444444444444")
@@ -359,7 +381,9 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 					require.NoError(t, err)
 				}
 				require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
-				_, err := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), RoleAssignmentsDesireName)
+				desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "live deletion must prevent Create/Replace and purge any existing desire")
 			})
 		}
@@ -368,7 +392,7 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 
 func TestExpectedAssignmentsStableAndDeduplicated(t *testing.T) {
 	cluster, spc := testInputs()
-	syncer, _ := testSyncer(t)
+	syncer, _, _ := testSyncer(t)
 	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
 	var sharedID *azcorearm.ResourceID
 	for _, id := range identities {
@@ -416,9 +440,11 @@ func (conflictingSPCCRUD) Replace(context.Context, *coreapi.ServiceProviderClust
 func TestReadinessConflictDoesNotPublishNewIntent(t *testing.T) {
 	cluster, spc := testInputs()
 	spc.Status.AzureResources.RoleAssignments.StackReady = true
-	syncer, db := testSyncer(t, cluster, spc)
+	syncer, db, azureResourcesDB := testSyncer(t, cluster, spc)
 	syncer.resourcesDBClient = conflictingSPCDB{db}
 	require.Error(t, syncer.SyncOnce(t.Context(), testKey))
-	_, err := db.StackDesires(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), RoleAssignmentsDesireName)
+	desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+	require.NoError(t, err)
+	_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
 	require.True(t, cosmosstorageutils.IsNotFoundError(err), "must revoke stale readiness before publishing")
 }
