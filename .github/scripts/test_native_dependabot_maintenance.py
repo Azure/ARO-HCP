@@ -308,21 +308,28 @@ class RepositoryFixture(unittest.TestCase):
         self.assertEqual(self.pulls[result["number"]]["title"], request["title"])
         self.assertTrue(self.pulls[result["number"]]["body"].startswith(request["body"] + "\n\n"))
 
-    def test_prepare_request_cli_emits_only_digest_tool_arguments(self):
+    def test_prepare_request_returns_digest_for_exact_payload_and_normalizes_title_newline(self):
         inputs = self.prepare_inputs()
         inputs[2].write_text("chore(deps): upgrade example library\n")
         self.upgrade_consumers()
         artifact_root = self.root / "artifacts"
-        command = [sys.executable, str(Path(native.__file__).resolve()), "prepare-request", REPO,
-                   *map(str, inputs), str(artifact_root / "agent")]
-        result = subprocess.run(command, cwd=self.seed, capture_output=True, text=True, check=True)
-        arguments = json.loads(result.stdout)
+        arguments = native.prepare_request(REPO, *inputs, artifact_root / "agent", cwd=self.seed)
         self.assertEqual(set(arguments), {"request_sha256"})
         payload = (artifact_root / "agent" / native.REQUEST_FILE).read_bytes()
         self.assertEqual(arguments["request_sha256"], hashlib.sha256(payload).hexdigest())
         self.assertEqual(json.loads(payload)["expected_base_sha"], self.base)
         self.assertEqual(json.loads(payload)["title"], "chore(deps): upgrade example library")
-        self.assertEqual(result.stderr, "")
+
+    def test_removed_prepare_request_cli_cannot_emit_unvalidated_request(self):
+        inputs = self.prepare_inputs()
+        self.upgrade_consumers()
+        artifact_root = self.root / "artifacts"
+        command = [sys.executable, str(Path(native.__file__).resolve()), "prepare-request", REPO,
+                   *map(str, inputs), str(artifact_root / "agent")]
+        result = subprocess.run(command, cwd=self.seed, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertFalse(artifact_root.exists())
 
     def test_detection_cli_stages_full_patch_and_exact_nonnotifying_publication_metadata(self):
         request = self.request()
@@ -1743,6 +1750,47 @@ class EvidenceTests(unittest.TestCase):
             if actual.split("+")[0] != target.split("+")[0]:
                 self.assertFalse(native.version_covers(target, actual))
         self.assertFalse(native.version_covers("unverifiable", "v1.0.0"))
+
+    def test_typespec_recipe_changes_fail_preflight_and_publication_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "api").mkdir()
+            git(root, "init", "-b", "main")
+            git(root, "config", "user.name", "Fixture")
+            git(root, "config", "user.email", "fixture@example.test")
+            before = json.dumps({"dependencies": {"@typespec/compiler": "^1.16.0"}})
+            after = before.replace("1.16.0", "1.17.0")
+            targets = ("models", "generate", "generate-go", "generate-sdk", "lint", "format")
+            recipes = "".join(f"{target}:\n\t@echo {target}\n" for target in targets)
+            (root / "api/package.json").write_text(before)
+            (root / "api/Makefile").write_text(recipes)
+            git(root, "add", ".")
+            git(root, "commit", "-m", "base with trusted generator recipes")
+            base = git(root, "rev-parse", "HEAD")
+            intents = native.changes("api/package.json", before, after)
+            group = {"ecosystem": "npm", "family": "typespec",
+                     "sources": [{"intents": intents}]}
+            (root / "api/package.json").write_text(after)
+            git(root, "add", ".")
+            git(root, "commit", "-m", "TypeSpec dependency upgrade")
+            candidate = git(root, "rev-parse", "HEAD")
+            for complete in (False, True):
+                with self.subTest(complete=complete, recipes="unchanged"):
+                    native.validate_tree(root, base, candidate, ["api/package.json"],
+                                         group, complete=complete)
+            for recipe in ("\ttrue\n", "\t@:\n"):
+                (root / "api/Makefile").write_text(
+                    "".join(f"{target}:\n{recipe}" for target in targets))
+                git(root, "add", ".")
+                git(root, "commit", "-m", "disable generator recipes")
+                candidate = git(root, "rev-parse", "HEAD")
+                paths = git(root, "diff", "--name-only", base, candidate).splitlines()
+                for complete in (False, True):
+                    with self.subTest(complete=complete, recipe=recipe):
+                        with self.assertRaisesRegex(
+                                ValueError, "protected or unrelated replacement path: api/Makefile"):
+                            native.validate_tree(root, base, candidate, paths, group,
+                                                 complete=complete)
 
     def test_generated_typespec_sdk_module_metadata_is_constrained(self):
         path = "test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod"
