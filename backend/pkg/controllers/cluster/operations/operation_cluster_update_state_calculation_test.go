@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -791,13 +792,14 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			controller := &operationClusterUpdate{
+			controller := &clusterUpdateHostedClusterCheck{
+				clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}
 
-			state, err := controller.hypershiftHostedClusterOperationState(ctx, tt.cluster, tt.serviceProviderCluster)
+			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.cluster.ID}, clusterUpdateOperationStatusInput{ServiceProviderCluster: tt.serviceProviderCluster})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -810,7 +812,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 func TestHypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name       string
@@ -920,7 +922,7 @@ func TestHypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired(t *testing.T
 func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name       string
@@ -1000,7 +1002,7 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name                string
@@ -1100,7 +1102,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 func TestHypershiftHostedClusterControlPlaneOperatorImageAnnotationMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name       string
@@ -1165,7 +1167,7 @@ func TestHypershiftHostedClusterControlPlaneOperatorImageAnnotationMatchesDesire
 func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name       string
@@ -1294,7 +1296,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 	// From platformImageContentSources in internal/utils/apihelpers/imagecontentsources.go.
 	testClusterUpdatePlatformImageContentSource := "quay.io/openshift-release-dev/ocp-release"
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	tests := []struct {
 		name       string
@@ -1428,7 +1430,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	etcdDesired := coreapi.EtcdDataEncryptionProfile{
 		KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -1595,8 +1597,6 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 		t.Helper()
 		return newCSClusterWithCIDRBlockAllowAccess(t, ocm.CSCIDRBlockAllowAccessModeAllowList, cidrs...)
 	}
-
-	controller := &operationClusterUpdate{}
 
 	tests := []struct {
 		name              string
@@ -1784,7 +1784,9 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			state, err := controller.clusterServiceClusterSpecOperationState(tt.cluster, tt.csCluster)
+			tt.cluster.ID = operationtesting.NewClusterTestFixture().ClusterResourceID
+			controller := &clusterUpdateClusterServiceSpecCheck{clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}}}
+			state, err := controller.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.cluster.ID}, clusterUpdateOperationStatusInput{ClusterServiceCluster: tt.csCluster})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -1919,7 +1921,7 @@ func TestIsControlPlaneClusterAutoscalerReady(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, (&operationClusterUpdate{}).isControlPlaneClusterAutoscalerReady(tt.controlPlaneComponent))
+			assert.Equal(t, tt.want, (&clusterUpdateAutoscalerCheck{}).isControlPlaneClusterAutoscalerReady(tt.controlPlaneComponent))
 		})
 	}
 }
@@ -2006,7 +2008,7 @@ func TestControlPlaneClusterAutoscalerNotReadyMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			msg := (&operationClusterUpdate{}).controlPlaneClusterAutoscalerNotReadyMessage(tt.controlPlaneComponent)
+			msg := (&clusterUpdateAutoscalerCheck{}).controlPlaneClusterAutoscalerNotReadyMessage(tt.controlPlaneComponent)
 			if tt.wantExact != "" {
 				assert.Equal(t, tt.wantExact, msg)
 			}
@@ -2102,11 +2104,11 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 				readDesires = append(readDesires, tt.cachedControlPlaneClusterAutoscalerReadDesire)
 			}
 
-			controller := &operationClusterUpdate{
+			controller := &clusterUpdateAutoscalerCheck{
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{Desires: readDesires},
 			}
 
-			got, err := controller.hypershiftControlPlaneClusterAutoscalerState(ctx, cluster, spc)
+			got, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: cluster.ID}, clusterUpdateOperationStatusInput{ServiceProviderCluster: spc})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, got.ProvisioningState)
 			assert.Equal(t, tt.wantMessage, got.Message)
@@ -2117,7 +2119,7 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 func TestHypershiftHostedClusterContainerRegistrySpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationClusterUpdate{}
+	controller := &clusterUpdateHostedClusterCheck{}
 
 	validMI := coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi")
 	otherMI := coreapitesting.NewTestUserAssignedIdentity("other-mi")

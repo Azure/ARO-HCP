@@ -37,6 +37,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -49,6 +50,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	csCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+	check := &clusterUpdateClusterServiceStatusCheck{
+		clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{ClusterServiceCluster: csCluster})
+	require.ErrorContains(t, err, "cluster service ID is no longer available")
+	assert.Nil(t, state)
+}
 
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 	for _, tc := range []struct {
@@ -78,11 +97,12 @@ func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 			}
 			// No DB client: resolution must not read or create a legacy controller
 			// document now that the rollout controllers own desired versions.
-			syncer := &operationClusterUpdate{
+			syncer := &clusterUpdateDesiredVersionCheck{
+				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 				clock:                           clocktesting.NewFakeClock(time.Now()),
 				desiredVersionMismatchFirstSeen: lru.New(10),
 			}
-			state, err := syncer.desiredVersionResolutionOperationState(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), cluster, spc)
+			state, err := syncer.CalculateOperationStatus(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{ServiceProviderCluster: spc})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, state.ProvisioningState)
 		})
@@ -933,6 +953,15 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
+			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
+				&clusterUpdateValidationCheck{clock: controller.clock},
+				&clusterUpdateDesiredVersionCheck{clusterLister: controller.clusterLister, clock: controller.clock, desiredVersionMismatchFirstSeen: controller.desiredVersionMismatchFirstSeen},
+				&clusterUpdateClusterServiceStatusCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
+				&clusterUpdateClusterServiceSpecCheck{clusterLister: controller.clusterLister},
+				&clusterUpdateHostedClusterCheck{clusterLister: controller.clusterLister, readDesireLister: controller.readDesireLister},
+				&clusterUpdateAutoscalerCheck{readDesireLister: controller.readDesireLister},
+			)
+			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)
 				controller.desiredVersionMismatchFirstSeen.Add(tc.existingOperation.ResourceID.String(), tc.seedMismatchFirstSeenAt)
