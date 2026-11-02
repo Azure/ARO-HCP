@@ -39,7 +39,8 @@ import (
 )
 
 type ControllerContext struct {
-	AzureLocation string
+	EnableHostedClusterDataPlaneIdentityWriter bool
+	AzureLocation                              string
 	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
 	// Application (FPA) identity is registered. It is the tenantId used both to
 	// retrieve the FPA credential that calls the Managed Identities Data Plane, and

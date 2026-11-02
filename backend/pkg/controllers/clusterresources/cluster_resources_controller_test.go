@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -203,7 +204,10 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 		remaining := time.Until(deadline)
 		return ok && remaining > clusterResourcesFetchTimeout-time.Second && remaining <= clusterResourcesFetchTimeout
 	}), gomock.Any()).Return(resources, nil)
+	db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{serviceProviderCluster})
+	require.NoError(test, err)
 	syncer := &clusterResourcesController{
+		resourcesDBClient:            db,
 		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{serviceProviderCluster}},
 		clustersServiceClient:        csClient, kubeApplierDBClients: clients,
@@ -597,7 +601,10 @@ func TestSyncOnce(t *testing.T) {
 				},
 			}
 
+			db, dbErr := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.dbResources)
+			require.NoError(t, dbErr)
 			syncer := &clusterResourcesController{
+				resourcesDBClient:            db,
 				clusterLister:                clusterLister,
 				serviceProviderClusterLister: spcLister,
 				clustersServiceClient:        tt.setupCSMock(ctrl),

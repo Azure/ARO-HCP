@@ -30,6 +30,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -604,5 +605,32 @@ func resourceNotFoundResponseError() *azcore.ResponseError {
 				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/identity"},
 			},
 		},
+	}
+}
+
+func TestDataPlaneIdentityMirrorRefreshesRecreatedInstance(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	syncer := &fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer{clock: clocktesting.NewFakePassiveClock(now)}
+	id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/recreated"))
+	key := strings.ToLower(id.String())
+	for _, tc := range []struct {
+		name, client, principal string
+		want                    bool
+	}{
+		{"unchanged", "client", "principal", false},
+		{"client changed", "new-client", "principal", true},
+		{"principal changed", "client", "new-principal", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spc := &coreapi.ServiceProviderCluster{}
+			spc.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName: ptr.To(metav1.NewTime(now.Add(12 * time.Hour)))}
+			spc.Status.DataPlaneOperatorsManagedIdentities.Identities = map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{key: {ResourceID: id, ClientID: ptr.To("client"), PrincipalID: ptr.To("principal")}}
+			spc.Status.ManagedIdentityDetails = map[string]*coreapi.ManagedIdentityMetadata{key: {ResourceID: id, MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{ClientID: ptr.To(tc.client), PrincipalID: ptr.To(tc.principal)}}}
+			require.Equal(t, tc.want, syncer.needsWork(spc, map[string]struct{}{key: {}}))
+			// Unresolved newer metadata must not defeat the existing refresh backoff.
+			spc.Status.ManagedIdentityDetails[key].MetadataFromARMUserAssignedIdentitiesAPI.ClientID = nil
+			require.False(t, syncer.needsWork(spc, map[string]struct{}{key: {}}))
+		})
 	}
 }
