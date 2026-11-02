@@ -37,7 +37,7 @@ type FleetInformers interface {
 	ManagementClusterSchedulings() (cache.SharedIndexInformer, fleetlisters.ManagementClusterSchedulingLister)
 	ControlPlaneVersionRollouts() (cache.SharedIndexInformer, fleetlisters.ControlPlaneVersionRolloutLister)
 	HCPResourceRequirements() (cache.SharedIndexInformer, fleetlisters.HCPResourceRequirementsLister)
-	StuckClusterCleanups() (cache.SharedIndexInformer, fleetlisters.StuckClusterCleanupLister)
+	NamespaceDeletions() (cache.SharedIndexInformer, fleetlisters.NamespaceDeletionLister)
 	HasSynced() bool
 	RunWithContext(ctx context.Context)
 }
@@ -56,7 +56,7 @@ type fleetInformers struct {
 	hcpResourceRequirementsInformer     cache.SharedIndexInformer
 	hcpResourceRequirementsLister       fleetlisters.HCPResourceRequirementsLister
 	stuckClusterCleanupInformer         cache.SharedIndexInformer
-	stuckClusterCleanupLister           fleetlisters.StuckClusterCleanupLister
+	stuckClusterCleanupLister           fleetlisters.NamespaceDeletionLister
 }
 
 func (f *fleetInformers) DNSClaims() (cache.SharedIndexInformer, fleetlisters.DNSClaimLister) {
@@ -83,7 +83,7 @@ func (f *fleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, f
 	return f.hcpResourceRequirementsInformer, f.hcpResourceRequirementsLister
 }
 
-func (f *fleetInformers) StuckClusterCleanups() (cache.SharedIndexInformer, fleetlisters.StuckClusterCleanupLister) {
+func (f *fleetInformers) NamespaceDeletions() (cache.SharedIndexInformer, fleetlisters.NamespaceDeletionLister) {
 	return f.stuckClusterCleanupInformer, f.stuckClusterCleanupLister
 }
 
@@ -111,8 +111,8 @@ func NewFleetInformers(ctx context.Context, globalListers fleetcosmosstorage.Fle
 	ret.controlPlaneVersionRolloutLister = fleetlisters.NewControlPlaneVersionRolloutLister(ret.controlPlaneVersionRolloutInformer.GetIndexer())
 	ret.hcpResourceRequirementsInformer = NewHCPResourceRequirementsInformer(globalListers.HCPResourceRequirements(), fleetDBClient)
 	ret.hcpResourceRequirementsLister = fleetlisters.NewHCPResourceRequirementsLister(ret.hcpResourceRequirementsInformer.GetIndexer())
-	ret.stuckClusterCleanupInformer = NewStuckClusterCleanupInformer(globalListers.StuckClusterCleanups(), fleetDBClient)
-	ret.stuckClusterCleanupLister = fleetlisters.NewStuckClusterCleanupLister(ret.stuckClusterCleanupInformer.GetIndexer())
+	ret.stuckClusterCleanupInformer = NewNamespaceDeletionInformer(globalListers.NamespaceDeletions(), fleetDBClient)
+	ret.stuckClusterCleanupLister = fleetlisters.NewNamespaceDeletionLister(ret.stuckClusterCleanupInformer.GetIndexer())
 
 	return ret
 }

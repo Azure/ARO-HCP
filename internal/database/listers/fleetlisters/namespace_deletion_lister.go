@@ -24,33 +24,33 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
-// StuckClusterCleanupLister lists and gets stuck cluster cleanup documents from
+// NamespaceDeletionLister lists and gets stuck cluster cleanup documents from
 // an informer's indexer. Unlike its singleton siblings under a management
 // cluster, cleanups are a collection, so Get takes both the parent stamp
 // identifier and the cleanup's own name.
-type StuckClusterCleanupLister interface {
-	List(ctx context.Context) ([]*fleetapi.StuckClusterCleanup, error)
-	Get(ctx context.Context, stampIdentifier, name string) (*fleetapi.StuckClusterCleanup, error)
+type NamespaceDeletionLister interface {
+	List(ctx context.Context) ([]*fleetapi.NamespaceDeletion, error)
+	Get(ctx context.Context, stampIdentifier, name string) (*fleetapi.NamespaceDeletion, error)
 }
 
-type informerBasedStuckClusterCleanupLister struct {
+type informerBasedNamespaceDeletionLister struct {
 	indexer cache.Indexer
 }
 
-// NewStuckClusterCleanupLister creates a StuckClusterCleanupLister from a
+// NewNamespaceDeletionLister creates a NamespaceDeletionLister from a
 // SharedIndexInformer's indexer.
-func NewStuckClusterCleanupLister(indexer cache.Indexer) StuckClusterCleanupLister {
-	return &informerBasedStuckClusterCleanupLister{
+func NewNamespaceDeletionLister(indexer cache.Indexer) NamespaceDeletionLister {
+	return &informerBasedNamespaceDeletionLister{
 		indexer: indexer,
 	}
 }
 
-func (l *informerBasedStuckClusterCleanupLister) List(ctx context.Context) ([]*fleetapi.StuckClusterCleanup, error) {
-	return listerutils.ListAll[fleetapi.StuckClusterCleanup](l.indexer)
+func (l *informerBasedNamespaceDeletionLister) List(ctx context.Context) ([]*fleetapi.NamespaceDeletion, error) {
+	return listerutils.ListAll[fleetapi.NamespaceDeletion](l.indexer)
 }
 
 // Get retrieves a single stuck cluster cleanup document by stamp identifier and name.
-func (l *informerBasedStuckClusterCleanupLister) Get(ctx context.Context, stampIdentifier, name string) (*fleetapi.StuckClusterCleanup, error) {
-	key := fleetapihelpers.ToStuckClusterCleanupResourceIDString(stampIdentifier, name)
-	return listerutils.GetByKey[fleetapi.StuckClusterCleanup](l.indexer, key)
+func (l *informerBasedNamespaceDeletionLister) Get(ctx context.Context, stampIdentifier, name string) (*fleetapi.NamespaceDeletion, error) {
+	key := fleetapihelpers.ToNamespaceDeletionResourceIDString(stampIdentifier, name)
+	return listerutils.GetByKey[fleetapi.NamespaceDeletion](l.indexer, key)
 }

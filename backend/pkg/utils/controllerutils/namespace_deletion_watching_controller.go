@@ -30,58 +30,58 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// StuckClusterCleanupKey identifies one StuckClusterCleanup by its parent stamp
+// NamespaceDeletionKey identifies one NamespaceDeletion by its parent stamp
 // and its own name. Unlike the singleton documents under a management cluster,
 // cleanups are a collection, so the name is part of the key.
-type StuckClusterCleanupKey struct {
+type NamespaceDeletionKey struct {
 	StampIdentifier string `json:"stampIdentifier"`
 	Name            string `json:"name"`
 }
 
-func (k StuckClusterCleanupKey) GetResourceID() *azcorearm.ResourceID {
-	return metadataapi.Must(fleetapihelpers.ToStuckClusterCleanupResourceID(k.StampIdentifier, k.Name))
+func (k NamespaceDeletionKey) GetResourceID() *azcorearm.ResourceID {
+	return metadataapi.Must(fleetapihelpers.ToNamespaceDeletionResourceID(k.StampIdentifier, k.Name))
 }
 
-func (k StuckClusterCleanupKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+func (k NamespaceDeletionKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
 		utils.LogValues{}.
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-// StuckClusterCleanupSyncer is the domain syncer driven by the
-// StuckClusterCleanup watching controller.
-type StuckClusterCleanupSyncer interface {
-	SyncOnce(ctx context.Context, key StuckClusterCleanupKey) error
+// NamespaceDeletionSyncer is the domain syncer driven by the
+// NamespaceDeletion watching controller.
+type NamespaceDeletionSyncer interface {
+	SyncOnce(ctx context.Context, key NamespaceDeletionKey) error
 }
 
 type stuckClusterCleanupWatchingController struct {
 	name   string
-	syncer StuckClusterCleanupSyncer
+	syncer NamespaceDeletionSyncer
 }
 
-// NewStuckClusterCleanupWatchingController watches StuckClusterCleanup documents
+// NewNamespaceDeletionWatchingController watches NamespaceDeletion documents
 // (and re-enqueues them on the resync interval) and drives the given syncer per
 // cleanup request.
 //
 // Like the ControlPlaneVersionRollout controller and unlike the cluster and
 // management-cluster watching controllers, this one writes no per-key Controller
-// status document: StuckClusterCleanup has no nested Controllers sub-resource,
+// status document: NamespaceDeletion has no nested Controllers sub-resource,
 // and per-request progress is reported on the cleanup's own Status.
-func NewStuckClusterCleanupWatchingController(
+func NewNamespaceDeletionWatchingController(
 	name string,
 	fleetInformers fleetinformers.FleetInformers,
 	resyncDuration time.Duration,
-	syncer StuckClusterCleanupSyncer,
-) *controllerutil.GenericWatchingController[StuckClusterCleanupKey] {
+	syncer NamespaceDeletionSyncer,
+) *controllerutil.GenericWatchingController[NamespaceDeletionKey] {
 	wrapper := &stuckClusterCleanupWatchingController{
 		name:   name,
 		syncer: syncer,
 	}
-	controller := newGenericWatchingController(name, fleetapi.ManagementClusterStuckClusterCleanupResourceType, wrapper)
+	controller := newGenericWatchingController(name, fleetapi.ManagementClusterNamespaceDeletionResourceType, wrapper)
 
 	// Nil informers is the "no triggering" mode used by unit tests.
 	if fleetInformers != nil {
-		cleanupInformer, _ := fleetInformers.StuckClusterCleanups()
+		cleanupInformer, _ := fleetInformers.NamespaceDeletions()
 		if err := controller.QueueForInformers(resyncDuration, cleanupInformer); err != nil {
 			panic(err) // coding error
 		}
@@ -90,7 +90,7 @@ func NewStuckClusterCleanupWatchingController(
 	return controller
 }
 
-func (c *stuckClusterCleanupWatchingController) SyncOnce(ctx context.Context, key StuckClusterCleanupKey) error {
+func (c *stuckClusterCleanupWatchingController) SyncOnce(ctx context.Context, key NamespaceDeletionKey) error {
 	return c.syncer.SyncOnce(ctx, key)
 }
 
@@ -103,8 +103,8 @@ func (c *stuckClusterCleanupWatchingController) CooldownChecker() controllerutil
 	return nil
 }
 
-func (c *stuckClusterCleanupWatchingController) MakeKey(resourceID *azcorearm.ResourceID) StuckClusterCleanupKey {
-	return StuckClusterCleanupKey{
+func (c *stuckClusterCleanupWatchingController) MakeKey(resourceID *azcorearm.ResourceID) NamespaceDeletionKey {
+	return NamespaceDeletionKey{
 		StampIdentifier: stampIdentifierFromResourceID(resourceID),
 		Name:            resourceID.Name,
 	}
@@ -112,7 +112,7 @@ func (c *stuckClusterCleanupWatchingController) MakeKey(resourceID *azcorearm.Re
 
 // stampIdentifierFromResourceID walks up from a stamp-rooted resource ID to the
 // stamp name. For a cleanup the ID is
-// /providers/.../stamps/{stamp}/managementClusters/default/stuckClusterCleanups/{name},
+// /providers/.../stamps/{stamp}/managementClusters/default/namespaceDeletions/{name},
 // so the stamp is two parents up.
 func stampIdentifierFromResourceID(resourceID *azcorearm.ResourceID) string {
 	for current := resourceID; current != nil; current = current.Parent {

@@ -30,7 +30,7 @@ const (
 	SchedulingResourceName                  = "default"
 	HCPResourceRequirementsResourceTypeName = "hcpResourceRequirements"
 	HCPResourceRequirementsResourceName     = "default"
-	StuckClusterCleanupResourceTypeName     = "stuckClusterCleanups"
+	NamespaceDeletionResourceTypeName       = "namespaceDeletions"
 
 	ControlPlaneVersionRolloutResourceTypeName = "controlPlaneVersionRollouts"
 )
@@ -43,10 +43,10 @@ var (
 	ManagementClusterSchedulingResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+SchedulingResourceTypeName)
 	HCPResourceRequirementsResourceType     = azcorearm.NewResourceType(coreapi.ProviderNamespace, HCPResourceRequirementsResourceTypeName)
 
-	// ManagementClusterStuckClusterCleanupResourceType is a collection nested under
+	// ManagementClusterNamespaceDeletionResourceType is a collection nested under
 	// a ManagementCluster, unlike its singleton siblings above: an operator may
 	// have several stuck namespaces in flight on one management cluster.
-	ManagementClusterStuckClusterCleanupResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+StuckClusterCleanupResourceTypeName)
+	ManagementClusterNamespaceDeletionResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+NamespaceDeletionResourceTypeName)
 
 	ControlPlaneVersionRolloutResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, ControlPlaneVersionRolloutResourceTypeName)
 )
