@@ -975,7 +975,6 @@ func TestManagedResourceGroupSyncerOrphanedMRGDeletion_BeginDelete404(t *testing
 
 	cluster := newTestCluster(true)
 	cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
 	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
 
 	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})

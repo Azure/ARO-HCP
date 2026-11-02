@@ -123,7 +123,6 @@ func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *coreapi.Cluster {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID:  &f.ClusterInternalID,
 			ActiveOperationID: TestOperationName,
 			ClusterUID:        TestClusterUID,
 		},
@@ -203,9 +202,6 @@ func (f *NodePoolTestFixture) NewCluster() *coreapi.Cluster {
 				Name: TestClusterName,
 				Type: f.ClusterResourceID.ResourceType.String(),
 			},
-		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &f.ClusterInternalID,
 		},
 	}
 }
@@ -333,9 +329,6 @@ func (f *ExternalAuthTestFixture) NewCluster() *coreapi.Cluster {
 				Name: TestClusterName,
 				Type: f.ClusterResourceID.ResourceType.String(),
 			},
-		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &f.ClusterInternalID,
 		},
 	}
 }

@@ -325,9 +325,6 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
 			},
-			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-				ClusterServiceID: ptr.To(testClusterServiceID),
-			},
 		}
 	}
 	spcInCache := func(activeVersion, desiredVersion string) *coreapi.ServiceProviderCluster {

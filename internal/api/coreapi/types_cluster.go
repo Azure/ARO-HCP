@@ -119,10 +119,6 @@ type ClusterCustomerProperties struct {
 type ClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState ProvisioningState `json:"provisioningState,omitempty"`
-	// Written by: ClusterPendingClusterServiceIDAssign, ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch
-	PendingClusterServiceID *metadataapi.InternalID `json:"pendingClusterServiceID,omitempty"`
-	// Written by: ClusterClusterServiceCreate, ClusterClusterServiceDeleteDispatch, ClusterDeletionClusterServiceIDClearer
-	ClusterServiceID *metadataapi.InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll

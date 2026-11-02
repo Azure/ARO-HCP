@@ -46,7 +46,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
-	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -92,9 +91,6 @@ func newCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
-		},
 	}
 	for _, opt := range opts {
 		opt(cluster)
@@ -135,10 +131,11 @@ func TestNeedsWork(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		cluster           *coreapi.Cluster
-		managementCluster *azcorearm.ResourceID
-		want              bool
+		noClusterServiceID bool
+		name               string
+		cluster            *coreapi.Cluster
+		managementCluster  *azcorearm.ResourceID
+		want               bool
 	}{
 		{
 			name:              "returns true for cluster with ClusterServiceID and management cluster",
@@ -156,9 +153,9 @@ func TestNeedsWork(t *testing.T) {
 			want:              true,
 		},
 		{
-			name: "returns false for cluster without ClusterServiceID",
+			noClusterServiceID: true,
+			name:               "returns false for cluster without ClusterServiceID",
 			cluster: newCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			managementCluster: testManagementClusterResourceID,
 			want:              false,
@@ -175,7 +172,13 @@ func TestNeedsWork(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			c := &clusterResourcesController{}
-			got := c.NeedsWork(tt.cluster, tt.managementCluster, coreapitesting.ServiceProviderIDsForCluster(tt.cluster))
+			got := c.NeedsWork(tt.cluster, tt.managementCluster, func() *coreapi.ServiceProviderCluster {
+				provider := newSPC(tt.managementCluster)
+				if tt.noClusterServiceID {
+					provider.ClusterServiceID = nil
+				}
+				return provider
+			}())
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -261,7 +264,6 @@ func TestSyncOnce(t *testing.T) {
 		{
 			name: "skips cluster without ClusterServiceID",
 			cluster: newCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			dbResources: []any{
 				func() *coreapi.ServiceProviderCluster {

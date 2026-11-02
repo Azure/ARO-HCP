@@ -24,39 +24,50 @@ import (
 func TestRecoverPendingDeletionTarget(t *testing.T) {
 	pending := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))
 	confirmed := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/confirmed"))
-	deleting := metav1.Unix(1000, 0)
+	stamp := metav1.Unix(1000, 0)
 	tests := []struct {
-		name  string
-		input coreapi.ClusterServiceProviderProperties
-		want  *coreapi.ClusterServiceProviderProperties
+		name                 string
+		deleting, dispatched bool
+		pending, final       *metadataapi.InternalID
+		recover              bool
 	}{
-		{name: "accepted POST with lost response", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, PendingClusterServiceID: &pending}, want: &coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, ClusterServiceID: &pending}},
-		{name: "failed identity persistence preserves other state", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, PendingClusterServiceID: &pending, ClusterUID: "aro-uid", DNS: coreapi.ServiceProviderDNSProfile{BaseDomain: "abcd.example.com"}}, want: &coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, ClusterServiceID: &pending, ClusterUID: "aro-uid", DNS: coreapi.ServiceProviderDNSProfile{BaseDomain: "abcd.example.com"}}},
-		{name: "delete before POST completes", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, PendingClusterServiceID: &pending}, want: &coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, ClusterServiceID: &pending}},
-		{name: "confirmed identity wins", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, PendingClusterServiceID: &pending, ClusterServiceID: &confirmed}},
-		{name: "active cluster", input: coreapi.ClusterServiceProviderProperties{PendingClusterServiceID: &pending}},
-		{name: "dispatch already recorded", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting, ClusterServiceDeletionTimestamp: &deleting, PendingClusterServiceID: &pending}},
-		{name: "never assigned", input: coreapi.ClusterServiceProviderProperties{DeletionTimestamp: &deleting}},
+		{name: "delete after interrupted POST", deleting: true, pending: &pending, recover: true},
+		{name: "delete before POST completes", deleting: true, pending: &pending, recover: true},
+		{name: "confirmed identity wins", deleting: true, pending: &pending, final: &confirmed},
+		{name: "active cluster", pending: &pending},
+		{name: "dispatch already recorded", deleting: true, dispatched: true, pending: &pending},
+		{name: "never assigned", deleting: true},
 	}
-	opts := cmp.Comparer(func(a, b metadataapi.InternalID) bool { return a.String() == b.String() })
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			input := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, ServiceProviderProperties: tt.input}
-			before := input.DeepCopy()
-			provider := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, PendingClusterServiceID: tt.input.PendingClusterServiceID, ClusterServiceID: tt.input.ClusterServiceID}
-			got := recoverPendingDeletionTarget(input, provider)
+	opts := cmp.Comparer(func(left, right metadataapi.InternalID) bool { return left.String() == right.String() })
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			cluster := &coreapi.Cluster{ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterUID: "aro-uid", DNS: coreapi.ServiceProviderDNSProfile{BaseDomain: "abcd.example.com"}}}
+			if testCase.deleting {
+				cluster.ServiceProviderProperties.DeletionTimestamp = &stamp
+			}
+			if testCase.dispatched {
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &stamp
+			}
+			provider := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, PendingClusterServiceID: testCase.pending, ClusterServiceID: testCase.final}
+			beforeCluster, beforeProvider := cluster.DeepCopy(), provider.DeepCopy()
+			got := recoverPendingDeletionTarget(cluster, provider)
 			var want *coreapi.ServiceProviderCluster
-			if tt.want != nil {
-				want = &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, PendingClusterServiceID: tt.want.PendingClusterServiceID, ClusterServiceID: tt.want.ClusterServiceID}
+			if testCase.recover {
+				want = provider.DeepCopy()
+				want.ClusterServiceID = want.PendingClusterServiceID
+				want.PendingClusterServiceID = nil
 			}
 			if diff := cmp.Diff(want, got, opts); diff != "" {
 				t.Fatal(diff)
 			}
-			if diff := cmp.Diff(before, input, opts); diff != "" {
-				t.Fatalf("mutated observation: %s", diff)
+			if diff := cmp.Diff(beforeCluster, cluster, opts); diff != "" {
+				t.Fatalf("mutated cluster: %s", diff)
 			}
-			if got != nil && recoverPendingDeletionTarget(input, got) != nil {
-				t.Fatal("recovery should not repeat once target is persisted")
+			if diff := cmp.Diff(beforeProvider, provider, opts); diff != "" {
+				t.Fatalf("mutated provider: %s", diff)
+			}
+			if got != nil && recoverPendingDeletionTarget(cluster, got) != nil {
+				t.Fatal("recovery must not repeat")
 			}
 		})
 	}

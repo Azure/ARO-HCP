@@ -54,32 +54,25 @@ const (
 func TestSynchronizeAllClusters(t *testing.T) {
 	fixedNow := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
 
+	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 	tests := []struct {
+		pending, final                  *metadataapi.InternalID
 		name                            string
 		cosmosClusterBuilder            func(t *testing.T) *coreapi.Cluster
 		clusterServiceClusterCreatedAgo time.Duration
 		expectDeleteCluster             bool
 	}{
 		{
-			name: "matched cluster service cluster indexed by ClusterServiceID is not deleted",
-			cosmosClusterBuilder: func(t *testing.T) *coreapi.Cluster {
-				return testCosmosCluster(t, func(c *coreapi.Cluster) {
-					clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-					c.ServiceProviderProperties.ClusterServiceID = &clusterServiceID
-				})
-			},
+			name:                            "matched cluster service cluster indexed by ClusterServiceID is not deleted",
+			cosmosClusterBuilder:            func(t *testing.T) *coreapi.Cluster { return testCosmosCluster(t) },
+			final:                           &clusterServiceID,
 			clusterServiceClusterCreatedAgo: 61 * time.Minute,
 			expectDeleteCluster:             false,
 		},
 		{
-			name: "matched cluster service cluster indexed by PendingClusterServiceID is not deleted",
-			cosmosClusterBuilder: func(t *testing.T) *coreapi.Cluster {
-				return testCosmosCluster(t, func(c *coreapi.Cluster) {
-					pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-					c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-					c.ServiceProviderProperties.ClusterServiceID = nil
-				})
-			},
+			name:                            "matched cluster service cluster indexed by PendingClusterServiceID is not deleted",
+			cosmosClusterBuilder:            func(t *testing.T) *coreapi.Cluster { return testCosmosCluster(t) },
+			pending:                         &clusterServiceID,
 			clusterServiceClusterCreatedAgo: 61 * time.Minute,
 			expectDeleteCluster:             false,
 		},
@@ -116,7 +109,7 @@ func TestSynchronizeAllClusters(t *testing.T) {
 			cosmosResources := []any{subscription}
 			if testCase.cosmosClusterBuilder != nil {
 				cluster := testCase.cosmosClusterBuilder(t)
-				cosmosResources = append(cosmosResources, cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+				cosmosResources = append(cosmosResources, cluster, coreapitesting.ServiceProviderForCluster(cluster, testCase.pending, testCase.final))
 			}
 
 			resourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, cosmosResources)

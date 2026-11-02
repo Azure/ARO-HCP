@@ -201,7 +201,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	readyToDeleteClusterOptsFunc := func(c *coreapi.Cluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
-		c.ServiceProviderProperties.ClusterServiceID = nil
+
 		c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 	}
 
@@ -212,6 +212,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
+		noClusterServiceID bool
 		name               string
 		existingCluster    *coreapi.Cluster
 		childResources     []any
@@ -246,11 +247,12 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
+			noClusterServiceID: true,
+			name:               "when no ClusterServiceDeletionTimestamp is set performs a no-op",
 			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
-				c.ServiceProviderProperties.ClusterServiceID = nil
+
 				c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			childResources: []any{newTestClusterScopedManagementClusterContent("untouched-mcc")},
@@ -631,8 +633,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			resources = append(resources, tc.childResources...)
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
-			if tc.existingCluster != nil && tc.existingCluster.ServiceProviderProperties.ClusterServiceID != nil {
-				seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
+			if tc.existingCluster != nil && !tc.noClusterServiceID && !tc.existingCluster.ServiceProviderProperties.ClusterServiceDeletionCompleted {
+				seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster, !tc.noClusterServiceID)
 			}
 
 			clustersForLister := []*coreapi.Cluster{}

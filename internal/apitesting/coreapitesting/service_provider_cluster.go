@@ -21,13 +21,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func ServiceProviderIDsForCluster(cluster *coreapi.Cluster) *coreapi.ServiceProviderCluster {
+func ServiceProviderForCluster(cluster *coreapi.Cluster, pending, final *metadataapi.InternalID) *coreapi.ServiceProviderCluster {
 	if cluster == nil {
 		return nil
 	}
 	provider := &coreapi.ServiceProviderCluster{
-		PendingClusterServiceID: cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy(),
-		ClusterServiceID:        cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy(),
+		PendingClusterServiceID: pending.DeepCopy(),
+		ClusterServiceID:        final.DeepCopy(),
 	}
 	if cluster.ID != nil {
 		provider.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default")), PartitionKey: cluster.ID.SubscriptionID}

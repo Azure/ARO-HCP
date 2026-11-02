@@ -66,9 +66,8 @@ func newCertificateFixture(test *testing.T) *certificateFixture {
 	managementClusterID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/test/managementClusters/default"))
 	csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
 	cluster := &coreapi.Cluster{
-		CosmosMetadata:            coreapi.CosmosMetadata{ResourceID: clusterID, PartitionKey: key.SubscriptionID},
-		TrackedResource:           coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterID}},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterServiceID: &csID},
+		CosmosMetadata:  coreapi.CosmosMetadata{ResourceID: clusterID, PartitionKey: key.SubscriptionID},
+		TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterID}},
 	}
 	serviceProvider := &coreapi.ServiceProviderCluster{
 		ClusterServiceID: &csID,

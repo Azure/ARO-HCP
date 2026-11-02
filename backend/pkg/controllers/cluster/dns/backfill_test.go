@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,8 +55,6 @@ func (l readDesireError) GetForCluster(context.Context, string, string, string, 
 
 func TestBackfillSyncOnce(t *testing.T) {
 	cluster := testCluster("", "legacy")
-	cluster.ServiceProviderProperties.ClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID
-	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	established := cluster.DeepCopy()
 	established.ServiceProviderProperties.DNS.BaseDomain = "bcdf2.example.com"
 	hosted := &hsv1beta1.HostedCluster{Spec: hsv1beta1.HostedClusterSpec{KubeAPIServerDNSName: "api.legacy.bcdf2.example.com", DNS: hsv1beta1.DNSSpec{BaseDomain: "aro.legacy.bcdf2.example.com"}}}
@@ -77,6 +76,7 @@ func TestBackfillSyncOnce(t *testing.T) {
 	failure := errors.New("injected failure")
 	preconditionFailed := corecosmosstoragetesting.NewPreconditionFailedError()
 	tests := []struct {
+		noConfirmedID               bool
 		name                        string
 		cluster                     *coreapi.Cluster
 		hosted                      *hsv1beta1.HostedCluster
@@ -102,7 +102,7 @@ func TestBackfillSyncOnce(t *testing.T) {
 		{name: "replace failure", cluster: cluster, hosted: hosted, writeErr: failure, wantCluster: established, wantErr: failure.Error()},
 		{name: "create failure", cluster: established, hosted: hosted, writeErr: failure, wantClaim: testClaim(), wantErr: failure.Error()},
 		{name: "no HostedCluster", cluster: cluster},
-		{name: "no confirmed CS ID", cluster: testCluster("", "legacy"), readErr: failure},
+		{name: "no confirmed CS ID", noConfirmedID: true, cluster: testCluster("", "legacy"), readErr: failure},
 		{name: "deleting", cluster: deleting, readErr: failure},
 		{name: "prefix recovery pending", cluster: noPrefix, readErr: failure},
 	}
@@ -110,7 +110,10 @@ func TestBackfillSyncOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resources := newRecordingResources()
 			if tt.cluster != nil {
-				resources.providers.getObject = coreapitesting.ServiceProviderIDsForCluster(tt.cluster)
+				resources.providers.getObject = coreapitesting.ServiceProviderForCluster(tt.cluster, nil, ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))))
+				if tt.noConfirmedID {
+					resources.providers.getObject.ClusterServiceID = nil
+				}
 			}
 			resources.clusters.writeErr = tt.writeErr
 			fleet := &recordingFleet{}

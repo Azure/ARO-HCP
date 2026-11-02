@@ -33,8 +33,6 @@ func ReplaceClusterWithServiceProviderIDs(ctx context.Context, db ResourcesDBCli
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil && provider.PendingClusterServiceID == nil && provider.ClusterServiceID == nil {
 		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 	}
-	cluster.ServiceProviderProperties.PendingClusterServiceID = provider.PendingClusterServiceID.DeepCopy()
-	cluster.ServiceProviderProperties.ClusterServiceID = provider.ClusterServiceID.DeepCopy()
 	providerCRUD := db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	missing := len(provider.GetEtag()) == 0
 	var err error

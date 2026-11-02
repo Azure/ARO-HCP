@@ -16,6 +16,7 @@ package corecosmosstorage_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,25 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
+
+func TestLegacyClusterIDsAreIgnored(t *testing.T) {
+	var cluster coreapi.Cluster
+	require.NoError(t, json.Unmarshal([]byte(`{"serviceProviderProperties":{"pendingClusterServiceID":"/api/aro_hcp/v1alpha1/clusters/old-pending","clusterServiceID":"/api/aro_hcp/v1alpha1/clusters/old-final","serviceProviderClusterInitialized":true}}`), &cluster))
+	require.True(t, cluster.ServiceProviderProperties.ServiceProviderClusterInitialized)
+	encoded, err := json.Marshal(cluster)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "pendingClusterServiceID")
+	require.NotContains(t, string(encoded), "clusterServiceID")
+	pending := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))
+	final := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/final"))
+	provider := coreapi.ServiceProviderCluster{PendingClusterServiceID: &pending, ClusterServiceID: &final}
+	encoded, err = json.Marshal(provider)
+	require.NoError(t, err)
+	var observed coreapi.ServiceProviderCluster
+	require.NoError(t, json.Unmarshal(encoded, &observed))
+	require.Equal(t, provider.PendingClusterServiceID, observed.PendingClusterServiceID)
+	require.Equal(t, provider.ClusterServiceID, observed.ClusterServiceID)
+}
 
 type conflictingIDDB struct {
 	corecosmosstorage.ResourcesDBClient
@@ -40,8 +60,6 @@ func TestReadClusterServiceProviderDoesNotFallBack(t *testing.T) {
 	initial := coreapi.NewDefaultCluster(resourceID, "eastus")
 	initial.ResourceID = resourceID
 	initial.SetPartitionKey(resourceID.SubscriptionID)
-	legacyID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/legacy"))
-	initial.ServiceProviderProperties.ClusterServiceID = &legacyID
 	_, err := db.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, initial, nil)
 	require.NoError(t, err)
 	_, err = corecosmosstorage.ReadClusterServiceProvider(ctx, db, resourceID)
@@ -55,7 +73,7 @@ func TestReadClusterServiceProviderDoesNotFallBack(t *testing.T) {
 	observed, err := corecosmosstorage.ReadClusterServiceProvider(ctx, db, resourceID)
 	require.NoError(t, err)
 	require.Equal(t, &newID, observed.PendingClusterServiceID)
-	require.Nil(t, observed.ClusterServiceID, "legacy final ID must not override provider state")
+	require.Nil(t, observed.ClusterServiceID, "pending state must not imply a final ID")
 }
 
 func TestClusterServiceIDPromotionAndClear(t *testing.T) {
@@ -82,8 +100,7 @@ func TestClusterServiceIDPromotionAndClear(t *testing.T) {
 		require.NoError(t, err)
 		provider, err = db.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 		require.NoError(t, err)
-		require.Equal(t, transition.pending, observed.ServiceProviderProperties.PendingClusterServiceID)
-		require.Equal(t, transition.final, observed.ServiceProviderProperties.ClusterServiceID)
+		require.True(t, observed.ServiceProviderProperties.ServiceProviderClusterInitialized)
 		require.Equal(t, transition.pending, provider.PendingClusterServiceID)
 		require.Equal(t, transition.final, provider.ClusterServiceID)
 	}

@@ -422,7 +422,6 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				"/resourceGroups/" + testKey.ResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testKey.HCPClusterName,
 		))
-		csID := metadataapi.Must(metadataapi.NewInternalID(testClusterIDStr))
 		cluster := &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			TrackedResource: coreapi.TrackedResource{
@@ -434,8 +433,8 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				},
 			},
 			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-				ProvisioningState:       coreapi.ProvisioningStateSucceeded,
-				ClusterServiceID:        &csID,
+				ProvisioningState: coreapi.ProvisioningStateSucceeded,
+
 				BillingDocumentCosmosID: "test-billing-doc-id",
 			},
 		}

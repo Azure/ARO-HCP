@@ -103,10 +103,7 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster.ID = rid
 	cluster.Name = testClusterName
 	cluster.Type = rid.ResourceType.String()
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
 
-	csID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/abc123"))
-	cluster.ServiceProviderProperties.PendingClusterServiceID = &csID
 	cluster.CustomerProperties.Platform.ManagedResourceGroup = testManagedRG
 
 	cpOps, dpOps, serviceManagedID := testClusterIdentities()
@@ -210,7 +207,7 @@ func resourceNotFoundError() error {
 }
 
 func matchingGetResponseForAllTypes(cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
-	refs, _ := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+	refs, _ := allDenyAssignmentReferences(cluster, newTestSPC())
 	nameToType := make(map[string]string, len(refs))
 	for _, ref := range refs {
 		nameToType[ref.DenyAssignmentResourceID.Name] = ref.DenyAssignmentType
@@ -439,11 +436,8 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "no cluster service ID",
-			cluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = nil
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
+			name:     "no cluster service ID",
+			cluster:  newTestCluster(),
 			spc:      newTestSPC(func(provider *coreapi.ServiceProviderCluster) { provider.PendingClusterServiceID = nil }),
 			expected: false,
 		},
@@ -653,7 +647,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			cluster: newTestCluster(),
 			existingSPC: func() *coreapi.ServiceProviderCluster {
 				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+				refs, _ := allDenyAssignmentReferences(cluster, newTestSPC())
 				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
 				})
@@ -676,7 +670,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			cluster: newTestCluster(),
 			existingSPC: func() *coreapi.ServiceProviderCluster {
 				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+				refs, _ := allDenyAssignmentReferences(cluster, newTestSPC())
 				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
 				})
@@ -713,7 +707,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 			cluster: newTestCluster(),
 			existingSPC: func() *coreapi.ServiceProviderCluster {
 				cluster := newTestCluster()
-				refs, _ := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+				refs, _ := allDenyAssignmentReferences(cluster, newTestSPC())
 				future := metav1.NewTime(fakeClock.Now().Add(6 * time.Hour))
 				return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 					spc.Status.AzureResources.DenyAssignments.AzureResources = refs
@@ -788,7 +782,7 @@ func TestSyncDenyAssignmentUpsertStalePending(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			cluster := newTestCluster()
-			refs, err := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+			refs, err := allDenyAssignmentReferences(cluster, newTestSPC())
 			require.NoError(t, err)
 			spc := newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.AzureResources.DenyAssignments.AzureResources = refs
@@ -838,7 +832,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 		defsByType[d.denyAssignmentType] = d
 	}
 
-	allRefs, err := allDenyAssignmentReferences(cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
+	allRefs, err := allDenyAssignmentReferences(cluster, newTestSPC())
 	require.NoError(t, err)
 
 	var resourcesRef coreapi.DenyAssignmentReference

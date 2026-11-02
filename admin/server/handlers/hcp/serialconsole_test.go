@@ -91,9 +91,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
-				// Create HCP cluster with InternalID
-				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
-				require.NoError(t, err)
+				// Create HCP cluster
 				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
@@ -102,11 +100,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ClusterServiceID: &internalID,
-					},
 				}
-				_, err = mockResourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
+				_, err := mockResourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
 				require.NoError(t, err)
 			},
 			mockFPA:            &mockFPACredentialRetriever{},
@@ -118,9 +113,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
-				// Create HCP cluster with InternalID
-				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
-				require.NoError(t, err)
+				// Create HCP cluster
 				hcp := &coreapi.Cluster{
 					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
@@ -129,11 +122,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ClusterServiceID: &internalID,
-					},
 				}
-				_, err = mockResourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
+				_, err := mockResourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
 				require.NoError(t, err)
 
 				// Create subscription with tenant ID

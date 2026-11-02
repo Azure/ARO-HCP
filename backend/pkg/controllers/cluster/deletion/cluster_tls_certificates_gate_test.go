@@ -54,7 +54,7 @@ func TestTLSCertificateDeletionGates(test *testing.T) {
 				now := metav1.Now()
 				cluster.ServiceProviderProperties.DeletionTimestamp = &now
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
+
 				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			})
 			providerID := metadataapi.Must(azcorearm.ParseResourceID(cluster.ResourceID.String() + "/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName))

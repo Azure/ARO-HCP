@@ -22,6 +22,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,14 +55,14 @@ func testContext(t *testing.T) context.Context {
 
 func testCluster(domain, prefix string) *coreapi.Cluster {
 	id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test"))
-	pending := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))
-	return &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub", CosmosETag: "cluster-etag", InstanceVersion: 3}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}, CustomerProperties: coreapi.ClusterCustomerProperties{DNS: coreapi.CustomerDNSProfile{BaseDomainPrefix: prefix}}, ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterUID: "aro-uid", PendingClusterServiceID: &pending, DNS: coreapi.ServiceProviderDNSProfile{BaseDomain: domain}}}
+	return &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub", CosmosETag: "cluster-etag", InstanceVersion: 3}, TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: id}}, CustomerProperties: coreapi.ClusterCustomerProperties{DNS: coreapi.CustomerDNSProfile{BaseDomainPrefix: prefix}}, ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterUID: "aro-uid", DNS: coreapi.ServiceProviderDNSProfile{BaseDomain: domain}}}
 }
 
 func testProvider(domain string) *coreapi.ServiceProviderCluster {
 	return &coreapi.ServiceProviderCluster{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(testCluster("", "").ID.String() + "/serviceProviderClusters/default")), PartitionKey: "sub", CosmosETag: "provider-etag", InstanceVersion: 2},
-		Spec:           coreapi.ServiceProviderClusterSpec{DesiredDNSBaseDomain: domain, ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/stamp/managementClusters/default"))},
+		PendingClusterServiceID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))),
+		CosmosMetadata:          coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(testCluster("", "").ID.String() + "/serviceProviderClusters/default")), PartitionKey: "sub", CosmosETag: "provider-etag", InstanceVersion: 2},
+		Spec:                    coreapi.ServiceProviderClusterSpec{DesiredDNSBaseDomain: domain, ManagementClusterResourceID: metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/stamp/managementClusters/default"))},
 	}
 }
 

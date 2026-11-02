@@ -60,8 +60,7 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 					cluster.Type = id.ResourceType.String()
 					cluster.CosmosMetadata = coreapi.CosmosMetadata{ResourceID: id, PartitionKey: testSubscriptionID}
 					cluster.CustomerProperties.DNS.BaseDomainPrefix = prefix
-					cluster.ServiceProviderProperties.ClusterServiceID = nil
-					cluster.ServiceProviderProperties.PendingClusterServiceID = &pending
+
 					managementID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1"))
 					spc := &coreapi.ServiceProviderCluster{PendingClusterServiceID: &pending, CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
 					spc.Spec.ManagementClusterResourceID = managementID
@@ -175,16 +174,19 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 							require.Contains(t, err.Error(), "response lost")
 						}
 						if created != nil && !loseResponse {
-							stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 							require.NoError(t, err)
-							require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "do not defer successful POST adoption")
+							storedProvider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+							require.NoError(t, err)
+							require.NotNil(t, storedProvider.ClusterServiceID, "do not defer successful POST adoption")
 						}
 					}
 					require.Equal(t, 1, dispatches)
 					stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 					require.NoError(t, err)
-					require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID)
-					require.Nil(t, stored.ServiceProviderProperties.PendingClusterServiceID)
+					storedProvider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, err)
+					require.NotNil(t, storedProvider.ClusterServiceID)
+					require.Nil(t, storedProvider.PendingClusterServiceID)
 					require.Equal(t, created.DNS().BaseDomain(), stored.ServiceProviderProperties.DNS.BaseDomain)
 				})
 			}

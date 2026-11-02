@@ -339,7 +339,6 @@ func TestPreExistingDataCluster(t *testing.T) {
 				ResourceID: resourceID,
 			},
 			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-				ClusterServiceID:  ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
 		},
@@ -411,7 +410,6 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 				},
 			},
 			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-				ClusterServiceID:  ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
 				ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			},
 		},

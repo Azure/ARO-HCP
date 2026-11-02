@@ -98,7 +98,6 @@
 		"serviceProviderProperties": {
 			"activeOperationId": "90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
 			"api": {},
-			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
 			"console": {},
 			"dns": {},
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",

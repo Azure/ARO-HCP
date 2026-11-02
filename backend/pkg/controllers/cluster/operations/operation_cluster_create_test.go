@@ -79,15 +79,16 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		clock             utilsclock.PassiveClock
-		existingCluster   *coreapi.Cluster
-		existingOperation *coreapi.Operation
-		readDesireLister  kubeapplierlisters.ReadDesireLister
-		validations       []metav1.Condition
-		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
-		wantErr           bool
-		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		noClusterServiceID bool
+		name               string
+		clock              utilsclock.PassiveClock
+		existingCluster    *coreapi.Cluster
+		existingOperation  *coreapi.Operation
+		readDesireLister   kubeapplierlisters.ReadDesireLister
+		validations        []metav1.Condition
+		setupCSMock        func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
+		wantErr            bool
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:              "cluster service error code is persisted",
@@ -336,10 +337,10 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "reports Provisioning when cluster ClusterServiceID is unset",
+			noClusterServiceID: true,
+			name:               "reports Provisioning when cluster ClusterServiceID is unset",
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
@@ -469,7 +470,13 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctrl := gomock.NewController(t)
 
-			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation, coreapitesting.ServiceProviderIDsForCluster(tc.existingCluster)})
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation, func() *coreapi.ServiceProviderCluster {
+				provider := coreapitesting.ServiceProviderForCluster(tc.existingCluster, nil, &fixture.ClusterInternalID)
+				if tc.noClusterServiceID {
+					provider.ClusterServiceID = nil
+				}
+				return provider
+			}()})
 			require.NoError(t, err)
 
 			listerOperation, err := mockResourcesDBClient.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -678,14 +685,13 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			cluster := fixture.NewCluster(nil)
-			cluster.ServiceProviderProperties.ClusterServiceID = nil
 			if tc.overallTimeout != 0 {
 				deadline := metav1.NewTime(startTime.Add(tc.overallTimeout))
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 			}
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 			operation.StartTime = startTime
-			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation, coreapitesting.ServiceProviderIDsForCluster(cluster)})
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation, coreapitesting.ServiceProviderForCluster(cluster, nil, nil)})
 			require.NoError(t, err)
 			operation, err = db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 			require.NoError(t, err)
@@ -836,15 +842,16 @@ func TestDetermineOperationState(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		clusterLister     corelisters.ClusterLister
-		readDesireLister  kubeapplierlisters.ReadDesireLister
-		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
-		clusterOverride   *coreapi.Cluster
-		expectedState     coreapi.ProvisioningState
-		wantMessageSubstr string
-		expectError       bool
-		errContains       string
+		noClusterServiceID bool
+		name               string
+		clusterLister      corelisters.ClusterLister
+		readDesireLister   kubeapplierlisters.ReadDesireLister
+		setupCSMock        func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		clusterOverride    *coreapi.Cluster
+		expectedState      coreapi.ProvisioningState
+		wantMessageSubstr  string
+		expectError        bool
+		errContains        string
 	}{
 		{
 			name: "both checks succeed → Succeeded",
@@ -1214,10 +1221,10 @@ func TestDetermineOperationState(t *testing.T) {
 			wantMessageSubstr: "cluster service is installing",
 		},
 		{
-			name: "cluster ClusterServiceID unset → Provisioning",
+			noClusterServiceID: true,
+			name:               "cluster ClusterServiceID unset → Provisioning",
 			clusterOverride: func() *coreapi.Cluster {
 				c := newClusterWithAPIURL("https://api.example.com", nil)
-				c.ServiceProviderProperties.ClusterServiceID = nil
 				return c
 			}(),
 			clusterLister: &corelistertesting.SliceClusterLister{
@@ -1304,7 +1311,13 @@ func TestDetermineOperationState(t *testing.T) {
 			if tt.clusterOverride != nil {
 				clusterArg = tt.clusterOverride
 			}
-			resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{coreapitesting.ServiceProviderIDsForCluster(clusterArg)})
+			resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{func() *coreapi.ServiceProviderCluster {
+				provider := coreapitesting.ServiceProviderForCluster(clusterArg, nil, &fixture.ClusterInternalID)
+				if tt.noClusterServiceID {
+					provider.ClusterServiceID = nil
+				}
+				return provider
+			}()})
 			controller.resourcesDBClient = resourcesDB
 			require.NoError(t, err)
 			result, err := controller.determineOperationState(ctx, operation, clusterArg)

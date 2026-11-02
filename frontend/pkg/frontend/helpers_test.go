@@ -27,12 +27,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -121,7 +119,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
-					clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 					parentCluster := &coreapi.Cluster{
 						CosmosMetadata: coreapi.CosmosMetadata{
 							ResourceID:   parentResourceID,
@@ -134,7 +131,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						},
 						ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 							ProvisioningState: coreapi.ProvisioningStateSucceeded,
-							ClusterServiceID:  &clusterInternalID,
 						},
 					}
 					_, _ = mockResourcesDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
@@ -168,7 +164,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 						// Pre-populate the parent cluster with the test provisioning state
-						clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 						parentCluster := &coreapi.Cluster{
 							CosmosMetadata: coreapi.CosmosMetadata{
 								ResourceID:   parentResourceID,
@@ -181,7 +176,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							},
 							ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 								ProvisioningState: provisioningState,
-								ClusterServiceID:  &clusterInternalID,
 							},
 						}
 						_, _ = mockResourcesDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
