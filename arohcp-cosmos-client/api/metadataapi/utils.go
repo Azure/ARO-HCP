@@ -66,6 +66,14 @@ var AllowedChannelGroups = sets.New(ChannelGroupStable, ChannelGroupFast)
 // AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
 var AllowedChannelGroupsWithExperimentalFlag = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupCandidate, ChannelGroupNightly)
 
+// MaxClusterComputeNodes is the hard cap on the total number of compute nodes a
+// single cluster may have, summed across every node pool. 500 is the maximum
+// that has been PerfScale validated and tested; exceeding it should not
+// hard-break the cluster but may cause control-plane strain and noisy-neighbor
+// effects. This limit is not discoverable at runtime and must be updated here
+// manually if it ever changes.
+const MaxClusterComputeNodes = 500
+
 // GetMinorOpenShiftVersion extracts the minor version (x.y) from a full OpenShift version string.
 func GetMinorOpenShiftVersion(v string) (string, error) {
 	version, err := semver.NewVersion(strings.Replace(v, OpenShiftVersionPrefix, "", 1))
