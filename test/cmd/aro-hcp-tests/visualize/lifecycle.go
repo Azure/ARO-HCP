@@ -50,7 +50,7 @@ func hasFullLifecycle(item TestInfo) bool {
 	return !item.CleanupStartedAt.IsZero() && !item.CleanupStartedAt.Before(item.StartedAt) && !item.CleanupStartedAt.After(item.FinishedAt)
 }
 
-// LifecycleSubtitle distinguishes full lifecycle envelopes from historical pre-cleanup recordings.
+// Reports whole-second elapsed time and distinguishes legacy cleanup coverage.
 func lifecycleSubtitle(times []TestInfo, elapsed time.Duration) string {
 	full := 0
 	for _, item := range times {
@@ -59,9 +59,9 @@ func lifecycleSubtitle(times []TestInfo, elapsed time.Duration) string {
 		}
 	}
 	if full == len(times) {
-		return fmt.Sprintf("Test elapsed: %s (including cleanup)", elapsed)
+		return fmt.Sprintf("Test elapsed: %s (including cleanup)", formatTimingDuration(elapsed))
 	}
-	return fmt.Sprintf("Recorded: %s (%d/%d with full cleanup)", elapsed, full, len(times))
+	return fmt.Sprintf("Recorded: %s (%d/%d with full cleanup)", formatTimingDuration(elapsed), full, len(times))
 }
 
 // ClipSpan intersects a recorded interval with its enclosing test or phase interval.
@@ -97,7 +97,7 @@ func unionSpans(spans []StepTimingMetadata) []StepTimingMetadata {
 	return merged
 }
 
-// LifecycleRows keeps phases distinct from operation coverage and exposes every uncovered interval once.
+// Separates phase context from operation coverage and labels each uncovered interval once.
 func lifecycleRows(item TestInfo) []StepTimingMetadata {
 	var rows, operations, phases []StepTimingMetadata
 	boundaries := []time.Time{item.StartedAt, item.FinishedAt}
@@ -106,6 +106,12 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 	}
 	for _, phase := range item.Phases {
 		if clipped, ok := clipSpan(phase, item.StartedAt, item.FinishedAt); ok {
+			switch clipped.Name {
+			case "Test work (including setup)":
+				clipped.Name = "Setup and test execution"
+			case "Resource cleanup (including identity release)":
+				clipped.Name = "Resource cleanup and identity release"
+			}
 			phases = append(phases, clipped)
 			boundaries = append(boundaries, clipped.StartedAt, clipped.FinishedAt)
 			clipped.Kind = "phase"
@@ -139,11 +145,11 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 	coverageIndex := 0
 	for i := 1; i < len(boundaries); i++ {
 		start, finish := boundaries[i-1], boundaries[i]
-		label := "Untracked recorded interval (legacy; cleanup coverage unknown)"
+		label := "No recorded operation (legacy; cleanup coverage unknown)"
 		if hasFullLifecycle(item) {
-			label = "Untracked test work"
+			label = "No recorded operation during test work"
 			if !start.Before(item.CleanupStartedAt) {
-				label = "Untracked cleanup"
+				label = "No recorded operation during cleanup"
 			}
 		}
 		for _, phase := range phases {
@@ -328,19 +334,30 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 .timing-summary p { margin: 8px 0; }
 .timing-summary table { width: 100%; border-collapse: collapse; text-align: left; }
 .timing-summary th, .timing-summary td { padding: 6px 8px; border-bottom: 1px solid GrayText; }
-.timing-controls { display: flex; gap: 12px; align-items: center; margin: 12px 0; }
+.timing-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
 .timing-controls label { display: flex; gap: 8px; align-items: center; }
 .timing-controls select { color: CanvasText; background: Canvas; border: 1px solid GrayText; border-radius: 4px; padding: 6px; }
+.timing-outcomes { display: flex; flex-wrap: wrap; gap: 12px; }
+#timing-show-skipped { accent-color: #64748b; }
+#timing-show-passed { accent-color: #16a34a; }
+#timing-show-failed { accent-color: #dc2626; }
 @media (max-width: 640px) { .timing-controls { align-items: flex-start; flex-direction: column; } }
 </style><section class="timing-summary">
 <h2>Operation durations</h2>
-<p>{{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
+<p>Full-run summary (unchanged by chart filters): {{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
 <table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
-<p>Bar colors match the table · Purple: phase · Slate: untracked work. Each bar is one test; concurrent operations share the bar height. Vertical zoom expands selected tests for detail.</p>
+<p>Bar colors match the table · Purple: enclosing phase context, not operation coverage · Slate: No recorded operation, not necessarily idle time. Each bar is one test; concurrent operations share the bar height. Vertical zoom expands selected tests for detail.</p>
 <div class="timing-controls">
 <label for="timing-sort">Sort tests by
 <select id="timing-sort"><option value="start">Start time (earliest first)</option><option value="duration">Total duration (longest first)</option><option value="name">Test name (A–Z)</option></select></label>
+<div class="timing-outcomes" role="group" aria-label="Show chart outcomes">
+<label><input id="timing-show-skipped" type="checkbox" checked>Skipped</label>
+<label><input id="timing-show-passed" type="checkbox" checked>Passed</label>
+<label><input id="timing-show-failed" type="checkbox" checked>Failed</label>
 </div>
+<span id="timing-visible-count" role="status" aria-live="polite"></span>
+</div>
+<p>Outcome filters affect only the chart. Unknown outcomes always remain visible.</p>
 </section>`))
 
 // Renders the duration summary and chart controls above the timing graph.

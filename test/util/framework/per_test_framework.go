@@ -221,7 +221,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	tc.timingMetadata.Steps = make([]timing.StepTimingMetadata, 0)
 	tc.timingMetadata.Phases = []timing.StepTimingMetadata{{
 		Kind:      "test-work",
-		Name:      "Test work (including setup)",
+		Name:      "Setup and test execution",
 		StartedAt: startedAt.Format(time.RFC3339Nano),
 	}}
 	tc.contextLock.Unlock()
@@ -241,7 +241,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump final timing info"))
 	ginkgo.DeferCleanup(tc.closeAzureLogFile, AnnotatedLocation("close azure log file"))
 	ginkgo.DeferCleanup(func(ctx context.Context) {
-		tc.runTimingPhase(ctx, "resource-cleanup", "Resource cleanup (including identity release)", tc.deleteCreatedResources)
+		tc.runTimingPhase(ctx, "resource-cleanup", "Resource cleanup and identity release", tc.deleteCreatedResources)
 	}, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	ginkgo.DeferCleanup(func(ctx context.Context) {

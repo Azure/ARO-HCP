@@ -67,6 +67,26 @@ func TestLifecycleCoverageUsesOperationUnionNotPhases(t *testing.T) {
 	}
 }
 
+func TestLifecycleLegacyGapRetainsFractionalIntervalAndCleanupWarning(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	item := TestInfo{
+		StartedAt: start, FinishedAt: start.Add(750 * time.Millisecond),
+		Phases: []StepTimingMetadata{{Name: "setup", StartedAt: start, FinishedAt: start.Add(750 * time.Millisecond)}},
+	}
+	var gaps []StepTimingMetadata
+	for _, row := range lifecycleRows(item) {
+		if row.Kind == "gap" {
+			gaps = append(gaps, row)
+		}
+	}
+	if len(gaps) != 1 || gaps[0].StartedAt != item.StartedAt || gaps[0].FinishedAt != item.FinishedAt {
+		t.Fatalf("fractional uncovered time must retain exact timestamps: %+v", gaps)
+	}
+	if !strings.Contains(gaps[0].Name, "cleanup coverage unknown") || !strings.Contains(gaps[0].Name, "setup") {
+		t.Fatalf("legacy gaps must retain cleanup uncertainty and phase context: %+v", gaps[0])
+	}
+}
+
 func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	span := func(kind, name string, first, last int) StepTimingMetadata {
@@ -133,6 +153,19 @@ func TestDurationSummaryTruncatesToSeconds(t *testing.T) {
 	const want = "13m42s"
 	if summary.Minimum() != want || summary.Mean() != want || summary.Maximum() != want {
 		t.Fatalf("duration summary should truncate to seconds: min=%s mean=%s max=%s", summary.Minimum(), summary.Mean(), summary.Maximum())
+	}
+}
+
+func TestLifecycleSubtitleTruncatesFractionalElapsed(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	elapsed := 13*time.Minute + 42*time.Second + 854610143*time.Nanosecond
+	item := TestInfo{StartedAt: start, FinishedAt: start.Add(elapsed), CleanupStartedAt: start.Add(time.Minute)}
+	if got := lifecycleSubtitle([]TestInfo{item}, elapsed); got != "Test elapsed: 13m42s (including cleanup)" {
+		t.Fatalf("full lifecycle elapsed must use whole seconds: %q", got)
+	}
+	item.CleanupStartedAt = time.Time{}
+	if got := lifecycleSubtitle([]TestInfo{item}, elapsed); got != "Recorded: 13m42s (0/1 with full cleanup)" {
+		t.Fatalf("legacy elapsed must use whole seconds without implying full cleanup: %q", got)
 	}
 }
 
