@@ -1,0 +1,23 @@
+using '../templates/svc-cluster-infra.bicep'
+
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param infrastructureIdentityResourceGroup = '{{ .infrastructureIdentities.serviceResourceGroup }}'
+param leasedAksIdentityName = '{{ .infrastructureIdentities.serviceAksIdentityName }}'
+param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
+param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
+param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
+param istioIngressGatewayIPAddressName = '{{ .svc.istio.ingressGatewayIPAddressName }}'
+param istioIngressGatewayIPAddressIPTags = '{{ .svc.istio.ingressGatewayIPAddressIPTags }}'
+param opsIngressGatewayIPAddressName = '{{ .svc.opsIngress.gateway.ipAddressName }}'
+param opsIngressGatewayIPAddressTags = '{{ .svc.opsIngress.gateway.ipAddressTags }}'
+param aksClusterName = '{{ .svc.aks.name }}'
+param aksKeyVaultName = '{{ .svc.aks.etcd.name }}'
+param aksKeyVaultTagName = '{{ .svc.aks.etcd.tagKey }}'
+param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
+param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
+param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
+param regionalResourceGroup = '{{ .regionRG }}'
+param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
+param sreServiceTag = '{{ .administration.sreServiceTag }}'
+
+param additionalIngressRules = '{{ .svc.aks.additionalIngressRules }}'

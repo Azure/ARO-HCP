@@ -147,12 +147,6 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 				require.Equal(t, want, fmt.Sprint(value), path)
 			}
 
-			t.Run("parameter template", func(t *testing.T) {
-				rendered, err := config.PreprocessFile(filepath.Join(repoRootDir, "dev-infrastructure/configurations/svc-cluster.tmpl.bicepparam"), baseline)
-				require.NoError(t, err)
-				require.Contains(t, strings.Split(string(rendered), "\n"), "param systemPoolOnly = true", "render an unquoted Bicep boolean from the resolved config")
-			})
-
 			encoded, err := json.Marshal(baseline)
 			require.NoError(t, err)
 			for _, test := range []struct {

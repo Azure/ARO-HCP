@@ -21,9 +21,10 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func hasProvisioningTag(tags map[string]*string) bool {
@@ -31,8 +32,8 @@ func hasProvisioningTag(tags map[string]*string) bool {
 }
 
 // initialClusterTags builds the creation-time tag set: the cluster tags plus
-// the provisioning marker that makes this tool own pool provisioning until
-// reconcileClusterTags removes it.
+// the marker that reconcileClusterTags removes after initial provisioning
+// completes.
 func initialClusterTags(clusterTags map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(clusterTags)+1)
 	for key, value := range clusterTags {
@@ -61,18 +62,17 @@ func mergeClusterTags(clusterTags map[string]*string, overlayTags map[string]str
 }
 
 // reconcileClusterTags overlays the configured cluster tags and clears the
-// provisioning marker once the cluster has finished provisioning, handing pool
-// management to the controller. The result is written in one conditional tag
-// update.
+// provisioning marker once initial cluster and pool provisioning completes. The result is
+// written in one conditional tag update.
 func (o *completedOptions) reconcileClusterTags(ctx context.Context, cluster *armcontainerservice.ManagedCluster) error {
 	tags, changed := mergeClusterTags(cluster.Tags, o.clusterTags)
 
-	// Clear the provisioning marker once the cluster and all its pools report
-	// success, handing pool management over to the controller.
+	// Mark initial provisioning complete once the cluster and all its pools
+	// report success.
 	needsFinalization := hasProvisioningTag(cluster.Tags)
 	if needsFinalization {
 		if err := requireProvisioned(cluster); err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 		delete(tags, agentpools.ProvisioningTagKey)
 	}
@@ -80,16 +80,16 @@ func (o *completedOptions) reconcileClusterTags(ctx context.Context, cluster *ar
 		return nil
 	}
 	if cluster.ETag == nil || len(*cluster.ETag) == 0 {
-		return fmt.Errorf("cluster has no ETag for tag reconciliation")
+		return utils.TrackError(fmt.Errorf("cluster has no ETag for tag reconciliation"))
 	}
 	poller, err := o.clustersClient.BeginUpdateTags(ctx, o.resourceGroup, o.clusterName,
 		armcontainerservice.TagsObject{Tags: tags},
 		&armcontainerservice.ManagedClustersClientBeginUpdateTagsOptions{IfMatch: cluster.ETag})
 	if err != nil {
-		return fmt.Errorf("submitting tag update: %w", err)
+		return utils.TrackError(fmt.Errorf("submitting tag update: %w", err))
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("polling tag update: %w", err)
+		return utils.TrackError(fmt.Errorf("polling tag update: %w", err))
 	}
 	return nil
 }
@@ -98,14 +98,14 @@ func (o *completedOptions) reconcileClusterTags(ctx context.Context, cluster *ar
 // pool report a successful provisioning state.
 func requireProvisioned(cluster *armcontainerservice.ManagedCluster) error {
 	if cluster.Properties == nil || ptr.Deref(cluster.Properties.ProvisioningState, "") != provisioningStateSucceeded {
-		return fmt.Errorf("cluster must be successfully provisioned before finalizing tags")
+		return utils.TrackError(fmt.Errorf("cluster must be successfully provisioned before finalizing tags"))
 	}
 	for _, pool := range cluster.Properties.AgentPoolProfiles {
 		if pool == nil {
-			return fmt.Errorf("cannot finalize tags with a missing pool observation")
+			return utils.TrackError(fmt.Errorf("cannot finalize tags with a missing pool observation"))
 		}
 		if ptr.Deref(pool.ProvisioningState, "") != provisioningStateSucceeded {
-			return fmt.Errorf("pool %q must be successfully provisioned before finalizing tags", ptr.Deref(pool.Name, ""))
+			return utils.TrackError(fmt.Errorf("pool %q must be successfully provisioned before finalizing tags", ptr.Deref(pool.Name, "")))
 		}
 	}
 	return nil
