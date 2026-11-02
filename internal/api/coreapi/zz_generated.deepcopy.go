@@ -2330,6 +2330,16 @@ func (in *ServiceProviderAPIProfile) DeepCopy() *ServiceProviderAPIProfile {
 func (in *ServiceProviderCluster) DeepCopyInto(out *ServiceProviderCluster) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
+	if in.PendingClusterServiceID != nil {
+		in, out := &in.PendingClusterServiceID, &out.PendingClusterServiceID
+		*out = new(metadataapi.InternalID)
+		**out = **in
+	}
+	if in.ClusterServiceID != nil {
+		in, out := &in.ClusterServiceID, &out.ClusterServiceID
+		*out = new(metadataapi.InternalID)
+		**out = **in
+	}
 	if in.LoadBalancerResourceID != nil {
 		in, out := &in.LoadBalancerResourceID, &out.LoadBalancerResourceID
 		*out = DeepCopyResourceID(*in)
