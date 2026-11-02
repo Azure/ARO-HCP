@@ -873,14 +873,14 @@ func TestRequestAdminCredential(t *testing.T) {
 					},
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-					ProvisioningState:            test.clusterProvisioningState,
-					ClusterServiceID:             &clusterInternalID,
+					ProvisioningState: test.clusterProvisioningState,
+
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
 				},
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
-			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &clusterInternalID), nil)
 			require.NoError(t, err)
 
 			// Add active revoke operation if needed
@@ -994,12 +994,11 @@ func TestRequestAdminCredentialRequiresCSR(t *testing.T) {
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
-					ClusterServiceID:  &clusterInternalID,
 				},
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
-			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &clusterInternalID), nil)
 			require.NoError(t, err)
 
 			subs := map[string]*coreapi.Subscription{
@@ -1122,14 +1121,14 @@ func TestRevokeCredentials(t *testing.T) {
 					},
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-					ProvisioningState:            test.clusterProvisioningState,
-					ClusterServiceID:             &clusterInternalID,
+					ProvisioningState: test.clusterProvisioningState,
+
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
 				},
 			}
 			_, err := mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
-			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+			_, err = mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &clusterInternalID), nil)
 			require.NoError(t, err)
 
 			// Add active revoke operation if needed
@@ -1237,7 +1236,6 @@ func TestDeleteCluster(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			clusterResourceID := newClusterResourceID(t)
-			clusterInternalID := newClusterInternalID(t)
 
 			reg := prometheus.NewRegistry()
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
@@ -1276,7 +1274,6 @@ func TestDeleteCluster(t *testing.T) {
 					},
 					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 						ProvisioningState: test.clusterProvisioningState,
-						ClusterServiceID:  &clusterInternalID,
 					},
 				}
 				// Set DeletionTimestamp only if test specifies it should have one

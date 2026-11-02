@@ -144,8 +144,6 @@ func MinimumValidClusterTestCase() *coreapi.Cluster {
 		dataPlaneOperators[string(operatorName)] = NewTestOperatorUserAssignedIdentity(string(operatorName) + "-dataplane-identity")
 	}
 	resource.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = dataPlaneOperators
-	pendingID := metadataapi.Must(metadataapi.NewInternalID(TestPendingClusterServiceIDPath))
-	resource.ServiceProviderProperties.PendingClusterServiceID = &pendingID
 	return resource
 }
 

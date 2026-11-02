@@ -359,8 +359,6 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+name)
-		internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
-		require.NoError(t, err)
 		return &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   clusterResourceID,
@@ -376,7 +374,6 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			},
 			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ProvisioningState: state,
-				ClusterServiceID:  &internalID,
 			},
 		}
 	}
@@ -498,8 +495,6 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
-			require.NoError(t, err)
 			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
@@ -515,10 +510,9 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
-					ClusterServiceID:  &internalID,
 				},
 			}
-			_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+			_, err := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
 			npCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
@@ -709,8 +703,6 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 		"/subscriptions/"+subscriptionID+
 			"/resourceGroups/"+resourceGroupName+
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-	clusterInternalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
-	require.NoError(t, err)
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -726,7 +718,6 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &clusterInternalID,
 		},
 	}
 	_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)

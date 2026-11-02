@@ -64,13 +64,14 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		nodePools       []*coreapi.NodePool
-		externalAuths   []*coreapi.ExternalAuth
-		existingCluster *coreapi.Cluster
-		setupCSMock     func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
-		wantErr         bool
-		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		noClusterServiceID bool
+		name               string
+		nodePools          []*coreapi.NodePool
+		externalAuths      []*coreapi.ExternalAuth
+		existingCluster    *coreapi.Cluster
+		setupCSMock        func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
+		wantErr            bool
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "cluster document gone completes operation",
@@ -94,12 +95,12 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
+			noClusterServiceID: true,
+			name:               "shouldReconcile gate not passed when ClusterServiceID is nil",
 			existingCluster: func() *coreapi.Cluster {
 				cluster := fixture.NewCluster(nil)
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Now()}
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -208,7 +209,13 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 			resources := []any{operation}
 			if tc.existingCluster != nil {
-				resources = append(resources, tc.existingCluster, coreapitesting.ServiceProviderIDsForCluster(tc.existingCluster))
+				resources = append(resources, tc.existingCluster, func() *coreapi.ServiceProviderCluster {
+					provider := coreapitesting.ServiceProviderForCluster(tc.existingCluster, nil, &fixture.ClusterInternalID)
+					if tc.noClusterServiceID {
+						provider.ClusterServiceID = nil
+					}
+					return provider
+				}())
 			}
 			for _, nodePool := range tc.nodePools {
 				resources = append(resources, nodePool)
@@ -326,7 +333,6 @@ func TestDeletionDiagnosticsQueryFailures(t *testing.T) {
 			ctx := t.Context()
 			fixture := operationtesting.NewClusterTestFixture()
 			cluster := fixture.NewCluster(nil)
-			cluster.ServiceProviderProperties.ClusterServiceID = nil
 			deadline := metav1.NewTime(time.Unix(100, 0))
 			cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = &deadline
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)

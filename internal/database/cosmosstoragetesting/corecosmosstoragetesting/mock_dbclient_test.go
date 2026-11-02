@@ -237,11 +237,6 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
-	if err != nil {
-		t.Fatalf("Failed to create internal ID: %v", err)
-	}
-
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -257,7 +252,6 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &internalID,
 		},
 	}
 
@@ -577,11 +571,6 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
-	if err != nil {
-		t.Fatalf("Failed to create internal ID: %v", err)
-	}
-
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -597,14 +586,13 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &internalID,
 		},
 	}
 
 	transaction := mock.NewTransaction(subscriptionID)
 	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
 
-	_, err = clusterCRUD.AddCreateToTransaction(ctx, transaction, cluster, nil)
+	_, err := clusterCRUD.AddCreateToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
 		t.Fatalf("Failed to add create to transaction: %v", err)
 	}
@@ -639,11 +627,6 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
-	if err != nil {
-		t.Fatalf("Failed to create internal ID: %v", err)
-	}
-
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -659,12 +642,11 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &internalID,
 		},
 	}
 
 	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
-	_, err = clusterCRUD.Create(ctx, cluster, nil)
+	_, err := clusterCRUD.Create(ctx, cluster, nil)
 	if err != nil {
 		t.Fatalf("Failed to create cluster: %v", err)
 	}
@@ -963,11 +945,6 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
-	if err != nil {
-		t.Fatalf("Failed to create internal ID: %v", err)
-	}
-
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -983,11 +960,10 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &internalID,
 		},
 	}
 
-	err = mock.addResource(ctx, cluster)
+	err := mock.addResource(ctx, cluster)
 	if err != nil {
 		t.Fatalf("Failed to add cluster: %v", err)
 	}
@@ -1048,11 +1024,6 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
-	if err != nil {
-		t.Fatalf("Failed to create internal ID: %v", err)
-	}
-
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -1068,7 +1039,6 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &internalID,
 		},
 	}
 

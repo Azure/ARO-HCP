@@ -31,12 +31,11 @@ import (
 
 func TestProviderInitialization(t *testing.T) {
 	for _, scenario := range []struct {
-		name                                      string
-		initialized, deleting, dispatched, legacy bool
-		wantError                                 bool
+		name                              string
+		initialized, deleting, dispatched bool
+		wantError                         bool
 	}{
 		{name: "fresh"},
-		{name: "lost legacy backfilled state", legacy: true, initialized: true, wantError: true},
 		{name: "lost state", initialized: true, wantError: true},
 		{name: "delete before initialization", deleting: true},
 		{name: "delete after dispatch", deleting: true, dispatched: true, wantError: true},
@@ -57,10 +56,6 @@ func TestProviderInitialization(t *testing.T) {
 				now := metav1.Now()
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
 			}
-			if scenario.legacy {
-				id := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/existing"))
-				cluster.ServiceProviderProperties.PendingClusterServiceID = &id
-			}
 			_, err := db.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 			provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, resourceID)
@@ -71,7 +66,8 @@ func TestProviderInitialization(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, cluster.ServiceProviderProperties.PendingClusterServiceID, provider.PendingClusterServiceID)
+			require.Nil(t, provider.PendingClusterServiceID)
+			require.Nil(t, provider.ClusterServiceID)
 			observed, err := db.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 			require.NoError(t, err)
 			require.True(t, observed.ServiceProviderProperties.ServiceProviderClusterInitialized)

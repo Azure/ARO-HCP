@@ -38,11 +38,12 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
 	tests := []struct {
-		name        string
-		listCluster *coreapi.Cluster
-		dbCluster   *coreapi.Cluster
-		expectError bool
-		verifyDB    func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		pendingID, finalID *metadataapi.InternalID
+		name               string
+		listCluster        *coreapi.Cluster
+		dbCluster          *coreapi.Cluster
+		expectError        bool
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			// Behavior: PendingClusterServiceID assignment is NOT gated on placement.
@@ -53,43 +54,36 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
-				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
-				assert.True(t, strings.HasPrefix(cluster.ServiceProviderProperties.PendingClusterServiceID.String(), "/api/aro_hcp/v1alpha1/clusters/"))
-				assert.Len(t, cluster.ServiceProviderProperties.PendingClusterServiceID.ID(), 32)
 				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, cluster.ServiceProviderProperties.PendingClusterServiceID, provider.PendingClusterServiceID)
+				require.NotNil(t, provider.PendingClusterServiceID)
+				assert.True(t, strings.HasPrefix(provider.PendingClusterServiceID.String(), "/api/aro_hcp/v1alpha1/clusters/"))
+				assert.Len(t, provider.PendingClusterServiceID.ID(), 32)
 			},
 		},
 		{
-			name: "skip when PendingClusterServiceID already set",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
-			}),
+			pendingID:   &clusterInternalID,
+			name:        "skip when PendingClusterServiceID already set",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
-				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.PendingClusterServiceID.String())
+				require.NotNil(t, provider.PendingClusterServiceID)
+				assert.Equal(t, testClusterServiceIDStr, provider.PendingClusterServiceID.String())
 			},
 		},
 		{
+			finalID:     &clusterInternalID,
 			name:        "stale cache cannot reassign an already created cluster",
 			listCluster: newTestCluster(),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
-			}),
+			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				assert.Nil(t, provider.PendingClusterServiceID)
 			},
 		},
 		{
@@ -101,9 +95,9 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			}),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				assert.Nil(t, provider.PendingClusterServiceID)
 			},
 		},
 		{
@@ -112,9 +106,9 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				assert.Nil(t, provider.PendingClusterServiceID)
 			},
 		},
 	}
@@ -129,8 +123,8 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			if tt.dbCluster != nil {
 				provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, tt.dbCluster.ID)
 				require.NoError(t, err)
-				provider.PendingClusterServiceID = tt.dbCluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
-				provider.ClusterServiceID = tt.dbCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				provider.PendingClusterServiceID = tt.pendingID.DeepCopy()
+				provider.ClusterServiceID = tt.finalID.DeepCopy()
 				_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Replace(ctx, provider, nil)
 				require.NoError(t, err)
 			}

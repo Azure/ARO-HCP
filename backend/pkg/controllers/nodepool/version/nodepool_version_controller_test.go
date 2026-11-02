@@ -93,8 +93,6 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
-	require.NoError(t, err)
 
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -111,10 +109,9 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &clusterInternalID,
 		},
 	}
-	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
+	_, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
 	// Create node pool with version

@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -64,7 +65,6 @@ func testMgmtClusterResourceID() *azcorearm.ResourceID {
 
 func newTestHCPCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	resourceID := testClusterResourceID()
-	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
 	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
@@ -73,9 +73,6 @@ func newTestHCPCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Name: testClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
-		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &clusterServiceID,
 		},
 	}
 	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = metadataapi.Must(azcorearm.ParseResourceID(
@@ -125,6 +122,7 @@ func testProvisionShardHREF(shardID string) string {
 
 func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
+		noClusterServiceID                  bool
 		name                                string
 		cachedSPC                           *coreapi.ServiceProviderCluster // SPC in cache, nil means use same as existingSPC
 		existingSPC                         *coreapi.ServiceProviderCluster // SPC in cosmos
@@ -162,11 +160,11 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			expectedManagementClusterResourceID: testMgmtClusterResourceID().String(),
 		},
 		{
-			name:        "no cluster service ID - skip",
-			cachedSPC:   newTestSPC(),
-			existingSPC: newTestSPC(),
+			noClusterServiceID: true,
+			name:               "no cluster service ID - skip",
+			cachedSPC:          newTestSPC(),
+			existingSPC:        newTestSPC(),
 			cachedCluster: newTestHCPCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
 			expectError:                         false,
@@ -266,7 +264,10 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			if tc.cachedCluster != nil {
-				tc.existingSPC.ClusterServiceID = tc.cachedCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				tc.existingSPC.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+				if tc.noClusterServiceID {
+					tc.existingSPC.ClusterServiceID = nil
+				}
 				if tc.cachedSPC != nil {
 					tc.cachedSPC.ClusterServiceID = tc.existingSPC.ClusterServiceID.DeepCopy()
 				}

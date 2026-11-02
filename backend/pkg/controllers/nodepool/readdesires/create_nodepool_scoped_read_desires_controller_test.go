@@ -78,9 +78,6 @@ func newTestNodePoolCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(nodePoolReadDesireTestClusterServiceID))),
-		},
 		CustomerProperties: coreapi.ClusterCustomerProperties{
 			DNS: coreapi.CustomerDNSProfile{
 				BaseDomainPrefix: nodePoolReadDesireTestDomainPrefix,

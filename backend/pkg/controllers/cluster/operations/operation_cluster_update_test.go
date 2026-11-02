@@ -223,11 +223,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		checkDeadline    bool
-		timeoutReason    string
-		timeoutErrorCode string
-		name             string
-		existingCluster  *coreapi.Cluster
+		noClusterServiceID bool
+		checkDeadline      bool
+		timeoutReason      string
+		timeoutErrorCode   string
+		name               string
+		existingCluster    *coreapi.Cluster
 		// When not set, the controller uses a cluster lister that contains the existingCluster
 		clusterLister     corelisters.ClusterLister
 		existingOperation *coreapi.Operation
@@ -635,10 +636,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "missing ClusterServiceID waits for creation",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
-			}),
+			noClusterServiceID:             true,
+			name:                           "missing ClusterServiceID waits for creation",
+			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
 			existingOperation:              newOperationAccepted(),
@@ -937,7 +937,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			}
 			if tc.existingServiceProviderCluster != nil {
 				if tc.existingCluster != nil {
-					tc.existingServiceProviderCluster.ClusterServiceID = tc.existingCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+					tc.existingServiceProviderCluster.ClusterServiceID = fixture.ClusterInternalID.DeepCopy()
+					if tc.noClusterServiceID {
+						tc.existingServiceProviderCluster.ClusterServiceID = nil
+					}
 				}
 				resources = append(resources, tc.existingServiceProviderCluster)
 			}

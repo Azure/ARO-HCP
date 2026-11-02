@@ -55,20 +55,21 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 
 	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
-		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+		stored, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 		require.NoError(t, err)
-		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should not be nil")
-		assert.Equal(t, testClusterServiceIDStr, stored.ServiceProviderProperties.ClusterServiceID.String(),
+		require.NotNil(t, stored.ClusterServiceID, "ClusterServiceID should not be nil")
+		assert.Equal(t, testClusterServiceIDStr, stored.ClusterServiceID.String(),
 			"ClusterServiceID should be unchanged")
 	}
 
 	testCases := []struct {
-		name              string
-		existingCluster   *coreapi.Cluster
-		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
-		wantErr           bool
-		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		noClusterServiceID bool
+		name               string
+		existingCluster    *coreapi.Cluster
+		setupMockCSClient  func(mock *ocm.MockClusterServiceClientSpec)
+		wantErr            bool
+		wantErrContain     string
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:            "when CS returns 404 ClusterServiceID is cleared",
@@ -79,9 +80,9 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 					Return(nil, fakeOCMNotFoundError())
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				stored, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID)
+				assert.Nil(t, stored.ClusterServiceID)
 			},
 		},
 		{
@@ -102,15 +103,15 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "ClusterServiceID already cleared -- no-op",
+			noClusterServiceID: true,
+			name:               "ClusterServiceID already cleared -- no-op",
 			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				withDeletionStampsClusterOptsFunc(c)
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				stored, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain nil")
+				assert.Nil(t, stored.ClusterServiceID, "ClusterServiceID should remain nil")
 			},
 		},
 		{
@@ -145,7 +146,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
-			seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster)
+			seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster, !tc.noClusterServiceID)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.setupMockCSClient != nil {
@@ -194,7 +195,7 @@ func TestClusterClusterServiceIDClearer_NormalizesEmptyIDs(t *testing.T) {
 				})
 				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
 				require.NoError(t, err)
-				seedProviderIDs(t, ctx, db, cluster)
+				seedProviderIDs(t, ctx, db, cluster, false)
 				providers := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				provider, err := providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
@@ -215,8 +216,6 @@ func TestClusterClusterServiceIDClearer_NormalizesEmptyIDs(t *testing.T) {
 				parent, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				require.True(t, parent.ServiceProviderProperties.ClusterServiceDeletionCompleted)
-				require.Nil(t, parent.ServiceProviderProperties.PendingClusterServiceID)
-				require.Nil(t, parent.ServiceProviderProperties.ClusterServiceID)
 				provider, err = providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				require.Nil(t, provider.PendingClusterServiceID)

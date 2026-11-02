@@ -95,7 +95,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		{
 			name: "skip without CS call when no CSID",
 			existingCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
+
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
@@ -237,7 +237,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				seedResources = append(seedResources, tc.existingCluster)
 			}
 			if tc.existingServiceProviderCluster != nil {
-				tc.existingServiceProviderCluster.ClusterServiceID = tc.existingCluster.ServiceProviderProperties.ClusterServiceID
+				tc.existingServiceProviderCluster.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
 				seedResources = append(seedResources, tc.existingServiceProviderCluster)
 			}
 
@@ -293,41 +293,42 @@ func TestNeedsWork(t *testing.T) {
 	now := metav1.Now()
 
 	tests := []struct {
-		name    string
-		cluster *coreapi.Cluster
-		want    bool
+		noClusterServiceID bool
+		name               string
+		cluster            *coreapi.Cluster
+		want               bool
 	}{
 		{
-			name: "proceed when CSID set",
-			cluster: &coreapi.Cluster{
-				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-					ClusterServiceID: &csID,
-				},
-			},
-			want: true,
+			name:    "proceed when CSID set",
+			cluster: &coreapi.Cluster{},
+			want:    true,
 		},
 		{
 			name: "skip when deletion timestamp is set",
 			cluster: &coreapi.Cluster{
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					DeletionTimestamp: &now,
-					ClusterServiceID:  &csID,
 				},
 			},
 			want: false,
 		},
 		{
-			name: "skip when no CSID",
-			cluster: &coreapi.Cluster{
-				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{},
-			},
-			want: false,
+			name:               "skip when no CSID",
+			noClusterServiceID: true,
+			cluster:            &coreapi.Cluster{},
+			want:               false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, needsWork(tt.cluster, coreapitesting.ServiceProviderIDsForCluster(tt.cluster)))
+			assert.Equal(t, tt.want, needsWork(tt.cluster, func() *coreapi.ServiceProviderCluster {
+				provider := coreapitesting.ServiceProviderForCluster(tt.cluster, nil, &csID)
+				if tt.noClusterServiceID {
+					provider.ClusterServiceID = nil
+				}
+				return provider
+			}()))
 		})
 	}
 }
@@ -367,7 +368,6 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	csID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
@@ -379,9 +379,6 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Name: testClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
-		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &csID,
 		},
 	}
 

@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -77,7 +78,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, coreapitesting.ServiceProviderIDsForCluster(tc.existingCluster)})
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, coreapitesting.ServiceProviderForCluster(tc.existingCluster, nil, metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))))})
 			require.NoError(t, err)
 
 			cachedCluster := tc.cachedCluster

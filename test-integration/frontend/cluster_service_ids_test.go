@@ -184,8 +184,6 @@ func TestClusterIDTransactionalLifecycle(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, transition.pending, provider.PendingClusterServiceID)
 			require.Equal(t, transition.final, provider.ClusterServiceID)
-			require.Equal(t, transition.pending, cluster.ServiceProviderProperties.PendingClusterServiceID)
-			require.Equal(t, transition.final, cluster.ServiceProviderProperties.ClusterServiceID)
 		}
 		require.True(t, cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted)
 		require.NoError(t, providerCRUD.Delete(ctx, coreapi.ServiceProviderClusterResourceName))

@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
-func seedProviderIDs(t *testing.T, ctx context.Context, db corecosmosstorage.ResourcesDBClient, cluster *coreapi.Cluster) {
+func seedProviderIDs(t *testing.T, ctx context.Context, db corecosmosstorage.ResourcesDBClient, cluster *coreapi.Cluster, withClusterID bool) {
 	t.Helper()
 	if cluster == nil {
 		return
@@ -42,10 +42,21 @@ func seedProviderIDs(t *testing.T, ctx context.Context, db corecosmosstorage.Res
 		provider, err = providerCRUD.Create(ctx, &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: providerID, PartitionKey: cluster.ID.SubscriptionID}}, nil)
 	}
 	require.NoError(t, err)
-	provider.PendingClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
-	provider.ClusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+	provider.ClusterServiceID = providerForCluster(cluster, withClusterID).ClusterServiceID
 	_, err = db.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Replace(ctx, provider, nil)
 	require.NoError(t, err)
+}
+
+func providerForCluster(cluster *coreapi.Cluster, withClusterID bool) *coreapi.ServiceProviderCluster {
+	if cluster == nil {
+		return nil
+	}
+	provider := &coreapi.ServiceProviderCluster{}
+	if withClusterID {
+		id := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+		provider.ClusterServiceID = &id
+	}
+	return provider
 }
 
 func TestClusterDeletionCompletionSurvivesProviderCleanup(t *testing.T) {

@@ -46,7 +46,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -206,7 +205,6 @@ func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState c
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
-			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
 }

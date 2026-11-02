@@ -465,8 +465,6 @@ func clusterInformerTestCase() informerTestCase {
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+name)
-		internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
-		require.NoError(t, err)
 		return &coreapi.Cluster{
 			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   clusterResourceID,
@@ -482,7 +480,6 @@ func clusterInformerTestCase() informerTestCase {
 			},
 			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 				ProvisioningState: state,
-				ClusterServiceID:  &internalID,
 			},
 		}
 	}
@@ -610,8 +607,6 @@ func nodePoolInformerTestCase() informerTestCase {
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
-			require.NoError(t, err)
 			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
@@ -627,10 +622,9 @@ func nodePoolInformerTestCase() informerTestCase {
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
-					ClusterServiceID:  &internalID,
 				},
 			}
-			_, err = mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+			_, err := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
 			npCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
@@ -861,8 +855,6 @@ func controllerInformerTestCase() informerTestCase {
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
-			require.NoError(t, err)
 			cluster := &coreapi.Cluster{
 				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
@@ -878,10 +870,9 @@ func controllerInformerTestCase() informerTestCase {
 				},
 				ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 					ProvisioningState: coreapi.ProvisioningStateSucceeded,
-					ClusterServiceID:  &internalID,
 				},
 			}
-			_, err = mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+			_, err := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
 			// Create a nodepool under the cluster.

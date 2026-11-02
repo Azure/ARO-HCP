@@ -27,8 +27,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -99,8 +97,7 @@ func TestDumpBillingToLogger(t *testing.T) {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterUID:       "billing-doc-1",
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterUID: "billing-doc-1",
 		},
 	}
 
@@ -117,8 +114,7 @@ func TestDumpBillingToLogger(t *testing.T) {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterUID:       "billing-doc-2",
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterUID: "billing-doc-2",
 		},
 	}
 
@@ -184,8 +180,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterUID:       "cluster-1-billing-1",
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterUID: "cluster-1-billing-1",
 		},
 	}
 
@@ -202,8 +197,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterUID:       "cluster-2-billing-2",
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterUID: "cluster-2-billing-2",
 		},
 	}
 
@@ -220,8 +214,7 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 			},
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterUID:       "cluster-3-billing-3",
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
+			ClusterUID: "cluster-3-billing-3",
 		},
 	}
 

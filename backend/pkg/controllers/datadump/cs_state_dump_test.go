@@ -252,15 +252,12 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: clusterResourceID},
 					},
-					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ClusterServiceID: &csID,
-					},
 				}
 
 				clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 				_, err := clustersCRUD.Create(ctx, cluster, nil)
 				require.NoError(t, err)
-				_, err = mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+				_, err = mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &csID), nil)
 				require.NoError(t, err)
 			}
 
@@ -352,9 +349,6 @@ func TestCSStateDump_SyncOnce_DumpsListedNodePoolVersion(t *testing.T) {
 		},
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: clusterResourceID},
-		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &csID,
 		},
 	}, nil)
 	require.NoError(t, err, "failed to create test cluster")

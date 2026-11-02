@@ -45,7 +45,6 @@ func TestCleanupSyncOnce(t *testing.T) {
 	stamp := metav1.NewTime(testNow)
 	deleting.ServiceProviderProperties.DeletionTimestamp = &stamp
 	completed := deleting.DeepCopy()
-	completed.ServiceProviderProperties.PendingClusterServiceID = nil
 	completed.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &stamp
 	replacement := owner.DeepCopy()
 	replacement.ServiceProviderProperties.ClusterUID = "replacement"

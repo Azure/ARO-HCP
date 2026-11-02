@@ -72,6 +72,12 @@ presence in historical snapshots is not a live dependency. Stage 2 is the rollba
 floor after new-only writes begin. Rolling back to stage 1 or earlier requires a
 separate, reviewed reverse migration; stale legacy values are not safe input.
 
+The lifecycle transaction still replaces the parent with its observed ETag even
+when only provider IDs change. This guards concurrent parent deletion and keeps
+initialization and deletion-completion markers atomic with provider state. It is
+not a legacy ID write; removing that parent precondition would weaken the safety
+protocol. The old cluster properties are ignored on decode and never restored.
+
 ## Verification
 
 Exercise nil/empty IDs, pending-to-final promotion, clearing, repeated backfill,
