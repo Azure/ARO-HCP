@@ -70,19 +70,20 @@ func NewHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedClust
 // NewIngressSecretSyncReadDesire builds a kube-applier ReadDesire fixture wrapping the
 // ingress wildcard certificate's SecretSync object (see kubeapplierhelpers.IngressSecretSyncDesireName).
 // secretSyncConditions are the SecretSync object's own status conditions, as reported by
-// secrets-store-sync-controller (e.g. a "SecretCreated" condition type). When none are
+// secrets-store-sync-controller (e.g. a "SecretUpdated" condition type). When none are
 // supplied it defaults to a successful first sync.
 func NewIngressSecretSyncReadDesire(t *testing.T, secretSyncConditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
 	t.Helper()
+	status := secretsyncv1alpha1.SecretSyncStatus{Conditions: secretSyncConditions}
 	if secretSyncConditions == nil {
-		secretSyncConditions = []metav1.Condition{
-			{Type: "SecretCreated", Status: metav1.ConditionTrue, Reason: "CreateSuccessful"},
+		status.Conditions = []metav1.Condition{
+			{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"},
 		}
+		syncedAt := metav1.NewTime(MustParseTime("2025-01-15T10:30:00Z"))
+		status.LastSuccessfulSyncTime = &syncedAt
 	}
 	secretSync := &secretsyncv1alpha1.SecretSync{
-		Status: secretsyncv1alpha1.SecretSyncStatus{
-			Conditions: secretSyncConditions,
-		},
+		Status: status,
 	}
 	raw, err := json.Marshal(secretSync)
 	require.NoError(t, err)
