@@ -25,6 +25,9 @@ BASE_GENERATED = "package generated\n\nconst Model = 0\n"
 BASELINE_GENERATED = "package generated\n\nconst Model = 1\n"
 CANDIDATE_GENERATED = "package generated\n\nconst Model = 2\n"
 
+SDK = "test/sdk/v20990101preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+VENDORED_SDK = "vendor/github.com/Azure/ARO-HCP/" + SDK
+
 
 def git(root, *args):
     return subprocess.run(["git", *args], cwd=root, capture_output=True,
@@ -164,6 +167,27 @@ class CandidateFixture(unittest.TestCase):
             "ecosystem": "go", "package": self.package, "old": self.old, "target": self.new,
             "manifest": "backend/go.mod", "key": self.package, "direct": True}])
         self.consumer_effect = self.generate_go
+
+    def ignore_vendor_and_scratch(self):
+        self.write(".git/info/exclude", "".join("/" + directory + "\n" for directory in native.VENDORS)
+                   + "/scratch-cache/\n")
+
+    def prepare_sdk(self):
+        self.prepare_typespec()
+        git(self.repo, "restore", "api/package.json", "api/package-lock.json")
+        self.write(SDK + "/go.mod", f"module github.com/Azure/ARO-HCP/{SDK}\n\ngo 1.26.0\n")
+        for directory in (SDK, VENDORED_SDK):
+            self.write(directory + "/models.go", BASE_GENERATED)
+            self.write(directory + "/LICENSE", "SDK license baseline\n")
+        makefile = self.repo / "Makefile"
+        makefile.write_text(makefile.read_text() + "verify-vendor:\n"
+                            + f"\tcmp {SDK}/models.go {VENDORED_SDK}/models.go\n"
+                            + f"\tcmp {SDK}/LICENSE {VENDORED_SDK}/LICENSE\n")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-m", "generated SDK and vendored consumer base")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.npm(self.new)
+        self.observe()
 
     def go_module(self, directory, version):
         return f"module github.com/Azure/ARO-HCP/{directory}\n\ngo 1.26.0\n\nrequire {self.package} {version}\n"
@@ -336,6 +360,89 @@ class CandidateFixture(unittest.TestCase):
             self.validate()
         self.assert_no_request()
         self.assertEqual((self.repo / sdk / "models.go").read_text(), CANDIDATE_GENERATED)
+
+    def assert_stale_sdk_blocks(self, filename, content):
+        self.prepare_sdk()
+        self.candidate_output = BASE_GENERATED
+        vendor_checks = []
+
+        def sdk_boundary(validator, name, argv, cwd):
+            if name == "npm-api-testsdk":
+                self.write(SDK + "/" + filename, content)
+            if name == "npm-generated-verify-vendor":
+                # Exercise a real repository consumer against the on-disk SDK
+                # and its committed root vendor copy, not a mocked failure code.
+                result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+                vendor_checks.append(result)
+                if result.returncode:
+                    raise ValueError("generated SDK vendor is stale")
+
+        self.consumer_effect = sdk_boundary
+        with self.assertRaisesRegex(ValueError, "generated SDK vendor is stale"):
+            self.validate()
+        self.assertEqual(len(vendor_checks), 1)
+        self.assertNotEqual(vendor_checks[0].returncode, 0)
+        self.assertEqual(git(self.repo, "show", "HEAD:" + SDK + "/" + filename), content.strip())
+        self.assertNotEqual((self.repo / VENDORED_SDK / filename).read_text(), content)
+        self.assert_no_request()
+        self.assertFalse(any(name.startswith("common-") for name, _, _, _ in self.commands))
+
+    def test_standalone_sdk_tests_cannot_publish_stale_root_vendor(self):
+        self.assert_stale_sdk_blocks("models.go", CANDIDATE_GENERATED)
+        self.assertTrue(any(name.startswith("npm-generated-sdk-test-") for name, _, _, _ in self.commands))
+
+    def test_sdk_license_only_changes_still_require_vendor_verification(self):
+        self.assert_stale_sdk_blocks("LICENSE", "SDK license changed\n")
+        self.assertFalse(any(name.startswith("npm-generated-sdk-test-") for name, _, _, _ in self.commands))
+
+    def test_typespec_recipe_noops_are_rejected_before_consumers(self):
+        self.prepare_typespec()
+        self.write("api/Makefile", "".join(target + ":\n\ttrue # disabled\n" for target in runner.API_TARGETS))
+        with self.assertRaisesRegex(ValueError, "protected or unrelated replacement path"):
+            self.validate()
+        self.assertEqual(self.commands, [])
+        self.assert_no_request()
+
+    def test_typespec_generation_cannot_change_consumer_recipes(self):
+        self.prepare_typespec()
+
+        def disable_recipes(validator, name, argv, cwd):
+            if name == "npm-api-testsdk":
+                self.write("api/Makefile", "".join(target + ":\n\ttrue # disabled\n" for target in runner.API_TARGETS))
+
+        self.consumer_effect = disable_recipes
+        with self.assertRaisesRegex(ValueError, "protected or unrelated replacement path"):
+            self.validate()
+        self.assert_no_request()
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
+
+    def test_restored_committed_output_uses_current_bytes_in_snapshot_and_real_index(self):
+        self.prepare_typespec()
+        self.write(GENERATED, CANDIDATE_GENERATED)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-m", "previous candidate with generated output")
+        previous_head = git(self.repo, "rev-parse", "HEAD")
+        self.write(GENERATED, BASE_GENERATED)
+        self.candidate_output = BASE_GENERATED
+        validator = runner.Validator(self.repo, self.artifacts)
+        tree, changed = validator.snapshot(self.base, self.group)
+        self.assertNotIn(GENERATED, changed)
+        self.assertEqual(git(self.repo, "show", tree + ":" + GENERATED), BASE_GENERATED.strip())
+        self.assertEqual(git(self.repo, "show", ":" + GENERATED), CANDIDATE_GENERATED.strip(),
+                         "isolated snapshots must not mutate the real index")
+        self.validate()
+        request = json.loads((self.artifacts / native.REQUEST_FILE).read_text())
+        self.assertEqual(native.patch_paths(request["patch"]), ["api/package-lock.json", "api/package.json"])
+        self.assertEqual(git(self.repo, "write-tree"), tree)
+        self.assertEqual(self.results()["candidate_tree"], tree)
+        self.assertEqual(git(self.repo, "show", "HEAD:" + GENERATED), BASE_GENERATED.strip())
+        self.assertEqual(git(self.repo, "status", "--porcelain"), "")
+        self.assertNotEqual(git(self.repo, "rev-parse", "HEAD"), previous_head)
+        final_head = git(self.repo, "rev-parse", "HEAD")
+        self.validate()
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), final_head)
+        self.assertEqual(git(self.repo, "write-tree"), tree)
+        self.assertEqual(git(self.repo, "status", "--porcelain"), "")
 
     def test_protected_source_changes_are_refused_before_execution(self):
         self.write("api/Makefile", "models:\n\tunsafe-command\n")
@@ -595,6 +702,90 @@ class CandidateFixture(unittest.TestCase):
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
         self.assertIn("go-build", request["body"])
         self.assertIn("go-test-unit", request["body"])
+
+    def test_ignored_vendor_additions_are_in_committed_patch_but_ignored_cache_is_not(self):
+        self.prepare_go()
+        self.ignore_vendor_and_scratch()
+        calls = 0
+        additions = [directory + "example.com/library/added.go" for directory in native.VENDORS]
+        initial = [directory + "example.com/library/initial.go" for directory in native.VENDORS]
+        content = "package library\nconst Added = 3\n"
+        for path in initial:
+            self.write(path, content)
+
+        def generated(validator, name, argv, cwd):
+            nonlocal calls
+            calls += 1
+            self.generate_go(validator, name, argv, cwd)
+            self.write("scratch-cache/ignored.txt", str(calls))
+            if tuple(argv) == ("make", "vendor"):
+                for path in additions:
+                    self.write(path, content)
+            if name == "go-verify-vendor":
+                for path in initial + additions:
+                    self.assertEqual(git(self.repo, "show", "HEAD:" + path), content.strip())
+                    self.assertEqual(git(self.repo, "show", ":" + path), content.strip())
+
+        self.consumer_effect = generated
+        self.validate()
+        request = json.loads((self.artifacts / native.REQUEST_FILE).read_text())
+        changed = native.patch_paths(request["patch"])
+        for path in initial + additions:
+            self.assertIn(path, changed)
+            self.assertEqual((self.repo / path).read_text(), content)
+        self.assertIn("+const Added = 3", request["patch"])
+        self.assertNotIn("scratch-cache", request["patch"])
+        self.assertEqual(git(self.repo, "ls-files", "--", "scratch-cache"), "")
+        self.assertNotIn("scratch-cache/ignored.txt", runner.worktree_state(self.repo))
+        self.assertNotIn("scratch-cache/ignored.txt", runner.paths(self.repo, self.base))
+        self.assertEqual(self.results()["candidate_tree"], git(self.repo, "write-tree"))
+        self.assertEqual(git(self.repo, "write-tree"), git(self.repo, "rev-parse", "HEAD^{tree}"))
+        self.assertEqual(git(self.repo, "status", "--porcelain"), "")
+        runner.clean(self.repo)
+
+    def test_go_tidy_fixpoint_includes_new_ignored_vendor_files(self):
+        self.prepare_go()
+        self.ignore_vendor_and_scratch()
+        tidy_runs = 0
+
+        def unstable(validator, name, argv, cwd):
+            nonlocal tidy_runs
+            self.generate_go(validator, name, argv, cwd)
+            if tuple(argv) == ("make", "all-tidy"):
+                tidy_runs += 1
+                if tidy_runs == 2:
+                    for directory in native.VENDORS:
+                        self.write(directory + "example.com/library/new.go", "package library\n")
+
+        self.consumer_effect = unstable
+        with self.assertRaisesRegex(ValueError, "did not reach a second-run fixpoint"):
+            self.validate()
+        self.assert_no_request()
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
+        self.assertFalse(any(name == "go-vendor" for name, _, _, _ in self.commands))
+
+    def test_ignored_vendor_output_after_passing_checks_invalidates_request(self):
+        self.prepare_go()
+        self.ignore_vendor_and_scratch()
+        original = native.prepare_request
+
+        def late_output(*args, **kwargs):
+            result = original(*args, **kwargs)
+            for directory in native.VENDORS:
+                self.write(directory + "example.com/library/late.go", "package library\n")
+            return result
+
+        with patch.object(native, "prepare_request", side_effect=late_output):
+            with self.assertRaisesRegex(ValueError, "left candidate dirty"):
+                self.validate()
+        self.assert_no_request()
+        self.assertEqual(self.results()["status"], "failed")
+        self.assertTrue(any(name == "common-2" for name, _, _, _ in self.commands))
+        for directory in native.VENDORS:
+            path = directory + "example.com/library/late.go"
+            self.assertTrue((self.repo / path).is_file())
+            self.assertIn(path, runner.paths(self.repo, self.base))
+            self.assertEqual(git(self.repo, "ls-files", "--", path), "")
 
     def test_go_unit_failure_does_not_prepare_request(self):
         self.prepare_go()

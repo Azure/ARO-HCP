@@ -1751,6 +1751,47 @@ class EvidenceTests(unittest.TestCase):
                 self.assertFalse(native.version_covers(target, actual))
         self.assertFalse(native.version_covers("unverifiable", "v1.0.0"))
 
+    def test_typespec_recipe_changes_fail_preflight_and_publication_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "api").mkdir()
+            git(root, "init", "-b", "main")
+            git(root, "config", "user.name", "Fixture")
+            git(root, "config", "user.email", "fixture@example.test")
+            before = json.dumps({"dependencies": {"@typespec/compiler": "^1.16.0"}})
+            after = before.replace("1.16.0", "1.17.0")
+            targets = ("models", "generate", "generate-go", "generate-sdk", "lint", "format")
+            recipes = "".join(f"{target}:\n\t@echo {target}\n" for target in targets)
+            (root / "api/package.json").write_text(before)
+            (root / "api/Makefile").write_text(recipes)
+            git(root, "add", ".")
+            git(root, "commit", "-m", "base with trusted generator recipes")
+            base = git(root, "rev-parse", "HEAD")
+            intents = native.changes("api/package.json", before, after)
+            group = {"ecosystem": "npm", "family": "typespec",
+                     "sources": [{"intents": intents}]}
+            (root / "api/package.json").write_text(after)
+            git(root, "add", ".")
+            git(root, "commit", "-m", "TypeSpec dependency upgrade")
+            candidate = git(root, "rev-parse", "HEAD")
+            for complete in (False, True):
+                with self.subTest(complete=complete, recipes="unchanged"):
+                    native.validate_tree(root, base, candidate, ["api/package.json"],
+                                         group, complete=complete)
+            for recipe in ("\ttrue\n", "\t@:\n"):
+                (root / "api/Makefile").write_text(
+                    "".join(f"{target}:\n{recipe}" for target in targets))
+                git(root, "add", ".")
+                git(root, "commit", "-m", "disable generator recipes")
+                candidate = git(root, "rev-parse", "HEAD")
+                paths = git(root, "diff", "--name-only", base, candidate).splitlines()
+                for complete in (False, True):
+                    with self.subTest(complete=complete, recipe=recipe):
+                        with self.assertRaisesRegex(
+                                ValueError, "protected or unrelated replacement path: api/Makefile"):
+                            native.validate_tree(root, base, candidate, paths, group,
+                                                 complete=complete)
+
     def test_generated_typespec_sdk_module_metadata_is_constrained(self):
         path = "test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod"
         prefix = "module github.com/Azure/ARO-HCP/" + str(Path(path).parent) + "\n\ngo 1.25.0\n\n"

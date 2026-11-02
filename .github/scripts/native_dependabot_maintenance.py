@@ -826,8 +826,8 @@ def validate_replacement_paths(paths, group):
             allowed = name in ("go.mod", "go.sum", "go.work.sum") or path.startswith(VENDORS)
         elif ecosystem == "npm":
             allowed = name in ("package.json", "package-lock.json", "npm-shrinkwrap.json")
-            allowed |= group["family"] == "typespec" and (path == "api/Makefile"
-                or path.startswith("api/redhatopenshift/") and path.endswith((".tsp", "/openapi.json"))
+            allowed |= group["family"] == "typespec" and (
+                path.startswith("api/redhatopenshift/") and path.endswith((".tsp", "/openapi.json"))
                 or path.startswith("internal/azureapi/") and "/generated/" in path and path.endswith(".go")
                 or sdk_consumer(path) and (path.endswith(".go") or path.endswith("/testdata/_metadata.json")
                                            or name in ("go.mod", "go.sum", "LICENSE", "LICENSE.txt")))

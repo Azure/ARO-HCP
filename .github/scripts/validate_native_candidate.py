@@ -57,10 +57,30 @@ def git(root, *args, index=None):
                           check=True).stdout.decode("utf-8").strip()
 
 
+def untracked_paths(root):
+    ordinary = git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0")
+    # Generated vendor additions are ignored by repository policy and must be
+    # published, unlike ignored node_modules, caches, or scratch elsewhere.
+    vendor = git(root, "ls-files", "--others", "--ignored", "--exclude-standard", "-z",
+                 "--", *native.VENDORS).split("\0")
+    return [path for path in ordinary + vendor if path]
+
+
 def paths(root, base):
     changed = git(root, "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", base).split("\0")
-    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0")
-    return sorted({native.safe_path(path) for path in changed + untracked if path})
+    return sorted({native.safe_path(path) for path in changed + untracked_paths(root) if path})
+
+
+def stage_candidate(root, base, *, index=None):
+    # The index starts at HEAD, which may already contain a committed candidate.
+    # Include HEAD-relative restorations even when their bytes now equal base.
+    changed = sorted(set(paths(root, base)) | set(paths(root, "HEAD")))
+    vendor = [path for path in changed if path.startswith(native.VENDORS)]
+    ordinary = [path for path in changed if not path.startswith(native.VENDORS)]
+    if ordinary:
+        git(root, "add", "-A", "--", *ordinary, index=index)
+    if vendor:
+        git(root, "add", "-A", "--force", "--", *vendor, index=index)
 
 
 def file_state(root, path, *, strict=True):
@@ -77,14 +97,14 @@ def file_state(root, path, *, strict=True):
 
 def worktree_state(root):
     tracked = git(root, "ls-files", "-z").split("\0")
-    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0")
+    untracked = untracked_paths(root)
     # Unchanged tracked names (including vendor notices with spaces) and symlinks
     # are legitimate. Strict patch path/mode rules apply only to changed scope.
     return {path: file_state(root, path, strict=False) for path in sorted(set(tracked + untracked)) if path}
 
 
 def clean(root):
-    require(not git(root, "status", "--porcelain=v1", "--untracked-files=all"),
+    require(not git(root, "status", "--porcelain=v1", "--untracked-files=all") and not untracked_paths(root),
             "validation left candidate dirty; inspect full logs and git status (no request prepared)")
 
 
@@ -309,18 +329,20 @@ class Validator:
 
     def test_generated_go(self, changed, tree):
         internal = any(path.startswith("internal/azureapi/") and path.endswith(".go") for path in changed)
-        sdk_paths = [path for path in changed if native.sdk_consumer(path)
-                     and (path.endswith(".go") or PurePosixPath(path).name in ("go.mod", "go.sum"))]
+        sdk_paths = [path for path in changed if native.sdk_consumer(path)]
+        sdk_go_paths = [path for path in sdk_paths
+                        if path.endswith(".go") or PurePosixPath(path).name in ("go.mod", "go.sum")]
         if not internal and not sdk_paths:
             return
-        workspace = set(self.workspace_modules("npm-generated-workspace"))
+        workspace = (set(self.workspace_modules("npm-generated-workspace"))
+                     if internal or sdk_go_paths else set())
         if internal:
             require("internal" in workspace, "unsupported generated API consumer: internal is outside the workspace")
             self.run("npm-generated-internal-test", ("go", "test", "-timeout", "1200s", "./internal/azureapi/..."))
             clean(self.root)
         available = set(git(self.root, "ls-tree", "-r", "--name-only", tree).splitlines())
         modules = set()
-        for path in sdk_paths:
+        for path in sdk_go_paths:
             directory = PurePosixPath(path).parent
             while str(directory) != "." and str(directory / "go.mod") not in available:
                 directory = directory.parent
@@ -333,16 +355,21 @@ class Validator:
                      cwd=self.root / directory,
                      env_overrides={} if directory in workspace else {"GOWORK": "off"})
             clean(self.root)
+        if sdk_paths:
+            # Root consumers use vendored copies of these local SDK modules.
+            # Passing standalone SDK tests does not prove those copies are fresh.
+            self.run("npm-generated-verify-vendor", ("make", "verify-vendor"))
+            clean(self.root)
 
     def snapshot(self, base, group, *, complete=True):
-        changed = paths(self.root, base)
-        native.validate_replacement_paths(changed, group)
         with tempfile.TemporaryDirectory(prefix="native-index-", dir=self.attempt) as directory:
             index = Path(directory) / "index"
             git(self.root, "read-tree", "HEAD", index=index)
-            if changed:
-                git(self.root, "add", "-A", "--", *changed, index=index)
+            stage_candidate(self.root, base, index=index)
             tree = git(self.root, "write-tree", index=index)
+        changed = [native.safe_path(path) for path in git(
+            self.root, "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
+            "--name-only", "-z", base, tree).split("\0") if path]
         # Before generation, enforce dependency-only executable/configuration
         # scope but do not demand that yet-to-be-generated consumers cover the
         # target. The complete group is mandatory after generation and at handoff.
@@ -409,7 +436,7 @@ class Validator:
             self.exclude_baseline_drift(base, drift)
         tree, changed = self.snapshot(base, group)
         require(bool(changed), "candidate has no dependency changes")
-        git(self.root, "add", "-A", "--", *changed)
+        stage_candidate(self.root, base)
         require(git(self.root, "write-tree") == tree, "candidate changed while staging validated scope")
         if git(self.root, "diff", "--cached", "--name-only"):
             git(self.root, "commit", "-m", "chore: validate native dependency candidate")
