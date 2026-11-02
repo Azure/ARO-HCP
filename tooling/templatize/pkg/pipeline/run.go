@@ -579,7 +579,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					continue
 				}
 
-				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
+				testCase := &junit.TestCase{
+					Name:      fmt.Sprintf("Run pipeline step %s", id.String()),
+					Timestamp: startedAt.UTC().Format(time.RFC3339),
+					Duration:  finishedAt.Sub(startedAt).Seconds(),
+				}
 				if info.State == "failed" {
 					log := string(logging[id])
 					if info.Preempted {
