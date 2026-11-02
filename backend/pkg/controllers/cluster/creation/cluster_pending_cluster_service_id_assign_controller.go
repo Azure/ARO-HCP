@@ -89,6 +89,10 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
+	if !c.needsWork(cluster) {
+		return nil
+	}
+
 	uid := ocm.NewCSClusterUID()
 	pendingID, err := metadataapi.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s", uid))
 	if err != nil {
@@ -97,7 +101,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 
 	logger.Info("Assigning PendingClusterServiceID", "pendingClusterServiceID", pendingID.String())
 	cluster.ServiceProviderProperties.PendingClusterServiceID = &pendingID
-	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
+	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
