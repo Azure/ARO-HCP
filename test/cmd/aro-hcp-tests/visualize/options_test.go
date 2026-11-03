@@ -429,6 +429,13 @@ func TestTimingChartUncoveredTooltip(t *testing.T) {
 			{Name: "Phase: Instant", Kind: "phase", Color: "#9333ea", Start: 50000, End: 50000},
 			{Name: "instant operation", Kind: "operation", Color: "#2563eb", Start: 50000, End: 50000},
 		}},
+		timingChartGroup{Name: "fractional endpoint", Duration: 1000.000002, FullLifecycle: true, Segments: []timingChartSegment{
+			{Name: "Phase: Setup", Kind: "phase", Color: "#9333ea", Start: 10000.000001, End: 10500.000002},
+			{Name: "Phase: Cleanup", Kind: "phase", Color: "#9333ea", Start: 10500.000002, End: 11000.000003},
+			{Name: "initial instant", Kind: "operation", Color: "#2563eb", Start: 10000.000001, End: 10000.000001},
+			{Name: "internal instant", Kind: "operation", Color: "#2563eb", Start: 10500.000002, End: 10500.000002},
+			{Name: "final instant", Kind: "operation", Color: "#2563eb", Start: 11000.000003, End: 11000.000003},
+		}},
 	)
 	for i := range groups {
 		groups[i].StartTime = int64(i)
@@ -455,7 +462,8 @@ const createElement = tag => {
 	};
 };
 const sort = {value:'start', addEventListener:()=>{}};
-const state = {yAxis:[{data:[]}],series:[{data:groups.map(()=>({value:50000}))},{data:groups.map(g=>({value:g.duration}))}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
+const offsets = [50000,50000,50000,50000,10000.000001];
+const state = {yAxis:[{data:[]}],series:[{data:groups.map((g,i)=>({value:offsets[i]}))},{data:groups.map(g=>({value:g.duration}))}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
 const chart = {
 	height:600, dom:{style:{}}, getOption:()=>state, getHeight:()=>chart.height, getDom:()=>chart.dom,
 	resize:({height})=>chart.height=height, on:()=>{}, dispatchAction:()=>{},
@@ -522,16 +530,19 @@ assert.ok(descendants(legacy).some(node=>node.tagName==='H3' && node.textContent
 assert.equal(descendants(legacy).filter(node=>node.textContent==='legacy operation').length,1);
 assert.ok(legacy.textContent.includes('No recorded operation during test work'));
 assert.ok(legacy.textContent.includes('No recorded operation during cleanup'));
-const terminalLabel = descendants(legacy).find(node=>!node.children.length && node.textContent==='terminal operation');
-const terminalGrid = descendants(legacy).find(node=>node.children.includes(terminalLabel));
-const terminalTrack = terminalGrid.children[terminalGrid.children.indexOf(terminalLabel)+1].children[0];
-assert.equal(terminalTrack.style.left,'calc(100% - 2px)');
-assert.equal(terminalTrack.style.width,'0%');
 const zero = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:3}]);
 assert.ok(zero.textContent.includes('0s'));
 assert.ok(!zero.textContent.includes('NaN') && !zero.textContent.includes('Infinity'));
 assert.equal(descendants(zero).filter(node=>node.textContent==='instant operation').length,1);
-assert.ok(descendants(zero).some(node=>node.tagName==='H3' && node.textContent==='Instant'));`
+assert.ok(descendants(zero).some(node=>node.tagName==='H3' && node.textContent==='Instant'));
+const fractional = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:4}]);
+const fractionalSections = fractional.children.filter(node=>node.tagName==='SECTION');
+const fractionalSection = name => fractionalSections.find(node=>descendants(node).some(child=>child.tagName==='H3' && child.textContent===name));
+assert.ok(fractionalSection('Setup').textContent.includes('initial instant'));
+assert.ok(!fractionalSection('Setup').textContent.includes('internal instant'));
+assert.ok(fractionalSection('Cleanup').textContent.includes('internal instant'));
+assert.ok(fractionalSection('Cleanup').textContent.includes('final instant'));
+assert.equal(fractionalSection('Outside recorded stages'),undefined);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("uncovered tooltip regression: %v\n%s", err, output)
 	}

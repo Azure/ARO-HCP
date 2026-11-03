@@ -613,6 +613,8 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		if (!test) return '';
 		const start = Number(currentOffsets[item.dataIndex].value);
 		const duration = Math.max(0, test.duration);
+		const testEnd = start + duration;
+		const endpointTolerance = Number.EPSILON * Math.max(1, Math.abs(start), duration, Math.abs(testEnd)) * 4;
 		const formatDuration = value => {
 			if (value > 0 && value < 1000) return '<1s';
 			const total = Math.floor(value / 1000);
@@ -653,7 +655,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 				const track = element('div', {position:'relative', height:'10px', borderRadius:'2px', overflow:'hidden', background:'rgba(128,128,128,0.18)'});
 				const left = duration > 0 ? (segment.start - start) / duration * 100 : 0;
 				const width = duration > 0 ? (segment.end - segment.start) / duration * 100 : 0;
-				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:left === 100 && width === 0 ? 'calc(100% - 2px)' : left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
+				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:width === 0 ? 'min(' + left + '%, calc(100% - 2px))' : left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
 				grid.append(label, track, element('span', {textAlign:'right', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}, formatDuration(segment.end - segment.start)));
 			}
 			return grid;
@@ -664,7 +666,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		const crossing = [], outside = [];
 		for (const segment of segments.filter(segment => segment.kind !== 'phase')) {
 			const overlaps = stages.filter(({phase}) => segment.start === segment.end
-				? phase.start <= segment.start && (segment.start < phase.end || phase.end === start + duration && segment.start === phase.end || phase.start === phase.end && segment.start === phase.start)
+				? phase.start <= segment.start && (segment.start < phase.end || Math.abs(phase.end - testEnd) <= endpointTolerance && segment.start === phase.end || phase.start === phase.end && segment.start === phase.start)
 				: phase.start < segment.end && phase.end > segment.start);
 			if (overlaps.length === 1 && overlaps[0].phase.start <= segment.start && overlaps[0].phase.end >= segment.end) {
 				overlaps[0].rows.push(segment);
