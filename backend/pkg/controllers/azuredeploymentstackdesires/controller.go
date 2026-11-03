@@ -20,11 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -58,56 +56,24 @@ import (
 )
 
 const AzureDeploymentStackDesiresControllerName = "AzureDeploymentStackDesires"
+
+// defaultInterval is the cooldown before reconciling unchanged intent again after
+// success or an invalid-intent outcome, used when the producer leaves
+// Spec.ReconcileInterval unset (non-positive).
 const defaultInterval = 6 * time.Hour
+
+// pendingInterval is the requeue delay while waiting for a submitted Azure stack
+// operation to reach a terminal state. It is independent of defaultInterval,
+// which only bounds re-checks of already-settled (successful or invalid) intent.
 const pendingInterval = 30 * time.Second
 
+// errExecutionFailed is a stable sentinel distinguishing a genuine, retryable
+// Azure execution failure from success, invalid intent, or a still-pending
+// operation. SyncOnce propagates it so the workqueue retries with backoff, and
+// decideStackDesire checks it separately to pick an accurate log/submission
+// message when repairing a failed Apply, independent of the underlying Azure
+// error's exact text.
 var errExecutionFailed = errors.New("deployment stack execution failed")
-
-// Key identifies a single DeploymentStackDesire by its parent resource ID and
-// name. ParentResourceID is parent-agnostic (mirrors
-// kube-applier's keys.ApplyDesireKey) so this controller does not assume the
-// parent is specifically a Cluster — today only Cluster-scoped desires exist,
-// but a future scope needs no change here.
-type Key struct {
-	ParentResourceID string
-	Name             string
-}
-
-// CRUD returns the right per-scope CRUD for this key's parent.
-func (k Key) CRUD(client azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD) (cosmosstorageutils.ResourceCRUD[azureresourcesapi.DeploymentStackDesire, *azureresourcesapi.DeploymentStackDesire], error) {
-	id, err := azcorearm.ParseResourceID(k.ParentResourceID)
-	if err != nil {
-		return nil, err
-	}
-	parent, err := azureresourcescosmosstorage.ParseDeploymentStackDesireScope(id)
-	if err != nil {
-		return nil, err
-	}
-	return client.DeploymentStackDesiresFor(parent)
-}
-
-// GetResourceID returns the desire's full resource ID.
-func (k Key) GetResourceID() *azcorearm.ResourceID {
-	s := strings.ToLower(path.Join(k.ParentResourceID, azureresourcesapi.DeploymentStackDesireResourceTypeName, k.Name))
-	return metadataapi.Must(azcorearm.ParseResourceID(s))
-}
-
-func (k Key) AddLoggerValues(logger logr.Logger) logr.Logger {
-	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
-}
-
-// KeyFromResourceID parses a Key out of a DeploymentStackDesire's resource ID.
-// The desire is the leaf; everything above it is the parent. Mirrors
-// kube-applier's keys.ApplyDesireKeyFromResourceID.
-func KeyFromResourceID(id *azcorearm.ResourceID) (Key, error) {
-	if id == nil {
-		return Key{}, errors.New("resource ID is nil")
-	}
-	if id.Parent == nil {
-		return Key{}, fmt.Errorf("desire %q has no parent in its resource ID", id.String())
-	}
-	return Key{ParentResourceID: strings.ToLower(id.Parent.String()), Name: id.Name}, nil
-}
 
 // controller reconciles DeploymentStackDesires directly off its informer's
 // event stream, mirroring kube-applier's ApplyDesireController rather than
@@ -118,29 +84,32 @@ func KeyFromResourceID(id *azcorearm.ResourceID) (Key, error) {
 // widening the informer's GlobalLister, not this controller.
 type controller struct {
 	controllerutil.CacheSyncWaiter
-	name         string
-	crudByParent azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD
-	lister       azureresourceslisters.DeploymentStackDesireLister
-	fpa          azureclient.FirstPartyApplicationClientBuilder
-	smi          azureclient.ServiceManagedIdentityClientBuilder
-	clock        clock.PassiveClock
-	queue        workqueue.TypedRateLimitingInterface[Key]
+	name string
+	// crudByParent is the CRUD for the parent of the DeploymentStackDesire.
+	crudByParent                        azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD
+	deploymentStackDesireLister         azureresourceslisters.DeploymentStackDesireLister
+	firstPartyApplicationClientBuilder  azureclient.FirstPartyApplicationClientBuilder
+	serviceManagedIdentityClientBuilder azureclient.ServiceManagedIdentityClientBuilder
+	clock                               clock.PassiveClock
+	// queue is where incoming work is placed to de-dup and to allow "easy"
+	// rate limited requeues on errors
+	queue workqueue.TypedRateLimitingInterface[Key]
 }
 
 // NewController wires up the informer event handler and returns a
 // ready-to-Run controller.
 func NewController(crudByParent azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD, informers azureresourcesinformers.AzureResourcesInformers,
-	fpa azureclient.FirstPartyApplicationClientBuilder, smi azureclient.ServiceManagedIdentityClientBuilder,
-	clk clock.PassiveClock,
+	firstPartyApplicationClientBuilder azureclient.FirstPartyApplicationClientBuilder, serviceManagedIdentityClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
+	clock clock.PassiveClock,
 ) *controller {
 	deploymentStackDesiresInformer, deploymentStackDesiredLister := informers.DeploymentStackDesires()
 	c := &controller{
-		name:         AzureDeploymentStackDesiresControllerName,
-		crudByParent: crudByParent,
-		lister:       deploymentStackDesiredLister,
-		fpa:          fpa,
-		smi:          smi,
-		clock:        clk,
+		name:                                AzureDeploymentStackDesiresControllerName,
+		crudByParent:                        crudByParent,
+		deploymentStackDesireLister:         deploymentStackDesiredLister,
+		firstPartyApplicationClientBuilder:  firstPartyApplicationClientBuilder,
+		serviceManagedIdentityClientBuilder: serviceManagedIdentityClientBuilder,
+		clock:                               clock,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[Key](),
 			workqueue.TypedRateLimitingQueueConfig[Key]{Name: AzureDeploymentStackDesiresControllerName},
@@ -246,25 +215,20 @@ func (c *controller) processNextWorkItem(ctx context.Context) bool {
 
 func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 	logger := utils.LoggerFromContext(ctx)
-	desire, err := c.lister.GetByResourceID(ctx, key.GetResourceID().String())
+	desire, err := c.deploymentStackDesireLister.GetByResourceID(ctx, key.GetResourceID().String())
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	result := decideStackDesire(logger, desire, c.clock.Now(), func() (*armdeploymentstacks.DeploymentStack, error) {
-		client, err := c.stackClient(ctx, desire)
-		if err != nil {
-			return nil, err
-		}
-		return getStack(ctx, client, desire.Spec.TargetResourceID)
-	})
+	getDeploymentStacksClient := c.newDeploymentStacksClientGetter(ctx, desire)
+	result := decideDeploymentStackDesire(ctx, desire, c.clock.Now(), c.newLazyAzureDeploymentStackGet(ctx, desire, getDeploymentStacksClient))
 	result.validate()
 	status, executionErr := result.status, result.err
-	switch result.action {
-	case applyStack, deleteStack:
-		client, err := c.stackClient(ctx, desire)
+	switch result.kind {
+	case decisionKindApplyStack, decisionKindDeleteStack:
+		client, err := getDeploymentStacksClient()
 		if err != nil {
 			return err
 		}
@@ -272,13 +236,13 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		if err != nil {
 			return err
 		}
-		logger.Info(result.submissionMessage, "action", result.action, "desiredSpecHash", hash)
-		if result.action == applyStack {
+		logger.Info(result.submissionMessage, "action", result.kind, "desiredSpecHash", hash)
+		if result.kind == decisionKindApplyStack {
 			stack, err := submitApply(ctx, client, desire.Spec)
 			if err != nil {
-				status, executionErr = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
+				status, executionErr = deploymentStackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 			} else {
-				status, executionErr = stackDesireStatusForAssociatedApply(hash, stack)
+				status, executionErr = deploymentStackDesireStatusForAssociatedApply(hash, stack)
 				properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})
 				logger.Info("Azure returned an Apply outcome", "state", ptr.Deref(properties.ProvisioningState, ""), "observedSpecHash", hash, "reason", status.Conditions[0].Reason)
 			}
@@ -287,12 +251,12 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 			if err == nil {
 				logger.Info("Azure accepted stack deletion; waiting for GET to confirm absence", "observedSpecHash", hash)
 			}
-			status, executionErr = stackDesireStatusForDeleteSubmission(hash, err)
+			status, executionErr = deploymentStackDesireStatusForDeleteSubmission(hash, err)
 		}
 		if status == nil {
-			logger.Info("Azure stack submission outcome is unknown; reconciliation will observe Azure again", "action", result.action, "desiredSpecHash", hash)
+			logger.Info("Azure stack submission outcome is unknown; reconciliation will observe Azure again", "action", result.kind, "desiredSpecHash", hash)
 		} else if status.Error != nil {
-			logger.Info("Azure rejected the stack operation", "action", result.action, "desiredSpecHash", hash, "reason", status.Conditions[0].Reason)
+			logger.Info("Azure rejected the stack operation", "action", result.kind, "desiredSpecHash", hash, "reason", status.Conditions[0].Reason)
 		}
 		if status != nil {
 			// Every new attempt gets a clock, even an identical rejection after cooldown.
@@ -300,7 +264,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 			status = normalizeStatusTimes(desire.Status, *status, now)
 			status.ObservedAt = ptr.To(metav1.NewTime(now))
 		}
-	case noOp:
+	case decisionKindNoOp:
 		if result.requeue > 0 {
 			c.queue.AddAfter(key, result.requeue)
 		}
@@ -324,26 +288,69 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 	return executionErr
 }
 
-// stackClient assumes the desire's routing and authentication have been validated.
-func (c *controller) stackClient(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (*armdeploymentstacks.Client, error) {
-	authentication := desire.Spec.Authentication
-	if authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI {
-		return c.smi.DeploymentStacksClient(ctx, authentication.ServiceManagedIdentity.ClusterIdentityURL, authentication.ServiceManagedIdentity.ServiceManagedIdentityResourceID, desire.Spec.TargetResourceID.SubscriptionID)
+// newLazyAzureDeploymentStackGet returns a function that allows you to get the Azure deployment stack associated to the target in desired, using
+// the authentication defined in desire.
+func (c *controller) newLazyAzureDeploymentStackGet(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire, getClient func() (*armdeploymentstacks.Client, error)) func() (*armdeploymentstacks.DeploymentStack, error) {
+	return func() (*armdeploymentstacks.DeploymentStack, error) {
+		deploymentStacksClient, err := getClient()
+		if err != nil {
+			return nil, err
+		}
+		return getDeploymentStack(ctx, deploymentStacksClient, desire.Spec.TargetResourceID)
 	}
-	return c.fpa.DeploymentStacksClient(authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
 }
 
-type action string
+// newDeploymentStacksClientGetter assumes the desire's routing and authentication have been
+// validated. The returned function is scoped to a single SyncOnce call: for SMI it caches the
+// built client (and the token fetch behind it) so it is reused across both the lazy GET and the
+// submission path in one reconcile, instead of hitting ClusterIdentityURL twice.
+func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) func() (*armdeploymentstacks.Client, error) {
+	authentication := desire.Spec.Authentication
+	if authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI {
+		return c.newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx, authentication.ServiceManagedIdentity, desire.Spec.TargetResourceID)
+	}
+	tenantID, subscriptionID := authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID
+	return func() (*armdeploymentstacks.Client, error) {
+		return c.firstPartyApplicationClientBuilder.DeploymentStacksClient(tenantID, subscriptionID)
+	}
+}
+
+// newCachedServiceManagedIdentityDeploymentStacksClientGetter returns a getter that builds the
+// SMI deployment stacks client at most once and caches it in the closure's own local variable for
+// every later call. Only a successful build is cached; a failed build leaves the cache empty, so
+// the next call retries the real builder instead of returning the cached error. Building this
+// client exchanges the cluster identity for a token against ClusterIdentityURL, a real network
+// round trip to the Managed Identities Data Plane Service. Without caching, a single SyncOnce
+// that both calls the lazy GET and submits to Azure would pay that round trip twice. The cache
+// lives only as long as the returned closure (i.e. one SyncOnce call). Callers must obtain a
+// fresh getter per call rather than reusing one across reconciles or desires.
+func (c *controller) newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx context.Context, authentication *azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity, targetResourceID *azcorearm.ResourceID) func() (*armdeploymentstacks.Client, error) {
+	var deploymentStacksClient *armdeploymentstacks.Client
+	return func() (*armdeploymentstacks.Client, error) {
+		if deploymentStacksClient != nil {
+			return deploymentStacksClient, nil
+		}
+
+		client, err := c.serviceManagedIdentityClientBuilder.DeploymentStacksClient(ctx, authentication.ClusterIdentityURL, authentication.ServiceManagedIdentityResourceID, targetResourceID.SubscriptionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Deployment Stacks Client: %w", err)
+		}
+		deploymentStacksClient = client
+		return deploymentStacksClient, nil
+	}
+}
+
+type decisionKind string
 
 const (
-	noOp               action = "NoOp"
-	updateDesireStatus action = "UpdateDesireStatus"
-	applyStack         action = "ApplyStack"
-	deleteStack        action = "DeleteStack"
+	decisionKindNoOp               decisionKind = "NoOp"
+	decisionKindUpdateDesireStatus decisionKind = "UpdateDesireStatus"
+	decisionKindApplyStack         decisionKind = "ApplyStack"
+	decisionKindDeleteStack        decisionKind = "DeleteStack"
 )
 
 type decision struct {
-	action  action
+	kind    decisionKind
 	status  *azureresourcesapi.DeploymentStackDesireStatus
 	err     error
 	requeue time.Duration
@@ -353,16 +360,16 @@ type decision struct {
 
 // Invalid combinations are programmer errors, not retryable reconciliation errors.
 func (result decision) validate() {
-	switch result.action {
-	case updateDesireStatus:
+	switch result.kind {
+	case decisionKindUpdateDesireStatus:
 		if result.status != nil && result.requeue == 0 && result.submissionMessage == "" {
 			return
 		}
-	case applyStack, deleteStack:
+	case decisionKindApplyStack, decisionKindDeleteStack:
 		if result.status == nil && result.requeue == 0 && result.err == nil {
 			return
 		}
-	case noOp:
+	case decisionKindNoOp:
 		if result.status == nil && result.requeue >= 0 && (result.requeue == 0 || result.err == nil) && result.submissionMessage == "" {
 			return
 		}
@@ -371,15 +378,16 @@ func (result decision) validate() {
 }
 
 // All events use this decision. GET is lazy and occurs at most once.
-func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentStackDesire, now time.Time, lazyGET func() (*armdeploymentstacks.DeploymentStack, error)) decision {
+func decideDeploymentStackDesire(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire, now time.Time, lazyGET func() (*armdeploymentstacks.DeploymentStack, error)) decision {
+	logger := utils.LoggerFromContext(ctx)
 	userAssignedIdentityResourceType := metadataapi.Must(azcorearm.ParseResourceType("Microsoft.ManagedIdentity/userAssignedIdentities"))
 	var desiredConditionType string
-	var mutation action
+	var mutation decisionKind
 	switch desire.Spec.Action {
 	case azureresourcesapi.DeploymentStackDesireActionTypeApply:
-		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, applyStack
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, decisionKindApplyStack
 	case azureresourcesapi.DeploymentStackDesireActionTypeDelete:
-		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, deleteStack
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, decisionKindDeleteStack
 	}
 	var validationErrs []error
 	target := desire.Spec.TargetResourceID
@@ -442,9 +450,9 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 		}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
 			logger.Info("Stack intent failed local validation", "desiredConditionType", desiredConditionType, "desiredSpecHash", hash)
-			return decision{action: updateDesireStatus, status: normalized}
+			return decision{kind: decisionKindUpdateDesireStatus, status: normalized}
 		}
-		return decision{action: noOp}
+		return decision{kind: decisionKindNoOp}
 	}
 	// Bound repeated repair of unchanged successful or invalid intent without
 	// delaying new intent, in-flight observations, or retryable execution failures.
@@ -455,15 +463,15 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 	condition := meta.FindStatusCondition(desire.Status.Conditions, desiredConditionType)
 	if desire.Status.ObservedSpecHash == hash && desire.Status.ObservedAt != nil && condition != nil &&
 		(condition.Status == metav1.ConditionTrue || condition.Reason == "InvalidIntent") && now.Before(desire.Status.ObservedAt.Add(interval)) {
-		return decision{action: noOp}
+		return decision{kind: decisionKindNoOp}
 	}
-	stack, err := lazyGET()
+	deploymentStack, err := lazyGET()
 	if err != nil {
-		return decision{action: noOp, err: err}
+		return decision{kind: decisionKindNoOp, err: err}
 	}
-	if stack == nil {
-		if mutation == applyStack {
-			return decision{action: applyStack, submissionMessage: "Attempting to create the deployment stack because it is absent"}
+	if deploymentStack == nil {
+		if mutation == decisionKindApplyStack {
+			return decision{kind: decisionKindApplyStack, submissionMessage: "Attempting to create the deployment stack because it is absent"}
 		}
 		status := azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, ObservedAt: ptr.To(metav1.NewTime(now)), Conditions: []metav1.Condition{
 			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent"},
@@ -471,11 +479,11 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 		}}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
 			logger.Info("Confirmed deployment stack deletion", "desiredSpecHash", hash)
-			return decision{action: updateDesireStatus, status: normalized}
+			return decision{kind: decisionKindUpdateDesireStatus, status: normalized}
 		}
-		return decision{action: noOp}
+		return decision{kind: decisionKindNoOp}
 	}
-	properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})
+	properties := ptr.Deref(deploymentStack.Properties, armdeploymentstacks.DeploymentStackProperties{})
 	state := ptr.Deref(properties.ProvisioningState, "")
 	correlation := ptr.Deref(properties.CorrelationID, "")
 	previousStack := ptr.Deref(desire.Status.Stack, armdeploymentstacks.DeploymentStack{})
@@ -485,7 +493,7 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 	terminal := state == armdeploymentstacks.DeploymentStackProvisioningStateSucceeded ||
 		state == armdeploymentstacks.DeploymentStackProvisioningStateFailed || state == armdeploymentstacks.DeploymentStackProvisioningStateCanceled
 	if terminal && !associatedWithRecordedApply {
-		return decision{action: mutation, submissionMessage: "Attempting the desired stack operation because the completed Azure operation is not associated with the recorded Apply"}
+		return decision{kind: mutation, submissionMessage: "Attempting the desired stack operation because the completed Azure operation is not associated with the recorded Apply"}
 	}
 	var status *azureresourcesapi.DeploymentStackDesireStatus
 	var executionErr error
@@ -493,12 +501,12 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 		// Only Apply submissions establish a correlated Stack/hash pair. Delete
 		// acceptance has no Stack, and unassociated GETs never acquire a hash.
 		// Conditions may have been replaced by prechecks for a different intent.
-		status, executionErr = stackDesireStatusForAssociatedApply(desire.Status.ObservedSpecHash, stack)
+		status, executionErr = deploymentStackDesireStatusForAssociatedApply(desire.Status.ObservedSpecHash, deploymentStack)
 		if status.ObservedSpecHash != hash {
 			executionErr = nil
 		}
 	} else {
-		status = &azureresourcesapi.DeploymentStackDesireStatus{Stack: stack, Conditions: []metav1.Condition{
+		status = &azureresourcesapi.DeploymentStackDesireStatus{Stack: deploymentStack, Conditions: []metav1.Condition{
 			{Type: desiredConditionType, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
 			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}}
@@ -510,10 +518,10 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 		} else {
 			logger.Info("Waiting for unassociated stack operation", "state", state, "desiredConditionType", desiredConditionType, "desiredSpecHash", hash)
 		}
-		return decision{action: updateDesireStatus, status: normalized, err: executionErr}
+		return decision{kind: decisionKindUpdateDesireStatus, status: normalized, err: executionErr}
 	}
 	if !terminal {
-		return decision{action: noOp, requeue: pendingInterval}
+		return decision{kind: decisionKindNoOp, requeue: pendingInterval}
 	}
 	var submissionMessage string
 	switch {
@@ -524,7 +532,7 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 	default:
 		submissionMessage = "Attempting the desired stack operation because the configured repair/retry interval has expired"
 	}
-	return decision{action: mutation, submissionMessage: submissionMessage}
+	return decision{kind: mutation, submissionMessage: submissionMessage}
 }
 
 // Unchanged observations do not write; completed-operation metadata and
@@ -600,7 +608,11 @@ func classifyError(detail *armdeploymentstacks.ErrorDetail) (string, bool) {
 	return string(payload), true
 }
 
-func getStack(ctx context.Context, client *armdeploymentstacks.Client, target *azcorearm.ResourceID) (*armdeploymentstacks.DeploymentStack, error) {
+// getDeploymentStack gets the Azure deployment stack associated to target using client or an error.
+// If the deployment stack is not found, it returns nil and no error.
+// If the deployment stack is found, it returns the deployment stack and no error.
+// If there's an error when trying to get the deployment stack, it returns nil and the error.
+func getDeploymentStack(ctx context.Context, client *armdeploymentstacks.Client, target *azcorearm.ResourceID) (*armdeploymentstacks.DeploymentStack, error) {
 	var stack armdeploymentstacks.DeploymentStack
 	var err error
 	switch strings.ToLower(target.Parent.ResourceType.String()) {
@@ -701,7 +713,7 @@ func submitDelete(ctx context.Context, client *armdeploymentstacks.Client, spec 
 	return err
 }
 
-func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks.DeploymentStack) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
+func deploymentStackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks.DeploymentStack) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	status := &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Stack: stack}
 	associatedStack := ptr.Deref(stack, armdeploymentstacks.DeploymentStack{})
 	properties := ptr.Deref(associatedStack.Properties, armdeploymentstacks.DeploymentStackProperties{})
@@ -736,9 +748,9 @@ func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks
 	return status, err
 }
 
-func stackDesireStatusForDeleteSubmission(hash string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
+func deploymentStackDesireStatusForDeleteSubmission(hash string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	if err != nil {
-		return stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, err)
+		return deploymentStackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, err)
 	}
 	// Even a synchronous Delete response is only acceptance; GET proves absence.
 	return &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Conditions: []metav1.Condition{
@@ -747,7 +759,7 @@ func stackDesireStatusForDeleteSubmission(hash string, err error) (*azureresourc
 	}}, nil
 }
 
-func stackDesireStatusForRejectedSubmission(hash, conditionType string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
+func deploymentStackDesireStatusForRejectedSubmission(hash, conditionType string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	var responseErr *azcore.ResponseError
 	if !errors.As(err, &responseErr) {
 		return nil, err

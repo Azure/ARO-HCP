@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -68,12 +67,12 @@ func newDesire() *azureresourcesapi.DeploymentStackDesire {
 				Type:                  azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA,
 				FirstPartyApplication: &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{TenantID: "tenant"},
 			},
-			Action: "Apply",
+			Action: azureresourcesapi.DeploymentStackDesireActionTypeApply,
 			Stack:  &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: map[string]any{"unknown": float64(123)}}},
 		}}
 }
 
-func observedStack(state, correlation string) *armdeploymentstacks.DeploymentStack {
+func observedDeploymentStack(state, correlation string) *armdeploymentstacks.DeploymentStack {
 	return &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{
 		ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningState(state)), CorrelationID: ptr.To(correlation),
 	}}
@@ -85,7 +84,7 @@ func withApplySubmission(t *testing.T, desire *azureresourcesapi.DeploymentStack
 	if hashErr != nil {
 		t.Fatal(hashErr)
 	}
-	status, submissionErr := stackDesireStatusForAssociatedApply(hash, stack)
+	status, submissionErr := deploymentStackDesireStatusForAssociatedApply(hash, stack)
 	if status == nil {
 		t.Fatalf("expected submission status: %v", submissionErr)
 	}
@@ -103,7 +102,7 @@ func checkedDecide(t *testing.T, desire *azureresourcesapi.DeploymentStackDesire
 		t.Fatal(err)
 	}
 	calls := 0
-	result := decideStackDesire(logr.Discard(), desire, now, func() (*armdeploymentstacks.DeploymentStack, error) { calls++; return stack, getErr })
+	result := decideDeploymentStackDesire(context.Background(), desire, now, func() (*armdeploymentstacks.DeploymentStack, error) { calls++; return stack, getErr })
 	result.validate()
 	stackAfter, err := json.Marshal(stack)
 	if err != nil {
@@ -127,28 +126,28 @@ func TestDecisionValidate(t *testing.T) {
 		invalid bool
 	}{
 		{name: "zero", invalid: true},
-		{name: "no op", result: decision{action: noOp}},
-		{name: "status", result: decision{action: updateDesireStatus, status: status}},
-		{name: "status and error", result: decision{action: updateDesireStatus, status: status, err: retryErr}},
-		{name: "apply", result: decision{action: applyStack}},
-		{name: "delete", result: decision{action: deleteStack}},
-		{name: "poll", result: decision{action: noOp, requeue: pendingInterval}},
-		{name: "error", result: decision{action: noOp, err: retryErr}},
-		{name: "actionless poll", result: decision{requeue: pendingInterval}, invalid: true},
-		{name: "actionless error", result: decision{err: retryErr}, invalid: true},
-		{name: "no op with status", result: decision{action: noOp, status: status}, invalid: true},
-		{name: "missing status", result: decision{action: updateDesireStatus}, invalid: true},
-		{name: "missing action", result: decision{status: status}, invalid: true},
-		{name: "status with poll", result: decision{action: updateDesireStatus, status: status, requeue: pendingInterval}, invalid: true},
-		{name: "status with apply", result: decision{action: applyStack, status: status}, invalid: true},
-		{name: "status with delete", result: decision{action: deleteStack, status: status}, invalid: true},
-		{name: "apply with error", result: decision{action: applyStack, err: retryErr}, invalid: true},
-		{name: "delete with error", result: decision{action: deleteStack, err: retryErr}, invalid: true},
-		{name: "apply with poll", result: decision{action: applyStack, requeue: pendingInterval}, invalid: true},
-		{name: "delete with poll", result: decision{action: deleteStack, requeue: pendingInterval}, invalid: true},
-		{name: "error with poll", result: decision{action: noOp, err: retryErr, requeue: pendingInterval}, invalid: true},
-		{name: "negative poll", result: decision{action: noOp, requeue: -time.Second}, invalid: true},
-		{name: "unknown action", result: decision{action: "ObserveStack"}, invalid: true},
+		{name: "no op", result: decision{kind: decisionKindNoOp}},
+		{name: "status", result: decision{kind: decisionKindUpdateDesireStatus, status: status}},
+		{name: "status and error", result: decision{kind: decisionKindUpdateDesireStatus, status: status, err: retryErr}},
+		{name: "apply", result: decision{kind: decisionKindApplyStack}},
+		{name: "delete", result: decision{kind: decisionKindDeleteStack}},
+		{name: "poll", result: decision{kind: decisionKindNoOp, requeue: pendingInterval}},
+		{name: "error", result: decision{kind: decisionKindNoOp, err: retryErr}},
+		{name: "poll without decision kind", result: decision{requeue: pendingInterval}, invalid: true},
+		{name: "error without decision kind", result: decision{err: retryErr}, invalid: true},
+		{name: "no op with status", result: decision{kind: decisionKindNoOp, status: status}, invalid: true},
+		{name: "missing status", result: decision{kind: decisionKindUpdateDesireStatus}, invalid: true},
+		{name: "missing decision kind", result: decision{status: status}, invalid: true},
+		{name: "status with poll", result: decision{kind: decisionKindUpdateDesireStatus, status: status, requeue: pendingInterval}, invalid: true},
+		{name: "status with apply", result: decision{kind: decisionKindApplyStack, status: status}, invalid: true},
+		{name: "status with delete", result: decision{kind: decisionKindDeleteStack, status: status}, invalid: true},
+		{name: "apply with error", result: decision{kind: decisionKindApplyStack, err: retryErr}, invalid: true},
+		{name: "delete with error", result: decision{kind: decisionKindDeleteStack, err: retryErr}, invalid: true},
+		{name: "apply with poll", result: decision{kind: decisionKindApplyStack, requeue: pendingInterval}, invalid: true},
+		{name: "delete with poll", result: decision{kind: decisionKindDeleteStack, requeue: pendingInterval}, invalid: true},
+		{name: "error with poll", result: decision{kind: decisionKindNoOp, err: retryErr, requeue: pendingInterval}, invalid: true},
+		{name: "negative poll", result: decision{kind: decisionKindNoOp, requeue: -time.Second}, invalid: true},
+		{name: "unknown decision kind", result: decision{kind: "ObserveStack"}, invalid: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			defer func() {
@@ -161,7 +160,7 @@ func TestDecisionValidate(t *testing.T) {
 	}
 }
 
-func TestDecideStackDesire(t *testing.T) {
+func TestDecideDeploymentStackDesire(t *testing.T) {
 	initialTime := metav1.NewTime(testNow)
 	now := testNow.Add(time.Minute)
 	observationTime := metav1.NewTime(now)
@@ -171,65 +170,65 @@ func TestDecideStackDesire(t *testing.T) {
 		t.Fatal(err)
 	}
 	deleteDesire := newDesire()
-	deleteDesire.Spec.Action = "Delete"
+	deleteDesire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	deleteHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(deleteDesire.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pending := apply.DeepCopy()
 	pending.Status = azureresourcesapi.DeploymentStackDesireStatus{
-		Stack: observedStack("deploying", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
+		Stack: observedDeploymentStack("deploying", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 		},
 	}
 	succeeded := apply.DeepCopy()
 	succeeded.Status = azureresourcesapi.DeploymentStackDesireStatus{
-		Stack: observedStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
+		Stack: observedDeploymentStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyApplied", Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 		},
 	}
 	failed := apply.DeepCopy()
 	failed.Status = azureresourcesapi.DeploymentStackDesireStatus{
-		Stack: observedStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
+		Stack: observedDeploymentStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
 		},
 	}
-	invalidStack := observedStack("failed", "ours")
+	invalidStack := observedDeploymentStack("failed", "ours")
 	invalidStack.Properties.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("InvalidTemplate")}
 	invalid := apply.DeepCopy()
 	invalid.Status = azureresourcesapi.DeploymentStackDesireStatus{
 		Stack: invalidStack, ObservedSpecHash: applyHash, ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
 		},
 	}
 	supersededPending := pending.DeepCopy()
-	supersededPending.Spec.Action = "Delete"
+	supersededPending.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	supersededSuccess := succeeded.DeepCopy()
-	supersededSuccess.Spec.Action = "Delete"
+	supersededSuccess.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	supersededFailure := failed.DeepCopy()
-	supersededFailure.Spec.Action = "Delete"
+	supersededFailure.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	unknownPending := apply.DeepCopy()
 	unknownPending.Status = azureresourcesapi.DeploymentStackDesireStatus{
-		Stack: observedStack("deploying", "external"), ObservedAt: &initialTime,
+		Stack: observedDeploymentStack("deploying", "external"), ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 		},
 	}
 	deleted := deleteDesire.DeepCopy()
 	deleted.Status = azureresourcesapi.DeploymentStackDesireStatus{
 		ObservedSpecHash: deleteHash, ObservedAt: &initialTime,
 		Conditions: []metav1.Condition{
-			{Type: "SuccessfullyDeleted", Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent", LastTransitionTime: initialTime},
-			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 		},
 	}
 
@@ -244,211 +243,211 @@ func TestDecideStackDesire(t *testing.T) {
 	}{
 		{
 			name: "absent Apply submits immediately", desire: apply, now: now, wantCalls: 1,
-			want: decision{action: applyStack},
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
 			name: "absent Delete succeeds", desire: deleteDesire, now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
 				ObservedSpecHash: deleteHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyDeleted", Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent", LastTransitionTime: observationTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
-			name: "known Apply pending unchanged polls", desire: pending, stack: observedStack("deploying", "ours"), now: now, wantCalls: 1,
-			want: decision{action: noOp, requeue: 30 * time.Second},
+			name: "known Apply pending unchanged polls", desire: pending, stack: observedDeploymentStack("deploying", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindNoOp, requeue: 30 * time.Second},
 		},
 		{
-			name: "known Apply new pending observation", desire: pending, stack: observedStack("initializing", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("initializing", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "known Apply new pending observation", desire: pending, stack: observedDeploymentStack("initializing", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("initializing", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "known Apply succeeds", desire: pending, stack: observedStack("succeeded", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "known Apply succeeds", desire: pending, stack: observedDeploymentStack("succeeded", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: observationTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "associated unknown state remains pending", desire: pending, stack: observedStack("unknown", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("unknown", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "associated unknown state remains pending", desire: pending, stack: observedDeploymentStack("unknown", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("unknown", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "associated empty state remains pending", desire: pending, stack: observedStack("", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "associated empty state remains pending", desire: pending, stack: observedDeploymentStack("", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "known Apply fails retryably", desire: pending, stack: observedStack("failed", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, err: errExecutionFailed, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "known Apply fails retryably", desire: pending, stack: observedDeploymentStack("failed", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, err: errExecutionFailed, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
-			name: "known Apply canceled is retryable", desire: pending, stack: observedStack("canceled", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, err: errExecutionFailed, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("canceled", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "known Apply canceled is retryable", desire: pending, stack: observedDeploymentStack("canceled", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, err: errExecutionFailed, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("canceled", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
 			name: "known Apply narrow invalid intent", desire: pending, stack: invalidStack, now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
 				Stack: invalidStack, ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "recorded failure retries immediately", desire: failed, stack: observedStack("failed", "ours"), now: now, wantCalls: 1,
-			want: decision{action: applyStack},
+			name: "recorded failure retries immediately", desire: failed, stack: observedDeploymentStack("failed", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
-			name: "superseded Apply pending still polls", desire: supersededPending, stack: observedStack("deploying", "ours"), now: now, wantCalls: 1,
-			want: decision{action: noOp, requeue: 30 * time.Second},
+			name: "superseded Apply pending still polls", desire: supersededPending, stack: observedDeploymentStack("deploying", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindNoOp, requeue: 30 * time.Second},
 		},
 		{
-			name: "superseded Apply pending preserves old intent", desire: supersededPending, stack: observedStack("deletingResources", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("deletingResources", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "superseded Apply pending preserves old intent", desire: supersededPending, stack: observedDeploymentStack("deletingResources", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("deletingResources", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "superseded Apply success does not prove Delete", desire: supersededPending, stack: observedStack("succeeded", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "superseded Apply success does not prove Delete", desire: supersededPending, stack: observedDeploymentStack("succeeded", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("succeeded", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: observationTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "superseded Apply failure suppresses old error", desire: supersededPending, stack: observedStack("failed", "ours"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
+			name: "superseded Apply failure suppresses old error", desire: supersededPending, stack: observedDeploymentStack("failed", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("failed", "ours"), ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: "Azure stack operation failed without error details", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
-			name: "changed intent bypasses successful Apply cooldown", desire: supersededSuccess, stack: observedStack("succeeded", "ours"), now: now, wantCalls: 1,
-			want: decision{action: deleteStack},
+			name: "changed intent bypasses successful Apply cooldown", desire: supersededSuccess, stack: observedDeploymentStack("succeeded", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindDeleteStack},
 		},
 		{
 			name: "superseded invalid Apply retains its old hash", desire: supersededPending, stack: invalidStack, now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
 				Stack: invalidStack, ObservedSpecHash: applyHash, ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
 				},
 			}},
 		},
 		{
-			name: "recorded superseded failure submits Delete", desire: supersededFailure, stack: observedStack("failed", "ours"), now: now, wantCalls: 1,
-			want: decision{action: deleteStack},
+			name: "recorded superseded failure submits Delete", desire: supersededFailure, stack: observedDeploymentStack("failed", "ours"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindDeleteStack},
 		},
 		{
-			name: "unknown pending operation gains no hash", desire: apply, stack: observedStack("deploying", "external"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("deploying", "external"), ObservedAt: &observationTime,
+			name: "unknown pending operation gains no hash", desire: apply, stack: observedDeploymentStack("deploying", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("deploying", "external"), ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
-					{Type: "SuccessfullyApplied", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: observationTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
-			name: "unknown pending unchanged polls", desire: unknownPending, stack: observedStack("deploying", "external"), now: now, wantCalls: 1,
-			want: decision{action: noOp, requeue: 30 * time.Second},
+			name: "unknown pending unchanged polls", desire: unknownPending, stack: observedDeploymentStack("deploying", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindNoOp, requeue: 30 * time.Second},
 		},
 		{
-			name: "unrecognized state waits before Delete", desire: deleteDesire, stack: observedStack("unknown", "external"), now: now, wantCalls: 1,
-			want: decision{action: updateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
-				Stack: observedStack("unknown", "external"), ObservedAt: &observationTime,
+			name: "unrecognized state waits before Delete", desire: deleteDesire, stack: observedDeploymentStack("unknown", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("unknown", "external"), ObservedAt: &observationTime,
 				Conditions: []metav1.Condition{
 					{Type: "SuccessfullyDeleted", Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation", LastTransitionTime: observationTime},
-					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error", LastTransitionTime: observationTime},
 				},
 			}},
 		},
 		{
-			name: "unknown completed operation submits Apply", desire: apply, stack: observedStack("succeeded", "external"), now: now, wantCalls: 1,
-			want: decision{action: applyStack},
+			name: "unknown completed operation submits Apply", desire: apply, stack: observedDeploymentStack("succeeded", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
-			name: "unknown canceled operation submits Delete", desire: deleteDesire, stack: observedStack("canceled", "external"), now: now, wantCalls: 1,
-			want: decision{action: deleteStack},
+			name: "unknown canceled operation submits Delete", desire: deleteDesire, stack: observedDeploymentStack("canceled", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindDeleteStack},
 		},
 		{
-			name: "unknown canceled operation submits Apply", desire: apply, stack: observedStack("canceled", "external"), now: now, wantCalls: 1,
-			want: decision{action: applyStack},
+			name: "unknown canceled operation submits Apply", desire: apply, stack: observedDeploymentStack("canceled", "external"), now: now, wantCalls: 1,
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
 			name: "success cooldown skips GET", desire: succeeded, getErr: context.DeadlineExceeded, now: testNow.Add(6*time.Hour - time.Nanosecond),
-			want: decision{action: noOp},
+			want: decision{kind: decisionKindNoOp},
 		},
 		{
-			name: "success cooldown expires", desire: succeeded, stack: observedStack("succeeded", "ours"), now: testNow.Add(6 * time.Hour), wantCalls: 1,
-			want: decision{action: applyStack},
+			name: "success cooldown expires", desire: succeeded, stack: observedDeploymentStack("succeeded", "ours"), now: testNow.Add(6 * time.Hour), wantCalls: 1,
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
 			name: "invalid intent cooldown skips GET", desire: invalid, getErr: context.DeadlineExceeded, now: testNow.Add(6*time.Hour - time.Nanosecond),
-			want: decision{action: noOp},
+			want: decision{kind: decisionKindNoOp},
 		},
 		{
 			name: "invalid intent cooldown expires", desire: invalid, stack: invalidStack, now: testNow.Add(6 * time.Hour), wantCalls: 1,
-			want: decision{action: applyStack},
+			want: decision{kind: decisionKindApplyStack},
 		},
 		{
 			name: "confirmed Delete cooldown skips GET", desire: deleted, getErr: context.DeadlineExceeded, now: now,
-			want: decision{action: noOp},
+			want: decision{kind: decisionKindNoOp},
 		},
 		{
 			name: "confirmed absence unchanged after cooldown", desire: deleted, now: testNow.Add(6 * time.Hour), wantCalls: 1,
-			want: decision{action: noOp},
+			want: decision{kind: decisionKindNoOp},
 		},
 		{
 			name: "GET failure returns error without status", desire: pending, getErr: context.DeadlineExceeded, now: now, wantCalls: 1,
-			want: decision{action: noOp, err: context.DeadlineExceeded},
+			want: decision{kind: decisionKindNoOp, err: context.DeadlineExceeded},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -458,7 +457,7 @@ func TestDecideStackDesire(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			actual := decideStackDesire(logr.Discard(), test.desire, test.now, func() (*armdeploymentstacks.DeploymentStack, error) {
+			actual := decideDeploymentStackDesire(context.Background(), test.desire, test.now, func() (*armdeploymentstacks.DeploymentStack, error) {
 				calls++
 				return test.stack, test.getErr
 			})
@@ -490,7 +489,7 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 				desire := newDesire()
 				desire.Spec.ReconcileInterval.Duration = interval
 				if strings.HasPrefix(kind, "delete") {
-					desire.Spec.Action = "Delete"
+					desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 				}
 				effectiveInterval := interval
 				if effectiveInterval <= 0 {
@@ -499,22 +498,22 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 				now := testNow
 				for range 3 {
 					hash, _ := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
-					stack := observedStack("succeeded", "ours")
+					stack := observedDeploymentStack("succeeded", "ours")
 					var status *azureresourcesapi.DeploymentStackDesireStatus
 					var err error
 					switch kind {
 					case "success":
-						status, err = stackDesireStatusForAssociatedApply(hash, stack)
+						status, err = deploymentStackDesireStatusForAssociatedApply(hash, stack)
 					case "sync invalid":
-						status, err = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidTemplate"})
+						status, err = deploymentStackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidTemplate"})
 					case "async invalid":
-						desire = withApplySubmission(t, desire, observedStack("deploying", "ours"), now)
-						stack = observedStack("failed", "ours")
+						desire = withApplySubmission(t, desire, observedDeploymentStack("deploying", "ours"), now)
+						stack = observedDeploymentStack("failed", "ours")
 						stack.Properties.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("InvalidRequestContent")}
 						result := checkedDecide(t, desire, stack, nil, now, 1)
 						status, err = result.status, result.err
 					case "delete invalid":
-						status, err = stackDesireStatusForDeleteSubmission(hash, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidRequestContent"})
+						status, err = deploymentStackDesireStatusForDeleteSubmission(hash, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidRequestContent"})
 					case "delete success":
 						stack = nil
 						desire.Status = azureresourcesapi.DeploymentStackDesireStatus{}
@@ -534,25 +533,25 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 					desire.Status = *status.DeepCopy()
 					for _, elapsed := range []time.Duration{0, time.Second, effectiveInterval - time.Nanosecond} {
 						cooling := checkedDecide(t, desire, nil, errors.New("must not GET"), now.Add(elapsed), 0)
-						if cooling.action != noOp || cooling.err != nil || cooling.requeue != 0 {
+						if cooling.kind != decisionKindNoOp || cooling.err != nil || cooling.requeue != 0 {
 							t.Fatalf("cooldown: %+v", cooling)
 						}
 					}
 					due := checkedDecide(t, desire, stack, nil, now.Add(effectiveInterval), 1)
-					want := applyStack
+					want := decisionKindApplyStack
 					switch kind {
 					case "delete invalid":
-						want = deleteStack
+						want = decisionKindDeleteStack
 					case "delete success":
-						want = noOp
+						want = decisionKindNoOp
 					}
-					if due.action != want {
+					if due.kind != want {
 						t.Fatalf("cooldown not bounded: %+v", due)
 					}
 					changed := desire.DeepCopy()
 					changed.Spec.Stack.Location = ptr.To("changed intent")
 					bypass := checkedDecide(t, changed, stack, nil, now.Add(time.Second), 1)
-					if bypass.action == noOp {
+					if bypass.kind == decisionKindNoOp {
 						t.Fatal("changed intent did not bypass cooldown")
 					}
 					now = now.Add(effectiveInterval)
@@ -565,48 +564,48 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 func TestChangedIntentAndCorrelation(t *testing.T) {
 	for _, completion := range []string{"succeeded", "failed", "canceled"} {
 		t.Run(completion, func(t *testing.T) {
-			desire := withApplySubmission(t, newDesire(), observedStack("deploying", "ours"), testNow)
+			desire := withApplySubmission(t, newDesire(), observedDeploymentStack("deploying", "ours"), testNow)
 			oldHash := desire.Status.ObservedSpecHash
-			desire.Spec.Action = "Delete"
-			pending := checkedDecide(t, desire, observedStack("deploying", "ours"), nil, testNow.Add(time.Second), 1)
+			desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
+			pending := checkedDecide(t, desire, observedDeploymentStack("deploying", "ours"), nil, testNow.Add(time.Second), 1)
 			if pending.requeue != pendingInterval {
 				t.Fatalf("changed intent interrupted in-flight Apply: %+v", pending)
 			}
-			stack := observedStack(completion, "ours")
+			stack := observedDeploymentStack(completion, "ours")
 			result := checkedDecide(t, desire, stack, nil, testNow.Add(time.Minute), 1)
-			if result.action != updateDesireStatus || result.err != nil || result.status.ObservedSpecHash != oldHash ||
+			if result.kind != decisionKindUpdateDesireStatus || result.err != nil || result.status.ObservedSpecHash != oldHash ||
 				meta.FindStatusCondition(result.status.Conditions, "SuccessfullyDeleted") != nil {
 				t.Fatalf("old Apply proved Delete or retried old intent: %+v", result)
 			}
 			desire.Status = *result.status
-			if next := checkedDecide(t, desire, stack, nil, testNow.Add(time.Minute), 1); next.action != deleteStack {
+			if next := checkedDecide(t, desire, stack, nil, testNow.Add(time.Minute), 1); next.kind != decisionKindDeleteStack {
 				t.Fatalf("next reconcile must Delete: %+v", next)
 			}
 		})
 	}
-	desire := withApplySubmission(t, newDesire(), observedStack("succeeded", "A"), testNow)
+	desire := withApplySubmission(t, newDesire(), observedDeploymentStack("succeeded", "A"), testNow)
 	original := desire.Spec.Stack
 	desire.Spec.Stack = &armdeploymentstacks.DeploymentStack{Location: ptr.To("B")}
-	if result := checkedDecide(t, desire, observedStack("succeeded", "A"), nil, testNow.Add(time.Minute), 1); result.action != applyStack {
+	if result := checkedDecide(t, desire, observedDeploymentStack("succeeded", "A"), nil, testNow.Add(time.Minute), 1); result.kind != decisionKindApplyStack {
 		t.Fatalf("B not submitted: %+v", result)
 	}
 	// B's submission status is lost, then the producer returns to A. Accept the
 	// previously recorded A outcome only until the original bounded cooldown ends.
 	desire.Spec.Stack = original
-	if result := checkedDecide(t, desire, nil, nil, testNow.Add(time.Minute), 0); result.action != noOp {
+	if result := checkedDecide(t, desire, nil, nil, testNow.Add(time.Minute), 0); result.kind != decisionKindNoOp {
 		t.Fatalf("bounded A-B-A behavior changed: %+v", result)
 	}
-	if result := checkedDecide(t, desire, observedStack("succeeded", "B"), nil, testNow.Add(defaultInterval), 1); result.action != applyStack {
+	if result := checkedDecide(t, desire, observedDeploymentStack("succeeded", "B"), nil, testNow.Add(defaultInterval), 1); result.kind != decisionKindApplyStack {
 		t.Fatalf("lost association must replay immediately when due: %+v", result)
 	}
 }
 
 func TestPrecheckDoesNotChangeApplyProvenance(t *testing.T) {
-	desire := withApplySubmission(t, newDesire(), observedStack("deploying", "ours"), testNow)
+	desire := withApplySubmission(t, newDesire(), observedDeploymentStack("deploying", "ours"), testNow)
 	originalSpec := desire.Spec
 	originalStatus := desire.Status.DeepCopy()
-	desire.Spec.Action = "Delete"
-	desire.Spec.Authentication.Type = "SMI"
+	desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
+	desire.Spec.Authentication.Type = azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI
 	precheck := checkedDecide(t, desire, nil, nil, testNow.Add(time.Second), 0)
 	if precheck.status == nil || precheck.status.Conditions[0].Type != "SuccessfullyDeleted" || precheck.status.Conditions[0].Reason != "PreCheckFailed" {
 		t.Fatalf("expected invalid Delete precheck: %+v", precheck)
@@ -616,27 +615,27 @@ func TestPrecheckDoesNotChangeApplyProvenance(t *testing.T) {
 	}
 	desire.Status = *precheck.status
 	desire.Spec = originalSpec
-	completed := checkedDecide(t, desire, observedStack("succeeded", "ours"), nil, testNow.Add(time.Minute), 1)
+	completed := checkedDecide(t, desire, observedDeploymentStack("succeeded", "ours"), nil, testNow.Add(time.Minute), 1)
 	if completed.status == nil || completed.err != nil || completed.status.ObservedSpecHash != originalStatus.ObservedSpecHash ||
-		!meta.IsStatusConditionTrue(completed.status.Conditions, "SuccessfullyApplied") || meta.FindStatusCondition(completed.status.Conditions, "SuccessfullyDeleted") != nil {
+		!meta.IsStatusConditionTrue(completed.status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) || meta.FindStatusCondition(completed.status.Conditions, "SuccessfullyDeleted") != nil {
 		t.Fatalf("precheck changed old Apply provenance: %+v", completed)
 	}
 	desire.Status = *completed.status
-	if next := checkedDecide(t, desire, nil, nil, testNow.Add(2*time.Minute), 0); next.action != noOp {
+	if next := checkedDecide(t, desire, nil, nil, testNow.Add(2*time.Minute), 0); next.kind != decisionKindNoOp {
 		t.Fatalf("restored Apply resubmitted instead of cooling down: %+v", next)
 	}
 }
 
 func TestDeleteToApplyProgression(t *testing.T) {
 	desire := newDesire()
-	desire.Spec.Action = "Delete"
+	desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	hash, _ := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
-	accepted, err := stackDesireStatusForDeleteSubmission(hash, nil)
+	accepted, err := deploymentStackDesireStatusForDeleteSubmission(hash, nil)
 	if err != nil || accepted.Stack != nil {
 		t.Fatalf("Delete acceptance manufactured a correlated stack: %+v, %v", accepted, err)
 	}
 	desire.Status = *accepted
-	deleting := observedStack("deletingResources", "delete-body-id")
+	deleting := observedDeploymentStack("deletingResources", "delete-body-id")
 	observed := checkedDecide(t, desire, deleting, nil, testNow, 1)
 	if observed.status == nil || observed.status.ObservedSpecHash != "" {
 		t.Fatalf("Delete GET acquired an association: %+v", observed)
@@ -644,25 +643,25 @@ func TestDeleteToApplyProgression(t *testing.T) {
 	desire.Status = *observed.status
 	desire.Spec.Action = "Apply"
 	waiting := checkedDecide(t, desire, deleting, nil, testNow.Add(time.Second), 1)
-	if waiting.status == nil || waiting.status.ObservedSpecHash != "" || waiting.status.Conditions[0].Type != "SuccessfullyApplied" || waiting.status.Conditions[0].Status != metav1.ConditionFalse {
+	if waiting.status == nil || waiting.status.ObservedSpecHash != "" || waiting.status.Conditions[0].Type != azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied || waiting.status.Conditions[0].Status != metav1.ConditionFalse {
 		t.Fatalf("changed intent failed to wait for deletion: %+v", waiting)
 	}
 	desire.Status = *waiting.status
-	if poll := checkedDecide(t, desire, deleting, nil, testNow.Add(2*time.Second), 1); poll.requeue != pendingInterval || poll.action != noOp {
+	if poll := checkedDecide(t, desire, deleting, nil, testNow.Add(2*time.Second), 1); poll.requeue != pendingInterval || poll.kind != decisionKindNoOp {
 		t.Fatalf("Apply interrupted pending Delete: %+v", poll)
 	}
-	if absent := checkedDecide(t, desire, nil, nil, testNow.Add(time.Minute), 1); absent.action != applyStack {
+	if absent := checkedDecide(t, desire, nil, nil, testNow.Add(time.Minute), 1); absent.kind != decisionKindApplyStack {
 		t.Fatalf("Apply must create immediately after deletion: %+v", absent)
 	}
 	// A failed unassociated Delete does not establish an Apply outcome or an
 	// invalid-intent cooldown, even if Azure reports a narrow template error.
-	failed := observedStack("failed", "delete-body-id")
+	failed := observedDeploymentStack("failed", "delete-body-id")
 	failed.Properties.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("InvalidTemplate")}
-	if retry := checkedDecide(t, desire, failed, nil, testNow.Add(time.Minute), 1); retry.action != applyStack || retry.err != nil {
+	if retry := checkedDecide(t, desire, failed, nil, testNow.Add(time.Minute), 1); retry.kind != decisionKindApplyStack || retry.err != nil {
 		t.Fatalf("failed Delete must retry current Apply intent: %+v", retry)
 	}
-	desire.Spec.Action = "Delete"
-	if retry := checkedDecide(t, desire, failed, nil, testNow.Add(time.Minute), 1); retry.action != deleteStack || retry.err != nil {
+	desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
+	if retry := checkedDecide(t, desire, failed, nil, testNow.Add(time.Minute), 1); retry.kind != decisionKindDeleteStack || retry.err != nil {
 		t.Fatalf("failed Delete must retry current Delete intent: %+v", retry)
 	}
 }
@@ -672,20 +671,20 @@ func TestAssociationAndCooldownPrerequisites(t *testing.T) {
 		name   string
 		change func(*azureresourcesapi.DeploymentStackDesire)
 		stack  *armdeploymentstacks.DeploymentStack
-		want   action
+		want   decisionKind
 	}{
-		{name: "different body correlation", stack: observedStack("succeeded", "external"), want: applyStack},
-		{name: "missing body correlation", stack: observedStack("succeeded", ""), want: applyStack},
-		{name: "missing recorded hash", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Status.ObservedSpecHash = "" }, stack: observedStack("succeeded", "ours"), want: applyStack},
-		{name: "missing recorded stack", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Status.Stack = nil }, stack: observedStack("succeeded", "ours"), want: applyStack},
+		{name: "different body correlation", stack: observedDeploymentStack("succeeded", "external"), want: decisionKindApplyStack},
+		{name: "missing body correlation", stack: observedDeploymentStack("succeeded", ""), want: decisionKindApplyStack},
+		{name: "missing recorded hash", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Status.ObservedSpecHash = "" }, stack: observedDeploymentStack("succeeded", "ours"), want: decisionKindApplyStack},
+		{name: "missing recorded stack", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Status.Stack = nil }, stack: observedDeploymentStack("succeeded", "ours"), want: decisionKindApplyStack},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			desire := withApplySubmission(t, newDesire(), observedStack("deploying", "ours"), testNow)
+			desire := withApplySubmission(t, newDesire(), observedDeploymentStack("deploying", "ours"), testNow)
 			if test.change != nil {
 				test.change(desire)
 			}
 			result := checkedDecide(t, desire, test.stack, nil, testNow.Add(time.Second), 1)
-			if result.action != test.want {
+			if result.kind != test.want {
 				t.Fatalf("association decision: %+v", result)
 			}
 		})
@@ -704,7 +703,7 @@ func TestAssociationAndCooldownPrerequisites(t *testing.T) {
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			desire := withApplySubmission(t, newDesire(), observedStack("succeeded", "ours"), testNow)
+			desire := withApplySubmission(t, newDesire(), observedDeploymentStack("succeeded", "ours"), testNow)
 			test.change(desire)
 			result := checkedDecide(t, desire, nil, context.DeadlineExceeded, testNow.Add(time.Second), 1)
 			if !errors.Is(result.err, context.DeadlineExceeded) || result.status != nil {
@@ -722,7 +721,7 @@ func TestLocalValidation(t *testing.T) {
 	}{
 		{name: "nil target", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Spec.TargetResourceID = nil }, message: "stack target"},
 		{name: "wrong target", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
-			desire.Spec.Action = "Delete"
+			desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 			desire.Spec.TargetResourceID, _ = azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/stack")
 		}, message: "Microsoft.Resources/deploymentStacks"},
 		{name: "unsupported scope", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
@@ -773,16 +772,16 @@ func TestLocalValidation(t *testing.T) {
 		}, message: "marshal deployment stack desire spec"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			desire := withApplySubmission(t, newDesire(), observedStack("succeeded", "ours"), testNow)
+			desire := withApplySubmission(t, newDesire(), observedDeploymentStack("succeeded", "ours"), testNow)
 			previous := desire.Status.DeepCopy()
 			test.change(desire)
 			lazyGET := func() (*armdeploymentstacks.DeploymentStack, error) {
 				t.Fatal("local validation reached Azure")
 				return nil, nil
 			}
-			result := decideStackDesire(logr.Discard(), desire, testNow.Add(time.Minute), lazyGET)
+			result := decideDeploymentStackDesire(context.Background(), desire, testNow.Add(time.Minute), lazyGET)
 			result.validate()
-			if result.action != updateDesireStatus || result.err != nil || !cmp.Equal(*previous, desire.Status) {
+			if result.kind != decisionKindUpdateDesireStatus || result.err != nil || !cmp.Equal(*previous, desire.Status) {
 				t.Fatalf("local validation: %+v", result)
 			}
 			for _, condition := range result.status.Conditions {
@@ -790,14 +789,14 @@ func TestLocalValidation(t *testing.T) {
 					t.Fatalf("validation condition: %+v", condition)
 				}
 			}
-			if test.name == "action" && (len(result.status.Conditions) != 1 || result.status.Conditions[0].Type != "Degraded") {
+			if test.name == "action" && (len(result.status.Conditions) != 1 || result.status.Conditions[0].Type != azureresourcesapi.DeploymentStackDesireConditionTypeDegraded) {
 				t.Fatal("unknown action must not default to an Apply or Delete condition")
 			}
 			if !cmp.Equal(previous.ObservedAt, result.status.ObservedAt) || !cmp.Equal(previous.Stack, result.status.Stack) {
 				t.Fatal("local validation changed Azure observation")
 			}
 			desire.Status = *result.status
-			if next := decideStackDesire(logr.Discard(), desire, testNow.Add(time.Hour), lazyGET); next.action != noOp || next.err != nil {
+			if next := decideDeploymentStackDesire(context.Background(), desire, testNow.Add(time.Hour), lazyGET); next.kind != decisionKindNoOp || next.err != nil {
 				t.Fatalf("unchanged validation wrote again: %+v", next)
 			}
 		})
@@ -805,7 +804,7 @@ func TestLocalValidation(t *testing.T) {
 	for _, stack := range []*armdeploymentstacks.DeploymentStack{nil, {}, {Properties: &armdeploymentstacks.DeploymentStackProperties{Template: "Azure validates this"}}} {
 		desire := newDesire()
 		desire.Spec.Stack = stack
-		if result := checkedDecide(t, desire, nil, nil, testNow, 1); result.action != applyStack {
+		if result := checkedDecide(t, desire, nil, nil, testNow, 1); result.kind != decisionKindApplyStack {
 			t.Fatalf("controller performed Azure template validation: %+v", result)
 		}
 	}
@@ -814,7 +813,7 @@ func TestLocalValidation(t *testing.T) {
 func TestMetadataAndConditionAge(t *testing.T) {
 	for _, state := range []string{"succeeded", "failed"} {
 		t.Run(state, func(t *testing.T) {
-			stack := observedStack(state, "ours")
+			stack := observedDeploymentStack(state, "ours")
 			if state == "failed" {
 				stack.Properties.Error = &armdeploymentstacks.ErrorDetail{Code: ptr.To("InvalidTemplate"), Message: ptr.To("original")}
 			}
@@ -835,12 +834,12 @@ func TestMetadataAndConditionAge(t *testing.T) {
 					}
 				}
 				desire.Status = *result.status.DeepCopy()
-				if next := checkedDecide(t, desire, stack, nil, now, 1); next.action != applyStack {
+				if next := checkedDecide(t, desire, stack, nil, now, 1); next.kind != decisionKindApplyStack {
 					t.Fatalf("metadata self-event not eligible: %+v", next)
 				}
 			}
 			now := testNow.Add(2 * defaultInterval)
-			desire = withApplySubmission(t, desire, observedStack("deploying", "next"), now)
+			desire = withApplySubmission(t, desire, observedDeploymentStack("deploying", "next"), now)
 			stack.Properties.CorrelationID = ptr.To("next")
 			result := checkedDecide(t, desire, stack, nil, now.Add(time.Minute), 1)
 			if result.status == nil || !result.status.ObservedAt.Time.Equal(now.Add(time.Minute)) {
@@ -909,7 +908,7 @@ func TestAzureErrorFixtures(t *testing.T) {
 						return httpResponse(request, response.Status, string(response.Body)), nil
 					})
 					_, err := submitApply(t.Context(), client, newDesire().Spec)
-					status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
+					status, err := deploymentStackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 					if err == nil || status == nil || status.Conditions[0].Reason != "RequestFailed" || !strings.Contains(status.Conditions[0].Message, "Authorization failed") {
 						t.Fatalf("real HTTP 400 permission failure treated as invalid: %+v, %v", status, err)
 					}
@@ -921,7 +920,7 @@ func TestAzureErrorFixtures(t *testing.T) {
 				client := sdkClient(t, "sub", func(request *http.Request) (*http.Response, error) {
 					return httpResponse(request, response.Status, string(response.Body)), nil
 				})
-				stack, err := getStack(t.Context(), client, newDesire().Spec.TargetResourceID)
+				stack, err := getDeploymentStack(t.Context(), client, newDesire().Spec.TargetResourceID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -931,13 +930,13 @@ func TestAzureErrorFixtures(t *testing.T) {
 				if state != "failed" && state != "succeeded" {
 					continue
 				}
-				desire := withApplySubmission(t, newDesire(), observedStack("initializing", correlation), testNow)
+				desire := withApplySubmission(t, newDesire(), observedDeploymentStack("initializing", correlation), testNow)
 				result := checkedDecide(t, desire, stack, nil, testNow.Add(time.Minute), 1)
 				if result.status == nil || !cmp.Equal(result.status.Stack, stack) {
 					t.Fatalf("lost typed GET diagnostics: %+v", result)
 				}
 				if state == "succeeded" {
-					if !meta.IsStatusConditionTrue(result.status.Conditions, "SuccessfullyApplied") {
+					if !meta.IsStatusConditionTrue(result.status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
 						t.Fatal("same-intent permission retry did not succeed")
 					}
 				} else {
@@ -1064,10 +1063,10 @@ func TestSDKScopesAndDeletePolicy(t *testing.T) {
 				}
 			})
 			before := desire.DeepCopy()
-			if result := checkedDecide(t, desire, nil, nil, testNow, 1); result.action != applyStack {
+			if result := checkedDecide(t, desire, nil, nil, testNow, 1); result.kind != decisionKindApplyStack {
 				t.Fatalf("supported scope rejected: %+v", result)
 			}
-			if stack, err := getStack(t.Context(), client, desire.Spec.TargetResourceID); err != nil || stack != nil {
+			if stack, err := getDeploymentStack(t.Context(), client, desire.Spec.TargetResourceID); err != nil || stack != nil {
 				t.Fatalf("GET absence: %+v, %v", stack, err)
 			}
 			stack, err := submitApply(t.Context(), client, desire.Spec)
@@ -1078,7 +1077,7 @@ func TestSDKScopesAndDeletePolicy(t *testing.T) {
 			if ptr.Deref(properties.ProvisioningState, "") != "deploying" || ptr.Deref(properties.CorrelationID, "") != "body-id" {
 				t.Fatalf("lost initial stack body: %+v", stack)
 			}
-			if _, err := getStack(t.Context(), client, desire.Spec.TargetResourceID); err != nil {
+			if _, err := getDeploymentStack(t.Context(), client, desire.Spec.TargetResourceID); err != nil {
 				t.Fatal(err)
 			}
 			if err := submitDelete(t.Context(), client, desire.Spec); err != nil {
@@ -1125,9 +1124,9 @@ func TestSDKSubmissionOutcomes(t *testing.T) {
 			var status *azureresourcesapi.DeploymentStackDesireStatus
 			var submissionErr error
 			if err != nil {
-				status, submissionErr = stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
+				status, submissionErr = deploymentStackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 			} else {
-				status, submissionErr = stackDesireStatusForAssociatedApply("hash", stack)
+				status, submissionErr = deploymentStackDesireStatusForAssociatedApply("hash", stack)
 			}
 			if calls != 1 || status == nil || (submissionErr != nil) != test.wantErr || status.Conditions[0].Reason != test.reason {
 				t.Fatalf("submission status: %+v, error %v, calls %d", status, submissionErr, calls)
@@ -1141,14 +1140,14 @@ func TestSDKSubmissionOutcomes(t *testing.T) {
 	}
 	for _, code := range []int{200, 202, 204} {
 		client := sdkClient(t, "sub", func(request *http.Request) (*http.Response, error) { return httpResponse(request, code, ""), nil })
-		status, err := stackDesireStatusForDeleteSubmission("hash", submitDelete(t.Context(), client, newDesire().Spec))
+		status, err := deploymentStackDesireStatusForDeleteSubmission("hash", submitDelete(t.Context(), client, newDesire().Spec))
 		if err != nil || status == nil || status.Conditions[0].Reason != "WaitingForDeletion" || status.Conditions[0].Status != metav1.ConditionFalse {
 			t.Fatalf("Delete %d acceptance proved absence: %+v, %v", code, status, err)
 		}
 	}
 	client := sdkClient(t, "sub", func(*http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded })
 	_, err := submitApply(t.Context(), client, newDesire().Spec)
-	status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
+	status, err := deploymentStackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 	if status != nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("transport failure wrote status: %+v, %v", status, err)
 	}
@@ -1182,7 +1181,7 @@ func TestSDKImmediateApplyFailure(t *testing.T) {
 			if (err == nil) != test.invalid || (!test.invalid && !errors.Is(err, errExecutionFailed)) || storage.writes != 1 || submissions != 1 {
 				t.Fatalf("initial failure not persisted: writes %d, submissions %d, error %v", storage.writes, submissions, err)
 			}
-			if storage.doc.Status.Stack == nil || storage.doc.Status.ObservedSpecHash == "" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, "SuccessfullyApplied") {
+			if storage.doc.Status.Stack == nil || storage.doc.Status.ObservedSpecHash == "" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
 				t.Fatal("initial terminal failure lost association or proved readiness")
 			}
 			clk.Step(time.Second)
@@ -1203,11 +1202,11 @@ func TestSDKTokenFailuresDoNotWrite(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			controller, storage, _ := setup(t, func(*http.Request) (*http.Response, error) { t.Fatal("default client used"); return nil, nil })
 			if phase == "Delete" {
-				storage.doc.Spec.Action = "Delete"
+				storage.doc.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 			}
 			builds, requests := 0, 0
 			tokenErr := errors.New("token acquisition failed")
-			controller.fpa = fpaBuilder{build: func(_, subscription string) (*armdeploymentstacks.Client, error) {
+			controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(_, subscription string) (*armdeploymentstacks.Client, error) {
 				builds++
 				credential := stackCredential{}
 				if phase == "GET" || builds == 2 {
@@ -1246,8 +1245,8 @@ func TestSDKEmptyGETDoesNotProveAbsence(t *testing.T) {
 				return httpResponse(request, 200, body), nil
 			})
 			desire := newDesire()
-			desire.Spec.Action = "Delete"
-			stack, err := getStack(t.Context(), client, desire.Spec.TargetResourceID)
+			desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
+			stack, err := getDeploymentStack(t.Context(), client, desire.Spec.TargetResourceID)
 			if err != nil || stack == nil {
 				t.Fatalf("SDK empty object response: %+v, %v", stack, err)
 			}
@@ -1346,7 +1345,7 @@ func setup(t *testing.T, transport stackTransport) (*controller, *memoryCRUD, *c
 		}
 		return sdkClient(t, subscription, transport), nil
 	}}
-	return &controller{crudByParent: memoryDB{crud: storage}, lister: memoryLister{crud: storage}, fpa: fpa, clock: clk, queue: &recordingQueue{}}, storage, clk
+	return &controller{crudByParent: memoryDB{crud: storage}, deploymentStackDesireLister: memoryLister{crud: storage}, firstPartyApplicationClientBuilder: fpa, clock: clk, queue: &recordingQueue{}}, storage, clk
 }
 
 func TestOuterSingleMutationAndPolling(t *testing.T) {
@@ -1499,9 +1498,20 @@ func TestOuterErrorsAndOriginalETag(t *testing.T) {
 	}
 }
 
-func TestIndependentCredentialBuilders(t *testing.T) {
+// TestCredentialBuilderRoutingAndCaching verifies both auth types route to the correct
+// builder, and that FPA builds an independent client per use while SMI caches a single
+// client (and the token fetch behind it) across the lazy GET and submission paths within
+// one SyncOnce.
+func TestCredentialBuilderRoutingAndCaching(t *testing.T) {
 	for _, authentication := range []azureresourcesapi.DeploymentStackDesireAuthenticationType{azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI} {
-		for _, failBuild := range []int{0, 1, 2} {
+		cached := authentication == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI
+		failBuilds := []int{0, 1, 2}
+		if cached {
+			// SMI caches a successful client across both uses within one SyncOnce, so the
+			// underlying builder is invoked at most once; there is no second build to fail.
+			failBuilds = []int{0, 1}
+		}
+		for _, failBuild := range failBuilds {
 			t.Run(fmt.Sprintf("%s/fail%d", authentication, failBuild), func(t *testing.T) {
 				controller, storage, _ := setup(t, func(*http.Request) (*http.Response, error) { t.Fatal("default builder used"); return nil, nil })
 				identity, _ := azcorearm.ParseResourceID("/subscriptions/identity-sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")
@@ -1516,26 +1526,25 @@ func TestIndependentCredentialBuilders(t *testing.T) {
 					if builds == failBuild {
 						return nil, context.DeadlineExceeded
 					}
-					buildNumber := builds
 					return sdkClient(t, "sub", func(request *http.Request) (*http.Response, error) {
 						requests++
-						if buildNumber == 1 && request.Method == http.MethodGet {
+						switch request.Method {
+						case http.MethodGet:
 							return httpResponse(request, 404, `{"error":{"code":"ResourceNotFound"}}`), nil
-						}
-						if buildNumber == 2 && request.Method == http.MethodPut {
+						case http.MethodPut:
 							return httpResponse(request, 201, `{"properties":{"provisioningState":"deploying","correlationId":"ours"}}`), nil
 						}
-						t.Fatalf("client shared between GET and submission: build %d, method %s", buildNumber, request.Method)
+						t.Fatalf("unexpected method %s", request.Method)
 						return nil, nil
 					}), nil
 				}
-				controller.fpa = fpaBuilder{build: func(tenant, subscription string) (*armdeploymentstacks.Client, error) {
+				controller.firstPartyApplicationClientBuilder = fpaBuilder{build: func(tenant, subscription string) (*armdeploymentstacks.Client, error) {
 					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA || tenant != "tenant" || subscription != "sub" {
 						t.Fatal("incorrect FPA routing")
 					}
 					return build()
 				}}
-				controller.smi = smiBuilder{build: func(_ context.Context, url string, id *azcorearm.ResourceID, subscription string) (*armdeploymentstacks.Client, error) {
+				controller.serviceManagedIdentityClientBuilder = smiBuilder{build: func(_ context.Context, url string, id *azcorearm.ResourceID, subscription string) (*armdeploymentstacks.Client, error) {
 					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI || url != "https://identity.example/cluster" || id != identity || subscription != "sub" {
 						t.Fatal("incorrect SMI routing")
 					}
@@ -1546,8 +1555,14 @@ func TestIndependentCredentialBuilders(t *testing.T) {
 					if !errors.Is(err, context.DeadlineExceeded) || storage.writes != 0 || builds != failBuild || requests != failBuild-1 {
 						t.Fatalf("client failure: builds %d, requests %d, writes %d, err %v", builds, requests, storage.writes, err)
 					}
-				} else if err != nil || builds != 2 || requests != 2 || storage.writes != 1 {
-					t.Fatalf("independent clients: builds %d, requests %d, writes %d, err %v", builds, requests, storage.writes, err)
+					return
+				}
+				wantBuilds := 2
+				if cached {
+					wantBuilds = 1
+				}
+				if err != nil || builds != wantBuilds || requests != 2 || storage.writes != 1 {
+					t.Fatalf("credential builder usage: builds %d, requests %d, writes %d, err %v", builds, requests, storage.writes, err)
 				}
 			})
 		}
@@ -1584,15 +1599,15 @@ func TestLostSubmissionStatusRecovery(t *testing.T) {
 	if err := controller.SyncOnce(t.Context(), testKey); err != nil || submissions != 2 || storage.writes != 3 {
 		t.Fatalf("unknown completed operation did not replay immediately: %v", err)
 	}
-	if storage.doc.Status.ObservedSpecHash == "" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, "SuccessfullyApplied") {
+	if storage.doc.Status.ObservedSpecHash == "" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
 		t.Fatal("new running submission not associated correctly")
 	}
 }
 
 func TestOuterLocalValidationAndMissingDocument(t *testing.T) {
 	controller, storage, _ := setup(t, func(*http.Request) (*http.Response, error) { t.Fatal("unexpected Azure request"); return nil, nil })
-	storage.doc.Spec.Authentication.Type = "SMI"
-	if err := controller.SyncOnce(t.Context(), testKey); err != nil || storage.writes != 1 || storage.doc.Status.Conditions[0].Reason != "PreCheckFailed" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, "Degraded") {
+	storage.doc.Spec.Authentication.Type = azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI
+	if err := controller.SyncOnce(t.Context(), testKey); err != nil || storage.writes != 1 || storage.doc.Status.Conditions[0].Reason != "PreCheckFailed" || meta.IsStatusConditionTrue(storage.doc.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded) {
 		t.Fatalf("nil SMI did not produce nondegraded local validation: %v", err)
 	}
 	storage.doc = nil
@@ -1655,7 +1670,7 @@ func TestOuterDeleteRequiresObservedAbsence(t *testing.T) {
 			return nil, nil
 		}
 	})
-	storage.doc.Spec.Action = "Delete"
+	storage.doc.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	for index, wantWrites := range []int{1, 2, 2, 3, 3} {
 		if err := controller.SyncOnce(t.Context(), testKey); err != nil || storage.writes != wantWrites {
 			t.Fatalf("pass %d: writes %d, error %v", index, storage.writes, err)
