@@ -74,8 +74,9 @@ func VerifyInsightsOperatorHealthy(timeout time.Duration) HostedClusterVerifier 
 }
 
 type verifyClusterVisibleInConsole struct {
-	token   string
-	timeout time.Duration
+	clientID     string
+	clientSecret string
+	timeout      time.Duration
 }
 
 func (v verifyClusterVisibleInConsole) Name() string {
@@ -99,7 +100,7 @@ func (v verifyClusterVisibleInConsole) Verify(ctx context.Context, adminRESTConf
 	}
 
 	connection, err := ocmsdk.NewConnectionBuilder().
-		Tokens(v.token).
+		Client(v.clientID, v.clientSecret).
 		Build()
 	if err != nil {
 		return fmt.Errorf("failed to create OCM connection: %w", err)
@@ -125,7 +126,7 @@ func (v verifyClusterVisibleInConsole) Verify(ctx context.Context, adminRESTConf
 
 // VerifyClusterVisibleInConsole polls the OCM clusters_mgmt API until the
 // cluster (identified by ClusterVersion.Spec.ClusterID) appears, confirming
-// the Insights Operator has registered it with console.redhat.com.
-func VerifyClusterVisibleInConsole(token string, timeout time.Duration) HostedClusterVerifier {
-	return verifyClusterVisibleInConsole{token: token, timeout: timeout}
+// it is visible in console.redhat.com.
+func VerifyClusterVisibleInConsole(clientID, clientSecret string, timeout time.Duration) HostedClusterVerifier {
+	return verifyClusterVisibleInConsole{clientID: clientID, clientSecret: clientSecret, timeout: timeout}
 }
