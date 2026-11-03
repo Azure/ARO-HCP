@@ -679,7 +679,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 				if (uncovered) context.push('outside recorded stages');
 				crossing.push({...segment, displayName:(segment.kind === 'gap' ? 'No recorded operation' : segment.name) + '; overlaps: ' + context.join(', ')});
 			} else {
-				outside.push(segment);
+				outside.push({...segment, displayName:segment.name});
 			}
 		}
 		const appendRows = (section, rows) => {

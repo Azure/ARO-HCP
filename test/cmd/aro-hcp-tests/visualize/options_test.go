@@ -421,6 +421,8 @@ func TestTimingChartUncoveredTooltip(t *testing.T) {
 		}},
 		timingChartGroup{Name: "unstaged", Duration: 1000, Segments: []timingChartSegment{
 			{Name: "legacy operation", Kind: "operation", Color: "#2563eb", Start: 50000, End: 51000},
+			{Name: "No recorded operation during test work", Kind: "gap", Color: "#64748b", Start: 50000, End: 50500},
+			{Name: "No recorded operation during cleanup", Kind: "gap", Color: "#64748b", Start: 50500, End: 51000},
 		}},
 		timingChartGroup{Name: "zero", FullLifecycle: true, Segments: []timingChartSegment{
 			{Name: "Phase: Instant", Kind: "phase", Color: "#9333ea", Start: 50000, End: 50000},
@@ -517,6 +519,8 @@ const legacy = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:2}]);
 assert.ok(legacy.textContent.includes('cleanup coverage unknown'));
 assert.ok(descendants(legacy).some(node=>node.tagName==='H3' && node.textContent==='Outside recorded stages'));
 assert.equal(descendants(legacy).filter(node=>node.textContent==='legacy operation').length,1);
+assert.ok(legacy.textContent.includes('No recorded operation during test work'));
+assert.ok(legacy.textContent.includes('No recorded operation during cleanup'));
 const zero = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:3}]);
 assert.ok(zero.textContent.includes('0s'));
 assert.ok(!zero.textContent.includes('NaN') && !zero.textContent.includes('Infinity'));
