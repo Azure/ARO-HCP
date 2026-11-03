@@ -22,7 +22,7 @@ import (
 )
 
 func TestToDeploymentStackDesireResourceIDStringIsCanonical(t *testing.T) {
-	got := ToDeploymentStackDesireResourceIDString("00000000-0000-0000-0000-000000000001", "RG", "Cluster", "Desire")
+	got := ToClusterScopedDeploymentStackDesireResourceIDString("00000000-0000-0000-0000-000000000001", "RG", "Cluster", "Desire")
 	parsed, err := azcorearm.ParseResourceID(got)
 	if err != nil {
 		t.Fatalf("helper produced an ID that does not parse: %v\ngot: %q", err, got)
@@ -34,11 +34,11 @@ func TestToDeploymentStackDesireResourceIDStringIsCanonical(t *testing.T) {
 }
 
 func TestToDeploymentStackDesireResourceID(t *testing.T) {
-	id, err := ToDeploymentStackDesireResourceID("SUB", "RG", "Cluster", "Desire")
+	id, err := ToClusterScopedDeploymentStackDesireResourceID("SUB", "RG", "Cluster", "Desire")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := ToDeploymentStackDesireResourceIDString("sub", "rg", "cluster", "desire")
+	want := ToClusterScopedDeploymentStackDesireResourceIDString("sub", "rg", "cluster", "desire")
 	if strings.ToLower(id.String()) != want {
 		t.Fatalf("typed helper returned %q, want %q", id.String(), want)
 	}

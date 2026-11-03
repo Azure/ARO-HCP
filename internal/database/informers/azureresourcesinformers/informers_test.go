@@ -61,7 +61,7 @@ func TestDeploymentStackDesireInformer(t *testing.T) {
 	items, err := lister.ListForCluster(ctx, "SUB", "rg", "CLUSTER")
 	require.NoError(t, err)
 	require.Len(t, items, 1, "cluster index must isolate desires by owning cluster")
-	item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString("SUB", "rg", "CLUSTER", "DESIRE"))
+	item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceIDString("SUB", "rg", "CLUSTER", "DESIRE"))
 	require.NoError(t, err)
 	require.Same(t, items[0], item)
 	updated := item.DeepCopy()
@@ -71,7 +71,7 @@ func TestDeploymentStackDesireInformer(t *testing.T) {
 	_, err = crud.Replace(ctx, updated, nil)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString("sub", "rg", "cluster", "desire"))
+		item, err := lister.GetByResourceID(ctx, azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceIDString("sub", "rg", "cluster", "desire"))
 		return err == nil && item.Status.ObservedSpecHash == "updated"
 	}, 10*time.Second, 20*time.Millisecond)
 	require.NoError(t, crud.Delete(ctx, "desire"))
