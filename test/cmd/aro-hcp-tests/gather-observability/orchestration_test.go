@@ -19,12 +19,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -728,50 +726,31 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 			t.Fatalf("a missing region resource group must not fail the gather step: %v", err)
 		}
 
-		for _, name := range []string{"alerts.json", "junit_alerts.xml", "observability-summary.html"} {
-			if _, err := os.Stat(filepath.Join(o.OutputDir, name)); err != nil {
-				t.Fatalf("missing artifact %s: %v", name, err)
-			}
-		}
-
-		suite := readSuites(t, o.OutputDir).Suites[0]
-		if suite.NumFailed != 0 || suite.NumSkipped != 3 || suite.NumTests != 3 {
-			t.Errorf("expected three skipped cases and no failures, got %+v", suite)
-		}
-		gotNames := make([]string, 0, len(suite.TestCases))
-		for _, tc := range suite.TestCases {
-			gotNames = append(gotNames, tc.Name)
-			if tc.SkipMessage == nil || !strings.Contains(tc.SkipMessage.Message, "not evaluated") {
-				t.Errorf("case %q is not an explicit skip: %+v", tc.Name, tc)
-			}
-		}
-		// The names must match what a normal run emits, otherwise Sippy and
-		// CIHealth track the skip as a different test.
-		for _, wsType := range []string{workspaceSvc, workspaceHcp, workspaceInfra} {
-			want := fmt.Sprintf("[aro-hcp-observability] [%s] alert collection is complete", wsType)
-			if !slices.Contains(gotNames, want) {
-				t.Errorf("missing skipped case %q, got %v", want, gotNames)
-			}
-		}
-
-		alerts, err := os.ReadFile(filepath.Join(o.OutputDir, "alerts.json"))
+		// Nothing was collected, so nothing is published: Kusto ingestion and
+		// CIHealth both tolerate a missing junit_alerts.xml.
+		entries, err := os.ReadDir(o.OutputDir)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var output alertsOutput
-		if err := json.Unmarshal(alerts, &output); err != nil {
-			t.Fatalf("invalid alerts artifact: %v", err)
+		if len(entries) != 0 {
+			names := make([]string, 0, len(entries))
+			for _, e := range entries {
+				names = append(names, e.Name())
+			}
+			t.Errorf("expected no artifacts for a skipped collection, got %v", names)
 		}
-		if len(output.CollectionErrors) != 1 || !strings.Contains(output.CollectionErrors[0], "does not exist") {
-			t.Errorf("alerts.json does not explain the skip: %+v", output.CollectionErrors)
-		}
+	})
 
-		page, err := os.ReadFile(filepath.Join(o.OutputDir, "observability-summary.html"))
-		if err != nil {
-			t.Fatal(err)
+	t.Run("missing region resource group still reports setup errors", func(t *testing.T) {
+		t.Parallel()
+		o := newOptions(t)
+		o.queriesError = errors.New("failed to load queries")
+		deps := o.dependencies()
+		deps.checkResourceGroupExists = func(context.Context, azcore.TokenCredential, string) (bool, error) {
+			return false, nil
 		}
-		if !strings.Contains(string(page), "Incomplete report") || !strings.Contains(string(page), "does not exist") {
-			t.Errorf("summary page does not explain the skip: %s", page)
+		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err == nil || !strings.Contains(err.Error(), "failed to load queries") {
+			t.Fatalf("setup errors must still fail the step when collection is skipped, got %v", err)
 		}
 	})
 

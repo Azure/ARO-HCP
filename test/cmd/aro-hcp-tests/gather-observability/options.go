@@ -102,8 +102,8 @@ type completedOptions struct {
 	// regionRGScope is the fully qualified ID of the region resource group
 	// (regionRG in the rendered config) that holds the regional infrastructure
 	// and the monitoring workspaces. It only exists once the environment has
-	// been provisioned, so its absence is reported as a skip rather than a
-	// collection failure.
+	// been provisioned, so when it is absent collection is skipped rather than
+	// reported as failed.
 	regionRGScope string
 }
 
@@ -379,8 +379,7 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	// The region resource group is created by provisioning. When it is missing
 	// the run never got far enough to have something to observe (provision was
 	// aborted before creating anything, or gather ran against the write-config
-	// step's less accurate config), so report a skip instead of failing alert
-	// collection. Note this is about existence, not about provisioning having
+	// step's less accurate config), so skip collection instead of failing it. Note this is about existence, not about provisioning having
 	// succeeded: a run that failed halfway still has real infrastructure and
 	// real alerts, and those must be collected.
 	if o.regionRGScope != "" {
@@ -393,13 +392,10 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 			// own failures, which they do loudly when access is really broken.
 			logger.Error(err, "failed to check region resource group; continuing with collection", "resourceGroup", o.regionRGScope)
 		case !exists:
-			reason := fmt.Errorf("region resource group %s does not exist", o.regionRGScope)
-			logger.Info("skipping alert collection", "reason", reason.Error())
-			if err := o.writeUnprovisionedArtifacts(deps, reason); err != nil {
-				// Only artifact-write problems and the setup errors recorded above
-				// can fail the run: the missing environment itself is a skip.
-				record(err)
-			}
+			// Write no artifacts: there is nothing to report, and both the Kusto
+			// ingestion and CIHealth tolerate a missing junit_alerts.xml. Only the
+			// setup errors recorded above can fail the run.
+			logger.Info("region resource group does not exist; skipping observability collection", "resourceGroup", o.regionRGScope)
 			return utils.TrackError(errors.Join(fatalErrors...))
 		}
 	}
