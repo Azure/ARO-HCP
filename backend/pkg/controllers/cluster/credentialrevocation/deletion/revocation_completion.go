@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,6 +39,7 @@ import (
 type revocationCompletion struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	revocationLister  corelisters.SystemAdminCredentialRevocationLister
 	readDesireLister  dblisters.ReadDesireLister
 }
 
@@ -62,9 +64,12 @@ func NewRevocationCompletionController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
+	_, revocationLister := backendInformers.SystemAdminCredentialRevocations()
+
 	syncer := &revocationCompletion{
 		clock:             clock,
 		resourcesDBClient: resourcesDBClient,
+		revocationLister:  revocationLister,
 		readDesireLister:  readDesireLister,
 	}
 
@@ -85,19 +90,23 @@ func NewRevocationCompletionController(
 func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
-	revocation, err := revocationCRUD.Get(ctx, key.RevocationName)
+	// Use cached data. Replace carries IfMatchETag from the document, and
+	// PreconditionFailed is treated as a no-op so a stale cache loses the race
+	// safely and retries once the informer catches up.
+	revocation, err := c.revocationLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRevocation: %w", err))
 	}
 
 	// Once the revocation is marked for deletion the deletion controller owns it.
 	if revocation.Status.DeletionTimestamp != nil {
 		return nil
 	}
+
+	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
 	if !meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCertificatesRevoked) {

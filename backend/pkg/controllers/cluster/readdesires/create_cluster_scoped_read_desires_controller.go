@@ -52,9 +52,9 @@ import (
 type createClusterScopedReadDesiresSyncer struct {
 	activeOperationLister corelisters.ActiveOperationLister
 
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
@@ -84,11 +84,13 @@ func NewCreateClusterScopedReadDesiresController(
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
+	_, clusterLister := informers.Clusters()
+
 	syncer := &createClusterScopedReadDesiresSyncer{
 		activeOperationLister:               activeOperationLister,
-		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		clusterLister:                       clusterLister,
 		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
@@ -120,12 +122,15 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// also emit the cluster-identifying fields.
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	// Use cached cluster data only — this controller never mutates the cluster
+	// document; it only needs DeletionTimestamp / ClusterServiceID / DNS prefix
+	// to decide whether to ensure ReadDesires.
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
