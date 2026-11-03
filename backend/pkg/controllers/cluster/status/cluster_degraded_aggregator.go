@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
@@ -202,7 +203,7 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		if desire.ResourceID == nil || condition == nil || condition.Status == metav1.ConditionFalse {
 			continue
 		}
-		hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+		hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to hash StackDesire %s: %w", desire.ResourceID, err))
 		}
