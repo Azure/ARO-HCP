@@ -425,6 +425,9 @@ defaults:
     viewerIdentities: ""
     sku: ""
     tier: ""
+    costReporting:
+      enabled: false
+      identityName: "kusto-cost-reporter"
   auditLogsEventHub:
     name: "aks-auditlogs"
     enabled: true

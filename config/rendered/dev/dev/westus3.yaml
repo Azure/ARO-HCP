@@ -576,6 +576,9 @@ kusto:
   adminGroups: ""
   autoScaleMax: 10
   autoScaleMin: 2
+  costReporting:
+    enabled: false
+    identityName: kusto-cost-reporter
   enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
