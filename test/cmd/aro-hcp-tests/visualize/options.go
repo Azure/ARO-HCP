@@ -651,7 +651,9 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			}
 			for (const segment of segments) {
 				const stage = segment.kind === 'phase';
-				const label = element(stage ? 'h3' : 'div', {borderLeft:'3px solid ' + segment.color, paddingLeft:stage ? '6px' : '14px', margin:'0', fontSize:stage ? '13px' : '12px', fontWeight:stage ? '600' : '400', overflowWrap:'anywhere'}, segment.displayName || (segment.kind === 'gap' ? 'No recorded operation' : segment.name));
+				const primary = segment.displayName || (segment.kind === 'gap' ? 'No recorded operation' : segment.name);
+				const label = element(stage ? 'h3' : 'div', {borderLeft:'3px solid ' + segment.color, paddingLeft:stage ? '6px' : '14px', margin:'0', fontSize:stage ? '13px' : '12px', fontWeight:stage ? '600' : '400', overflowWrap:'anywhere'}, primary);
+				if (segment.kind === 'gap' && segment.name && segment.name !== primary) label.append(element('div', {opacity:'0.7', fontSize:'11px'}, segment.name));
 				const track = element('div', {position:'relative', height:'10px', borderRadius:'2px', overflow:'hidden', background:'rgba(128,128,128,0.18)'});
 				const left = duration > 0 ? (segment.start - start) / duration * 100 : 0;
 				const width = duration > 0 ? (segment.end - segment.start) / duration * 100 : 0;
