@@ -168,6 +168,8 @@ safe-outputs:
     recover-owned-pr:
       description: Release a green automatic hold or request one evidenced unchanged-head transient-failure recovery
       max: 1
+      artifacts:
+        - /tmp/gh-aw/agent/prow-logs/
       runs-on: ubuntu-latest
       permissions:
         contents: read
@@ -339,6 +341,15 @@ Choose at most one `recover_owned_pr` safe output:
 1. With `can_release_hold: true`, use `action: release-hold` and the exact number and head. This path requires all current-head CI green including the pipeline gate and E2E.
 2. With `can_recover_retry: true`, investigate the actual failing run and logs, compare the same signature against main or another PR and a passing run, and identify an evidenced transient/infrastructure cause unrelated to the PR diff. Only then use `action: recover-retry`, the exact number/head, and concise `evidence` naming that cause with linked current failing run and trusted comparison run. A generic E2E failure, elapsed time, exhausted retries or main advancing is not justification. Do not request recovery for reproducible source failures, unknown causes or pending tests. The deterministic guard rechecks current failure URLs, ownership, head, hold provenance, absence of pending CI and the permanent per-head recovery marker before posting its fixed `/hold cancel` and `/retest-required` commands.
 3. Otherwise continue with the separately guarded native lifecycle below. Do not call `noop` until all eligible native groups have been assessed with concrete reasons. Unresolved failures remain held and visible; no PR, issue or comment is needed for a genuinely exhausted no-op.
+
+For a failing Prow check, use its exact current-head `target_url`, not a URL assembled from a bucket name or job number. Fetch the recorded run with the trusted read-only helper from the original checkout:
+
+```bash
+log_helper=$(realpath .github/scripts/fetch_prow_logs.py)
+python3 "$log_helper" "$prow_url" "/tmp/gh-aw/agent/prow-logs/$run_id"
+```
+
+The helper derives the exact bucket and object prefix from the Prow URL and saves `finished.json` and the complete `build-log.txt`. Keep failing and comparison runs in separate output directories. Inspect those saved files and their manifest before diagnosing the failure. Do not substitute `test-platform-results` for `test-platform-results-public` or guess the reverse. HTTP errors and incomplete downloads are retrieval failures, not evidence that the test is transient; preserve the hold when causal evidence is still missing. Apply this same retrieval procedure to native replacement recovery.
 
 A single unchanged-head recovery consumes its budget permanently, even if Prow exhausts retries and holds that head again. Never edit/delete the marker, refresh solely to reset retries, or recycle the budget each day. The agent cannot supply command bodies, arbitrary shell, approve, merge, override CI or delete labels. A requested cancellation is not observed recovery: subsequent runs confirm actual label and CI state.
 
