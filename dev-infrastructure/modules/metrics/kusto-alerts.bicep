@@ -23,7 +23,7 @@ resource ingestionLatencyAboveAverage 'Microsoft.Insights/metricAlerts@2018-03-0
     evaluationFrequency: 'PT5M'
     windowSize: 'PT30M'
     criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      'odata.type': 'Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria'
       allOf: [
         {
           name: 'IngestionLatencyCriteria'
