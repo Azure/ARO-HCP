@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestDeploymentStackDesireSpecHash(t *testing.T) {
@@ -18,7 +20,7 @@ func TestDeploymentStackDesireSpecHash(t *testing.T) {
 	spec := azureresourcesapi.DeploymentStackDesireSpec{
 		TargetResourceID: target,
 		Authentication:   azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA},
-		Action:           azureresourcesapi.DeploymentStackDesireActionApply,
+		Action:           azureresourcesapi.DeploymentStackDesireActionTypeApply,
 		Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{
 			Template: map[string]any{"b": float64(42), "a": []any{float64(1), float64(2)}},
 		}},
@@ -53,17 +55,19 @@ func TestDeploymentStackDesireSpecHash(t *testing.T) {
 			spec.TargetResourceID, _ = azcorearm.ParseResourceID(target.String() + "-other")
 		},
 		"action": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
-			spec.Action = azureresourcesapi.DeploymentStackDesireActionDelete
+			spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 		},
 		"authentication type": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
 			spec.Authentication.Type = azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI
 		},
-		"tenant": func(spec *azureresourcesapi.DeploymentStackDesireSpec) { spec.Authentication.TenantID = "tenant" },
+		"tenant": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
+			spec.Authentication.FirstPartyApplication = &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{TenantID: "tenant"}
+		},
 		"SMI": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
-			spec.Authentication.SMIResourceID, _ = azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")
+			spec.Authentication.ServiceManagedIdentity = &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"))}
 		},
 		"identity URL": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
-			spec.Authentication.ClusterIdentityURL = "https://identity.example.com"
+			spec.Authentication.ServiceManagedIdentity = &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ClusterIdentityURL: "https://identity.example.com"}
 		},
 		"interval": func(spec *azureresourcesapi.DeploymentStackDesireSpec) {
 			spec.ReconcileInterval.Duration = 6 * time.Hour

@@ -60,10 +60,17 @@ var testKey = Key{ParentResourceID: testParentResourceID, Name: "desire"}
 
 func newDesire() *azureresourcesapi.DeploymentStackDesire {
 	target, _ := azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Resources/deploymentStacks/stack")
-	return &azureresourcesapi.DeploymentStackDesire{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "original"}, Spec: azureresourcesapi.DeploymentStackDesireSpec{
-		TargetResourceID: target, Authentication: azureresourcesapi.DeploymentStackDesireAuthentication{Type: "FPA", TenantID: "tenant"}, Action: "Apply",
-		Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: map[string]any{"unknown": float64(123)}}},
-	}}
+	return &azureresourcesapi.DeploymentStackDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "original"},
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{
+			TargetResourceID: target,
+			Authentication: azureresourcesapi.DeploymentStackDesireAuthentication{
+				Type:                  azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA,
+				FirstPartyApplication: &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{TenantID: "tenant"},
+			},
+			Action: "Apply",
+			Stack:  &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{Template: map[string]any{"unknown": float64(123)}}},
+		}}
 }
 
 func observedStack(state, correlation string) *armdeploymentstacks.DeploymentStack {
@@ -499,7 +506,7 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 					case "success":
 						status, err = stackDesireStatusForAssociatedApply(hash, stack)
 					case "sync invalid":
-						status, err = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidTemplate"})
+						status, err = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, &azcore.ResponseError{StatusCode: 400, ErrorCode: "InvalidTemplate"})
 					case "async invalid":
 						desire = withApplySubmission(t, desire, observedStack("deploying", "ours"), now)
 						stack = observedStack("failed", "ours")
@@ -723,7 +730,44 @@ func TestLocalValidation(t *testing.T) {
 		}, message: "unsupported stack scope"},
 		{name: "action", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Spec.Action = "unknown" }, message: "unsupported stack action"},
 		{name: "authentication", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Spec.Authentication.Type = "unknown" }, message: "unsupported stack authentication"},
-		{name: "nil SMI", change: func(desire *azureresourcesapi.DeploymentStackDesire) { desire.Spec.Authentication.Type = "SMI" }, message: "SMI authentication requires smiResourceID"},
+		{name: "nil SMI", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI}
+		}, message: "SMI authentication requires serviceManagedIdentity"},
+		{name: "nil SMI resource ID", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{
+				Type:                   azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI,
+				ServiceManagedIdentity: &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ClusterIdentityURL: "https://identity.example/cluster"},
+			}
+		}, message: "SMI authentication requires serviceManagedIdentityResourceID"},
+		{name: "SMI resource ID wrong type", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			identity, err := azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm")
+			if err != nil {
+				t.Fatal(err)
+			}
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{
+				Type:                   azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI,
+				ServiceManagedIdentity: &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: identity, ClusterIdentityURL: "https://identity.example/cluster"},
+			}
+		}, message: "SMI authentication requires a serviceManagedIdentityResourceID with userAssignedIdentity type"},
+		{name: "nil SMI cluster identity URL", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			identity, err := azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")
+			if err != nil {
+				t.Fatal(err)
+			}
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{
+				Type:                   azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI,
+				ServiceManagedIdentity: &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: identity},
+			}
+		}, message: "SMI authentication requires clusterIdentityURL"},
+		{name: "nil FPA", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA}
+		}, message: "FPA authentication requires firstPartyApplication"},
+		{name: "nil FPA tenant", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
+			desire.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{
+				Type:                  azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA,
+				FirstPartyApplication: &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{},
+			}
+		}, message: "FPA authentication requires tenantID"},
 		{name: "unhashable", change: func(desire *azureresourcesapi.DeploymentStackDesire) {
 			desire.Spec.Stack.Properties.Template = make(chan int)
 		}, message: "marshal deployment stack desire spec"},
@@ -865,7 +909,7 @@ func TestAzureErrorFixtures(t *testing.T) {
 						return httpResponse(request, response.Status, string(response.Body)), nil
 					})
 					_, err := submitApply(t.Context(), client, newDesire().Spec)
-					status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, err)
+					status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 					if err == nil || status == nil || status.Conditions[0].Reason != "RequestFailed" || !strings.Contains(status.Conditions[0].Message, "Authorization failed") {
 						t.Fatalf("real HTTP 400 permission failure treated as invalid: %+v, %v", status, err)
 					}
@@ -1081,7 +1125,7 @@ func TestSDKSubmissionOutcomes(t *testing.T) {
 			var status *azureresourcesapi.DeploymentStackDesireStatus
 			var submissionErr error
 			if err != nil {
-				status, submissionErr = stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, err)
+				status, submissionErr = stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 			} else {
 				status, submissionErr = stackDesireStatusForAssociatedApply("hash", stack)
 			}
@@ -1104,7 +1148,7 @@ func TestSDKSubmissionOutcomes(t *testing.T) {
 	}
 	client := sdkClient(t, "sub", func(*http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded })
 	_, err := submitApply(t.Context(), client, newDesire().Spec)
-	status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, err)
+	status, err := stackDesireStatusForRejectedSubmission("hash", azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 	if status != nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("transport failure wrote status: %+v, %v", status, err)
 	}
@@ -1343,12 +1387,12 @@ func TestOuterSingleMutationAndPolling(t *testing.T) {
 }
 
 func TestSubmissionFailureWrites(t *testing.T) {
-	for _, action := range []string{"Apply", "Delete"} {
+	for _, action := range []azureresourcesapi.DeploymentStackDesireActionType{azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireActionTypeDelete} {
 		for _, failure := range []string{"transport", "rejected", "invalid", "decode"} {
-			if action == "Delete" && failure == "decode" {
+			if action == azureresourcesapi.DeploymentStackDesireActionTypeDelete && failure == "decode" {
 				continue
 			}
-			t.Run(action+"/"+failure, func(t *testing.T) {
+			t.Run(string(action)+"/"+failure, func(t *testing.T) {
 				controller, storage, _ := setup(t, func(request *http.Request) (*http.Response, error) {
 					if request.Method == http.MethodGet {
 						return httpResponse(request, 200, `{"properties":{"provisioningState":"succeeded","correlationId":"external"}}`), nil
@@ -1456,12 +1500,16 @@ func TestOuterErrorsAndOriginalETag(t *testing.T) {
 }
 
 func TestIndependentCredentialBuilders(t *testing.T) {
-	for _, authentication := range []string{"FPA", "SMI"} {
+	for _, authentication := range []azureresourcesapi.DeploymentStackDesireAuthenticationType{azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI} {
 		for _, failBuild := range []int{0, 1, 2} {
 			t.Run(fmt.Sprintf("%s/fail%d", authentication, failBuild), func(t *testing.T) {
 				controller, storage, _ := setup(t, func(*http.Request) (*http.Response, error) { t.Fatal("default builder used"); return nil, nil })
 				identity, _ := azcorearm.ParseResourceID("/subscriptions/identity-sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")
-				storage.doc.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{Type: authentication, TenantID: "tenant", SMIResourceID: identity, ClusterIdentityURL: "https://identity.example/cluster"}
+				storage.doc.Spec.Authentication = azureresourcesapi.DeploymentStackDesireAuthentication{
+					Type:                   authentication,
+					FirstPartyApplication:  &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{TenantID: "tenant"},
+					ServiceManagedIdentity: &azureresourcesapi.DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: identity, ClusterIdentityURL: "https://identity.example/cluster"},
+				}
 				builds, requests := 0, 0
 				build := func() (*armdeploymentstacks.Client, error) {
 					builds++
@@ -1482,13 +1530,13 @@ func TestIndependentCredentialBuilders(t *testing.T) {
 					}), nil
 				}
 				controller.fpa = fpaBuilder{build: func(tenant, subscription string) (*armdeploymentstacks.Client, error) {
-					if authentication != "FPA" || tenant != "tenant" || subscription != "sub" {
+					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA || tenant != "tenant" || subscription != "sub" {
 						t.Fatal("incorrect FPA routing")
 					}
 					return build()
 				}}
 				controller.smi = smiBuilder{build: func(_ context.Context, url string, id *azcorearm.ResourceID, subscription string) (*armdeploymentstacks.Client, error) {
-					if authentication != "SMI" || url != "https://identity.example/cluster" || id != identity || subscription != "sub" {
+					if authentication != azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI || url != "https://identity.example/cluster" || id != identity || subscription != "sub" {
 						t.Fatal("incorrect SMI routing")
 					}
 					return build()
@@ -1554,8 +1602,8 @@ func TestOuterLocalValidationAndMissingDocument(t *testing.T) {
 }
 
 func TestOuterIdenticalRejectionRefreshesCooldown(t *testing.T) {
-	for _, operation := range []string{"Apply", "Delete"} {
-		t.Run(operation, func(t *testing.T) {
+	for _, operation := range []azureresourcesapi.DeploymentStackDesireActionType{azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireActionTypeDelete} {
+		t.Run(string(operation), func(t *testing.T) {
 			requests, submissions := 0, 0
 			controller, storage, clk := setup(t, func(request *http.Request) (*http.Response, error) {
 				requests++
