@@ -395,7 +395,7 @@ func skuUsable(sku *armcompute.ResourceSKU, location string, selector VMSizeSele
 		}
 	}
 	if selector.RequireZones {
-		if _, available := zonesInLocation(sku, location); len(available) == 0 {
+		if available := zonesInLocation(sku, location); len(available) == 0 {
 			return false
 		}
 	}
@@ -423,17 +423,9 @@ func skuAdvertisedInLocation(sku *armcompute.ResourceSKU, location string) bool 
 	return false
 }
 
-// skuRestrictedInLocation reports whether the SKU is entirely unavailable in the
-// location. This covers both a Location-type restriction (SKU banned from the
-// whole region, e.g. NotAvailableForSubscription) and the case where the SKU
-// advertises availability zones in the location but Zone-type restrictions
-// remove all of them.
-//
-// The second case is not merely theoretical: Azure commonly expresses a full
-// subscription/region ban as a Zone-type restriction listing every zone (reason
-// NotAvailableForSubscription) rather than a Location-type restriction. A SKU in
-// that state is effectively unusable in the region, so it must be filtered out
-// even for selectors that do not set RequireZones.
+// skuRestrictedInLocation reports whether an applicable Location-type
+// restriction prevents placement in the region. Zone-type restrictions only
+// constrain zonal placement and are checked separately when zones are required.
 func skuRestrictedInLocation(sku *armcompute.ResourceSKU, location string) bool {
 	for _, restriction := range sku.Restrictions {
 		if restriction == nil || restriction.Type == nil {
@@ -447,26 +439,12 @@ func skuRestrictedInLocation(sku *armcompute.ResourceSKU, location string) bool 
 		}
 	}
 
-	// A zonal SKU whose every advertised zone is removed by Zone-type
-	// restrictions is unusable. Comparing the advertised count against the
-	// remaining zones lets us tell that apart from a genuinely non-zonal SKU
-	// (advertised == 0), which must not be treated as restricted. A restriction
-	// listing zones beyond those advertised (Azure sometimes lists zones the SKU
-	// does not even offer) still empties the available set.
-	advertised, available := zonesInLocation(sku, location)
-	if advertised > 0 && len(available) == 0 {
-		return true
-	}
-
 	return false
 }
 
-// zonesInLocation returns, in a single pass, how many availability zones the SKU
-// advertises in the location and the sorted subset that remains usable after
-// Zone-type restrictions are applied. Returning both lets callers distinguish a
-// non-zonal SKU (advertised == 0) from a zonal SKU whose every zone is
-// restricted (advertised > 0, available empty).
-func zonesInLocation(sku *armcompute.ResourceSKU, location string) (advertised int, available []string) {
+// zonesInLocation returns the sorted availability zones remaining after
+// applicable Zone-type restrictions are applied.
+func zonesInLocation(sku *armcompute.ResourceSKU, location string) []string {
 	advertisedZones := sets.New[string]()
 	for _, info := range sku.LocationInfo {
 		if info == nil || info.Location == nil || !strings.EqualFold(*info.Location, location) {
@@ -494,7 +472,7 @@ func zonesInLocation(sku *armcompute.ResourceSKU, location string) (advertised i
 		}
 	}
 
-	return advertisedZones.Len(), sets.List(advertisedZones.Difference(restrictedZones))
+	return sets.List(advertisedZones.Difference(restrictedZones))
 }
 
 func restrictionCoversLocation(restriction *armcompute.ResourceSKURestrictions, location string) bool {

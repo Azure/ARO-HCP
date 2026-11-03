@@ -47,7 +47,7 @@ func TestConfiguredFamilySelection(t *testing.T) {
 		{"preference beats lexical discovery within family", []*armcompute.ResourceSKU{familySKU("Standard_D8as_v5", "first", "8"), familySKU("Standard_D8s_v5", "first", "8")}, "Standard_D8s_v5"},
 		{"deterministic bounded discovery", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v6", "first", "8"), familySKU("Standard_D16s_v5", "first", "16"), familySKU("Standard_D8s_v4", "first", "8")}, "Standard_D8s_v4"},
 		{"restricted family advances to next", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8", withLocationRestriction(testLocation)), familySKU("Standard_D8as_v5", "second", "8")}, "Standard_D8as_v5"},
-		{"all zones restricted", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8", withZones(testLocation, "1", "2"), withZoneRestriction(testLocation, "1", "2"))}, ""},
+		{"all zones restricted permits non-zonal selection", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8", withZones(testLocation, "1", "2"), withZoneRestriction(testLocation, "1", "2"))}, "Standard_D8s_v5"},
 		{"one unrestricted zone remains", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8", withZones(testLocation, "1", "2"), withZoneRestriction(testLocation, "1"))}, "Standard_D8s_v5"},
 		{"RP rejects local disk worker", []*armcompute.ResourceSKU{familySKU("Standard_D8ds_v5", "first", "8")}, ""},
 		{"wrong metadata family even for preferred name", []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "outside", "8")}, ""},
@@ -87,6 +87,15 @@ func TestConfiguredFamilySelection(t *testing.T) {
 		_, _, err := selectVMSize([]*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8")}, testLocation, zonal)
 		if !errors.Is(err, ErrNoUsableVMSize) {
 			t.Fatalf("expected non-zonal SKU rejection, got %v", err)
+		}
+	})
+	t.Run("all zones restricted rejects zonal selection", func(t *testing.T) {
+		zonal := selector
+		zonal.RequireZones = true
+		skus := []*armcompute.ResourceSKU{familySKU("Standard_D8s_v5", "first", "8", withZones(testLocation, "1", "2"), withZoneRestriction(testLocation, "1", "2"))}
+		got, _, err := selectVMSize(skus, testLocation, zonal)
+		if got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+			t.Fatalf("expected restricted zonal SKU rejection, got %q err=%v", got, err)
 		}
 	})
 }

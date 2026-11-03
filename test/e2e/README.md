@@ -421,10 +421,12 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
 [`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
 
 - `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
-  test location, filters out SKUs that are restricted in the current
-  subscription/location, applies the selector's capability filters, and returns
-  a usable SKU. When the selector requires zones, only SKUs with at least one
-  non-restricted zone are considered usable. It prefers the selector's ordered
+  test location, filters out SKUs with applicable **Location** restrictions in
+  the current subscription/location, applies the selector's capability filters,
+  and returns a usable SKU. **Zone** restrictions constrain only zonal placement:
+  even when every advertised zone is restricted, a non-zonal selector may use
+  the SKU. When the selector requires zones, at least one advertised zone must
+  remain unrestricted. It prefers the selector's ordered
   `Preferred` list first, then falls back to a deterministic, sorted pick when
   the selector permits discovery.
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
