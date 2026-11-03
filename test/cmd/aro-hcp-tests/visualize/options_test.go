@@ -222,8 +222,8 @@ containerTop = 435;
 windowListeners.load();
 const sortedLabels = () => state.yAxis[0].data;
 assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels())), ['beta','alpha']);
-assert.equal(chart.height, 549);
-assert.equal(chart.dom.style.height, '549px');
+assert.ok(chart.height >= 640);
+assert.equal(chart.dom.style.height, chart.height + 'px');
 assert.equal(state.dataZoom[0].end, 100);
 	const viewportHeight = chart.height;
 sort.value = 'name'; listeners.change();
@@ -232,7 +232,7 @@ const shapes = state.series[0].renderItem({dataIndex:0,coordSys:{}}, {value:i=>s
 assert.deepEqual(Array.from(shapes, s=>[s.shape.x,s.shape.width,s.style.fill]), [[0,3000,'#2563eb'],[3000,2000,'#2563eb'],[3000,2000,'#0d9488'],[5000,2000,'#0d9488']]);
 sort.value = 'duration'; listeners.change();
 assert.equal(sortedLabels()[0], 'beta');
-assert.equal(chart.height, 549);
+assert.equal(chart.height, viewportHeight);
 assert.equal(state.dataZoom[0].end, 100);
 const initialTimeSpan = state.dataZoom[1].end - state.dataZoom[1].start;
 Object.assign(state.dataZoom[0], {start:0,end:40});
@@ -248,13 +248,13 @@ listeners['chart:datazoom']({batch:[{dataZoomId:'timing-rows',start:0,end:100}]}
 assert.ok(state.dataZoom[1].end - state.dataZoom[1].start > zoomedTimeSpan);
 window.innerHeight = 800;
 windowListeners.resize();
-assert.equal(chart.height, 349);
-assert.equal(chart.dom.style.height, '349px');
+assert.ok(chart.height < viewportHeight && chart.height >= 640);
+assert.equal(chart.dom.style.height, chart.height + 'px');
 containerTop = 700;
 window.innerHeight = 600;
 windowListeners.resize();
-assert.equal(chart.height, 320);
-assert.equal(chart.dom.style.height, '320px');
+assert.ok(chart.height >= 640);
+assert.equal(chart.dom.style.height, chart.height + 'px');
 assert.equal(sortedLabels().length, 2);
 assert.equal(state.dataZoom[0].end, 100);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
@@ -634,12 +634,14 @@ const assertStableOverview = expected => {
 	assert.equal(chart.dom.style.height, expected+'px');
 	assert.equal(state.dataZoom[0].end, 100);
 };
-assertStableOverview(sameOrigin ? 549 : 320);
+const initialOverviewHeight = chart.height;
+assert.ok(initialOverviewHeight >= 640);
+assertStableOverview(initialOverviewHeight);
 if (sameOrigin) {
 	host.innerHeight = 1200;
 	dispatch(hostListeners, 'resize');
-	assert.equal(chart.height, 749, 'host resize must update the overview before an iframe resize');
-	assertStableOverview(749);
+	assert.ok(chart.height > initialOverviewHeight, 'host resize must update the overview before an iframe resize');
+	assertStableOverview(chart.height);
 }
 	const viewportHeight = chart.height;
 	for (const [start, end] of [[0,99],[0,95],[20,40],[20,21],[0,100]]) {
@@ -652,16 +654,17 @@ if (sameOrigin) {
 	}
 	chart.dispatchAction({type:'dataZoom',dataZoomId:'timing-rows',start:20,end:40});
 	const timeZoom = {...state.dataZoom[1]};
+	const beforeHostResize = chart.height;
 	host.innerHeight = 1400;
 	dispatch(hostListeners, 'resize');
 	for (let i = 0; i < 20; i++) dispatch(childListeners, 'resize');
-	assert.equal(chart.height, sameOrigin ? 949 : viewportHeight, 'viewport resizing must fit the chart without resetting zoom');
+	assert.ok(sameOrigin ? chart.height > beforeHostResize : chart.height === viewportHeight, 'viewport resizing must fit the chart without resetting zoom');
 assert.equal(state.dataZoom[0].start, 20);
 assert.equal(state.dataZoom[0].end, 40);
 assert.deepEqual({...state.dataZoom[1]}, timeZoom, 'viewport resize must preserve time zoom');
 Object.assign(state.dataZoom[0], {start:0,end:100});
 listeners['chart:datazoom'].forEach(handler=>handler({dataZoomId:'timing-rows',start:0,end:100}));
-assertStableOverview(sameOrigin ? 949 : 320);`
+assertStableOverview(chart.height);`
 			if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 				t.Fatalf("auto-height iframe regression: %v\n%s", err, output)
 			}

@@ -434,7 +434,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    "60vh",
+			Height:    "90vh",
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
@@ -509,7 +509,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 
 const timingChartMinimumWindowMillis = 1000
 const timingChartRowHeight = 26
-const timingChartMinimumOverviewHeight = 320
+const timingChartMinimumOverviewHeight = 640
 
 type timingChartGroup struct {
 	Name          string               `json:"name"`
@@ -578,7 +578,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		viewportWindow = null;
 	}
 	const overviewHeight = () => viewportWindow
-		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16))
+		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight * 0.9))
 		: __MINIMUM_OVERVIEW_HEIGHT__;
 	const renderItem = (params, api) => {
 		const test = ordered[params.dataIndex];
@@ -628,7 +628,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			if (text !== undefined) node.textContent = text;
 			return node;
 		};
-		const content = element('div', {width:'min(720px, 80vw)', maxHeight:'min(520px, 65vh)', overflowY:'auto', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
+		const content = element('div', {width:'min(720px, 80vw)', maxHeight:Math.max(1, Math.min(520, chart.getHeight() - 32)) + 'px', overflowY:'auto', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
 		content.append(
 			element('div', {fontWeight:'600', fontSize:'14px', overflowWrap:'anywhere'}, test.name),
 			element('div', {opacity:'0.75', margin:'4px 0 12px'}, 'Total duration: ' + formatDuration(duration))
@@ -788,7 +788,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		currentDurations = durations;
 		chart.setOption({
 			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
-			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, enterable:true, hideDelay:200, formatter:tooltip},
+			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, confine:true, enterable:true, hideDelay:200, formatter:tooltip},
 			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
 				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
 			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]

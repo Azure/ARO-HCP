@@ -349,7 +349,8 @@ tooltip spans shown as `<1s` and exact zero as `0s`.
 Operation coverage uses interval unions, not sums of overlapping parent/child
 steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
 The summary and chart follow the browser's light/dark color scheme. The
-overview shows all tests within the available screen height. The
+overview shows all tests in a chart sized to 90% of the outer viewport height,
+with a 640px minimum. The
 vertical slider includes a miniature run preview and expands selected test bars
 within the same chart height, keeping the slider track stable during a drag.
 The horizontal slider navigates the full time range. Sort tests by
@@ -360,7 +361,8 @@ interrupted and aborted tests. Unknown or empty outcomes always remain visible.
 
 Embedded reports size the overview from the outer browser viewport, independently
 of the iframe's content height. If cross-origin restrictions hide that viewport,
-the overview uses a fixed 320px chart height.
+the overview uses a fixed 640px chart height. Tooltips scroll within the chart's
+height so their contents remain visible inside Prow's report iframe.
 
 The full-run summary is unchanged by chart filters. It reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
