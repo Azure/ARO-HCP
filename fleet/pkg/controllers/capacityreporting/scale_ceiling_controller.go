@@ -16,6 +16,7 @@ package capacityreporting
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,12 +32,13 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
+	"github.com/Azure/ARO-HCP/fleet/pkg/scheduling"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
 const (
@@ -95,65 +97,89 @@ func NewManagementClusterScaleCeilingReportingController(
 }
 
 func (s *scaleCeilingReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	managementCluster, err := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
-		return utils.TrackError(err)
+		return s.persistScalingFailure(ctx, key.StampIdentifier, "ManagementClusterUnavailable", err.Error())
 	}
 
 	aksResourceID := managementCluster.Status.AKSResourceID
 	if aksResourceID == nil {
-		logger.V(1).Info("management cluster has no AKS resource ID yet, will retry on next resync")
-		return nil
+		return s.persistScalingFailure(ctx, key.StampIdentifier, "MissingAKSResourceID", "Management cluster has no AKS resource ID")
 	}
 
 	report, err := GetCapacityReport(ctx, s.readDesireLister, key.StampIdentifier)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		logger.V(1).Info("capacity ReadDesire not found, will retry on next resync")
-		return nil
-	}
 	if err != nil {
-		return utils.TrackError(err)
+		utils.LoggerFromContext(ctx).Error(err, "No usable CapacityReport for scale ceiling", "stamp", key.StampIdentifier)
+		report = nil
+	} else if !meta.IsStatusConditionTrue(report.Status.Conditions, capacityreportv1alpha1.ConditionTypeReportCurrent) {
+		utils.LoggerFromContext(ctx).Info("CapacityReport source is not current", "stamp", key.StampIdentifier)
+		report = nil
 	}
 
 	pools, err := agentpools.ListAgentPools(ctx, s.agentPoolClientFactory, aksResourceID)
 	if err != nil {
-		return utils.TrackError(err)
+		return s.persistScalingFailure(ctx, key.StampIdentifier, "AgentPoolsUnavailable", err.Error())
 	}
 
-	skuMetadata, err := s.skuCache.SKUMetadataByVMSize(ctx, aksResourceID.SubscriptionID)
+	var skuMetadata map[string]*skucache.SKUMetadata
+	bootstrap := needsSKUBootstrap(report, pools)
+	if bootstrap {
+		skuMetadata, err = s.skuCache.SKUMetadataByVMSize(ctx, aksResourceID.SubscriptionID)
+		if err != nil {
+			return s.persistScalingFailure(ctx, key.StampIdentifier, "SKUMetadataUnavailable", err.Error())
+		}
+	}
+
+	max, err := computeMaxCapacity(report, pools, skuMetadata)
+	if !hasCeilingMeasurements(max) {
+		if err == nil {
+			err = fmt.Errorf("no scheduling resource measurements")
+		}
+		return s.persistScalingFailure(ctx, key.StampIdentifier, "CapacityComputationFailed", err.Error())
+	}
+	condition := metav1.Condition{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionTrue, Reason: "DataCollected"}
+	if bootstrap {
+		condition.Reason, condition.Message = "BootstrapEstimate", "Uses theoretical SKU/configured-NIC bootstrap where available for pools without ready-node samples"
+	}
 	if err != nil {
-		return utils.TrackError(err)
+		utils.LoggerFromContext(ctx).Error(err, "Publishing available capacity contributions", "stamp", key.StampIdentifier)
+		condition.Reason += "Partial"
+		condition.Message += "; unavailable contributions and dimensions omitted"
 	}
-
-	max := computeMaxCapacity(report, pools, skuMetadata)
-
 	now := metav1.Now()
-	return s.persistMaxCapacity(ctx, key.StampIdentifier, max, &now)
+	return s.persistScalingResult(ctx, key.StampIdentifier, max, &now, condition)
 }
 
 func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, stampIdentifier string, max corev1.ResourceList, now *metav1.Time) error {
+	return s.persistScalingResult(ctx, stampIdentifier, max, now, metav1.Condition{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionTrue, Reason: "DataCollected"})
+}
+
+func (s *scaleCeilingReportingSyncer) persistScalingFailure(ctx context.Context, stampIdentifier string, reason, message string) error {
+	utils.LoggerFromContext(ctx).Error(fmt.Errorf("%s: %s", reason, message), "Unable to refresh scale ceiling", "stamp", stampIdentifier)
+	now := metav1.Now()
+	return s.persistScalingResult(ctx, stampIdentifier, nil, &now, metav1.Condition{Type: fleetapi.ConditionTypeScalingDataCurrent, Status: metav1.ConditionUnknown, Reason: "NoUsableCeiling", Message: "No successfully computed usable ceiling is available"})
+}
+
+func (s *scaleCeilingReportingSyncer) persistScalingResult(ctx context.Context, stampIdentifier string, max corev1.ResourceList, now *metav1.Time, condition metav1.Condition) error {
 	existing, err := fleetcosmosstorage.GetOrCreateManagementClusterScheduling(ctx, s.fleetDBClient, stampIdentifier)
 	if err != nil {
 		return err
 	}
+	if condition.Status != metav1.ConditionTrue && meta.IsStatusConditionTrue(existing.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent) && hasCeilingMeasurements(existing.Status.ScaleCeiling.Capacity) {
+		return nil
+	}
 
 	schedulingCRUD := s.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Scheduling()
-
-	condition := metav1.Condition{
-		Type:   fleetapi.ConditionTypeScalingDataCurrent,
-		Status: metav1.ConditionTrue,
-		Reason: "DataCollected",
-	}
 
 	updated := existing.DeepCopy()
 	condition.LastTransitionTime = *now
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.ScaleCeiling.Capacity = max
+	if condition.Status == metav1.ConditionTrue {
+		updated.Status.ScaleCeiling.Capacity = max
+	}
 	// Compare before advancing the publication timestamp: an unchanged
 	// computation must not produce another Cosmos event and wake us again.
-	if existing.Status.ScaleCeiling.LastReportedAt != nil && !controllerutils.NeedsUpdate(existing, updated) {
+	if !controllerutils.NeedsUpdate(existing, updated) {
 		return nil
 	}
 	updated.Status.ScaleCeiling.LastReportedAt = now
@@ -161,4 +187,17 @@ func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, st
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+func hasCeilingMeasurements(capacity corev1.ResourceList) bool {
+	found := false
+	for _, name := range scheduling.Resources() {
+		if quantity, exists := capacity[name]; exists {
+			if quantity.Sign() < 0 {
+				return false
+			}
+			found = true
+		}
+	}
+	return found
 }

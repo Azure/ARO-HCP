@@ -282,8 +282,8 @@ func (in *HCPResourceRequirementsStatus) DeepCopyInto(out *HCPResourceRequiremen
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.LastReportedAt != nil {
-		in, out := &in.LastReportedAt, &out.LastReportedAt
+	if in.LastUpdatedAt != nil {
+		in, out := &in.LastUpdatedAt, &out.LastUpdatedAt
 		*out = (*in).DeepCopy()
 	}
 	if in.AverageUsage != nil {

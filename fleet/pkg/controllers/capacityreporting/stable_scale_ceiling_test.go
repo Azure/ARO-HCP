@@ -70,14 +70,14 @@ func TestScaleCeilingConverges(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, later.Equal(recovered.Status.ScaleCeiling.LastReportedAt))
 	require.True(t, later.Equal(&meta.FindStatusCondition(recovered.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent).LastTransitionTime))
-	// Legacy documents with matching data but no timestamp are initialized once.
+	// An unchanged semantic state does not synthesize a timestamp.
 	recovered.Status.ScaleCeiling.LastReportedAt = nil
 	_, err = crud.Replace(ctx, recovered, nil)
 	require.NoError(t, err)
 	require.NoError(t, s.persistMaxCapacity(ctx, scaleCeilingTestStampIdentifier, capacity, &later))
 	initialized, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
-	require.True(t, later.Equal(initialized.Status.ScaleCeiling.LastReportedAt))
+	require.Nil(t, initialized.Status.ScaleCeiling.LastReportedAt)
 	require.NoError(t, s.persistMaxCapacity(ctx, scaleCeilingTestStampIdentifier, capacity, &next))
 	last, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)

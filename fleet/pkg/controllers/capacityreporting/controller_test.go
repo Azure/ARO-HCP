@@ -63,6 +63,7 @@ func testManagementClusterResourceID() *azcorearm.ResourceID {
 func buildTestReadDesire(report *capacityreportv1alpha1.CapacityReport) *kubeapplierapi.ReadDesire {
 	desireIDString := kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, ReadDesireName)
 	desired := controllerutil.BuildReadDesire(desireIDString, testManagementClusterResourceID(), CapacityReportTarget)
+	desired.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue}}
 	if report != nil {
 		raw, _ := json.Marshal(report)
 		desired.Status.KubeContent = &runtime.RawExtension{Raw: raw}
@@ -140,6 +141,7 @@ func TestEnsureReadDesire_ConflictOnCreateIsSwallowed(t *testing.T) {
 func TestSyncOnce_NotFoundReadDesire(t *testing.T) {
 	lister := &kubeapplierlistertesting.SliceReadDesireLister{}
 	syncer := &capacityReportingSyncer{
+		fleetDBClient:    fleetcosmosstoragetesting.NewMockFleetDBClient(),
 		readDesireLister: lister,
 	}
 	err := syncer.SyncOnce(context.Background(), testKey())
@@ -152,6 +154,7 @@ func TestSyncOnce_NilKubeContent(t *testing.T) {
 		Desires: []*kubeapplierapi.ReadDesire{desire},
 	}
 	syncer := &capacityReportingSyncer{
+		fleetDBClient:    fleetcosmosstoragetesting.NewMockFleetDBClient(),
 		readDesireLister: lister,
 	}
 	err := syncer.SyncOnce(context.Background(), testKey())
@@ -231,6 +234,7 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 		Status: capacityreportv1alpha1.CapacityReportStatus{
 			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
 				ReadyResourceIDs:    readyIDs,
+				Resources:           &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)},
 				NotReadyResourceIDs: notReadyIDs,
 			},
 			Conditions: []metav1.Condition{
@@ -310,6 +314,7 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 		Status: capacityreportv1alpha1.CapacityReportStatus{
 			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
 				ReadyResourceIDs: []string{ridObserved.String()},
+				Resources:        &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)},
 			},
 			Conditions: []metav1.Condition{
 				{Type: capacityreportv1alpha1.ConditionTypeReportCurrent, Status: metav1.ConditionTrue},

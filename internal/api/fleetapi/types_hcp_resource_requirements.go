@@ -22,17 +22,16 @@ import (
 )
 
 const (
-	// ConditionTypeDataCurrent indicates whether the HCP resource
-	// requirements data is up to date. Set by the
-	// HCPResourceRequirementsController after aggregating CapacityReport
-	// data across all management clusters.
-	ConditionTypeDataCurrent = "DataCurrent"
+	// ConditionTypeSamplesAvailable indicates that eligible ready-HCP samples
+	// contributed to the averages. Successful observation does not guarantee
+	// freshness: ReadDesire refresh frequency is not contractual.
+	ConditionTypeSamplesAvailable = "SamplesAvailable"
 )
 
-// HCPResourceRequirements is a top-level singleton in the Fleet container
+// HCPResourceRequirements is a top-level document in the Fleet container
 // holding aggregated resource requirement data across all management clusters.
-// The resource name "default" represents the fleet-wide average; future
-// per-sizing-tier documents (e.g. "small", "medium") use the same type.
+// The resource name "default" represents the fleet-wide average; named
+// cluster-sizing configurations use the same type.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPResourceRequirements struct {
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
@@ -45,28 +44,34 @@ type HCPResourceRequirements struct {
 // requirements computed from CapacityReport data across management clusters.
 type HCPResourceRequirementsStatus struct {
 	// Conditions reports the health of the aggregation process.
+	// Written by: HCPResourceRequirementsController
 	//
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// LastReportedAt is the time the data was last computed.
+	// LastUpdatedAt is the last change to averages, sample count or conditions,
+	// not a heartbeat or a guarantee of source observation freshness.
+	// Written by: HCPResourceRequirementsController
 	//
 	// +optional
-	LastReportedAt *metav1.Time `json:"lastReportedAt,omitempty"`
+	LastUpdatedAt *metav1.Time `json:"lastUpdatedAt,omitempty"`
 
 	// AverageUsage is the average actual resource consumption per ready HCP,
 	// computed from metrics-server PodMetrics across all management clusters.
+	// Written by: HCPResourceRequirementsController
 	//
 	// +optional
 	AverageUsage corev1.ResourceList `json:"averageUsage,omitempty"`
 
 	// AverageRequests is the average sum of resource requests per ready HCP,
 	// computed from pod specs across all management clusters.
+	// Written by: HCPResourceRequirementsController
 	//
 	// +optional
 	AverageRequests corev1.ResourceList `json:"averageRequests,omitempty"`
 
 	// SampleSize is the total number of ready HCPs across all management
 	// clusters that contributed to the averages.
+	// Written by: HCPResourceRequirementsController
 	SampleSize int `json:"sampleSize"`
 }

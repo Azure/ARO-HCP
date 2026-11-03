@@ -254,7 +254,11 @@ func TestNewResourceTotalsAvailability(t *testing.T) {
 			}
 			observed := ComputeObservedResources(report)
 			condition := evaluateCapacityCondition(report)
-			require.Equal(t, metav1.ConditionTrue, condition.Status)
+			if scenario == "zero" {
+				require.Equal(t, metav1.ConditionTrue, condition.Status)
+			} else {
+				require.Equal(t, metav1.ConditionUnknown, condition.Status)
+			}
 			if scenario == "zero" || scenario == "partial" || scenario == "usage-only" || scenario == "requests-only" {
 				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Usage, observed.Usage, "preserved usage")
 				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Requested, observed.Requests, "preserved requests")

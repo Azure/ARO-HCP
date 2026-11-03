@@ -273,7 +273,7 @@ func readyTotals(cpu string) *capacityreportv1alpha1.HostedControlPlaneResourceT
 }
 
 func TestSyncOnceEligibilityAndConfigurationRetirement(t *testing.T) {
-	for _, scenario := range []string{"current", "old", "future", "no-timestamp", "noncurrent", "no-condition", "no-ready", "legacy", "partial", "missing", "unmirrored", "malformed"} {
+	for _, scenario := range []string{"current", "old", "future", "no-timestamp", "noncurrent", "no-condition", "no-ready", "legacy", "partial", "missing", "unmirrored", "malformed", "unobserved", "read-failed", "degraded"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := t.Context()
 			database := fleetcosmosstoragetesting.NewMockFleetDBClient()
@@ -320,6 +320,17 @@ func TestSyncOnceEligibilityAndConfigurationRetirement(t *testing.T) {
 				desire := controllerutils.BuildReadDesire(kubeapplierapihelpers.ToManagementClusterScopedReadDesireResourceIDString(stamp, capacityreporting.ReadDesireName), metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp)), capacityreporting.CapacityReportTarget)
 				encoded, err := json.Marshal(report)
 				require.NoError(t, err)
+				desire.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue}}
+				if index == 1 {
+					switch scenario {
+					case "unobserved":
+						desire.Status.Conditions = nil
+					case "read-failed":
+						desire.Status.Conditions[0].Status = metav1.ConditionFalse
+					case "degraded":
+						desire.Status.Conditions = append(desire.Status.Conditions, metav1.Condition{Type: kubeapplierapi.ConditionTypeDegraded, Status: metav1.ConditionTrue})
+					}
+				}
 				desire.Status.KubeContent = &runtime.RawExtension{Raw: encoded}
 				if index == 1 && scenario == "unmirrored" {
 					desire.Status.KubeContent = nil
@@ -345,9 +356,9 @@ func TestSyncOnceEligibilityAndConfigurationRetirement(t *testing.T) {
 				require.Equal(t, expectedCount, document.Status.SampleSize)
 				assertResourceListEqual(t, readyTotals(expectedCPU).Usage, document.Status.AverageUsage, name)
 				assertResourceListEqual(t, readyTotals(expectedCPU).Requested, document.Status.AverageRequests, name)
-				require.True(t, meta.IsStatusConditionTrue(document.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
+				require.True(t, meta.IsStatusConditionTrue(document.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
 			}
-			previous, err := database.HCPResourceRequirements().Get(ctx, "small")
+			_, err := database.HCPResourceRequirements().Get(ctx, "small")
 			require.NoError(t, err)
 			for _, desire := range desires.Desires {
 				if desire.Status.KubeContent == nil || !json.Valid(desire.Status.KubeContent.Raw) {
@@ -363,27 +374,27 @@ func TestSyncOnceEligibilityAndConfigurationRetirement(t *testing.T) {
 			require.NoError(t, controller.syncOnce(ctx))
 			disappeared, err := database.HCPResourceRequirements().Get(ctx, "small")
 			require.NoError(t, err)
-			require.True(t, meta.IsStatusConditionFalse(disappeared.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
+			require.True(t, meta.IsStatusConditionFalse(disappeared.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
 			stillCurrent, err := database.HCPResourceRequirements().Get(ctx, "default")
 			require.NoError(t, err)
 			require.Equal(t, wantCount, stillCurrent.Status.SampleSize)
-			require.True(t, meta.IsStatusConditionTrue(stillCurrent.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
+			require.True(t, meta.IsStatusConditionTrue(stillCurrent.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
 			desires.Desires = []*kubeapplierapi.ReadDesire{}
 			require.NoError(t, controller.syncOnce(ctx))
 			retired, err := database.HCPResourceRequirements().Get(ctx, "small")
 			require.NoError(t, err)
 			require.Equal(t, disappeared.CosmosETag, retired.CosmosETag)
 			require.Equal(t, disappeared.InstanceVersion, retired.InstanceVersion)
-			require.True(t, meta.IsStatusConditionFalse(retired.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
+			require.True(t, meta.IsStatusConditionFalse(retired.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
 			require.Zero(t, retired.Status.SampleSize)
-			require.Equal(t, previous.Status.LastReportedAt, retired.Status.LastReportedAt)
-			assertResourceListEqual(t, previous.Status.AverageUsage, retired.Status.AverageUsage, "retained usage")
-			assertResourceListEqual(t, previous.Status.AverageRequests, retired.Status.AverageRequests, "retained requests")
+			require.Equal(t, disappeared.Status.LastUpdatedAt, retired.Status.LastUpdatedAt)
+			require.Nil(t, retired.Status.AverageUsage)
+			require.Nil(t, retired.Status.AverageRequests)
 			defaultDocument, err := database.HCPResourceRequirements().Get(ctx, "default")
 			require.NoError(t, err)
 			require.Zero(t, defaultDocument.Status.SampleSize)
 			require.Nil(t, defaultDocument.Status.AverageUsage)
-			require.True(t, meta.IsStatusConditionFalse(defaultDocument.Status.Conditions, fleetapi.ConditionTypeDataCurrent))
+			require.True(t, meta.IsStatusConditionFalse(defaultDocument.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
 		})
 	}
 }
@@ -459,6 +470,80 @@ func TestConfigurationRequirements(t *testing.T) {
 			require.Equal(t, expectedCount, count)
 			assertResourceListEqual(t, readyTotals(expectedCPU).Usage, usage, "mixed usage")
 			assertResourceListEqual(t, readyTotals(expectedCPU).Requested, requests, "mixed requests")
+		})
+	}
+}
+
+func TestRequirementsPublicationMigration(t *testing.T) {
+	for _, name := range []string{"default", "small"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			database := fleetcosmosstoragetesting.NewMockFleetDBClient()
+			controller := &Controller{fleetDBClient: database}
+			first := metav1.NewTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+			condition := metav1.Condition{Type: fleetapi.ConditionTypeSamplesAvailable, Status: metav1.ConditionTrue, Reason: "Computed", LastTransitionTime: first}
+			totals := readyTotals("0")
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &first, condition))
+			crud := database.HCPResourceRequirements()
+			initial, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			next := metav1.NewTime(first.Add(time.Hour))
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &next, condition))
+			stable, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Equal(t, initial.CosmosETag, stable.CosmosETag)
+			require.True(t, first.Equal(stable.Status.LastUpdatedAt))
+			encoded, err := json.Marshal(stable.Status)
+			require.NoError(t, err)
+			require.Contains(t, string(encoded), `"lastUpdatedAt"`)
+			require.NotContains(t, string(encoded), `"lastReportedAt"`)
+			var legacy fleetapi.HCPResourceRequirementsStatus
+			require.NoError(t, json.Unmarshal([]byte(`{"lastReportedAt":"2026-01-01T00:00:00Z","conditions":[{"type":"DataCurrent","status":"True","reason":"Computed","lastTransitionTime":"2026-01-01T00:00:00Z"}]}`), &legacy))
+			require.Nil(t, legacy.LastUpdatedAt)
+			stable.Status.Conditions = legacy.Conditions
+			stable.Status.LastUpdatedAt = legacy.LastUpdatedAt
+			_, err = crud.Replace(ctx, stable, nil)
+			require.NoError(t, err)
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &next, condition))
+			migrated, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Nil(t, meta.FindStatusCondition(migrated.Status.Conditions, "DataCurrent"))
+			require.True(t, meta.IsStatusConditionTrue(migrated.Status.Conditions, fleetapi.ConditionTypeSamplesAvailable))
+			require.True(t, next.Equal(migrated.Status.LastUpdatedAt))
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &first, condition))
+			unchanged, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Equal(t, migrated.CosmosETag, unchanged.CosmosETag)
+			unchanged.Status.Conditions = append(unchanged.Status.Conditions, legacy.Conditions...)
+			_, err = crud.Replace(ctx, unchanged, nil)
+			require.NoError(t, err)
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &first, condition))
+			cleaned, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Nil(t, meta.FindStatusCondition(cleaned.Status.Conditions, "DataCurrent"))
+			require.True(t, first.Equal(cleaned.Status.LastUpdatedAt))
+			condition.Status, condition.Reason = metav1.ConditionFalse, "NoData"
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 0, &next, condition))
+			empty, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Nil(t, empty.Status.AverageUsage)
+			require.Nil(t, empty.Status.AverageRequests)
+			require.Zero(t, empty.Status.SampleSize)
+			require.NoError(t, controller.persist(ctx, name, nil, nil, 0, &first, condition))
+			settled, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Equal(t, empty.CosmosETag, settled.CosmosETag)
+			condition.Reason = "NoEligibleSamples"
+			require.NoError(t, controller.persist(ctx, name, nil, nil, 0, &next, condition))
+			transitioned, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.NotEqual(t, settled.CosmosETag, transitioned.CosmosETag)
+			condition.Status, condition.Reason = metav1.ConditionTrue, "Computed"
+			require.NoError(t, controller.persist(ctx, name, totals.Usage, totals.Requested, 2, &next, condition))
+			recovered, err := crud.Get(ctx, name)
+			require.NoError(t, err)
+			require.Equal(t, 2, recovered.Status.SampleSize)
+			assertResourceListEqual(t, totals.Usage, recovered.Status.AverageUsage, "recovered zero")
 		})
 	}
 }

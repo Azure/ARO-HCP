@@ -18,6 +18,8 @@ package hcpresourcerequirements
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -185,26 +187,27 @@ func (c *Controller) syncOnce(ctx context.Context) error {
 	}
 	sort.Strings(names)
 	now := metav1.Now()
+	var persistenceErrors []error
 	for _, name := range names {
 		averageUsage, averageRequests, sampleSize := computeConfigurationRequirements(reports, name)
 
 		condition := metav1.Condition{
-			Type:   fleetapi.ConditionTypeDataCurrent,
+			Type:   fleetapi.ConditionTypeSamplesAvailable,
 			Reason: "Computed",
 		}
 		if sampleSize > 0 {
 			condition.Status = metav1.ConditionTrue
 		} else {
 			condition.Status = metav1.ConditionFalse
-			condition.Reason = "NoData"
-			condition.Message = "No management clusters with current capacity data and ready HCPs"
+			condition.Reason = "NoSamples"
+			condition.Message = "No eligible ready-HCP samples with complete resource totals"
 		}
 
 		if err := c.persist(ctx, name, averageUsage, averageRequests, sampleSize, &now, condition); err != nil {
-			return err
+			persistenceErrors = append(persistenceErrors, fmt.Errorf("persist requirements for configuration %q: %w", name, err))
 		}
 	}
-	return nil
+	return errors.Join(persistenceErrors...)
 }
 
 func (c *Controller) persist(
@@ -221,16 +224,18 @@ func (c *Controller) persist(
 	}
 
 	updated := existing.DeepCopy()
+	meta.RemoveStatusCondition(&updated.Status.Conditions, "DataCurrent")
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	if sampleSize > 0 || name == fleetapi.HCPResourceRequirementsResourceName {
-		updated.Status.LastReportedAt = now
-		updated.Status.AverageUsage = averageUsage
-		updated.Status.AverageRequests = averageRequests
+	if sampleSize == 0 {
+		averageUsage, averageRequests = nil, nil
 	}
+	updated.Status.AverageUsage = averageUsage
+	updated.Status.AverageRequests = averageRequests
 	updated.Status.SampleSize = sampleSize
 	if !controllerutils.NeedsUpdate(existing, updated) {
 		return nil
 	}
+	updated.Status.LastUpdatedAt = now
 
 	if _, err := c.fleetDBClient.HCPResourceRequirements().Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
