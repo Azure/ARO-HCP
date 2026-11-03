@@ -1300,6 +1300,21 @@ func TestEnsureHostedClusterMonitoring(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Deep-copy inputSpec so helper mutations cannot invalidate preservation checks.
+			specBytes, err := json.Marshal(tt.inputSpec)
+			require.NoError(t, err)
+			specCopy := map[string]interface{}{}
+			require.NoError(t, json.Unmarshal(specBytes, &specCopy))
+
+			var expectedRelease map[string]interface{}
+			hadRelease := false
+			if release, ok := tt.inputSpec["release"].(map[string]interface{}); ok {
+				hadRelease = true
+				releaseBytes, err := json.Marshal(release)
+				require.NoError(t, err)
+				require.NoError(t, json.Unmarshal(releaseBytes, &expectedRelease))
+			}
+
 			hostedCluster := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "hypershift.openshift.io/v1beta1",
@@ -1308,11 +1323,11 @@ func TestEnsureHostedClusterMonitoring(t *testing.T) {
 						"name":      testClusterName,
 						"namespace": "test-namespace",
 					},
-					"spec": tt.inputSpec,
+					"spec": specCopy,
 				},
 			}
 
-			err := ensureHostedClusterMonitoring(hostedCluster)
+			err = ensureHostedClusterMonitoring(hostedCluster)
 			require.NoError(t, err)
 
 			mode, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "monitoring", "metricsForwarding", "mode")
@@ -1320,11 +1335,11 @@ func TestEnsureHostedClusterMonitoring(t *testing.T) {
 			require.True(t, found, "spec.monitoring.metricsForwarding.mode should be set")
 			assert.Equal(t, tt.expectedMode, mode, "metrics forwarding mode should match expected")
 
-			if release, ok := tt.inputSpec["release"]; ok {
+			if hadRelease {
 				actualRelease, found, err := unstructured.NestedMap(hostedCluster.Object, "spec", "release")
 				require.NoError(t, err)
 				require.True(t, found, "pre-existing spec.release should be preserved")
-				assert.Equal(t, release, actualRelease, "other spec fields should be untouched")
+				assert.Equal(t, expectedRelease, actualRelease, "other spec fields should be untouched")
 			}
 		})
 	}
