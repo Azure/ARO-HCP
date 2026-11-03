@@ -93,14 +93,16 @@ func queryKusto(ctx context.Context, cred azcore.TokenCredential, endpoint, db, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query on %s: %w", endpoint, err)
 	}
-	return readKustoRows(dataset)
+	return readKustoRows(ctx, dataset)
 }
 
 // readKustoRows reads the primary result as string-valued rows and drains
 // every remaining table result: the SDK reports query-level failures
-// (DataSetCompletion errors, cancellation) only there, after the primary
-// rows. Rows read before a failure are returned together with the error.
-func readKustoRows(dataset azkquery.IterativeDataset) ([]kustoRow, error) {
+// (DataSetCompletion errors) only there, after the primary rows. When ctx
+// ends, the SDK may close its channels without reporting an error, so
+// ctx.Err() is checked after draining. Rows read before a failure are
+// returned together with the error.
+func readKustoRows(ctx context.Context, dataset azkquery.IterativeDataset) ([]kustoRow, error) {
 	var rows []kustoRow
 	var errs []error
 	for result := range dataset.Tables() {
@@ -127,7 +129,7 @@ func readKustoRows(dataset azkquery.IterativeDataset) ([]kustoRow, error) {
 			rows = append(rows, row)
 		}
 	}
-	return rows, errors.Join(errs...)
+	return rows, errors.Join(append(errs, ctx.Err())...)
 }
 
 // kqlStringList renders a KQL list of single-quoted string literals.
@@ -170,7 +172,8 @@ database('%[1]s').alertEvents
 | summarize arg_max(lastChange, *) by alertId
 | project alertName, severity, condition = monitorCondition, signalType, alertRule, targetResourceId,
     fired = tostring(firedDateTime), resolved = tostring(resolvedDateTime),
-    labels = tostring(alertContext.labels), expression = tostring(alertContext.expression)`,
+    labels = tostring(alertContext.labels), annotations = tostring(alertContext.annotations),
+    expression = tostring(alertContext.expression)`,
 		monitoringDB, start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339), kqlStringList(rgs))
 }
 
@@ -182,16 +185,22 @@ func envAlertFromRow(row kustoRow) alert {
 	if severityRank(severity) < 0 {
 		severity = armalertsmanagement.SeveritySev4
 	}
-	var labels map[string]string
-	var rawLabels map[string]any
-	if json.Unmarshal([]byte(row["labels"]), &rawLabels) == nil {
-		labels = make(map[string]string, len(rawLabels))
-		for k, v := range rawLabels {
+	// parseMap decodes a serialized dynamic object; null values are dropped
+	// and unparseable input yields nil.
+	parseMap := func(s string) map[string]string {
+		var raw map[string]any
+		if json.Unmarshal([]byte(s), &raw) != nil {
+			return nil
+		}
+		m := make(map[string]string, len(raw))
+		for k, v := range raw {
 			if v != nil {
-				labels[k] = fmt.Sprint(v)
+				m[k] = fmt.Sprint(v)
 			}
 		}
+		return m
 	}
+	annotations := parseMap(row["annotations"])
 	parseTime := func(s string) *time.Time {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
 			return &t
@@ -200,15 +209,17 @@ func envAlertFromRow(row kustoRow) alert {
 	}
 	return alert{
 		Alert: alertData{
-			Name:       row["alertName"],
-			Severity:   severity,
-			Condition:  row["condition"],
-			AlertRule:  row["alertRule"],
-			SignalType: row["signalType"],
-			StartsAt:   parseTime(row["fired"]),
-			EndsAt:     parseTime(row["resolved"]),
-			Labels:     labels,
-			Expression: row["expression"],
+			Name:        row["alertName"],
+			Severity:    severity,
+			Condition:   row["condition"],
+			AlertRule:   row["alertRule"],
+			SignalType:  row["signalType"],
+			StartsAt:    parseTime(row["fired"]),
+			EndsAt:      parseTime(row["resolved"]),
+			Description: annotations["description"],
+			Labels:      parseMap(row["labels"]),
+			Annotations: annotations,
+			Expression:  row["expression"],
 		},
 		Metadata: alertMetadata{
 			MonitoringWorkspace:     row["targetResourceId"],

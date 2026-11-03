@@ -77,6 +77,7 @@ func TestEnvAlertsQuery(t *testing.T) {
 		"datetime('2026-10-27T13:07:21Z') + 15m",
 		// The suffix after the cid is optional: some prod namespaces have none.
 		`extract(@"^ocm-[a-z0-9]+-([a-z0-9]{32})(?:-|$)", 1, ns) in (cids)`,
+		"annotations = tostring(alertContext.annotations)",
 		"summarize arg_max(lastChange, *) by alertId",
 	} {
 		if !strings.Contains(query, want) {
@@ -103,14 +104,24 @@ func kustoFrames(alertNames []string, completion string) string {
 
 func TestReadKustoRows(t *testing.T) {
 	t.Parallel()
+	complete := `{"FrameType":"DataSetCompletion","HasErrors":false,"Cancelled":false}`
 	for _, tt := range []struct {
 		name       string
 		completion string
+		cancelled  bool
 		wantErr    string
 	}{
 		{
 			name:       "complete",
-			completion: `{"FrameType":"DataSetCompletion","HasErrors":false,"Cancelled":false}`,
+			completion: complete,
+		},
+		{
+			// When the query context ends, the SDK may close its channels
+			// without reporting an error.
+			name:       "cancelled query",
+			completion: complete,
+			cancelled:  true,
+			wantErr:    context.Canceled.Error(),
 		},
 		{
 			// The SDK reports this only after the primary rows, as a later
@@ -126,7 +137,12 @@ func TestReadKustoRows(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, err := readKustoRows(dataset)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.cancelled {
+				cancel()
+			}
+			rows, err := readKustoRows(ctx, dataset)
 			if tt.wantErr == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -149,9 +165,10 @@ func TestEnvAlertFromRow(t *testing.T) {
 		"condition": "Resolved",
 		"alertRule": "svc-rules/KubePodNotReady",
 		// Kusto renders datetimes with fractional seconds.
-		"fired":    "2026-10-27T11:40:00.1234567Z",
-		"resolved": "2026-10-27T11:45:00Z",
-		"labels":   `{"pod":"hcco-abc","value":42,"empty":null}`,
+		"fired":       "2026-10-27T11:40:00.1234567Z",
+		"resolved":    "2026-10-27T11:45:00Z",
+		"labels":      `{"pod":"hcco-abc","value":42,"empty":null}`,
+		"annotations": `{"description":"Pod hcco-abc is not ready.","runbook_url":"https://runbooks.example/kubepodnotready"}`,
 	})
 	if a.Alert.Severity != "Sev3" || a.Alert.Condition != "Resolved" || a.Alert.AlertRule != "svc-rules/KubePodNotReady" {
 		t.Errorf("unexpected alert fields: %+v", a.Alert)
@@ -165,12 +182,15 @@ func TestEnvAlertFromRow(t *testing.T) {
 	if _, hasEmpty := a.Alert.Labels["empty"]; a.Alert.Labels["pod"] != "hcco-abc" || a.Alert.Labels["value"] != "42" || hasEmpty {
 		t.Errorf("labels = %v", a.Alert.Labels)
 	}
+	if a.Alert.Description != "Pod hcco-abc is not ready." || a.Alert.Annotations["runbook_url"] != "https://runbooks.example/kubepodnotready" {
+		t.Errorf("description = %q, annotations = %v", a.Alert.Description, a.Alert.Annotations)
+	}
 	if a.Metadata.MonitoringWorkspaceType != workspaceEnv {
 		t.Errorf("workspace type = %q", a.Metadata.MonitoringWorkspaceType)
 	}
 
 	b := envAlertFromRow(kustoRow{"alertName": "WeirdAlert", "severity": "Sev9", "fired": "not-a-time", "labels": "not-json"})
-	if b.Alert.Severity != "Sev4" || b.Alert.StartsAt != nil || b.Alert.EndsAt != nil || b.Alert.Labels != nil {
+	if b.Alert.Severity != "Sev4" || b.Alert.StartsAt != nil || b.Alert.EndsAt != nil || b.Alert.Labels != nil || b.Alert.Annotations != nil {
 		t.Errorf("unparseable fields must fall back: %+v", b.Alert)
 	}
 }
