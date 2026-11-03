@@ -38,3 +38,4 @@ tooling/bin
 tooling/hcpctl/dist
 tooling/hcpctl/hcpctl.exe
 tooling/hcpctl/hcpctl-arm64.exe
+tooling/templatize/templatize-*
