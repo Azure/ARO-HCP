@@ -15,5 +15,6 @@
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
   "should deny pods with images from disallowed registries",
+  "should install firewall rules and remove them by deleting only the daemonset",
   "validates node pool stability after full region upgrade"
 ]
