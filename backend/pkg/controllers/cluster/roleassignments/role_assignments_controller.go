@@ -142,7 +142,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 	}
-	hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(spec)
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(spec)
 	if err != nil {
 		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 	}
@@ -155,7 +155,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 	ready := false
 	if existing != nil {
-		existingHash, err := azureresourcesapi.DeploymentStackDesireSpecHash(existing.Spec)
+		existingHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(existing.Spec)
 		if err != nil {
 			return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
 		}

@@ -15,8 +15,6 @@
 package azureresourcesapi
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -127,26 +125,6 @@ type DeploymentStackDesireStatus struct {
 	// ObservedSpecHash to their intent.
 	// Written by: AzureDeploymentStackDesires
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-// DeploymentStackDesireSpecHash hashes the whole spec after canonicalizing JSON object
-// keys and whitespace. Array order and JSON number representations are retained.
-func DeploymentStackDesireSpecHash(spec DeploymentStackDesireSpec) (string, error) {
-	data, err := json.Marshal(spec)
-	if err != nil {
-		return "", fmt.Errorf("marshal deployment stack desire spec: %w", err)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return "", fmt.Errorf("decode deployment stack desire spec: %w", err)
-	}
-	canonical, err := json.Marshal(value)
-	if err != nil {
-		return "", fmt.Errorf("canonicalize deployment stack desire spec: %w", err)
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(canonical)), nil
 }
 
 // DeepCopyInto copies the spec, including arbitrary JSON in the Azure SDK stack.

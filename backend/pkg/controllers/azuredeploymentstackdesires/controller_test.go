@@ -46,6 +46,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
@@ -73,7 +74,7 @@ func observedStack(state, correlation string) *armdeploymentstacks.DeploymentSta
 
 func withApplySubmission(t *testing.T, desire *azureresourcesapi.DeploymentStackDesire, stack *armdeploymentstacks.DeploymentStack, now time.Time) *azureresourcesapi.DeploymentStackDesire {
 	t.Helper()
-	hash, hashErr := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+	hash, hashErr := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 	if hashErr != nil {
 		t.Fatal(hashErr)
 	}
@@ -158,13 +159,13 @@ func TestDecideStackDesire(t *testing.T) {
 	now := testNow.Add(time.Minute)
 	observationTime := metav1.NewTime(now)
 	apply := newDesire()
-	applyHash, err := azureresourcesapi.DeploymentStackDesireSpecHash(apply.Spec)
+	applyHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(apply.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
 	deleteDesire := newDesire()
 	deleteDesire.Spec.Action = "Delete"
-	deleteHash, err := azureresourcesapi.DeploymentStackDesireSpecHash(deleteDesire.Spec)
+	deleteHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(deleteDesire.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +491,7 @@ func TestCooldownAndIdenticalRejections(t *testing.T) {
 				}
 				now := testNow
 				for range 3 {
-					hash, _ := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+					hash, _ := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 					stack := observedStack("succeeded", "ours")
 					var status *azureresourcesapi.DeploymentStackDesireStatus
 					var err error
@@ -622,7 +623,7 @@ func TestPrecheckDoesNotChangeApplyProvenance(t *testing.T) {
 func TestDeleteToApplyProgression(t *testing.T) {
 	desire := newDesire()
 	desire.Spec.Action = "Delete"
-	hash, _ := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+	hash, _ := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 	accepted, err := stackDesireStatusForDeleteSubmission(hash, nil)
 	if err != nil || accepted.Stack != nil {
 		t.Fatalf("Delete acceptance manufactured a correlated stack: %+v, %v", accepted, err)
@@ -1616,7 +1617,7 @@ func TestOuterDeleteRequiresObservedAbsence(t *testing.T) {
 		}
 		clk.Step(time.Second)
 	}
-	hash, _ := azureresourcesapi.DeploymentStackDesireSpecHash(storage.doc.Spec)
+	hash, _ := azureresourcesapihelpers.DeploymentStackDesireSpecHash(storage.doc.Spec)
 	if storage.doc.Status.ObservedSpecHash != hash || !reflect.DeepEqual(controller.queue.(*recordingQueue).delays, []time.Duration{pendingInterval}) {
 		t.Fatal("Delete confirmation hash or fixed polling incorrect")
 	}

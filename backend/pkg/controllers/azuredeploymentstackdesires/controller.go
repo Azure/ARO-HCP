@@ -48,6 +48,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -267,7 +268,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		if err != nil {
 			return err
 		}
-		hash, err := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+		hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 		if err != nil {
 			return err
 		}
@@ -399,7 +400,7 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 			validationErr = fmt.Errorf("unsupported stack scope %q", target.Parent.ResourceType)
 		}
 	}
-	hash, hashErr := azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+	hash, hashErr := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 	validationErr = errors.Join(validationErr, hashErr)
 	if validationErr != nil {
 		status := desire.Status
