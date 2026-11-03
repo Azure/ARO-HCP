@@ -16,18 +16,38 @@ package frontend
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestFrontendCRUD(t *testing.T) {
 	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testFrontendCRUD)
+}
+
+func TestNodePoolValidationClusterCompletionKeys(t *testing.T) {
+	for _, scenario := range []string{"invalid-version", "invalid-name-too-long-name"} {
+		t.Run(scenario, func(t *testing.T) {
+			readKey := func(step string) databasemutationhelpers.ResourceKey {
+				content, err := fs.ReadFile(artifacts, path.Join("artifacts/FrontendCRUD/NodePool", scenario, step, "00-key.json"))
+				require.NoError(t, err)
+				var key databasemutationhelpers.ResourceKey
+				require.NoError(t, json.Unmarshal(content, &key))
+				return key
+			}
+			created := readKey("01-httpCreate-cluster-basic")
+			require.Equal(t, created.ResourceID, readKey("03-setClusterServiceID-cluster").ResourceID)
+			require.Equal(t, created, readKey("04-completeOperation-cluster-basic"), "complete the operation for the actual parent cluster")
+		})
+	}
 }
 
 func testFrontendCRUD(t *testing.T, withMock bool) {

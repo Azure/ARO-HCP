@@ -22,6 +22,13 @@ import (
 
 func ReplaceClusterWithServiceProviderIDs(ctx context.Context, db ResourcesDBClient, cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) error {
 	cluster = cluster.DeepCopy()
+	provider = provider.DeepCopy()
+	if provider.PendingClusterServiceID != nil && len(provider.PendingClusterServiceID.String()) == 0 {
+		provider.PendingClusterServiceID = nil
+	}
+	if provider.ClusterServiceID != nil && len(provider.ClusterServiceID.String()) == 0 {
+		provider.ClusterServiceID = nil
+	}
 	cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil && provider.PendingClusterServiceID == nil && provider.ClusterServiceID == nil {
 		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true

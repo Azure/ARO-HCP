@@ -93,6 +93,9 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 		for _, cluster := range allHCPClusters.Items(ctx) {
 			ret = append(ret, cluster)
 			provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+			if cosmosstorageutils.IsNotFoundError(err) {
+				continue
+			}
 			if err != nil {
 				return nil, nil, utils.TrackError(err)
 			}
