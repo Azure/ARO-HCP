@@ -423,6 +423,7 @@ func TestTimingChartUncoveredTooltip(t *testing.T) {
 			{Name: "legacy operation", Kind: "operation", Color: "#2563eb", Start: 50000, End: 51000},
 			{Name: "No recorded operation during test work", Kind: "gap", Color: "#64748b", Start: 50000, End: 50500},
 			{Name: "No recorded operation during cleanup", Kind: "gap", Color: "#64748b", Start: 50500, End: 51000},
+			{Name: "terminal operation", Kind: "operation", Color: "#2563eb", Start: 51000, End: 51000},
 		}},
 		timingChartGroup{Name: "zero", FullLifecycle: true, Segments: []timingChartSegment{
 			{Name: "Phase: Instant", Kind: "phase", Color: "#9333ea", Start: 50000, End: 50000},
@@ -521,6 +522,11 @@ assert.ok(descendants(legacy).some(node=>node.tagName==='H3' && node.textContent
 assert.equal(descendants(legacy).filter(node=>node.textContent==='legacy operation').length,1);
 assert.ok(legacy.textContent.includes('No recorded operation during test work'));
 assert.ok(legacy.textContent.includes('No recorded operation during cleanup'));
+const terminalLabel = descendants(legacy).find(node=>!node.children.length && node.textContent==='terminal operation');
+const terminalGrid = descendants(legacy).find(node=>node.children.includes(terminalLabel));
+const terminalTrack = terminalGrid.children[terminalGrid.children.indexOf(terminalLabel)+1].children[0];
+assert.equal(terminalTrack.style.left,'calc(100% - 2px)');
+assert.equal(terminalTrack.style.width,'0%');
 const zero = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:3}]);
 assert.ok(zero.textContent.includes('0s'));
 assert.ok(!zero.textContent.includes('NaN') && !zero.textContent.includes('Infinity'));

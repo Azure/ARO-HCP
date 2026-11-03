@@ -653,7 +653,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 				const track = element('div', {position:'relative', height:'10px', borderRadius:'2px', overflow:'hidden', background:'rgba(128,128,128,0.18)'});
 				const left = duration > 0 ? (segment.start - start) / duration * 100 : 0;
 				const width = duration > 0 ? (segment.end - segment.start) / duration * 100 : 0;
-				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
+				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:left === 100 && width === 0 ? 'calc(100% - 2px)' : left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
 				grid.append(label, track, element('span', {textAlign:'right', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}, formatDuration(segment.end - segment.start)));
 			}
 			return grid;
