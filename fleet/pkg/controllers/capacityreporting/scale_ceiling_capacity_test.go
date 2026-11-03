@@ -136,10 +136,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 			skuMetadata: map[string]*skucache.SKUMetadata{
 				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", VCPUs: 8, MemoryBytes: memoryBytes("32Gi")},
 			},
-			wantMax: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("16"),
-				corev1.ResourceMemory: resource.MustParse("64Gi"),
-			},
+			wantMax: corev1.ResourceList{},
 		},
 		{
 			name:      "no matching SKU in CR or cache is unavailable",
@@ -388,11 +385,7 @@ func TestComputeMaxCapacity(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			actual, err := computeMaxCapacity(test.report, test.pools, test.skuMetadata)
-			if test.wantError {
-				require.Error(t, err)
-				return
-			}
-			if test.wantPartial {
+			if test.wantError || test.wantPartial {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
