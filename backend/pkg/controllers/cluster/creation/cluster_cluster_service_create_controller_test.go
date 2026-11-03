@@ -556,6 +556,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 					setDenyAssignmentsCreated(spc)
 				}
 				setMockFPAOwnerRoleAssignmentCreated(t, spc)
+				setDataPlaneOIDCFederationCreated(spc)
 				state.mutate(spc)
 			})
 			if mockFPA && state.blocked {
@@ -581,6 +582,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			setMockFPAOwnerRoleAssignmentCreated(t, spc)
+			setDataPlaneOIDCFederationCreated(spc)
 			if pendingMRG {
 				spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = spc.Status.AzureResources.ManagedResourceGroup.AzureResource
 			}
