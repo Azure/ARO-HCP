@@ -13,7 +13,7 @@ tests:
     values: "1+0x30"
   # Gauge metric emitted by KSM for ALL HostedClusters; healthy clusters report value 0 (nilIsZero).
   # Verifies the `> 0` filter does not suppress healthy-cluster SLI.
-  - series: 'hostedClusterAPI_deleting{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+  - series: 'hostedClusterAPI_deletion_timestamp_seconds{name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x30"
   promql_expr_test:
   - eval_time: 20m
@@ -27,7 +27,7 @@ tests:
     - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
       value: 5
 # Test: SLI rules produce NO output for a cluster that is being deleted.
-# When hostedClusterAPI_deleting has a value > 0 (deletionTimestamp set), the `unless`
+# When hostedClusterAPI_deletion_timestamp_seconds has a value > 0 (deletionTimestamp set), the `unless`
 # clause on the SLI recording rules suppresses all SLI output for that cluster. This prevents
 # zombie-deleting clusters from consuming KAS SLO error budget. (ARO-29170)
 - interval: 1m
@@ -35,7 +35,7 @@ tests:
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="deleting-cluster", namespace="clusters", _id="del-456", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/deleting-cluster"}'
     values: "0+0x30"
-  - series: 'hostedClusterAPI_deleting{name="deleting-cluster", namespace="clusters", _id="del-456", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/deleting-cluster"}'
+  - series: 'hostedClusterAPI_deletion_timestamp_seconds{name="deleting-cluster", namespace="clusters", _id="del-456", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/deleting-cluster"}'
     values: "1783672602+0x30" # unix for 2026-07-10T08:36:42Z; only > 0 matters to the rule
   promql_expr_test:
   - eval_time: 20m
