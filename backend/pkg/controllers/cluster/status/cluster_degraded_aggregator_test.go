@@ -544,7 +544,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 		},
 		{
 			name:       "known success omitted",
-			conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}},
+			conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}},
 			wantStatus: metav1.ConditionFalse,
 		},
 		{
@@ -562,7 +562,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 			cluster := newTestClusterForAggregator()
 			desire := &azureresourcesapi.DeploymentStackDesire{
 				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/any-stack"))},
-				Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionApply},
+				Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
 				Status:         azureresourcesapi.DeploymentStackDesireStatus{Conditions: tc.conditions},
 			}
 			if !tc.unobserved {
@@ -571,7 +571,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if tc.oldHash {
-				desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionDelete
+				desire.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 			}
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(t.Context(), []any{cluster})
 			require.NoError(t, err)

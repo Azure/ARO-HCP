@@ -50,7 +50,7 @@ func TestDeploymentStackDesireInformer(t *testing.T) {
 		id := mustParseResourceID(t, "/subscriptions/Sub/resourceGroups/RG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+cluster+"/azureDeploymentStackDesires/Desire")
 		_, err = crud.Create(ctx, &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: "sub"},
-			Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionApply, Stack: &armdeploymentstacks.DeploymentStack{}},
+			Spec:           azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply, Stack: &armdeploymentstacks.DeploymentStack{}},
 		}, nil)
 		require.NoError(t, err)
 	}

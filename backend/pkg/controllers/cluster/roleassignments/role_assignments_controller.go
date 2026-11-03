@@ -161,7 +161,7 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		}
 		stack := existing.Status.Stack
 		ready = existingHash == hash && existing.Status.ObservedSpecHash == hash &&
-			meta.IsStatusConditionTrue(existing.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied) &&
+			meta.IsStatusConditionTrue(existing.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) &&
 			stack != nil && stack.Properties != nil && stack.Properties.ProvisioningState != nil &&
 			strings.EqualFold(string(*stack.Properties.ProvisioningState), string(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded))
 	}
@@ -253,8 +253,11 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 	// Resource-group-scoped stacks use the resource group's location.
 	return azureresourcesapi.DeploymentStackDesireSpec{
 		TargetResourceID: target,
-		Authentication:   azureresourcesapi.DeploymentStackDesireAuthentication{Type: azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, TenantID: *subscription.Properties.TenantId},
-		Action:           azureresourcesapi.DeploymentStackDesireActionApply,
+		Authentication: azureresourcesapi.DeploymentStackDesireAuthentication{
+			Type:                  azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA,
+			FirstPartyApplication: &azureresourcesapi.DeploymentStackDesireAuthenticationFirstPartyApplication{TenantID: *subscription.Properties.TenantId},
+		},
+		Action: azureresourcesapi.DeploymentStackDesireActionTypeApply,
 		Stack: &armdeploymentstacks.DeploymentStack{
 			Properties: &armdeploymentstacks.DeploymentStackProperties{
 				ActionOnUnmanage: &armdeploymentstacks.ActionOnUnmanage{
