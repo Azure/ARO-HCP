@@ -17,6 +17,7 @@ package deletion
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -174,5 +177,64 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
+	}
+}
+
+func TestClusterClusterServiceIDClearer_NormalizesEmptyIDs(t *testing.T) {
+	for _, emptyFinal := range []bool{false, true} {
+		for _, completed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("emptyFinal=%t/completed=%t", emptyFinal, completed), func(t *testing.T) {
+				ctx := t.Context()
+				cluster := newTestCluster(t, func(cluster *coreapi.Cluster) {
+					now := metav1.Now()
+					cluster.ServiceProviderProperties.DeletionTimestamp = &now
+					cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+					cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
+					cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = completed
+				})
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
+				require.NoError(t, err)
+				seedProviderIDs(t, ctx, db, cluster)
+				providers := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				provider, err := providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				provider.PendingClusterServiceID = &metadataapi.InternalID{}
+				provider.ClusterServiceID = nil
+				if emptyFinal {
+					provider.ClusterServiceID = &metadataapi.InternalID{}
+				}
+				_, err = providers.Replace(ctx, provider, nil)
+				require.NoError(t, err)
+				syncer := &clusterClusterServiceIDClearer{
+					clusterLister:        &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+					resourcesDBClient:    db,
+					clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+				}
+				key := controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName}
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				parent, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.True(t, parent.ServiceProviderProperties.ClusterServiceDeletionCompleted)
+				require.Nil(t, parent.ServiceProviderProperties.PendingClusterServiceID)
+				require.Nil(t, parent.ServiceProviderProperties.ClusterServiceID)
+				provider, err = providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Nil(t, provider.PendingClusterServiceID)
+				require.Nil(t, provider.ClusterServiceID)
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				repeated, err := providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Equal(t, provider.GetEtag(), repeated.GetEtag())
+				require.NoError(t, providers.Delete(ctx, coreapi.ServiceProviderClusterResourceName))
+				require.NoError(t, syncer.SyncOnce(ctx, key))
+				_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, cluster.ID)
+				require.Error(t, err)
+				_, err = providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err))
+				afterCleanup, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.Equal(t, parent.GetEtag(), afterCleanup.GetEtag())
+			})
+		}
 	}
 }
