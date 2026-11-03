@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
@@ -566,7 +567,7 @@ func TestClusterDegradedAggregator_StackDesires(t *testing.T) {
 			}
 			if !tc.unobserved {
 				var err error
-				desire.Status.ObservedSpecHash, err = azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+				desire.Status.ObservedSpecHash, err = azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 				require.NoError(t, err)
 			}
 			if tc.oldHash {

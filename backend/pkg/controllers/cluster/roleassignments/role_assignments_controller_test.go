@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -220,7 +221,7 @@ func TestStackReadiness(t *testing.T) {
 			require.NoError(t, err)
 			desire.Status = *tc.status.DeepCopy()
 			if tc.observed {
-				desire.Status.ObservedSpecHash, err = azureresourcesapi.DeploymentStackDesireSpecHash(desire.Spec)
+				desire.Status.ObservedSpecHash, err = azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 				require.NoError(t, err)
 				desire.Status.ObservedAt = ptr.To(metav1.Now())
 			}
