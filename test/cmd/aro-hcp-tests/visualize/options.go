@@ -700,11 +700,14 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		};
 		content.append(timelineGrid([], true));
 		for (const {phase, rows} of stages) {
-			const section = element('section', {marginTop:'12px', padding:'8px 0', borderTop:'1px solid rgba(128,128,128,0.25)', background:'rgba(128,128,128,0.06)'});
-			const heading = timelineGrid([{...phase, displayName:stageName(phase)}]);
-			heading.style.marginBottom = '8px';
-			section.append(heading);
-			appendRows(section, rows);
+			const section = element('section', {marginTop:'12px', borderTop:'1px solid rgba(128,128,128,0.25)', background:'rgba(128,128,128,0.06)'});
+			const details = element('details', {padding:'8px 0'});
+			const summary = element('summary', {cursor:'pointer', listStyle:'none'});
+			summary.append(timelineGrid([{...phase, displayName:stageName(phase)}]));
+			const body = element('div', {marginTop:'8px'});
+			appendRows(body, rows);
+			details.append(summary, body);
+			section.append(details);
 			content.append(section);
 		}
 		for (const [name, rows] of [['Across recorded stages', crossing], ['Outside recorded stages', outside]]) {

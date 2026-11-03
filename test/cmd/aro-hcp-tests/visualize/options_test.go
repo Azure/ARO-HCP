@@ -485,7 +485,7 @@ const nodes = descendants(content);
 assert.ok(content.textContent.includes('<img src=x onerror=alert(1)> & "quoted"'));
 assert.match(content.textContent, /3s/);
 assert.match(content.textContent, /30(?:\.0+)?%/);
-const details = nodes.filter(node=>node.tagName==='DETAILS');
+const details = nodes.filter(node=>node.tagName==='DETAILS' && node.children[0]?.tagName==='SUMMARY' && node.children[0].textContent.startsWith('Small uncovered intervals'));
 assert.equal(details.length, 1);
 assert.equal(details[0].open, false);
 assert.equal(details[0].children[0].tagName, 'SUMMARY');
@@ -509,10 +509,10 @@ assert.ok(cleanup.textContent.includes('contained cleanup'));
 assert.ok(cleanup.textContent.includes('boundary point'));
 assert.ok(!setup.textContent.includes('boundary point'));
 for (const group of [setup,cleanup]) {
-	const collapsed = descendants(group).filter(node=>node.tagName==='DETAILS');
-	assert.equal(collapsed.length,1);
-	assert.equal(collapsed[0].open,false);
-	assert.equal(descendants(collapsed[0]).filter(node=>node.style.position==='absolute').length,1);
+	const stageDetails = group.children.filter(node=>node.tagName==='DETAILS');
+	assert.equal(stageDetails.length,1);
+	assert.equal(stageDetails[0].open,false);
+	assert.ok(descendants(stageDetails[0]).filter(node=>node.style.position==='absolute').length>0);
 }
 const across = section('Across recorded stages');
 assert.ok(across.textContent.includes('Setup <literal>') && across.textContent.includes('Cleanup'));
@@ -542,6 +542,8 @@ assert.ok(fractionalSection('Setup').textContent.includes('initial instant'));
 assert.ok(!fractionalSection('Setup').textContent.includes('internal instant'));
 assert.ok(fractionalSection('Cleanup').textContent.includes('internal instant'));
 assert.ok(fractionalSection('Cleanup').textContent.includes('final instant'));
+const finalMarker = descendants(fractionalSection('Cleanup')).find(node=>node.style && typeof node.style.left === 'string' && node.style.left.includes('calc(100% - 2px)'));
+assert.ok(finalMarker, 'fractional final instant must be clamped inside the track');
 assert.equal(fractionalSection('Outside recorded stages'),undefined);`
 	if output, err := exec.Command(node, "-e", script).CombinedOutput(); err != nil {
 		t.Fatalf("uncovered tooltip regression: %v\n%s", err, output)

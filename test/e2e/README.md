@@ -329,42 +329,19 @@ collected before deletion; final timing metadata and the spec outcome are saved
 after teardown, including failed or timed-out cleanup. SDK logging stays open
 through teardown.
 
-The report shows one segmented bar per test. Operation colors occupy their actual
-time intervals within that bar; concurrent operations share its height rather
-than extending its duration. Slate spans identify **No recorded operation**,
-with test-work or cleanup and enclosing-phase context; this is missing operation
-coverage, not evidence of idle time. Phases provide context and do not count as
-operation coverage. Hover a test for a scrollable timeline with bold recorded-stage
-headers and indented operations on one shared test-relative time axis. Framework
-stages use **Setup and test execution** and **Resource cleanup and identity release**,
-including when displaying older timing artifacts. Stage
-sections are expanded; each stage's positive gaps shorter than one second collapse
-into its own expandable group, retaining their total and individual positions.
-Operations overlapping stages appear once under **Across recorded stages**, with
-the overlapping stage names; partially unrecorded intervals are identified.
-Spans without a recorded stage appear under **Outside recorded stages**.
-The tooltip retains the test's uncovered duration and fraction, plus any legacy
-cleanup-coverage warning. Durations use whole seconds, with positive sub-second
-tooltip spans shown as `<1s` and exact zero as `0s`.
-Operation coverage uses interval unions, not sums of overlapping parent/child
-steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
-The summary and chart follow the browser's light/dark color scheme. The
-overview shows all tests in a chart sized to 90% of the outer viewport height,
-with a 640px minimum. The
-vertical slider includes a miniature run preview and expands selected test bars
-within the same chart height, keeping the slider track stable during a drag.
-The horizontal slider navigates the full time range. Sort tests by
-start time, total duration (longest first) or name. Checked-by-default Skipped,
-Passed (green) and Failed (red) controls filter only the chart, alongside a visible
-test count. Skipped includes pending; Failed includes timed-out, panicked,
-interrupted and aborted tests. Unknown or empty outcomes always remain visible.
+The report shows one segmented bar per test. Hover a test to see its recorded
+stages. Stages start collapsed; expand a stage to see its operations. Uncovered
+time is labeled **No recorded operation**. It means missing operation coverage,
+not idle time. The elapsed envelope excludes Prow builds and pre/post-job steps.
 
-Embedded reports size the overview from the outer browser viewport, independently
-of the iframe's content height. If cross-origin restrictions hide that viewport,
-the overview uses a fixed 640px chart height. Tooltips scroll within the chart's
-height so their contents remain visible inside Prow's report iframe.
+The overview chart is sized to 90% of the outer viewport height, with a 640px
+minimum. Embedded reports fall back to 640px when cross-origin restrictions hide
+the viewport. The horizontal slider navigates the full time range. Sort tests by
+start time, total duration (longest first) or name. The Skipped, Passed and
+Failed filters change only the chart, alongside a visible test count; the
+full-run summary is unchanged.
 
-The full-run summary is unchanged by chart filters. It reports minimum, mean and maximum durations plus sample counts for
+The full-run summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
 cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
