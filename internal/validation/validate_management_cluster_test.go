@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -46,12 +47,32 @@ func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-cx-mi.vault.azure.net",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
 			ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
-			MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
-			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
-			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 			KubeApplierCosmosContainerName:                       "Manifests-MC-1",
 			KubeApplierCosmosContainerMaxScale:                   19000,
 		},
+	}
+}
+
+func TestValidateManagementClusterWithLegacyMaestroFields(t *testing.T) {
+	managementCluster := validManagementCluster(t)
+	legacyStatus := []byte(`{"maestroConsumerName":"legacy-consumer","maestroRESTAPIURL":"http://maestro:8000","maestroGRPCTarget":"maestro:8090"}`)
+	if err := json.Unmarshal(legacyStatus, &managementCluster.Status); err != nil {
+		t.Fatal(err)
+	}
+	if errs := ValidateManagementClusterCreate(context.Background(), managementCluster); len(errs) != 0 {
+		t.Fatalf("legacy fields must not prevent creation: %v", errs)
+	}
+	updated := managementCluster.DeepCopy()
+	updated.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
+	if errs := ValidateManagementClusterUpdate(context.Background(), updated, managementCluster); len(errs) != 0 {
+		t.Fatalf("legacy fields must not prevent scheduling updates: %v", errs)
+	}
+	encoded, err := json.Marshal(updated.Status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "maestro") {
+		t.Fatalf("updated status retains obsolete Maestro fields: %s", encoded)
 	}
 }
 
@@ -164,9 +185,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 				{fieldPath: "status.hostedClustersSecretsKeyVaultURL", message: "Required"},
 				{fieldPath: "status.hostedClustersManagedIdentitiesKeyVaultURL", message: "Required"},
 				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "Required"},
-				{fieldPath: "status.maestroConsumerName", message: "Required"},
-				{fieldPath: "status.maestroRESTAPIURL", message: "Required"},
-				{fieldPath: "status.maestroGRPCTarget", message: "Required"},
 				{fieldPath: "status.kubeApplierCosmosContainerName", message: "Required"},
 				{fieldPath: "status.kubeApplierCosmosContainerMaxScale", message: "must be greater than or equal to 1"},
 			},
@@ -212,33 +230,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "invalid"},
-			},
-		},
-		{
-			name: "invalid maestroConsumerName rejected",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroConsumerName = "INVALID_CONSUMER_NAME!"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroConsumerName"},
-			},
-		},
-		{
-			name: "invalid maestroGRPCTarget format rejected",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroGRPCTarget = "missing-port"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroGRPCTarget", message: "must be host:port"},
-			},
-		},
-		{
-			name: "invalid maestroGRPCTarget host rejected",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroGRPCTarget = "not_a_valid_host:8090"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroGRPCTarget", message: "invalid host"},
 			},
 		},
 	}
@@ -352,33 +343,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 				{fieldPath: "status.clusterServiceProvisionShardID", message: "immutable once set"},
 			},
 		},
-		{
-			name: "maestroConsumerName changed",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroConsumerName = "different-consumer"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroConsumerName", message: "immutable"},
-			},
-		},
-		{
-			name: "maestroRESTAPIURL changed",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroRESTAPIURL = "http://different:8000"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroRESTAPIURL", message: "immutable"},
-			},
-		},
-		{
-			name: "maestroGRPCTarget changed",
-			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
-				mc.Status.MaestroGRPCTarget = "different:8090"
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.maestroGRPCTarget", message: "immutable"},
-			},
-		},
+
 		{
 			name: "resourceId changed",
 			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {

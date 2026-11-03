@@ -17,6 +17,7 @@ package k8sresources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -144,6 +146,29 @@ func TestKubeAPIServerServingCertificateCloudName(test *testing.T) {
 			}
 			test.Fatal("SecretProviderClass desire not found")
 		})
+	}
+}
+
+type unavailableCertificateClients struct{ err error }
+
+func (clients unavailableCertificateClients) For(context.Context, *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
+	return nil, clients.err
+}
+
+func TestServingCertificateClientResolution(t *testing.T) {
+	injected := errors.New("kube-applier client construction failed")
+	for _, failure := range []error{nil, injected} {
+		fixture := newKubeAPIServerCertificateFixture(t)
+		fixture.syncer.kubeApplierDBClients = unavailableCertificateClients{err: failure}
+		err := fixture.syncer.SyncOnce(t.Context(), fixture.key)
+		if failure != nil {
+			require.ErrorIs(t, err, failure)
+			require.ErrorContains(t, err, "serving certificate")
+		} else {
+			require.NoError(t, err)
+		}
+		require.Empty(t, fixture.applies(t))
+		require.Empty(t, fixture.reads(t))
 	}
 }
 

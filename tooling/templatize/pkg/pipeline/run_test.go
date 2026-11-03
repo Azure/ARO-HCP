@@ -183,6 +183,11 @@ func TestMockedPipelineRun(t *testing.T) {
 	if assert.Len(t, suites.Suites, 1) {
 		assert.Equal(t, "templatize-pipeline", suites.Suites[0].Name)
 		assert.Len(t, suites.Suites[0].TestCases, len(order))
+		for _, testCase := range suites.Suites[0].TestCases {
+			started, err := time.Parse(time.RFC3339, testCase.Timestamp)
+			assert.NoError(t, err, "test case %q must carry an RFC 3339 start timestamp", testCase.Name)
+			assert.False(t, started.IsZero(), "test case %q has a zero start timestamp", testCase.Name)
+		}
 	}
 
 	lock.Lock()

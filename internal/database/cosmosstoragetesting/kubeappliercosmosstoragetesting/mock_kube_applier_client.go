@@ -519,15 +519,15 @@ func (c *MockKubeApplierDBClients) Register(managementClusterResourceID *azcorea
 	c.clients[strings.ToLower(managementClusterResourceID.String())] = client
 }
 
-func (c *MockKubeApplierDBClients) For(_ context.Context, managementClusterResourceID *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
+func (c *MockKubeApplierDBClients) For(_ context.Context, managementClusterResourceID *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
 	if managementClusterResourceID == nil {
-		return nil
+		return nil, nil
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	client, ok := c.clients[strings.ToLower(managementClusterResourceID.String())]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return client
+	return client, nil
 }

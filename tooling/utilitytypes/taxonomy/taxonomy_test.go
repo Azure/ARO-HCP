@@ -42,6 +42,7 @@ func TestValidL2Subcategories(t *testing.T) {
 		"Cluster Service": true,
 		"Backend":         true,
 		"Maestro":         true,
+		"Kube Applier":    true,
 		"HyperShift":      true,
 		"RH Upstream":     true,
 	}

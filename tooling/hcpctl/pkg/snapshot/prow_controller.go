@@ -38,12 +38,12 @@ func WithProwArtifactProblemHandler(ctx context.Context, handler func(source, re
 }
 
 // ReportProwArtifactProblem logs and reports a permanent artifact problem.
-// Sources are e2e, timing, config, observability, job, or slot-state; reasons are
-// absent, malformed, or unsupported-version. Unknown categories are ignored to
-// keep metric labels bounded.
+// Sources are e2e, timing, config, observability, job, slot-state, or provision;
+// reasons are absent, malformed, or unsupported-version. Unknown categories are
+// ignored to keep metric labels bounded.
 func ReportProwArtifactProblem(ctx context.Context, source, reason string) {
 	switch source {
-	case "e2e", "timing", "config", "observability", "job", "slot-state":
+	case "e2e", "timing", "config", "observability", "job", "slot-state", "rp-provision", "rp-upgrade":
 	default:
 		return
 	}

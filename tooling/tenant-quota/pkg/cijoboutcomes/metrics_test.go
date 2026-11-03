@@ -40,7 +40,7 @@ func TestMetricsTrackAcceptanceAndLiveCacheSize(t *testing.T) {
 	for _, kind := range batchKinds {
 		require.Equal(t, float64(1), testutil.ToFloat64(w.metrics.submissions.WithLabelValues(string(kind), "accepted")))
 	}
-	require.Equal(t, float64(5), testutil.ToFloat64(w.metrics.cacheHits.WithLabelValues("batches")))
+	require.Equal(t, float64(len(batchKinds)), testutil.ToFloat64(w.metrics.cacheHits.WithLabelValues("batches")))
 	cacheSizes := func() map[string]float64 {
 		families, err := registry.Gather()
 		require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestMetricsTrackAcceptanceAndLiveCacheSize(t *testing.T) {
 		}
 		return sizes
 	}
-	require.Equal(t, map[string]float64{"batches": 5}, cacheSizes())
+	require.Equal(t, map[string]float64{"batches": float64(len(batchKinds))}, cacheSizes())
 	now = now.Add(15 * time.Minute)
 	require.Equal(t, map[string]float64{"batches": 0}, cacheSizes(), "scrapes exclude expired entries even when no work is arriving")
 }

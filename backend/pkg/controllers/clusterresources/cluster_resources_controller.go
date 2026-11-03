@@ -264,7 +264,10 @@ func (c *clusterResourcesController) getClusterResources(ctx context.Context, id
 func (c *clusterResourcesController) processClusterResources(ctx context.Context, key controllerutils.HCPClusterKey,
 	managementCluster *azcorearm.ResourceID, resources *arohcpv1alpha1.ClusterResources, clusterServiceID string) error {
 
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
+	if err != nil {
+		return err
+	}
 	if kubeApplierDBClient == nil {
 		return nil
 	}
@@ -795,7 +798,10 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 		return utils.TrackError(fmt.Errorf("list ApplyDesires for stale cleanup: %w", err))
 	}
 
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementCluster)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementCluster)
+	if err != nil {
+		return err
+	}
 	if kubeApplierDBClient == nil {
 		return nil
 	}

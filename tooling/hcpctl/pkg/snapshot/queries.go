@@ -118,11 +118,17 @@ type queryData struct {
 	MonitoringEventsDatabase string
 	ResourceGroup            string
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ServiceClusterName is the AKS cluster that emitted service-side logs.
+	// ManagementClusterNames are the actual hosting management clusters
+	// resolved from placement. When placement resolution has completed, queries
+	// are scoped to the service cluster and any resolved management clusters.
+	// ManagementClusterName remains as a single-cluster fallback for callers
+	// that have not migrated to the slice.
+	ServiceClusterName                 string
+	ManagementClusterName              string
+	ManagementClusterNames             []string
+	ManagementClusterPlacementResolved bool
+	ManagementClusterTargets           []managementClusterTarget
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
@@ -768,17 +774,21 @@ var allQueries = []querySpec{
 	},
 }
 
-// contextQueries are broader queries not tied to a specific correlation ID.
-// They discover all frontend requests in the resource group during the time window.
-// These are written directly to the top-level output directory.
-var contextQueries = []querySpec{
-	{
-		component:    "frontend",
-		queryName:    "frontendRequests",
-		templatePath: "queries/frontend/frontendRequests/query.kql",
-		database:     "service",
-		category:     categoryContext,
-	},
+// frontendRequestQuery discovers all frontend requests in the resource group
+// during the time window. It runs before management-cluster placement is known,
+// so its template filters only on the service cluster.
+var frontendRequestQuery = querySpec{
+	component:    "frontend",
+	queryName:    "frontendRequests",
+	templatePath: "queries/frontend/frontendRequests/query.kql",
+	database:     "service",
+	category:     categoryContext,
+}
+
+// scopedContextQueries are broader queries not tied to a specific correlation
+// ID. They run after management-cluster placement has been resolved so their
+// cluster filters can include the actual hosting stamp.
+var scopedContextQueries = []querySpec{
 	{
 		component:    "alerts",
 		queryName:    "uncategorized",
@@ -813,13 +823,30 @@ func kqlDatetime(t time.Time) string {
 
 // templateFuncMap provides template functions available to KQL templates.
 var templateFuncMap = template.FuncMap{
-	"kqlDatetime": kqlDatetime,
-	"toLower":     strings.ToLower,
+	"kqlDatetime":                 kqlDatetime,
+	"kqlManagementClusterTargets": kqlManagementClusterTargets,
+	"toLower":                     strings.ToLower,
+}
+
+func kqlManagementClusterTargets(targets []managementClusterTarget) string {
+	rows := make([]string, 0, len(targets))
+	for _, target := range targets {
+		rows = append(rows, fmt.Sprintf("%s, %s", kqlStringLiteral(target.ClusterResourceID), kqlStringLiteral(target.SubscriptionID)))
+	}
+	return strings.Join(rows, ",\n")
+}
+
+func kqlStringLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // renderQuery reads and renders an embedded KQL template with the given data.
 // Shared partial templates from queries/_partials/ are automatically available.
 func renderQuery(templatePath string, data queryData) (string, error) {
+	if len(data.ManagementClusterNames) == 0 && data.ManagementClusterName != "" {
+		data.ManagementClusterNames = []string{data.ManagementClusterName}
+	}
+
 	tmplBytes, err := queriesFS.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read embedded query %s: %w", templatePath, err)

@@ -282,7 +282,7 @@ DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
 max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
 ```
 
-This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing. Stage uses one 75-container slot per subscription, below this approximate 92-HCP limit. It translates into slot count as:
 
 ```text
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
@@ -403,6 +403,21 @@ scheduler budget with the selected pool's declared leased count. Inspect the
 effective worker concurrency, including CLI overrides, and scheduler/lease
 timing in job artifacts. Explicit worker limits cap concurrent specs
 independently of the leased identity-container budget.
+
+#### Stage Identity Inventory And Runtime Region
+
+Stage acquisition uses two West US 3 pools, `shard0` in Stage-00 and `shard1`
+in Stage-01, declared in the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml). Each subscription
+has one slot, 100 physical identity containers, and a leased-container ceiling
+of 75, using the explicit prefix `aro-hcp-msi-container-stg`. Read the catalog
+for Boskos resource types and regional VM-family policy.
+
+Both runtime and identity provisioning regions are fixed to `westus3`.
+Confirm `SELECTED_LOCATION`, the acquired pool and slot, the exported identity
+list, and the `mi-containers` budget in job artifacts. Suite worker defaults
+follow the acquired identity count; explicit worker overrides do not increase
+the leased identity budget.
 
 ### Operational Notes And Troubleshooting
 

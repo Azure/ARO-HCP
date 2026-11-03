@@ -26,10 +26,10 @@ certificates:
       conditions:
         ownerResourceGroupAbsent: true
       olderThan: 168h
-    # Protect Maestro certificates of persistent shared environments (the CSPR
-    # environment uses the bare regional name; nightly is a shared environment).
-    # Their names look like personal certificates, but their owner token is not
-    # part of any live resource group name, so the owner guard would not hold.
+    # Protect Maestro certificates of persistent shared environments: the bare
+    # regional name (e.g. usw3) and the shared nightly environment. Their names
+    # look like personal certificates, but their owner token is not part of any
+    # live resource group name, so the owner guard would not hold.
     - name: protect-shared-environment-maestro-certificates
       action: skip
       match:

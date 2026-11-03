@@ -245,10 +245,15 @@ safe-outputs:
           uses: actions/checkout@v7.0.1
           with:
             persist-credentials: false
+        - name: Set up trusted repository Go version
+          uses: actions/setup-go@v7.0.0
+          with:
+            go-version-file: go.work
         - name: Verify and apply repair
           env:
             GH_TOKEN: ${{ steps.write-token.outputs.token }}
             REPO: ${{ github.repository }}
+            GOTOOLCHAIN: local
           run: |
             set -euo pipefail
             jq -e '
@@ -323,6 +328,7 @@ safe-outputs:
             while IFS= read -r -d '' file; do
               case "$file" in
                 .github/*|*/.github/*) echo "Protected path: $file" >&2; exit 1 ;;
+                vendor/*|image-sync/oc-mirror/acrauth/vendor/*) ;;
                 go.work|go.work.sum|go.mod|go.sum|*/go.mod|*/go.sum|package.json|*/package.json|package-lock.json|*/package-lock.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml|*.go) ;;
                 api/Makefile|test/sdk/*/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/testdata/_metadata.json)
                   if ! git diff --cached --name-only | grep -Fxq 'api/package.json'; then
@@ -337,6 +343,10 @@ safe-outputs:
               git diff --cached --name-only | grep -Eq '(^|/)(go.mod|package.json)$' || {
                 echo "Rebuilt PR must retain a dependency manifest update" >&2; exit 1
               }
+            fi
+            # Compare vendor content against module-derived output, not agent claims.
+            if git diff --cached --name-only | grep -Eq '(^|/)(go\.mod|go\.sum|go\.work|go\.work\.sum)$|^(vendor/|image-sync/oc-mirror/acrauth/vendor/)'; then
+              make verify-vendor
             fi
             if [[ "${GH_AW_SAFE_OUTPUTS_STAGED:-false}" == true ]]; then
               echo "Staged repair for verified PR $n"
@@ -581,7 +591,8 @@ Work on a fresh branch per group, off the default branch. For each group:
 1. Raise the dependency to the first patched version in the relevant module's `go.mod` (use `go get <module>@<version>` in each affected module directory).
 2. Run the workspace ritual so the whole `go.work` stays consistent: `make all-tidy` (this runs `go work sync` + `go mod tidy` across every module and regenerates license metadata). A single bump usually cascades: it will update `go.sum` (and sometimes `go.mod`) in **several** modules, not just the one you bumped. That cascade is the whole point, keep every one of those changes.
 3. Match the repository CI gate exactly. The verify workflow runs the tidy ritual and then fails if `git status --short` is not empty. So after `make all-tidy`, run it again followed by `git status --short`; if anything is still modified, stage it and repeat until a second run produces no further changes (a clean fixpoint). Only then is the branch CI-clean. A go.sum that carries a hash line for a module with **no matching `require`** in that module's `go.mod` (or a **missing** `.../go.mod` hash line) means tidy did not fully run there: run `go mod tidy` inside that module and re-run `make all-tidy` until it is a no-op.
-4. Validate the change builds and lints with the repository's targets (for example `make test-compile` and `make lint` if present). They must pass. Keep the diff dependency-only (see below).
+4. Run `make vendor` after the workspace ritual and retain both generated trees: `vendor/` and `image-sync/oc-mirror/acrauth/vendor/`. Run `make verify-vendor` before publication. This applies to new proposals and repairs of existing PRs; stale vendor content is a reproducible failure, not a reason to retest.
+5. Validate the change builds and lints with the repository's targets (for example `make test-compile` and `make lint` if present). They must pass. Keep the diff dependency-only (see below).
 
 ### npm groups
 1. Apply the fix in the relevant `package.json` (use an `overrides` entry when the vulnerable package is transitive) and refresh the lockfile.
@@ -589,7 +600,7 @@ Work on a fresh branch per group, off the default branch. For each group:
 
 ## 4. Keep each PR dependency-only
 
-Every PR must contain **only** dependency-management changes: for Go groups `go.mod`, `go.sum`, `go.work`, `go.work.sum` and any regenerated license metadata; for npm groups `package.json` and the lockfile. This includes the full cascade across every module that the tidy ritual touched, not just the module you bumped. Do **not** revert a `go.mod`/`go.sum`/`go.work.sum` change that `make all-tidy` produced thinking it is "unrelated churn"; those cross-module updates are the workspace sync and CI will fail without them. Only revert actual source-code edits (`.go` files, generated code) or the `dependabot-alerts.json` / `open-pull-requests.json` scratch files, which must never be committed. If in doubt, the rule is simple: running `make all-tidy` on the final branch must produce no diff.
+Every PR must contain **only** dependency-management changes: for Go groups `go.mod`, `go.sum`, `go.work`, `go.work.sum`, regenerated license metadata and the two vendor trees generated by `make vendor`; for npm groups `package.json` and the lockfile. Retain the full workspace cascade, not just the module you bumped. Do not revert module or vendor changes as unrelated churn: `make all-tidy` and `make verify-vendor` must both pass on the final branch. Vendor Go source and metadata are generated dependency artifacts, not first-party source edits. Revert unrelated first-party source or generated-code edits outside the vendor trees, and never commit the `dependabot-alerts.json` or `open-pull-requests.json` scratch files. Never hand-edit vendor files.
 
 An existing owned PR may also need a small Go source correction when the dependency upgrade breaks an API or lint check. Include only the required fix, validate it, and send it through `repair_owned_pr`. New dependency PRs remain dependency-only.
 

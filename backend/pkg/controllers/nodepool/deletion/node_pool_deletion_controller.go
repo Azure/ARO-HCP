@@ -239,7 +239,10 @@ func (c *nodePoolDeletionController) deletePreconditionAllApplyDesiresGone(ctx c
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if err != nil {
+		return false, err
+	}
 	if kubeApplierDBClient == nil {
 		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
 		return false, nil

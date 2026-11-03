@@ -223,12 +223,15 @@ type cosmosKubeApplierFactory struct {
 
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) kubeapplierinformers.KubeApplierInformers {
-	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
-	if client == nil {
-		return nil
+) (kubeapplierinformers.KubeApplierInformers, error) {
+	client, err := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, err
 	}
-	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
+	if client == nil {
+		return nil, nil
+	}
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration), nil
 }
 
 // applyDesireRecorder records the ApplyDesires that arrive through the
@@ -314,9 +317,6 @@ func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://mi-kv.vault.azure.net/",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "c2bde1aa-d904-48cd-a728-9de33e3ddca9",
 			ClusterServiceProvisionShardID:                       provisionShardID,
-			MaestroConsumerName:                                  "consumer-" + stampIdentifier,
-			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
-			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 			KubeApplierCosmosContainerName:                       "Manifests-MC-" + stampIdentifier,
 			KubeApplierCosmosContainerMaxScale:                   19000,
 		},

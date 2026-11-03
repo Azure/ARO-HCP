@@ -28,9 +28,21 @@
 // happens for aborted runs and for tests whose timing metadata is missing.
 // message holds the reported failure or diagnostic text, including observability
 // test details. The JSON mapping reads it from $.message; absent messages are empty.
+// source is the artifact producer: "e2e" | "observability" | "rp-provision" |
+// "rp-upgrade". "e2e" is the test-step JUnit/extension results, "observability"
+// is aro-hcp-gather-observability, and "rp-provision"/"rp-upgrade" are the
+// templatize pipeline JUnit reports of the RP provision and in-place upgrade
+// steps (one test per pipeline step, passed steps included so durations can be
+// queried). Historical rows predating this column have an empty source; they
+// must not be treated as another source.
+// For rp-* rows startedAt/finishedAt are the step execution times (zero when the
+// report predates the testcase timestamp), unlike observability, where they are
+// the observation window. An in-place-upgrade build has the same step names
+// under both rp-provision and rp-upgrade, so always group or filter by source.
 .create-merge table ciTestResults (
     buildId: string,
     testId: string,
+    source: string,
     result: string,
     failed: bool,
     resourceGroup: string,
@@ -51,6 +63,7 @@ with (
 [
   {"column":"buildId","path":"$['buildId']","datatype":"string"},
   {"column":"testId","path":"$['testId']","datatype":"string"},
+  {"column":"source","path":"$['source']","datatype":"string"},
   {"column":"result","path":"$['result']","datatype":"string"},
   {"column":"failed","path":"$['failed']","datatype":"bool"},
   {"column":"resourceGroup","path":"$['resourceGroup']","datatype":"string"},

@@ -164,9 +164,18 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 		clusterPUTRoundTripTests(),
 		clusterPATCHRoundTripTests()...,
 	), nodepoolExternalAuthRoundTripTests()...)
+	var slots chan struct{}
+	if withMock {
+		slots = make(chan struct{}, maxParallelMockCases)
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if withMock {
+				t.Parallel()
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))

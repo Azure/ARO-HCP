@@ -221,6 +221,7 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 	return allCases, nil
 }
 
+// RunTestHelmTemplate renders discovered Helm cases and checks fixtures and configured policies.
 func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	settings, err := internal.LoadSettings(settingsPath)
 	require.NoError(t, err)
@@ -265,7 +266,9 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 					t.Error(v)
 				}
 
-				validateDaemonSetUpdateStrategies(t, manifest)
+				if settings.ValidateDaemonSetUpdateStrategies {
+					validateDaemonSetUpdateStrategies(t, manifest)
+				}
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future

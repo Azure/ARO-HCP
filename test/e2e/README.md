@@ -320,6 +320,55 @@ permissions and may be unavailable during early VM provisioning. This bundle
 captures configuration at failure time, not historical packet delivery or the
 backend selected for an individual connection.
 
+#### Test Timing Analysis
+
+Timing metadata records the running spec's setup through framework teardown,
+including ARM evidence collection, debug collection, resource deletion, Key
+Vault/Managed HSM purge and identity release. ARM deployment operations are
+collected before deletion; final timing metadata and the spec outcome are saved
+after teardown, including failed or timed-out cleanup. SDK logging stays open
+through teardown.
+
+The report shows one segmented bar per test. Operation colors occupy their actual
+time intervals within that bar; concurrent operations share its height rather
+than extending its duration. Phases fill intervals without a named operation,
+and gray identifies untracked work. Hover a test for its phase and operation timings.
+Operation coverage uses interval unions, not sums of overlapping parent/child
+steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
+The summary and chart follow the browser's light/dark color scheme. The
+overview shows all tests within the available screen height. The
+vertical slider expands selected test bars for detail and the horizontal slider
+navigates the full time range. Sort tests by start time, total duration
+(longest first) or name.
+
+Embedded reports size the overview from the outer browser viewport, independently
+of the iframe's content height. If cross-origin restrictions hide that viewport,
+the overview uses a fixed 320px chart height.
+
+The summary reports minimum, mean and maximum durations plus sample counts for
+recorded cluster creation, nodepool creation, cluster deletion, resource-group
+cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
+Only passing tests contribute averages; interrupted spans and failed, timed-out
+or unknown-outcome tests are excluded. Typed resource-operation averages also
+require an explicit successful operation outcome: failed attempts, including
+expected rejections in passing tests, and unknown historical outcomes remain on
+the timeline but do not contribute averages or sample counts. Distinct concurrent
+successful operations remain separate samples. Resource-group cleanup includes
+contained resources and purge, so categories are independent and must not be
+added together.
+
+Cluster creation with a nonpositive timeout does not wait for provisioning. Its
+`create-cluster-request` span measures submission and the initial status poll,
+not resource readiness. It remains visible on the timeline but is excluded from
+creation averages, even when both the request and the test pass.
+
+Historical metadata remains readable, but its missing cleanup intervals and
+unknown outcomes are labeled rather than reconstructed. Regenerate a report with:
+
+```bash
+./test/aro-hcp-tests visualize --timing-input "$SHARED_DIR" --output "$ARTIFACT_DIR/test-timing"
+```
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
@@ -376,10 +425,12 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
 [`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
 
 - `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
-  test location, filters out SKUs that are restricted in the current
-  subscription/location, applies the selector's capability filters, and returns
-  a usable SKU. When the selector requires zones, only SKUs with at least one
-  non-restricted zone are considered usable. It prefers the selector's ordered
+  test location, filters out SKUs with applicable **Location** restrictions in
+  the current subscription/location, applies the selector's capability filters,
+  and returns a usable SKU. **Zone** restrictions constrain only zonal placement:
+  even when every advertised zone is restricted, a non-zonal selector may use
+  the SKU. When the selector requires zones, at least one advertised zone must
+  remain unrestricted. It prefers the selector's ordered
   `Preferred` list first, then falls back to a deterministic, sorted pick when
   the selector permits discovery.
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
@@ -403,7 +454,6 @@ preferred size or deterministic discovery result within a family. Restriction
 and capability checks still apply; see
 [`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
 behavior.
-
 
 Local runs can supply the same resolved override without slot-manager:
 

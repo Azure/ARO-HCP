@@ -10,6 +10,7 @@ Grafana dashboards for ARO-HCP SRE oncall and fleet health monitoring.
 | `operations-overview.json` | Fleet-wide in-flight operations, stuck/failed ops, duration distribution |
 | `per-cluster-drill-in.json` | Single-cluster oncall triage: KAS, etcd, provisioning state, nodepools |
 | `cluster-autoscaler-staleness.json` | Customer HCPs whose cluster-autoscaler main activity has been stale for at least five minutes |
+| `etcd-fsync-performance.json` | etcd disk-level fsync deep-dive: WAL fsync + backend commit latency heatmaps, tail latencies (P99→P99.99), throughput correlation, per-pod breakdown |
 
 ## Datasource Model
 

@@ -90,6 +90,11 @@ type BaseRunOptions struct {
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
 
+	// ResourceGroupTags are set in full on resource groups this run creates;
+	// on pre-existing groups they only replace keys already present, so
+	// shared groups never gain a run-scoped tag.
+	ResourceGroupTags map[string]string
+
 	SkipBicepparamValidation bool
 
 	// SubscriptionIdToAzureConfigDirectory maps a subscription ID to a logged-in Azure CLI config
@@ -574,7 +579,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					continue
 				}
 
-				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
+				testCase := &junit.TestCase{
+					Name:      fmt.Sprintf("Run pipeline step %s", id.String()),
+					Timestamp: startedAt.UTC().Format(time.RFC3339),
+					Duration:  finishedAt.Sub(startedAt).Seconds(),
+				}
 				if info.State == "failed" {
 					log := string(logging[id])
 					if info.Preempted {

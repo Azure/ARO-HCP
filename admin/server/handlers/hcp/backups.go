@@ -137,7 +137,10 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get kube-applier client: %w", err))
+	}
 	if kubeApplierClient == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
@@ -271,7 +274,10 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get kube-applier client: %w", err))
+	}
 	if kubeApplierClient == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())

@@ -53,7 +53,7 @@ func TestTestRowsForKeepsOnlyExecutedTests(t *testing.T) {
 		{Name: "[sig-sippy] infrastructure should work", Result: "failed", Failed: true, StartTime: ran, EndTime: ran},
 	}
 
-	rows, names := testRowsFor("2092349199822622720", results)
+	rows, names := testRowsFor("2092349199822622720", sourceE2E, results)
 
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want 2 (skipped and Sippy's own tests excluded): %+v", len(rows), rows)
@@ -64,6 +64,9 @@ func TestTestRowsForKeepsOnlyExecutedTests(t *testing.T) {
 	for _, row := range rows {
 		if row.BuildID != "2092349199822622720" {
 			t.Errorf("row is not keyed by the run: %q", row.BuildID)
+		}
+		if row.Source != sourceE2E {
+			t.Errorf("row source = %q, want %q", row.Source, sourceE2E)
 		}
 	}
 	if rows[0].Result != "passed" || rows[0].Failed {
@@ -83,7 +86,7 @@ func TestTestRowsForEmitsEachNameOnce(t *testing.T) {
 		{Name: "installs a cluster", Result: "failed", Failed: true, StartTime: ran, EndTime: ran},
 	}
 
-	rows, names := testRowsFor("2092349199822622720", results)
+	rows, names := testRowsFor("2092349199822622720", sourceE2E, results)
 
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want both attempts recorded", len(rows))
@@ -325,7 +328,7 @@ func TestFetchE2ERowsStrict(t *testing.T) {
 				return
 			}
 			row := rows[0]
-			if row.Message != "failure detail" || row.ResourceGroup != "test-rg" || row.Result != "failed" || !row.Failed || row.BuildID != "123" || row.TestID != testIDFor("test name") || row.StartedAt.IsZero() || row.FinishedAt.IsZero() {
+			if row.Message != "failure detail" || row.ResourceGroup != "test-rg" || row.Result != "failed" || !row.Failed || row.BuildID != "123" || row.Source != sourceE2E || row.TestID != testIDFor("test name") || row.StartedAt.IsZero() || row.FinishedAt.IsZero() {
 				t.Fatalf("derived fields changed: %+v", row)
 			}
 			if tc.name == "complete" {

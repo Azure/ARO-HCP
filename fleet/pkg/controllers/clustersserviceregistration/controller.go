@@ -205,9 +205,8 @@ func (s *clustersServiceRegistrationSyncer) updateShardStatusIfNeeded(
 // identity fields. A stored shard that 404s is a hard error — a previously
 // registered shard disappearing indicates data corruption or unauthorized
 // deletion that requires operator investigation. Without a stored ID, we scan
-// all shards by AKS resource ID and consumer name. CS enforces uniqueness on
-// both (immutable after create), so duplicates or partial matches indicate
-// data corruption, not a race.
+// all shards by AKS resource ID. Duplicate matches indicate data corruption,
+// not a race.
 func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 	ctx context.Context,
 	managementCluster *fleetapi.ManagementCluster,
@@ -216,17 +215,13 @@ func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 		return nil, nil, fmt.Errorf("AKSResourceID is required")
 	}
 	aksResourceID := managementCluster.Status.AKSResourceID.String()
-	consumerName := managementCluster.Status.MaestroConsumerName
-	if len(consumerName) == 0 {
-		return nil, nil, fmt.Errorf("MaestroConsumerName is required")
-	}
 
 	storedID := managementCluster.Status.ClusterServiceProvisionShardID
 	if storedID != nil {
-		return s.getByStoredID(ctx, *storedID, aksResourceID, consumerName)
+		return s.getByStoredID(ctx, *storedID, aksResourceID)
 	}
 
-	return searchByIdentityKeys(ctx, s.clustersServiceClient, aksResourceID, consumerName)
+	return searchByAKSResourceID(ctx, s.clustersServiceClient, aksResourceID)
 }
 
 // getByStoredID fetches the shard by its stored ID, verifies its identity
@@ -234,7 +229,7 @@ func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 func (s *clustersServiceRegistrationSyncer) getByStoredID(
 	ctx context.Context,
 	storedID metadataapi.InternalID,
-	aksResourceID, consumerName string,
+	aksResourceID string,
 ) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
 	shard, err := s.clustersServiceClient.GetProvisionShard(ctx, storedID)
 	if err != nil {
@@ -245,9 +240,6 @@ func (s *clustersServiceRegistrationSyncer) getByStoredID(
 	}
 	if !strings.EqualFold(shard.AzureShard().AksManagementClusterResourceId(), aksResourceID) {
 		return nil, nil, fmt.Errorf("stored shard %s: AKS resource ID mismatch: got %q, expected %q", storedID, shard.AzureShard().AksManagementClusterResourceId(), aksResourceID)
-	}
-	if shard.MaestroConfig().ConsumerName() != consumerName {
-		return nil, nil, fmt.Errorf("stored shard %s: consumer name mismatch: got %q, expected %q", storedID, shard.MaestroConfig().ConsumerName(), consumerName)
 	}
 	return &storedID, shard, nil
 }

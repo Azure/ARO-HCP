@@ -372,6 +372,7 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/fake
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1
 ## explicit; go 1.24.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3
@@ -1801,9 +1802,6 @@ github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
 github.com/openshift-eng/openshift-tests-extension/pkg/junit
 github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
 github.com/openshift-eng/openshift-tests-extension/pkg/version
-# github.com/openshift-online/maestro v0.0.0-20260213014104-081c1f6df17b
-## explicit; go 1.25.0
-github.com/openshift-online/maestro/pkg/api/openapi
 # github.com/openshift-online/ocm-api-model/clientapi v0.0.468
 ## explicit; go 1.23.0
 github.com/openshift-online/ocm-api-model/clientapi/accesstransparency/v1
@@ -2407,7 +2405,7 @@ go.opentelemetry.io/contrib/instrumentation/host
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
-# go.opentelemetry.io/contrib/instrumentation/runtime v0.67.0
+# go.opentelemetry.io/contrib/instrumentation/runtime v0.68.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/contrib/instrumentation/runtime
 go.opentelemetry.io/contrib/instrumentation/runtime/internal/deprecatedruntime
@@ -3963,7 +3961,7 @@ k8s.io/utils/ptr
 k8s.io/utils/set
 k8s.io/utils/strings/slices
 k8s.io/utils/trace
-# knative.dev/pkg v0.0.0-20260318013857-98d5a706d4fd
+# knative.dev/pkg v0.0.0-20260531000007-52dbd5ece63f
 ## explicit; go 1.25.0
 knative.dev/pkg/apis
 knative.dev/pkg/apis/duck

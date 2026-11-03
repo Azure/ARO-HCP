@@ -426,3 +426,80 @@ func TestOverlayErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRunCostTag(t *testing.T) {
+	const tagged = "jobID.aro-hcp-ci.redhat.com=1234567"
+	for _, tc := range []struct {
+		name      string
+		input     Inputs
+		svc, mgmt string
+	}{
+		{"sentinel resolves build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "1234567", MSIContainers: "leased"},
+			"clusterType=svc-cluster," + tagged, "clusterType=mgmt-cluster," + tagged},
+		{"explicit value", Inputs{DeployEnvironment: "dev", RunCostTagValue: "nightly-2026.10.28", MSIContainers: "leased"},
+			"clusterType=svc-cluster,jobID.aro-hcp-ci.redhat.com=nightly-2026.10.28", "clusterType=mgmt-cluster,jobID.aro-hcp-ci.redhat.com=nightly-2026.10.28"},
+		{"no opt-in", Inputs{DeployEnvironment: "ci01", BuildID: "1234567", MSIContainers: "leased"}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, document := generated(t, tc.input, Paths{})
+			if tc.svc == "" {
+				if len(document) != 0 {
+					t.Fatalf("overrides generated without opt-in: %#v", document)
+				}
+				return
+			}
+			defaults := defaultsAt(t, document, tc.input.DeployEnvironment)
+			for _, kind := range []struct{ name, want string }{{"svc", tc.svc}, {"mgmt", tc.mgmt}} {
+				var got interface{}
+				if cluster, ok := defaults[kind.name].(map[string]interface{}); ok {
+					if aks, ok := cluster["aks"].(map[string]interface{}); ok {
+						got = aks["tags"]
+					}
+				}
+				if got != kind.want {
+					t.Fatalf("%s aks tags = %#v, want %q", kind.name, got, kind.want)
+				}
+			}
+		})
+	}
+	// A per-run management environment also sized for healthchecks keeps both
+	// overrides.
+	t.Run("merges with healthcheck sizing", func(t *testing.T) {
+		_, document := generated(t, Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "1234567"}, Paths{})
+		defaults := defaultsAt(t, document, "ci01")
+		mgmt := defaults["mgmt"].(map[string]interface{})["aks"].(map[string]interface{})
+		if got := mgmt["tags"]; got != "clusterType=mgmt-cluster,"+tagged {
+			t.Fatalf("mgmt aks tags = %#v", got)
+		}
+		if got := mgmt["userAgentPool"].(map[string]interface{})["minCount"]; got != 1 {
+			t.Fatalf("healthcheck sizing lost: %#v", got)
+		}
+	})
+}
+
+func TestRunCostTagErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		input  Inputs
+		errMsg string
+	}{
+		{"sentinel without build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID"}, "BUILD_ID is not set"},
+		{"invalid build ID", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "BUILD_ID", BuildID: "$(injection)"}, "not a valid"},
+		{"invalid value", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "has space"}, "not a valid"},
+		{"injected value", Inputs{DeployEnvironment: "ci01", RunCostTagValue: "semi;colon"}, "not a valid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := Generate(tc.input, Paths{})
+			if err == nil || !strings.Contains(err.Error(), tc.errMsg) {
+				t.Fatalf("Generate = %#v, %v; want %q error", result, err, tc.errMsg)
+			}
+			if result.YAML != nil {
+				t.Fatalf("partial result on failure: %#v", result)
+			}
+		})
+	}
+	if input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "BUILD_ID=1234567", "RUN_COST_TAG_VALUE=BUILD_ID"}); err != nil ||
+		input.BuildID != "1234567" || input.RunCostTagValue != "BUILD_ID" {
+		t.Fatalf("InputsFromEnvironment = %#v, %v; want BUILD_ID and RUN_COST_TAG_VALUE captured", input, err)
+	}
+}

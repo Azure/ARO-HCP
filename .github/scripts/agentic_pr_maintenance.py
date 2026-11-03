@@ -134,7 +134,7 @@ def fetch_snapshot(repo, number, expected_head):
 
 
 def owned_kind(pull, repo):
-    """Recognize only the two published same-repository robot PR identities."""
+    """Recognize the published same-repository robot maintenance PR identities."""
     for field in ("user", "head", "base"):
         if not isinstance(pull.get(field), dict):
             raise ValueError(f"missing pull request {field} evidence")
@@ -161,6 +161,8 @@ def owned_kind(pull, repo):
         return "upgrade"
     if title.startswith("fix(deps): ") and "agentic-dependabot" in {label["name"] for label in labels}:
         return "dependency"
+    if title.startswith("chore(tools): bump ") and "agentic-tool-upgrade" in {label["name"] for label in labels}:
+        return "tool"
     return None
 
 
@@ -332,7 +334,7 @@ def assess(snapshot, repo, number, expected_head):
     if pull.get("number") != number:
         blockers.append("pull request number does not match")
     if kind is None:
-        blockers.append("pull request is not an owned robot upgrade or dependency PR")
+        blockers.append("pull request is not an owned robot upgrade, dependency, or tool PR")
     if pull.get("state") != "open" or pull.get("merged") is not False or pull.get("draft") is not False:
         blockers.append("pull request must be open, unmerged, and ready for review")
     if head != expected_head or head not in commits:
@@ -466,11 +468,44 @@ def execute(mode, repo, number, expected_head, evidence=None):
     return result
 
 
+def inventory(repo):
+    """Assess only owned PR identities fetched from the paginated robot issue list."""
+    validate_target(repo, 1, "0" * 40)
+    issues = gh_lines(
+        f"repos/{repo}/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100",
+        ".[]",
+    )
+    results = []
+    seen = set()
+    for issue in issues:
+        if not isinstance(issue, dict):
+            raise ValueError("malformed robot issue inventory")
+        if issue.get("pull_request") is None or issue.get("user", {}).get("login") != ROBOT:
+            continue
+        number = validate_target(repo, issue.get("number"), "0" * 40)
+        if number in seen:
+            raise ValueError("duplicate PR in robot issue inventory")
+        seen.add(number)
+        pull = fetch_pull(repo, number)
+        if pull.get("number") != number:
+            raise ValueError("PR detail does not match inventory number")
+        if pull.get("state") not in ("open", "closed"):
+            raise ValueError("missing PR state evidence")
+        if pull.get("state") != "open" or pull.get("merged"):
+            continue
+        if owned_kind(pull, repo) is not None:
+            results.append(execute("assess", repo, number, pull["head"].get("sha")))
+    return results
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
         if len(argv) == 2 and argv[0] == "compiler-versions":
             print(json.dumps(compiler_versions(argv[1])))
+            return 0
+        if len(argv) == 2 and argv[0] == "inventory":
+            print(json.dumps(inventory(argv[1]), sort_keys=True))
             return 0
         if len(argv) == 3 and argv[0] == "inspect":
             _, repo, number = argv
@@ -483,7 +518,7 @@ def main(argv=None):
         elif len(argv) in (4, 5):
             result = execute(*argv)
         else:
-            raise ValueError("usage: agentic_pr_maintenance.py compiler-versions REF | inspect REPO PR | assess|release-hold|verify-upgrade REPO PR HEAD | recover-retry REPO PR HEAD EVIDENCE | release-regenerated REPO PR HEAD PREVIOUS_HEAD")
+            raise ValueError("usage: agentic_pr_maintenance.py compiler-versions REF | inventory REPO | inspect REPO PR | assess|release-hold|verify-upgrade REPO PR HEAD | recover-retry REPO PR HEAD EVIDENCE | release-regenerated REPO PR HEAD PREVIOUS_HEAD")
         print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
