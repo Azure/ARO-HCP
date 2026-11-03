@@ -16,6 +16,7 @@ package corecosmosstorage_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,7 +91,11 @@ func TestClusterServiceIDMigration(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, testCase.pending, provider.PendingClusterServiceID)
+			if testCase.pending != nil && len(testCase.pending.String()) == 0 {
+				require.Nil(t, provider.PendingClusterServiceID)
+			} else {
+				require.Equal(t, testCase.pending, provider.PendingClusterServiceID)
+			}
 			require.Equal(t, testCase.final, provider.ClusterServiceID)
 			before, err := clusterCRUD.Get(ctx, resourceID.Name)
 			require.NoError(t, err)
@@ -102,6 +107,63 @@ func TestClusterServiceIDMigration(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, provider.GetEtag(), afterProvider.GetEtag(), "converged backfill must not rewrite the destination")
 		})
+	}
+}
+
+func TestClusterServiceIDEmptyDeletion(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		for _, marked := range []bool{false, true} {
+			t.Run(fmt.Sprintf("existing=%t/marked=%t", existing, marked), func(t *testing.T) {
+				ctx := t.Context()
+				db := corecosmosstoragetesting.NewMockResourcesDBClient()
+				resourceID := metadataapi.Must(coreapihelpers.ToClusterResourceID("00000000-0000-0000-0000-000000000000", "rg", "cluster"))
+				clusters := db.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName)
+				providers := db.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
+				cluster := coreapi.NewDefaultCluster(resourceID, "eastus")
+				cluster.ResourceID = resourceID
+				cluster.SetPartitionKey(resourceID.SubscriptionID)
+				cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
+				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = marked
+				now := metav1.Now()
+				cluster.ServiceProviderProperties.DeletionTimestamp = &now
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+				cluster.ServiceProviderProperties.PendingClusterServiceID = &metadataapi.InternalID{}
+				_, err := clusters.Create(ctx, cluster, nil)
+				require.NoError(t, err)
+				if existing {
+					providerID := metadataapi.Must(azcorearm.ParseResourceID(resourceID.String() + "/serviceProviderClusters/default"))
+					_, err = providers.Create(ctx, &coreapi.ServiceProviderCluster{
+						CosmosMetadata:          coreapi.CosmosMetadata{ResourceID: providerID, PartitionKey: resourceID.SubscriptionID},
+						PendingClusterServiceID: &metadataapi.InternalID{},
+					}, nil)
+					require.NoError(t, err)
+				}
+				syncIDs := func() {
+					require.NoError(t, corecosmosstorage.SyncClusterServiceIDs(ctx, db, resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name))
+				}
+				syncIDs()
+				parent, err := clusters.Get(ctx, resourceID.Name)
+				require.NoError(t, err)
+				require.Nil(t, parent.ServiceProviderProperties.PendingClusterServiceID)
+				require.True(t, parent.ServiceProviderProperties.ClusterServiceDeletionCompleted)
+				if existing {
+					provider, err := providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, err)
+					require.Nil(t, provider.PendingClusterServiceID)
+					syncIDs()
+					repeated, err := providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, err)
+					require.Equal(t, provider.GetEtag(), repeated.GetEtag())
+					require.NoError(t, providers.Delete(ctx, coreapi.ServiceProviderClusterResourceName))
+				}
+				syncIDs()
+				_, err = providers.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err))
+				repeated, err := clusters.Get(ctx, resourceID.Name)
+				require.NoError(t, err)
+				require.Equal(t, parent.GetEtag(), repeated.GetEtag())
+			})
+		}
 	}
 }
 

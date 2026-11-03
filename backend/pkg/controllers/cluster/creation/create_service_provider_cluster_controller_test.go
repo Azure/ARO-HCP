@@ -94,14 +94,18 @@ func (b *boomServiceProviderClusterLister) Get(_ context.Context, _, _, _ string
 
 func TestCreateServiceProviderClusterSyncer_BackfillsMarkersWithMatchingIDs(t *testing.T) {
 	for _, scenario := range []struct {
-		name        string
-		withID      bool
-		initialized bool
-		deleting    bool
+		name         string
+		withID       bool
+		initialized  bool
+		deleting     bool
+		emptyPending bool
+		completed    bool
 	}{
 		{name: "existing IDs", withID: true},
 		{name: "empty IDs"},
 		{name: "completed deletion", initialized: true, deleting: true},
+		{name: "empty pending deletion", initialized: true, deleting: true, emptyPending: true},
+		{name: "empty pending marked deletion", initialized: true, deleting: true, emptyPending: true, completed: true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -109,6 +113,10 @@ func TestCreateServiceProviderClusterSyncer_BackfillsMarkersWithMatchingIDs(t *t
 			cluster := newCreatorTestCluster(t)
 			cluster.SetPartitionKey(creatorTestSubscriptionID)
 			cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = scenario.initialized
+			cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = scenario.completed
+			if scenario.emptyPending {
+				cluster.ServiceProviderProperties.PendingClusterServiceID = &metadataapi.InternalID{}
+			}
 			if scenario.withID {
 				cluster.ServiceProviderProperties.ClusterServiceID = ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/existing")))
 			}
@@ -121,8 +129,9 @@ func TestCreateServiceProviderClusterSyncer_BackfillsMarkersWithMatchingIDs(t *t
 			require.NoError(t, err)
 			providerCRUD := db.ServiceProviderClusters(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName)
 			provider := &coreapi.ServiceProviderCluster{
-				CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default"))},
-				ClusterServiceID: cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy(),
+				CosmosMetadata:          coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(cluster.ID.String() + "/serviceProviderClusters/default"))},
+				ClusterServiceID:        cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy(),
+				PendingClusterServiceID: cluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy(),
 			}
 			provider.SetPartitionKey(creatorTestSubscriptionID)
 			provider, err = providerCRUD.Create(ctx, provider, nil)
@@ -136,10 +145,12 @@ func TestCreateServiceProviderClusterSyncer_BackfillsMarkersWithMatchingIDs(t *t
 			observed, err := clusterCRUD.Get(ctx, creatorTestClusterName)
 			require.NoError(t, err)
 			require.True(t, observed.ServiceProviderProperties.ServiceProviderClusterInitialized)
+			require.Nil(t, observed.ServiceProviderProperties.PendingClusterServiceID)
 			require.Equal(t, scenario.deleting, observed.ServiceProviderProperties.ClusterServiceDeletionCompleted)
 			observedProvider, err := providerCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			require.Equal(t, provider.ClusterServiceID, observedProvider.ClusterServiceID)
+			require.Nil(t, observedProvider.PendingClusterServiceID)
 			require.NoError(t, syncer.SyncOnce(ctx, newCreatorTestClusterKey()))
 			repeated, err := clusterCRUD.Get(ctx, creatorTestClusterName)
 			require.NoError(t, err)

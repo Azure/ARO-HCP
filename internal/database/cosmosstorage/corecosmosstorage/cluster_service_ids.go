@@ -24,6 +24,12 @@ import (
 
 func ReplaceClusterWithServiceProviderIDs(ctx context.Context, db ResourcesDBClient, cluster *coreapi.Cluster) error {
 	cluster = cluster.DeepCopy()
+	if cluster.ServiceProviderProperties.PendingClusterServiceID != nil && len(cluster.ServiceProviderProperties.PendingClusterServiceID.String()) == 0 {
+		cluster.ServiceProviderProperties.PendingClusterServiceID = nil
+	}
+	if cluster.ServiceProviderProperties.ClusterServiceID != nil && len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		cluster.ServiceProviderProperties.ClusterServiceID = nil
+	}
 	cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil && cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
@@ -66,7 +72,9 @@ func SyncClusterServiceIDs(ctx context.Context, db ResourcesDBClient, subscripti
 	if err != nil {
 		return err
 	}
-	if !cluster.ServiceProviderProperties.ServiceProviderClusterInitialized || (cluster.ServiceProviderProperties.DeletionTimestamp != nil && cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil && cluster.ServiceProviderProperties.ClusterServiceID == nil && !cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted) {
+	properties := cluster.ServiceProviderProperties
+	idsCanonical := (properties.PendingClusterServiceID == nil || len(properties.PendingClusterServiceID.String()) > 0) && (properties.ClusterServiceID == nil || len(properties.ClusterServiceID.String()) > 0)
+	if !idsCanonical || !cluster.ServiceProviderProperties.ServiceProviderClusterInitialized || (cluster.ServiceProviderProperties.DeletionTimestamp != nil && cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil && cluster.ServiceProviderProperties.ClusterServiceID == nil && !cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted) {
 		return ReplaceClusterWithServiceProviderIDs(ctx, db, cluster)
 	}
 	provider, err := db.ServiceProviderClusters(subscriptionID, resourceGroup, clusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
