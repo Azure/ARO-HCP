@@ -16,6 +16,7 @@ package mismatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -152,19 +153,19 @@ func TestSynchronizeAllClusters(t *testing.T) {
 
 func TestSynchronizeAllClustersMissingProvider(t *testing.T) {
 	fixedNow := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-	for _, phase := range []string{"before initialization", "unexpected provider loss", "after child cleanup"} {
+	for _, phase := range []string{"before initialization", "unexpected provider loss", "deletion dispatched", "dispatch without initialization marker", "completion without dispatch", "after child cleanup"} {
 		t.Run(phase, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ctrl := gomock.NewController(t)
 			subscription := testSubscription()
 			cluster := testCosmosCluster(t)
-			cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = phase != "before initialization"
-			if phase == "after child cleanup" {
+			cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = phase != "before initialization" && phase != "dispatch without initialization marker"
+			if phase == "after child cleanup" || phase == "deletion dispatched" || phase == "dispatch without initialization marker" {
 				deletedAt := metav1.NewTime(fixedNow.Add(-time.Hour))
 				cluster.ServiceProviderProperties.DeletionTimestamp = &deletedAt
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &deletedAt
-				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}
+			cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = phase == "after child cleanup" || phase == "completion without dispatch"
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, cluster})
 			require.NoError(t, err)
 			before := db.GetAllDocuments()
@@ -187,13 +188,48 @@ func TestSynchronizeAllClustersMissingProvider(t *testing.T) {
 				resourcesDBClient:    db,
 				clusterServiceClient: csClient,
 			}
-			indexed, clusters, err := controller.getAllCosmosObjs(ctx)
-			require.NoError(t, err)
-			require.Empty(t, indexed)
-			require.Len(t, clusters, 1)
-			require.NoError(t, controller.synchronizeAllClusters(ctx))
+			err = controller.SyncOnce(ctx, nil)
+			if phase == "before initialization" || phase == "after child cleanup" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "provider state missing for initialized or deleting cluster")
+				require.ErrorContains(t, err, cluster.ID.String())
+			}
 			require.Equal(t, before, db.GetAllDocuments())
 		})
+	}
+}
+
+func TestSynchronizeAllClustersMissingProviderWithClusterServiceError(t *testing.T) {
+	for _, initialized := range []bool{false, true} {
+		for _, message := range []string{"no healthy upstream", "cluster service list failed"} {
+			t.Run(fmt.Sprintf("initialized=%t/%s", initialized, message), func(t *testing.T) {
+				ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+				subscription := testSubscription()
+				cluster := testCosmosCluster(t)
+				cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = initialized
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, cluster})
+				require.NoError(t, err)
+				listErr := errors.New(message)
+				csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+				csClient.EXPECT().ListClusters("").Return(ocm.NewSimpleClusterListIterator(nil, listErr))
+				controller := &clusterServiceClusterMatching{
+					subscriptionLister:   &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+					resourcesDBClient:    db,
+					clusterServiceClient: csClient,
+				}
+				err = controller.SyncOnce(ctx, nil)
+				if initialized {
+					require.ErrorContains(t, err, "provider state missing for initialized or deleting cluster")
+					require.ErrorContains(t, err, cluster.ID.String())
+				} else if message == "no healthy upstream" {
+					require.NoError(t, err)
+				}
+				if message != "no healthy upstream" {
+					require.ErrorIs(t, err, listErr)
+				}
+			})
+		}
 	}
 }
 

@@ -47,6 +47,15 @@ stage 2; retire all writers that do not preserve it. Stage 2 initializers no lon
 copy old IDs: only new, uninitialized clusters may use them. Missing initialized
 state requires operator investigation, not a new pending ID.
 
+The cluster-service mismatch inventory leaves missing providers unindexed.
+Absence before initialization or after proven deletion cleanup is expected;
+missing initialized state or deletion dispatch without completion is reported
+through the controller's error/retry path after safe orphan reconciliation.
+The live parent lookup still prevents deleting any cluster-service cluster with
+an existing parent, even when provider state is missing. Other provider read
+errors abort the scan. Inventory diagnostics never initialize or repair state
+and do not weaken creation's fail-closed requirement.
+
 Only after that gate, deploy provider-based readers. Remove the old-authoritative
 backfill in this stage; otherwise it could restore stale IDs after stage 3 stops
 updating the legacy representation. All lifecycle mutations still update both
