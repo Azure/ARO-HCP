@@ -19,14 +19,17 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
 
+	kustov2 "github.com/Azure/azure-kusto-go/azkustodata/query/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/util/junit"
@@ -79,6 +82,62 @@ func TestEnvAlertsQuery(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Errorf("query missing %q:\n%s", want, query)
 		}
+	}
+}
+
+// kustoFrames builds a fragmented Kusto v2 response with one primary table
+// holding the given alert names, ending with the given DataSetCompletion.
+func kustoFrames(alertNames []string, completion string) string {
+	rows := make([]string, len(alertNames))
+	for i, name := range alertNames {
+		rows[i] = `["` + name + `"]`
+	}
+	return `[{"FrameType":"DataSetHeader","IsProgressive":false,"Version":"v2.0","IsFragmented":true,"ErrorReportingPlacement":"EndOfTable"}
+,{"FrameType":"DataTable","TableId":0,"TableKind":"QueryProperties","TableName":"@ExtendedProperties","Columns":[{"ColumnName":"TableId","ColumnType":"int"},{"ColumnName":"Key","ColumnType":"string"},{"ColumnName":"Value","ColumnType":"dynamic"}],"Rows":[]}
+,{"FrameType":"TableHeader","TableId":1,"TableKind":"PrimaryResult","TableName":"PrimaryResult","Columns":[{"ColumnName":"alertName","ColumnType":"string"}]}
+,{"FrameType":"TableFragment","TableFragmentType":"DataAppend","TableId":1,"Rows":[` + strings.Join(rows, ",") + `]}
+,{"FrameType":"TableCompletion","TableId":1,"RowCount":` + strconv.Itoa(len(alertNames)) + `}
+,` + completion + `
+]`
+}
+
+func TestReadKustoRows(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name       string
+		completion string
+		wantErr    string
+	}{
+		{
+			name:       "complete",
+			completion: `{"FrameType":"DataSetCompletion","HasErrors":false,"Cancelled":false}`,
+		},
+		{
+			// The SDK reports this only after the primary rows, as a later
+			// table result.
+			name:       "failure after the primary table",
+			completion: `{"FrameType":"DataSetCompletion","HasErrors":true,"Cancelled":false,"OneApiErrors":[{"error":{"code":"LimitsExceeded","message":"Request is invalid and cannot be executed.","@type":"Kusto.DataNode.Exceptions.QueryLimitsExceededException","@message":"query exceeded memory limit"}}]}`,
+			wantErr:    "LimitsExceeded",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dataset, err := kustov2.NewIterativeDataset(t.Context(), io.NopCloser(strings.NewReader(kustoFrames([]string{"KubePodNotReady", "KubeNodeNotReady"}, tt.completion))), 10, 10, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := readKustoRows(dataset)
+			if tt.wantErr == "" && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)) {
+				t.Fatalf("error = %v, want %q", err, tt.wantErr)
+			}
+			// Rows read before the failure are kept so they still gate.
+			if len(rows) != 2 || rows[0]["alertName"] != "KubePodNotReady" || rows[1]["alertName"] != "KubeNodeNotReady" {
+				t.Errorf("rows = %v", rows)
+			}
+		})
 	}
 }
 

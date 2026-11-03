@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 
@@ -78,8 +79,7 @@ func loadEnvKustoTarget(renderedConfig string) (envKustoTarget, error) {
 }
 
 // queryKusto runs one read-only query and returns its primary result as
-// string-valued rows. If reading the result stream fails partway, the rows
-// read so far are returned with the error.
+// string-valued rows.
 func queryKusto(ctx context.Context, cred azcore.TokenCredential, endpoint, db, query string) ([]kustoRow, error) {
 	client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(endpoint).WithTokenCredential(cred))
 	if err != nil {
@@ -93,34 +93,41 @@ func queryKusto(ctx context.Context, cred azcore.TokenCredential, endpoint, db, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query on %s: %w", endpoint, err)
 	}
-	primary := <-dataset.Tables()
-	if primary == nil {
-		return nil, fmt.Errorf("query on %s returned no primary result", endpoint)
-	}
-	if err := primary.Err(); err != nil {
-		return nil, fmt.Errorf("failed to get primary result: %w", err)
-	}
-	if primary.Table() == nil {
-		return nil, nil
-	}
+	return readKustoRows(dataset)
+}
+
+// readKustoRows reads the primary result as string-valued rows and drains
+// every remaining table result: the SDK reports query-level failures
+// (DataSetCompletion errors, cancellation) only there, after the primary
+// rows. Rows read before a failure are returned together with the error.
+func readKustoRows(dataset azkquery.IterativeDataset) ([]kustoRow, error) {
 	var rows []kustoRow
-	for result := range primary.Table().Rows() {
+	var errs []error
+	for result := range dataset.Tables() {
 		if err := result.Err(); err != nil {
-			return rows, fmt.Errorf("failed to read row: %w", err)
-		}
-		if result.Row() == nil {
+			errs = append(errs, err)
 			continue
 		}
-		values := result.Row().Values()
-		row := make(kustoRow, len(values))
-		for i, col := range result.Row().Columns() {
-			if i < len(values) {
-				row[col.Name()] = values[i].String()
+		table := result.Table()
+		for rowResult := range table.Rows() {
+			if err := rowResult.Err(); err != nil {
+				errs = append(errs, fmt.Errorf("failed to read row: %w", err))
+				continue
 			}
+			if !table.IsPrimaryResult() || rowResult.Row() == nil {
+				continue
+			}
+			values := rowResult.Row().Values()
+			row := make(kustoRow, len(values))
+			for i, col := range rowResult.Row().Columns() {
+				if i < len(values) {
+					row[col.Name()] = values[i].String()
+				}
+			}
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
 	}
-	return rows, nil
+	return rows, errors.Join(errs...)
 }
 
 // kqlStringList renders a KQL list of single-quoted string literals.
