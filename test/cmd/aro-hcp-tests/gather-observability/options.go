@@ -99,11 +99,7 @@ type completedOptions struct {
 	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
 	// percentage. Nil-safe callers tolerate an unset lookup.
 	cosmosAutoscaleMax autoscaleMaxLookup
-	// regionRGScope is the fully qualified ID of the region resource group
-	// (regionRG in the rendered config) that holds the regional infrastructure
-	// and the monitoring workspaces. It only exists once the environment has
-	// been provisioned, so when it is absent collection is skipped rather than
-	// reported as failed.
+	// regionRGScope is the region resource group ID; collection is skipped when it does not exist.
 	regionRGScope string
 }
 
@@ -370,31 +366,18 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	record(o.cosmosError)
 	record(o.knownIssuesError)
 
-	// Ask whether the region resource group exists before collecting anything.
-	// The condition cannot be inferred from a failing API call: listing alerts
-	// for a missing resource group returns an empty 200, so only the later rule
-	// and workspace lookups 404. Probing it directly keeps the decision honest
-	// and cheap (a single HEAD request).
-	//
-	// The region resource group is created by provisioning. When it is missing
-	// the run never got far enough to have something to observe (provision was
-	// aborted before creating anything, or gather ran against the write-config
-	// step's less accurate config), so skip collection instead of failing it. Note this is about existence, not about provisioning having
-	// succeeded: a run that failed halfway still has real infrastructure and
-	// real alerts, and those must be collected.
+	// A missing region RG means provisioning never created anything to observe.
+	// Keyed on existence, not provision success: half-provisioned runs are still collected.
 	if o.regionRGScope != "" {
-		exists, err := deps.checkResourceGroupExists(ctx, o.cred, o.regionRGScope)
+		probeCtx, cancel := context.WithTimeout(ctx, resourceGroupProbeTimeout)
+		exists, err := deps.checkResourceGroupExists(probeCtx, o.cred, o.regionRGScope)
+		cancel()
 		switch {
 		case err != nil:
-			// The probe itself failed (403, timeout, ...). Do not upgrade that to
-			// "the environment is gone", and do not fail an otherwise clean run on
-			// a transient HEAD request: log it and let the collectors report their
-			// own failures, which they do loudly when access is really broken.
+			// A failed probe is not evidence of absence; the collectors report real access problems.
 			logger.Error(err, "failed to check region resource group; continuing with collection", "resourceGroup", o.regionRGScope)
 		case !exists:
-			// Write no artifacts: there is nothing to report, and both the Kusto
-			// ingestion and CIHealth tolerate a missing junit_alerts.xml. Only the
-			// setup errors recorded above can fail the run.
+			// No artifacts: Kusto ingestion and CIHealth tolerate a missing junit_alerts.xml.
 			logger.Info("region resource group does not exist; skipping observability collection", "resourceGroup", o.regionRGScope)
 			return utils.TrackError(errors.Join(fatalErrors...))
 		}

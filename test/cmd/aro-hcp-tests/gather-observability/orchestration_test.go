@@ -635,8 +635,7 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 		}}
 	}
 
-	// healthyDeps stubs the collectors with empty-but-successful answers: a
-	// provisioned environment whose alert rules are all quiet.
+	// healthyDeps stubs a provisioned environment whose alert rules are all quiet.
 	healthyDeps := func(o Options) gatherDependencies {
 		deps := o.dependencies()
 		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
@@ -683,16 +682,16 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 		t.Parallel()
 		o := newOptions(t)
 		deps := o.dependencies()
-		deps.checkResourceGroupExists = func(_ context.Context, _ azcore.TokenCredential, scope string) (bool, error) {
+		deps.checkResourceGroupExists = func(ctx context.Context, _ azcore.TokenCredential, scope string) (bool, error) {
+			if _, ok := ctx.Deadline(); !ok {
+				t.Error("existence probe must run under its own deadline")
+			}
 			if scope != regionScope {
 				t.Errorf("probed %q, want the region resource group %q", scope, regionScope)
 			}
 			return false, nil
 		}
-		// The probe is the only thing that may run. In production the alert list
-		// call returns an empty 200 for a missing resource group and only the
-		// rule/workspace lookups 404, so anything reached here is wasted (and
-		// misleading) work.
+		// The probe is the only call allowed; every collector fails the test.
 		deps.fetchAlerts = func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error) {
 			t.Error("alerts fetched for a missing region resource group")
 			return nil, nil
@@ -726,8 +725,7 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 			t.Fatalf("a missing region resource group must not fail the gather step: %v", err)
 		}
 
-		// Nothing was collected, so nothing is published: Kusto ingestion and
-		// CIHealth both tolerate a missing junit_alerts.xml.
+		// Nothing collected, nothing published.
 		entries, err := os.ReadDir(o.OutputDir)
 		if err != nil {
 			t.Fatal(err)
@@ -792,9 +790,7 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 			return nil, nil
 		}
 
-		// A broken probe is not evidence about the environment. Counting it as
-		// fatal would turn a transient HEAD failure into a new source of CI
-		// flakes; a genuinely broken principal still fails through the collectors.
+		// A broken probe must not become a new source of CI flakes.
 		if err := o.run(logr.NewContext(t.Context(), logr.Discard()), deps); err != nil {
 			t.Fatalf("a failed existence probe must not fail a clean collection: %v", err)
 		}
@@ -823,8 +819,7 @@ func TestRegionResourceGroupExistenceGatesCollection(t *testing.T) {
 
 func TestResourceGroupExistsRejectsMalformedScope(t *testing.T) {
 	t.Parallel()
-	// The probe runs before any Azure client is built, so a malformed scope must
-	// fail loudly instead of silently reporting "does not exist".
+	// A malformed scope must error, not report "does not exist".
 	if _, err := resourceGroupExists(t.Context(), nil, "not-a-resource-group-id"); err == nil {
 		t.Fatal("expected an error for a malformed resource group scope")
 	}

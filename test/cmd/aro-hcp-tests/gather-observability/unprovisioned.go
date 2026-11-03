@@ -17,21 +17,18 @@ package gatherobservability
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
-// resourceGroupExists reports whether a resource group currently exists. It is a
-// single HEAD request (ResourceGroups/CheckExistence) against the resource
-// group's own scope, which is the condition the collector actually cares about:
-// "is there an environment to observe?".
-//
-// Do not infer this from the alert APIs. Listing alerts for a resource group
-// that does not exist returns an empty 200, and only the metric-rule,
-// prometheusRuleGroup and monitoring-workspace calls 404, so error-code sniffing
-// on any single collector call is unreliable.
+// resourceGroupProbeTimeout bounds the existence probe, including SDK retries.
+const resourceGroupProbeTimeout = 30 * time.Second
+
+// resourceGroupExists issues ResourceGroups/CheckExistence. The alert APIs cannot
+// answer this: listing alerts for a missing resource group returns an empty 200.
 func resourceGroupExists(ctx context.Context, cred azcore.TokenCredential, scope string) (bool, error) {
 	id, err := azcorearm.ParseResourceID(scope)
 	if err != nil {
