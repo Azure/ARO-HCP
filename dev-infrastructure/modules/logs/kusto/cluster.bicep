@@ -73,7 +73,7 @@ var viewerIdentityPermissions = [
 // The KustoEntityGroups pipeline step runs `kustoctl entity-groups sync` under
 // the global rollout MSI. `.create-or-alter entity_group` requires Database
 // Admin on the target database, so the MSI needs AllDatabasesAdmin at cluster
-// scope to cover ServiceLogs, HostedControlPlaneLogs and MonitoringEvents. The
+// scope to cover AllAroHcpLogs and MonitoringEvents. The
 // MSI lives in the global resource group (same subscription as this deployment).
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(globalMSIName) && !empty(globalMSIResourceGroup)) {
   name: globalMSIName

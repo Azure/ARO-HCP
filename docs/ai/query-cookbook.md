@@ -32,10 +32,12 @@ Hosted cluster namespace convention: `ocm-arohcp<env>-<cid>-<id>`, where
 `cid` is the Clusters Service internal cluster ID (an opaque hash like
 `2iig1flm0pfjr9h8kkg6ggbjig1p3fpa`).
 
-The two Kusto databases per region (see [kusto-debugging.md](kusto-debugging.md) for the table list):
+The Kusto logs database per region (see [kusto-debugging.md](kusto-debugging.md) for the table list):
 
-- `ServiceLogs` — frontend, backend, clusters service, fleet — i.e. the service cluster microservices.
-- `HostedControlPlaneLogs` — HyperShift, control-plane-operator, per-cluster control plane container logs, and management-cluster components.
+- `AllAroHcpLogs` — all forwarder logs: frontend, backend, clusters service, fleet (service
+  cluster microservices); HyperShift, control-plane-operator and per-cluster control plane
+  container logs (`hcpContainerLogs`); and management-cluster components. Routing into typed
+  tables is done by ADX update policies.
 
 ## Bootstrapping: from minimal input to magic strings
 
@@ -177,7 +179,7 @@ live in
 
 - `cluster-installation-azure-disk-failure.md`
 - `cluster-cleanup-unknown-failure.md`
-- `kubernetes-events.md` — `ServiceLogs.kubernetesEvents` and ad-hoc filtering beyond snapshot `controlPlaneEvents`
+- `kubernetes-events.md` — `AllAroHcpLogs.kubernetesEvents` and ad-hoc filtering beyond snapshot `controlPlaneEvents`
 - `mgmt-agent-event-logs.md` — ad-hoc KQL for mgmt-agent `resource event` / `pod event` timelines
 - `cluster-deletion-timeout-because-managedcluster-cr-deletion-stuck.md` — cluster deletion stuck at ManagedCluster destructor due to addon pod eviction (MemoryPressure)
 

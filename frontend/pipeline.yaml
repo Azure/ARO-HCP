@@ -78,7 +78,7 @@ resourceGroups:
       resourceGroup: kusto
       step: kusto-lookup
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'frontendLogs'
     inputVariables:
       imagePullerMsiClientId:

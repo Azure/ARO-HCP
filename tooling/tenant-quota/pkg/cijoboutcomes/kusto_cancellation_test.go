@@ -127,7 +127,7 @@ func TestKustoResourceRequestCancellation(t *testing.T) {
 			return nil, fmt.Errorf("unexpected request: %s", request.CSL)
 		}
 	})}}
-	ingestor, err := azkustoingest.New(azkustodata.NewConnectionStringBuilder("http://localhost"), azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("ServiceLogs"), azkustoingest.WithDefaultTable("ciJobOutcomes"))
+	ingestor, err := azkustoingest.New(azkustodata.NewConnectionStringBuilder("http://localhost"), azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("AllAroHcpLogs"), azkustoingest.WithDefaultTable("ciJobOutcomes"))
 	require.NoError(t, err)
 	done := make(chan error, 1)
 	go func() {

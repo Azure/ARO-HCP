@@ -49,8 +49,8 @@ type RawFromResourceOptions struct {
 
 func defaultFromResourceOptions() *RawFromResourceOptions {
 	return &RawFromResourceOptions{
-		ServiceDatabase:          "ServiceLogs",
-		HCPDatabase:              "HostedControlPlaneLogs",
+		ServiceDatabase:          "AllAroHcpLogs",
+		HCPDatabase:              "AllAroHcpLogs",
 		MonitoringEventsDatabase: "MonitoringEvents",
 		QueryTimeout:             5 * time.Minute,
 		OutputDir:                fmt.Sprintf("snapshot-%s", time.Now().Format("20060102-150405")),
@@ -62,8 +62,8 @@ func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) e
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
 	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route queries through this reachable ADX cluster instead of connecting to --kusto directly; queries still target --kusto via cross-cluster cluster(). The connecting identity needs viewer rights on --kusto, and the standard databases must exist on this cluster.")
 	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (defaults to --region)")
-	cmd.Flags().StringVar(&opts.ServiceDatabase, "service-database", opts.ServiceDatabase, "Kusto database for service logs")
-	cmd.Flags().StringVar(&opts.HCPDatabase, "hcp-database", opts.HCPDatabase, "Kusto database for hosted control plane logs")
+	cmd.Flags().StringVar(&opts.ServiceDatabase, "service-database", opts.ServiceDatabase, "Kusto database for service logs (default AllAroHcpLogs; routing is done by ADX update policies)")
+	cmd.Flags().StringVar(&opts.HCPDatabase, "hcp-database", opts.HCPDatabase, "Kusto database for hosted control plane logs (default AllAroHcpLogs; HCP logs land in the hcpContainerLogs table)")
 	cmd.Flags().StringVar(&opts.MonitoringEventsDatabase, "monitoring-events-database", opts.MonitoringEventsDatabase, "Kusto database for monitoring events (alerts)")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "Azure resource group name (required)")
 	cmd.Flags().StringVar(&opts.StartTime, "start-time", opts.StartTime, "Query start time in RFC3339 format (required)")

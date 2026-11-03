@@ -52,7 +52,7 @@ The alert's `cluster` label is the AKS cluster name (for example
 
 ### 2. Find the offending pods and images
 
-Query `kubeAudit` in the environment's `ServiceLogs` Kusto database.
+Query `kubeAudit` in the environment's `AllAroHcpLogs` Kusto database.
 
 Denied admissions (HTTP 403 responses carry the full policy message,
 including the offending images and the currently deployed allowlist):

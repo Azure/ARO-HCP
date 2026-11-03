@@ -1,0 +1,5 @@
+{{- /* Scope cluster discovery to the user-provided time window to avoid returning clusters unrelated to the investigated time period. Reads the HCP control-plane pod logs (hcpContainerLogs) so management clusters hosting the queried HCPs are discovered. */ -}}
+hcpContainerLogs
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where log has '{{.SubResourceGroupId}}'
+| distinct cluster

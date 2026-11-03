@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |-
   containerLogs
   | project timestamp, log, cluster, namespace_name, container_name

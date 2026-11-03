@@ -86,7 +86,16 @@ func runValidateKQL(cmd *cobra.Command, logger logr.Logger, client *azkustodata.
 	logQuery(logger, "", createCmd)
 	logDataset(logger, ds)
 
-	files, err := filepath.Glob(filepath.Join(kqlDir, "*.kql"))
+	var files []string
+	err = filepath.WalkDir(kqlDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && filepath.Ext(path) == ".kql" {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("finding .kql files: %w", err)
 	}

@@ -417,7 +417,15 @@ defaults:
     autoScaleMax: 10
     rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
-    serviceLogsDatabase: "ServiceLogs"
+    allAroHcpLogsDatabase: "AllAroHcpLogs"
+    # DEPRECATED, for backward compatibility only. The single consolidated logs
+    # database is now addressed via allAroHcpLogsDatabase; this alias is kept
+    # (with the same value) so external consumers that still read
+    # serviceLogsDatabase keep resolving the correct database.
+    serviceLogsDatabase: "AllAroHcpLogs"
+    # DEPRECATED, for backward compatibility only. Names the legacy per-type
+    # database so snapshot/prow queries run against pre-consolidation deployments
+    # can still resolve the hosted-control-plane logs table.
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     monitoringEventsDatabase: "MonitoringEvents"
     adminGroups: ""

@@ -172,7 +172,7 @@ clouds:
             kustoResourceGroup: "hcp-kusto-us"
             clusterURI: "https://hcp-dev-us-2.eastus2.kusto.windows.net"
             ingestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net"
-            database: "ServiceLogs"
+            database: "AllAroHcpLogs"
             outcomes:
               table: "ciJobOutcomes"
               ingestionMapping: "ciJobOutcomesMapping"

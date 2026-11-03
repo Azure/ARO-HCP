@@ -170,6 +170,19 @@ type queryData struct {
 	ChildResourceTypes map[string]bool
 }
 
+// HCPLogsTable returns the Kusto table holding hosted control plane container
+// logs for the configured HCPDatabase. The current routing writes HCP logs into
+// the AllAroHcpLogs database's hcpContainerLogs table; the legacy HostedControlPlaneLogs
+// database kept them in its containerLogs table. Resolving the table from the
+// database keeps queries backward compatible across both layouts.
+func (d queryData) HCPLogsTable() string {
+	if strings.EqualFold(d.HCPDatabase, "HostedControlPlaneLogs") {
+		// Kusto table names are case-sensitive; the legacy table is "containerLogs".
+		return "containerLogs"
+	}
+	return "hcpContainerLogs"
+}
+
 // hasChildResourceType returns true if a child resource type with the given
 // suffix (case-insensitive) exists for this resource in cosmosResourceSnapshots.
 func (d queryData) hasChildResourceType(suffix string) bool {

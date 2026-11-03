@@ -707,10 +707,17 @@ type sourceConfig struct {
 }
 
 type sourceKusto struct {
-	KustoName                      string `json:"kustoName"`
-	Location                       string `json:"location"`
+	KustoName string `json:"kustoName"`
+	Location  string `json:"location"`
+	// AllAroHcpLogsDatabase is the canonical consolidated logs database.
+	AllAroHcpLogsDatabase string `json:"allAroHcpLogsDatabase"`
+	// ServiceLogsDatabase is the deprecated alias of AllAroHcpLogsDatabase, read
+	// only as a fallback for configs rendered before the canonical key existed.
+	ServiceLogsDatabase string `json:"serviceLogsDatabase"`
+	// HostedControlPlaneLogsDatabase names the legacy per-type database used by
+	// pre-consolidation deployments, where HCP container logs lived in its
+	// containerLogs table. Read only as a fallback for the HCP logs table.
 	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
-	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
 	MonitoringEventsDatabase       string `json:"monitoringEventsDatabase"`
 }
 
@@ -733,11 +740,32 @@ func ParseConfig(data []byte) (*ProwJobConfig, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
+	// logsDatabase is the consolidated logs database. Prefer the canonical key,
+	// falling back to the deprecated serviceLogsDatabase alias for configs
+	// rendered before allAroHcpLogsDatabase was introduced.
+	logsDatabase := src.Kusto.AllAroHcpLogsDatabase
+	if logsDatabase == "" {
+		logsDatabase = src.Kusto.ServiceLogsDatabase
+	}
+
+	// hcpDatabase holds the HCP container logs. Consolidated deployments keep
+	// them in the single logs database (hcpContainerLogs table); pre-consolidation
+	// deployments kept them in a dedicated HostedControlPlaneLogs database
+	// (containerLogs table). HCPLogsTable() resolves the table name from this
+	// value, so routing against a legacy deployment stays backward compatible.
+	hcpDatabase := src.Kusto.AllAroHcpLogsDatabase
+	if hcpDatabase == "" {
+		hcpDatabase = src.Kusto.HostedControlPlaneLogsDatabase
+	}
+	if hcpDatabase == "" {
+		hcpDatabase = src.Kusto.ServiceLogsDatabase
+	}
+
 	return &ProwJobConfig{
 		Region:                   src.Kusto.Location,
 		KustoName:                src.Kusto.KustoName,
-		HCPDatabase:              src.Kusto.HostedControlPlaneLogsDatabase,
-		ServiceDatabase:          src.Kusto.ServiceLogsDatabase,
+		HCPDatabase:              hcpDatabase,
+		ServiceDatabase:          logsDatabase,
 		MonitoringEventsDatabase: src.Kusto.MonitoringEventsDatabase,
 		ServiceClusterName:       src.Svc.AKS.Name,
 		ManagementClusterName:    src.Mgmt.AKS.Name,

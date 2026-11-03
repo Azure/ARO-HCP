@@ -50,7 +50,13 @@ func (d *discovery) infraLookupConfig(data any) {
 	}
 	l := d.snapshot.infraLookup
 	k := discoveryMap(data, "kusto")
-	name, location, database := discoveryString(k, "kustoName"), discoveryString(k, "location"), discoveryString(k, "serviceLogsDatabase")
+	name, location := discoveryString(k, "kustoName"), discoveryString(k, "location")
+	// Prefer the canonical consolidated logs DB key, falling back to the
+	// deprecated serviceLogsDatabase alias for configs captured before it existed.
+	database := discoveryString(k, "allAroHcpLogsDatabase")
+	if strings.TrimSpace(database) == "" {
+		database = discoveryString(k, "serviceLogsDatabase")
+	}
 	if !kustoDNSLabel.MatchString(name) || !kustoDNSLabel.MatchString(location) || strings.TrimSpace(database) == "" {
 		l.invalid = true
 		return
@@ -137,7 +143,7 @@ func ResolveInfraSubscriptions(ctx context.Context, client *http.Client, credent
 	unavailable := ""
 	switch {
 	case l == nil || l.invalid || !kustoEndpoint(l.endpoint) || strings.TrimSpace(l.database) == "":
-		unavailable = "Kusto lookup unavailable: provide the run's provision config with valid kusto.kustoName, location and serviceLogsDatabase, plus exact AKS names in config or steps"
+		unavailable = "Kusto lookup unavailable: provide the run's provision config with valid kusto.kustoName, location and allAroHcpLogsDatabase, plus exact AKS names in config or steps"
 	case jobStart.IsZero() || jobEnd.IsZero() || !jobEnd.After(jobStart) || start.IsZero() || !end.After(start):
 		unavailable = "Kusto lookup unavailable: valid bounded job start/end timestamps are required"
 	case credential == nil:

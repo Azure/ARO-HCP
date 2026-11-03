@@ -46,4 +46,4 @@ Note: The SRE folder is registered in [`observability/observability.yaml`](../..
 
 ## Kusto / ADX Integration (Planned)
 
-Regional Kusto clusters host `ServiceLogs` and `HostedControlPlaneLogs` databases. Error log volume panels from these sources are planned but not yet implemented — no existing dashboards in this repo use ADX datasources today.
+Regional Kusto clusters host `AllAroHcpLogs` and `HostedControlPlaneLogs` databases. Error log volume panels from these sources are planned but not yet implemented — no existing dashboards in this repo use ADX datasources today.

@@ -354,7 +354,7 @@ func kustoResult(column, rows string) string {
 func TestKustoProductionReadHooks(t *testing.T) {
 	w := newTestWriter(t)
 	w.config.CIJobOutcomes.ClusterURI = "http://localhost"
-	w.config.CIJobOutcomes.Database = "ServiceLogs"
+	w.config.CIJobOutcomes.Database = "AllAroHcpLogs"
 	column, rows := "cursor", `[["1976270000000000123"]]`
 	w.client.Transport = ingestionTransport(func(r *http.Request) (*http.Response, error) {
 		if r.Method == http.MethodGet {

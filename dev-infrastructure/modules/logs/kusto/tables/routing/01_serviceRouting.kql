@@ -1,0 +1,34 @@
+// Routing source of truth for the AllAroHcpLogs update policies.
+//
+// The container-name prefixes that identify per-service log tables are declared
+// exactly once here. The catch-all `containerLogs` table uses these helpers as a
+// negative filter so it never double-counts a log that already belongs to a
+// dedicated service table (spec R6: each log lands in exactly one table).
+//
+// Adding a new service table = add its prefix to KnownServiceContainerPrefixes()
+// and add one sibling .kql file with a positive `container_name startswith`
+// filter. Nothing in Fluent Bit changes.
+//
+// This file is numeric-prefixed (01_) so it is created before the target-table
+// policies that reference these helpers (the validator sorts files; the Bicep
+// deployment orders the foundation scripts ahead of the table scripts).
+.create-or-alter function with (skipvalidation = "true", docstring = "Container-name prefixes routed to dedicated service tables")
+KnownServiceContainerPrefixes() {
+    datatable(prefix: string)
+    [
+        "aro-hcp-frontend",
+        "aro-hcp-backend",
+        "clusters-service",
+        "fleet-controller",
+        "kube-applier",
+        "kube-events",
+    ]
+}
+
+// Anchored alternation regex (^(a|b|c)) built from the prefix list, used by the
+// catch-all so "container_name matches regex" reproduces the forwarder's old
+// per-prefix "startswith" routing from a single source of truth.
+.create-or-alter function with (skipvalidation = "true", docstring = "Anchored regex matching any known service container prefix")
+KnownServiceContainerPrefixRegex() {
+    toscalar(KnownServiceContainerPrefixes() | summarize strcat("^(", strcat_array(make_list(prefix), "|"), ")"))
+}

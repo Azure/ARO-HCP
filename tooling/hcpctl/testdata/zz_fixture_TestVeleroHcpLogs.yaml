@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero component logs: server, node-agent, and data-mover pod logs from the `velero`
   // namespace on management clusters, for backup-failure debugging (ARO-28989). Scoped to the

@@ -9,9 +9,6 @@ param kustoResourceId string
 @description('SVC Database name to grant access on')
 param svcDatabaseName string
 
-@description('Hcp Database name to grant access on')
-param hcpDatabaseName string
-
 @allowed(['mgmt', 'svc'])
 @description('Define type of cluster, either mgmt or svc')
 param clusterType string
@@ -21,30 +18,21 @@ param clusterLogPrincipalId string = ''
 param adminApiPrincipalId string = ''
 param exporterPrincipalId string = ''
 
-var hcpIngestors = clusterType == 'mgmt' ? [clusterLogPrincipalId] : []
 var svcIngestors = [clusterLogPrincipalId]
 
 var readers = clusterType == 'svc' ? [adminApiPrincipalId, exporterPrincipalId] : []
 
 var kustoRef = res.kustoRefFromId(kustoResourceId)
 
+// AllAroHcpLogs is the single logs database: both svc and mgmt clusters forward
+// their logs here (the forwarder's cluster-log MSI ingests), and the svc readers
+// (admin-api, exporter) read from it.
 module grantKustoSvcDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-svc-${uniqueString(resourceGroup().name)}'
   params: {
     ingestAccessPrincipalIds: svcIngestors
     readAccessPrincipalIds: readers
     databaseName: svcDatabaseName
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
-}
-
-module grantKustoHcpDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-hcp-${uniqueString(resourceGroup().name)}'
-  params: {
-    ingestAccessPrincipalIds: hcpIngestors
-    readAccessPrincipalIds: readers
-    databaseName: hcpDatabaseName
     kustoName: kustoRef.name
   }
   scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
