@@ -101,11 +101,11 @@ $(ORAS): $(BINGO_DIR)/oras.mod
 	@echo "(re)installing $(GOBIN)/oras-v1.2.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=oras.mod -o=$(GOBIN)/oras-v1.2.3 "oras.land/oras/cmd/oras"
 
-YAMLFMT := $(GOBIN)/yamlfmt-v0.16.0
+YAMLFMT := $(GOBIN)/yamlfmt-v0.21.0
 $(YAMLFMT): $(BINGO_DIR)/yamlfmt.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yamlfmt-v0.16.0"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.16.0 "github.com/google/yamlfmt/cmd/yamlfmt"
+	@echo "(re)installing $(GOBIN)/yamlfmt-v0.21.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.21.0 "github.com/google/yamlfmt/cmd/yamlfmt"
 
 YQ := $(GOBIN)/yq-v4.54.1
 $(YQ): $(BINGO_DIR)/yq.mod
