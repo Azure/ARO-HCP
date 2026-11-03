@@ -129,14 +129,14 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 	desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 	require.NoError(t, err)
-	desire, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+	desire, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 	require.NoError(t, err)
 	require.Equal(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, desire.Spec.Action)
 	require.Equal(t, azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, desire.Spec.Authentication.Type)
 	require.Equal(t, "customer-tenant", desire.Spec.Authentication.FirstPartyApplication.TenantID)
 	require.Equal(t, 6*time.Hour, desire.Spec.ReconcileInterval.Duration)
-	require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String()+"/providers/Microsoft.Resources/deploymentStacks/aro-hcp-role-assignments", desire.Spec.TargetResourceID.String())
-	require.Equal(t, cluster.ID.String()+"/"+azureresourcesapi.DeploymentStackDesireResourceTypeName+"/"+RoleAssignmentsDesireName, desire.ResourceID.String())
+	require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String()+"/providers/Microsoft.Resources/deploymentStacks/"+RoleAssignmentsAzureDeploymentStackDesireName, desire.Spec.TargetResourceID.String())
+	require.Equal(t, strings.ToLower(cluster.ID.String()+"/"+azureresourcesapi.DeploymentStackDesireResourceTypeName+"/"+RoleAssignmentsAzureDeploymentStackDesireName), strings.ToLower(desire.ResourceID.String()))
 	require.NotNil(t, desire.ParentResourceID)
 	require.Equal(t, strings.ToLower(cluster.ID.String()), strings.ToLower(desire.ParentResourceID.String()))
 	require.Equal(t, strings.ToLower(cluster.ID.SubscriptionID), desire.PartitionKey)
@@ -174,7 +174,7 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	for range 10 {
 		require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 	}
-	unchanged, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+	unchanged, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 	require.NoError(t, err)
 	require.Equal(t, desire, unchanged, "identical intent must not change the desire ETag or content")
 	unchangedSPC, err := db.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), coreapi.ServiceProviderClusterResourceName)
@@ -217,7 +217,7 @@ func TestStackReadiness(t *testing.T) {
 			require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 			desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 			require.NoError(t, err)
-			desire, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+			desire, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 			require.NoError(t, err)
 			desire.Status = *tc.status.DeepCopy()
 			if tc.observed {
@@ -245,7 +245,7 @@ func TestStackReadiness(t *testing.T) {
 			stored, err = db.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, stored.Status.AzureResources.RoleAssignments.StackReady)
-			updated, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+			updated, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 			require.NoError(t, err)
 			require.Equal(t, desire.Status, updated.Status, "producer must preserve applier status")
 			if tc.changeSpec {
@@ -311,7 +311,7 @@ func TestUnresolvedInputsNeverPublishPartialTemplate(t *testing.T) {
 			require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 			desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 			require.NoError(t, err)
-			before, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+			before, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 			require.NoError(t, err)
 			spc.Status.AzureResources.RoleAssignments.StackReady = true
 			tc.mutate(syncer, cluster, spc)
@@ -327,15 +327,15 @@ func TestUnresolvedInputsNeverPublishPartialTemplate(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			after, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
+			after, err := desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 			require.NoError(t, err)
 			require.Equal(t, before, after, "unresolved inputs must not replace the last complete template")
 			stored, err = db.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName).Get(t.Context(), coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			require.False(t, stored.Status.AzureResources.RoleAssignments.StackReady)
-			require.NoError(t, desires.Delete(t.Context(), RoleAssignmentsDesireName))
+			require.NoError(t, desires.Delete(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName))
 			_ = syncer.SyncOnce(t.Context(), testKey)
-			_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
+			_, err = desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 			require.True(t, cosmosstorageutils.IsNotFoundError(err), "unresolved inputs must not create a partial desire either")
 		})
 	}
@@ -353,7 +353,7 @@ func TestDeletionPurgesDesireWithoutPrerequisites(t *testing.T) {
 		require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 		desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 		require.NoError(t, err)
-		_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
+		_, err = desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 		require.True(t, cosmosstorageutils.IsNotFoundError(err))
 	}
 }
@@ -384,7 +384,7 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 				require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
 				desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
-				_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
+				_, err = desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "live deletion must prevent Create/Replace and purge any existing desire")
 			})
 		}
@@ -404,10 +404,10 @@ func TestExpectedAssignmentsStableAndDeduplicated(t *testing.T) {
 			identities[string(name)] = sharedID
 		}
 	}
-	first, err := syncer.desiredSpec(t.Context(), cluster, spc)
+	first, err := syncer.desiredDeploymentStackSpec(t.Context(), cluster, spc)
 	require.NoError(t, err)
 	for range 64 {
-		next, err := syncer.desiredSpec(t.Context(), cluster, spc)
+		next, err := syncer.desiredDeploymentStackSpec(t.Context(), cluster, spc)
 		require.NoError(t, err)
 		require.Equal(t, first, next)
 	}
@@ -446,6 +446,6 @@ func TestReadinessConflictDoesNotPublishNewIntent(t *testing.T) {
 	require.Error(t, syncer.SyncOnce(t.Context(), testKey))
 	desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 	require.NoError(t, err)
-	_, err = desires.Get(t.Context(), RoleAssignmentsDesireName)
+	_, err = desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
 	require.True(t, cosmosstorageutils.IsNotFoundError(err), "must revoke stale readiness before publishing")
 }

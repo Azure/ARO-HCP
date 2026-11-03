@@ -51,14 +51,26 @@ import (
 const (
 	// RoleAssignmentsControllerName is shared by the workqueue, logs and status writer.
 	RoleAssignmentsControllerName = "IdentityRoleAssignments"
-	// RoleAssignmentsDesireName identifies the cluster's complete role assignment intent.
-	RoleAssignmentsDesireName = "role-assignments"
-	// RoleAssignmentsStackName is stable within each cluster's managed resource group.
-	RoleAssignmentsStackName      = "aro-hcp-role-assignments"
-	roleAssignmentRecheckInterval = 6 * time.Hour
+
+	// RoleAssignmentsAzureDeploymentStackDesireName identifies the cluster's complete role assignment intent.
+	RoleAssignmentsAzureDeploymentStackDesireName = "role-assignments-over-managed-resource-group"
+	// RoleAssignmentDeploymentStackDesireReconcileInterval is set on every role assignments
+	// DeploymentStackDesire's Spec.ReconcileInterval: the cooldown azuredeploymentstackdesires'
+	// controller waits before re-checking unchanged, already-settled (successful or invalid)
+	// intent. It is set explicitly here even though it matches that controller's own
+	// defaultInterval fallback, so this producer's cadence does not silently change if that
+	// default is ever retuned.
+	RoleAssignmentDeploymentStackDesireReconcileInterval = 6 * time.Hour
+
+	// RoleAssignmentsAzureDeploymentStackName is the name of the Azure Deployment Stack that manages the role assignments over the managed
+	// resource group. It is stable within each cluster's managed resource group.
+	RoleAssignmentsAzureDeploymentStackName = "role-assignments-over-managed-resource-group"
 )
 
-// roleAssignmentsSyncer publishes one authoritative deployment stack in the MRG.
+// roleAssignmentsSyncer MANAGES the Azure role assignments on a cluster's managed
+// resource group (MRG) for each control-plane operator, data-plane operator, and the
+// service managed identity: it does so by managing an Azure Deployment Stack that contains
+// them. The Azure Deployment Stack is created in the Cluster's Managed Resource Group.
 // Existing deterministic assignment names allow the stack to adopt current assignments.
 // Historical assignments outside the desired set are not discovered or adopted.
 type roleAssignmentsSyncer struct {
@@ -105,7 +117,7 @@ func NewRoleAssignmentsController(
 	if err := controller.QueueForChildInformers(5*time.Minute, stackInformer); err != nil {
 		panic(err)
 	}
-	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, RoleAssignmentsDesireName)
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, RoleAssignmentsAzureDeploymentStackDesireName)
 
 	return controller
 }
@@ -115,14 +127,24 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	desires, err2 := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err2 != nil {
-		return utils.TrackError(fmt.Errorf("failed to resolve DeploymentStackDesire CRUD: %w", err2))
+	desiresCRUD, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to resolve DeploymentStackDesire CRUD: %w", err))
 	}
 	if cosmosstorageutils.IsNotFoundError(err) || cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		// MRG deletion removes the stack and assignments. Stop publishing immediately;
 		// do not ask the generic applier to issue an Azure DELETE during cluster teardown.
-		if err := desires.Delete(ctx, RoleAssignmentsDesireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		// Skip the Delete call once the lister already shows the desire is gone, to avoid
+		// a redundant Cosmos write on every reconcile for the rest of the teardown window.
+		// A stale cache here only delays purging this document by one reconcile (the
+		// lister catching up re-triggers SyncOnce, since the desire is a watched
+		// interesting resource); the actual Azure role assignments are removed by MRG
+		// deletion regardless of this document's lifecycle, so that delay is harmless.
+		_, lookupErr := c.stackDesireLister.GetByResourceID(ctx, azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsAzureDeploymentStackDesireName))
+		if cosmosstorageutils.IsNotFoundError(lookupErr) {
+			return nil
+		}
+		if err := desiresCRUD.Delete(ctx, RoleAssignmentsAzureDeploymentStackDesireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("failed to purge role assignment StackDesire: %w", err))
 		}
 		return nil
@@ -136,47 +158,83 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 	if spc.Status.AzureResources.ManagedResourceGroup.AzureResource == nil || !c.principalIDsResolvable(cluster, spc) {
 		// Never publish a partial template: resources omitted from it would be deleted.
-		return c.setStackReady(ctx, cluster, spc, false)
+		err := c.setStackReady(ctx, cluster, spc, false)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to set stack ready: %w", err))
+		}
+		return nil
 	}
-	spec, err := c.desiredSpec(ctx, cluster, spc)
+	desiredDeploymentStackDesireSpec, err := c.desiredDeploymentStackSpec(ctx, cluster, spc)
 	if err != nil {
-		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
+		innerErr := c.setStackReady(ctx, cluster, spc, false)
+		if cosmosstorageutils.IsPreconditionFailedError(innerErr) {
+			return utils.TrackError(err)
+		}
+		if innerErr != nil {
+			return errors.Join(utils.TrackError(fmt.Errorf("failed to set stack ready: %w", innerErr)), err)
+		}
+		return utils.TrackError(err)
 	}
-	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(spec)
+	desiredDeploymentStackDesireSpecHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desiredDeploymentStackDesireSpec)
 	if err != nil {
-		return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
+		innerErr := c.setStackReady(ctx, cluster, spc, false)
+		if cosmosstorageutils.IsPreconditionFailedError(innerErr) {
+			return utils.TrackError(err)
+		}
+		if innerErr != nil {
+			return errors.Join(utils.TrackError(fmt.Errorf("failed to set stack ready: %w", innerErr)), err)
+		}
+		return utils.TrackError(err)
 	}
-	existing, err := c.stackDesireLister.GetByResourceID(ctx, azureresourcesapihelpers.ToDeploymentStackDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsDesireName))
+	existingDeploymentStackDesire, err := c.stackDesireLister.GetByResourceID(ctx, azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsAzureDeploymentStackDesireName))
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get StackDesire: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get DeploymentStackDesire: %w", err))
 	}
 	if cosmosstorageutils.IsNotFoundError(err) {
-		existing = nil
+		existingDeploymentStackDesire = nil
 	}
 	ready := false
-	if existing != nil {
-		existingHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(existing.Spec)
+	if existingDeploymentStackDesire != nil {
+		existingDeploymentStackDesireSpecHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(existingDeploymentStackDesire.Spec)
 		if err != nil {
-			return errors.Join(utils.TrackError(err), c.setStackReady(ctx, cluster, spc, false))
+			innerErr := c.setStackReady(ctx, cluster, spc, false)
+			if cosmosstorageutils.IsPreconditionFailedError(innerErr) {
+				return utils.TrackError(err)
+			}
+			if innerErr != nil {
+				return utils.TrackError(fmt.Errorf("failed to set stack ready: %w", err))
+			}
+			return utils.TrackError(err)
 		}
-		stack := existing.Status.Stack
-		ready = existingHash == hash && existing.Status.ObservedSpecHash == hash &&
-			meta.IsStatusConditionTrue(existing.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) &&
+		stack := existingDeploymentStackDesire.Status.Stack
+		ready = existingDeploymentStackDesireSpecHash == desiredDeploymentStackDesireSpecHash && existingDeploymentStackDesire.Status.ObservedSpecHash == desiredDeploymentStackDesireSpecHash &&
+			meta.IsStatusConditionTrue(existingDeploymentStackDesire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) &&
 			stack != nil && stack.Properties != nil && stack.Properties.ProvisioningState != nil &&
 			strings.EqualFold(string(*stack.Properties.ProvisioningState), string(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded))
 	}
-	// Revoke stale readiness before publishing a changed template.
-	if err := c.setStackReady(ctx, cluster, spc, ready); err != nil {
-		return err
+
+	// We set the stack ready status to the desired value. Doing this at this point
+	// ensures that we submit the stack readiness status in Cosmos before publishing the changed template.
+	err = c.setStackReady(ctx, cluster, spc, ready)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return utils.TrackError(err)
 	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to set stack ready: %w", err))
+	}
+
 	var replacement *azureresourcesapi.DeploymentStackDesire
-	if existing != nil {
-		replacement = existing.DeepCopy()
-		replacement.Spec = spec
-		if !controllerutil.NeedsUpdate(existing, replacement) {
+	if existingDeploymentStackDesire != nil {
+		replacement = existingDeploymentStackDesire.DeepCopy()
+		replacement.Spec = desiredDeploymentStackDesireSpec
+		if !controllerutil.NeedsUpdate(existingDeploymentStackDesire, replacement) {
 			return nil
 		}
 	}
+
 	// Recheck the parent before writing intent: the informer can lag deletion.
 	// This narrows the race, but is not a transaction with the following write.
 	liveCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
@@ -184,26 +242,34 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to recheck Cluster before publishing StackDesire: %w", err))
 	}
 	if cosmosstorageutils.IsNotFoundError(err) || liveCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		if err := desires.Delete(ctx, RoleAssignmentsDesireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		if err := desiresCRUD.Delete(ctx, RoleAssignmentsAzureDeploymentStackDesireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("failed to purge role assignment StackDesire: %w", err))
 		}
 		return nil
 	}
-	if existing == nil {
-		resourceID, err := azcorearm.ParseResourceID(cluster.ID.String() + "/" + azureresourcesapi.DeploymentStackDesireResourceTypeName + "/" + RoleAssignmentsDesireName)
+	if existingDeploymentStackDesire == nil {
+		resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsAzureDeploymentStackDesireName)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		_, err = desires.Create(ctx, &azureresourcesapi.DeploymentStackDesire{
+		_, err = desiresCRUD.Create(ctx, &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(key.SubscriptionID)},
-			Spec:           spec,
+			Spec:           desiredDeploymentStackDesireSpec,
 		}, nil)
 		return err
 	}
-	_, err = desires.Replace(ctx, replacement, nil)
-	return err
+	_, err = desiresCRUD.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace DeploymentStackDesire: %w", err))
+	}
+	return nil
 }
 
+// setStackReady updates the stack ready status in Cosmos. If the updatei in Cosmos fails it returns an error. The error
+// returned can be a precondition failed error. Consumers should check for this and return nil if it is the case.
 func (c *roleAssignmentsSyncer) setStackReady(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster, ready bool) error {
 	if spc.Status.AzureResources.RoleAssignments.StackReady == ready {
 		return nil
@@ -217,7 +283,7 @@ func (c *roleAssignmentsSyncer) setStackReady(ctx context.Context, cluster *core
 	return nil
 }
 
-func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (azureresourcesapi.DeploymentStackDesireSpec, error) {
+func (c *roleAssignmentsSyncer) desiredDeploymentStackSpec(ctx context.Context, cluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (azureresourcesapi.DeploymentStackDesireSpec, error) {
 	expected, err := c.expectedRoleAssignments(cluster, spc)
 	if err != nil {
 		return azureresourcesapi.DeploymentStackDesireSpec{}, err
@@ -233,7 +299,7 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 	if err != nil {
 		return azureresourcesapi.DeploymentStackDesireSpec{}, err
 	}
-	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + RoleAssignmentsStackName)
+	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + RoleAssignmentsAzureDeploymentStackName)
 	if err != nil {
 		return azureresourcesapi.DeploymentStackDesireSpec{}, err
 	}
@@ -250,6 +316,7 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 			},
 		})
 	}
+
 	// Resource-group-scoped stacks use the resource group's location.
 	return azureresourcesapi.DeploymentStackDesireSpec{
 		TargetResourceID: target,
@@ -267,13 +334,16 @@ func (c *roleAssignmentsSyncer) desiredSpec(ctx context.Context, cluster *coreap
 				},
 				DenySettings: &armdeploymentstacks.DenySettings{Mode: ptr.To(armdeploymentstacks.DenySettingsModeNone)},
 				Template: map[string]any{
+					// $schema is the ARM Template schema version. At the moment of writing this (2026-11-03)
+					// https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/syntax#template-format recommends using 2019-04-01 for
+					// resource group scoped deployments.
 					"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
 					"contentVersion": "1.0.0.0",
 					"resources":      resources,
 				},
 			},
 		},
-		ReconcileInterval: metav1.Duration{Duration: roleAssignmentRecheckInterval},
+		ReconcileInterval: metav1.Duration{Duration: RoleAssignmentDeploymentStackDesireReconcileInterval},
 	}, nil
 }
 
@@ -359,9 +429,6 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 }
 
 func controlPlaneOperatorPrincipalID(spc *coreapi.ServiceProviderCluster, id *azcorearm.ResourceID) (string, bool) {
-	if id == nil {
-		return "", false
-	}
 	identity := spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(id.String())]
 	if identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
 		return "", false
@@ -370,9 +437,6 @@ func controlPlaneOperatorPrincipalID(spc *coreapi.ServiceProviderCluster, id *az
 }
 
 func dataPlaneOperatorPrincipalID(spc *coreapi.ServiceProviderCluster, id *azcorearm.ResourceID) (string, bool) {
-	if id == nil {
-		return "", false
-	}
 	identity := spc.Status.DataPlaneOperatorsManagedIdentities.Identities[strings.ToLower(id.String())]
 	if identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
 		return "", false
@@ -382,7 +446,7 @@ func dataPlaneOperatorPrincipalID(spc *coreapi.ServiceProviderCluster, id *azcor
 
 func serviceManagedIdentityPrincipalID(spc *coreapi.ServiceProviderCluster, id *azcorearm.ResourceID) (string, bool) {
 	identity := spc.Status.MSIManagedIdentities.ServiceManagedIdentity
-	if id == nil || identity == nil || identity.ResourceID == nil || !strings.EqualFold(identity.ResourceID.String(), id.String()) || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
+	if identity == nil || identity.ResourceID == nil || !strings.EqualFold(identity.ResourceID.String(), id.String()) || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
 		return "", false
 	}
 	return *identity.PrincipalID, true

@@ -24,15 +24,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
-// ToDeploymentStackDesireResourceID returns the resource ID for a DeploymentStackDesire
+// ToClusterScopedDeploymentStackDesireResourceID returns the resource ID for a DeploymentStackDesire
 // nested directly under a cluster.
-func ToDeploymentStackDesireResourceID(subscriptionID, resourceGroupName, clusterName, name string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(ToDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name))
+func ToClusterScopedDeploymentStackDesireResourceID(subscriptionID, resourceGroupName, clusterName, name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToClusterScopedDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name))
 }
 
-// ToDeploymentStackDesireResourceIDString returns the resource ID string for a
+// ToClusterScopedDeploymentStackDesireResourceIDString returns the resource ID string for a
 // DeploymentStackDesire nested directly under a cluster.
-func ToDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name string) string {
+func ToClusterScopedDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name string) string {
 	return strings.ToLower(path.Join(
 		coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName),
 		coreapihelpers.LeafTypeName(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType), name,
