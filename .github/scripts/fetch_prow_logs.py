@@ -119,8 +119,8 @@ def fetch_logs(url, output_dir):
                         metadata = json.load(finished)
                     if not isinstance(metadata, dict) or not isinstance(
                         metadata.get("result"), str
-                    ):
-                        raise ValueError("expected an object with a string result")
+                    ) or not metadata["result"].strip():
+                        raise ValueError("expected an object with a nonblank string result")
                 except (ValueError, OSError) as error:
                     raise ValueError(f"invalid {base + name}: {error}") from error
         (staged / "manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")

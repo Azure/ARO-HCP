@@ -227,7 +227,8 @@ class FetchProwLogsTests(unittest.TestCase):
         self.assertIn(BASE + "build-log.txt", stderr)
 
     def test_malformed_finished_artifacts_are_not_published(self):
-        for body in (b"", b"not json", b'{"result":', b"[]", b"null", b"{}", b'{"result": null}', b'{"result": 1}', b"\xff"):
+        for body in (b"", b"not json", b'{"result":', b"[]", b"null", b"{}", b'{"result": null}', b'{"result": 1}',
+                     b'{"result": ""}', b'{"result": "   "}', b'{"result": "\\t\\r\\n"}', b"\xff"):
             with self.subTest(body=body):
                 code, stdout, stderr, _ = self.run_main(self.routes(finished=body))
                 self.assertNotEqual(code, 0)
