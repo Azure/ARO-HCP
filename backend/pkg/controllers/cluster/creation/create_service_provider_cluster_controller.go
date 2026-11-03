@@ -87,9 +87,10 @@ func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key c
 
 	provider, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	properties := existingCluster.ServiceProviderProperties
+	idsCanonical := (properties.PendingClusterServiceID == nil || len(properties.PendingClusterServiceID.String()) > 0) && (properties.ClusterServiceID == nil || len(properties.ClusterServiceID.String()) > 0)
 	deletionComplete := properties.DeletionTimestamp != nil && properties.ClusterServiceDeletionTimestamp != nil && properties.PendingClusterServiceID == nil && properties.ClusterServiceID == nil
 	markersSynced := properties.ServiceProviderClusterInitialized && (!deletionComplete || properties.ClusterServiceDeletionCompleted)
-	if err == nil && markersSynced && reflect.DeepEqual(provider.PendingClusterServiceID, properties.PendingClusterServiceID) && reflect.DeepEqual(provider.ClusterServiceID, properties.ClusterServiceID) {
+	if err == nil && idsCanonical && markersSynced && reflect.DeepEqual(provider.PendingClusterServiceID, properties.PendingClusterServiceID) && reflect.DeepEqual(provider.ClusterServiceID, properties.ClusterServiceID) {
 		return nil
 	}
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
