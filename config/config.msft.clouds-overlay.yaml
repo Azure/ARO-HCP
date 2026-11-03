@@ -4,6 +4,9 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          kusto:
+            costReporting:
+              enabled: true
           # E2E
           e2e:
             regionTest:
@@ -100,6 +103,8 @@ clouds:
           # rg named hcp-kusto-stg-uk, and Kusto cluster names are globally unique.
           kusto:
             kustoName: "hcp-stg-uk-2"
+            costReporting:
+              enabled: true
           # Transient STG-global "V2" names for the parallel infra in the dedicated
           # hcp-stg-global sub during coexistence. Removed at decommission.
           stgGlobalV2:
@@ -142,6 +147,9 @@ clouds:
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
+          kusto:
+            costReporting:
+              enabled: true
           # E2E
           e2e:
             regionTest:
