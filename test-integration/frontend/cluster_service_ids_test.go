@@ -56,7 +56,7 @@ func TestClusterIDTransactionalRollback(t *testing.T) {
 		if withMock {
 			t.Skip("sequential mock transactions cannot prove rollback")
 		}
-		for _, operation := range []string{"initialize", "replace"} {
+		for _, operation := range []string{"initialize", "replace", "normalize"} {
 			for _, conflict := range []string{"source", "destination"} {
 				t.Run(operation+"/"+conflict, func(t *testing.T) {
 					ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
@@ -74,7 +74,7 @@ func TestClusterIDTransactionalRollback(t *testing.T) {
 					_, err = clusterCRUD.Create(ctx, initial, nil)
 					require.NoError(t, err)
 					var provider *coreapi.ServiceProviderCluster
-					if operation == "replace" {
+					if operation != "initialize" {
 						provider, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, db, resourceID)
 						require.NoError(t, err)
 					}
@@ -87,7 +87,7 @@ func TestClusterIDTransactionalRollback(t *testing.T) {
 							concurrent := cluster.DeepCopy()
 							concurrent.ServiceProviderProperties.ActiveOperationID = "concurrent"
 							expectedCluster, err = clusterCRUD.Replace(ctx, concurrent, nil)
-						} else if operation == "replace" {
+						} else if operation != "initialize" {
 							concurrent := provider.DeepCopy()
 							concurrent.Spec.DesiredDNSBaseDomain = "concurrent.example"
 							expectedProvider, err = providerCRUD.Replace(ctx, concurrent, nil)
@@ -109,6 +109,12 @@ func TestClusterIDTransactionalRollback(t *testing.T) {
 						pending := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/pending"))
 						replacement := provider.DeepCopy()
 						replacement.PendingClusterServiceID = &pending
+						if operation == "normalize" {
+							now := metav1.Now()
+							attempted.ServiceProviderProperties.DeletionTimestamp = &now
+							attempted.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &now
+							replacement.PendingClusterServiceID = &metadataapi.InternalID{}
+						}
 						err = replaceClusterIDsForTransactionTest(ctx, conflicting, attempted, replacement)
 					}
 					if operation == "initialize" && conflict == "destination" {
