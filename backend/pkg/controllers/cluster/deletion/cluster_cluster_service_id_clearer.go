@@ -118,6 +118,9 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if (provider.PendingClusterServiceID != nil && len(provider.PendingClusterServiceID.String()) == 0) || (provider.ClusterServiceID != nil && len(provider.ClusterServiceID.String()) == 0) {
+		return corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster, provider)
+	}
 	csID := provider.ClusterServiceID
 	if csID == nil {
 		if provider.PendingClusterServiceID == nil && !cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted {
