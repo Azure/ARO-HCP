@@ -101,7 +101,7 @@ func TestPreserveLabelInAggregations_InvalidExpr(t *testing.T) {
 // TestUnlessOnMatchesWithoutRegion evaluates the rewrite of
 // hostedClusterAPI_kubeapiserver_available:sli_sum_15m. region is added to
 // every by clause and left off unless on. The availability series have
-// region="westus3"; hostedClusterAPI_deleting does not. At 35m the
+// region="westus3"; hostedClusterAPI_deletion_timestamp_seconds does not. At 35m the
 // sum_over_time of the [15m:1m] subquery is 15 for a kept cluster. The
 // deleting cluster is absent. Adding region only to that unless on keeps it.
 func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
@@ -119,7 +119,7 @@ func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 		count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
 	)
 	unless on (name, namespace, _id, resource_id, cluster)
-	(hostedClusterAPI_deleting > 0)`
+	(hostedClusterAPI_deletion_timestamp_seconds > 0)`
 	rewritten, err := preserveLabelInAggregations(source, "region")
 	require.NoError(t, err)
 	again, err := preserveLabelInAggregations(rewritten, "region")
@@ -134,7 +134,7 @@ func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 	require.Contains(t, flat, "offset 15m")
 	require.Contains(t, flat, "and on (name, namespace, _id, resource_id, cluster)")
 	const unlessOn = "unless on (name, namespace, _id, resource_id, cluster)"
-	require.Contains(t, flat, unlessOn+" (hostedClusterAPI_deleting > 0)")
+	require.Contains(t, flat, unlessOn+" (hostedClusterAPI_deletion_timestamp_seconds > 0)")
 	require.NotContains(t, flat, "unless on (name, namespace, _id, resource_id, cluster, region)")
 
 	withRegionOn := strings.Replace(flat, unlessOn, "unless on (name, namespace, _id, resource_id, cluster, region)", 1)
@@ -145,7 +145,7 @@ func TestUnlessOnMatchesWithoutRegion(t *testing.T) {
 		load 1m
 			hostedClusterAPI_kubeapiserver_available{status="True",name="a",namespace="ns",_id="id-a",resource_id="rid-a",cluster="mc",region="westus3"} 1+0x40
 			hostedClusterAPI_kubeapiserver_available{status="True",name="b",namespace="ns",_id="id-b",resource_id="rid-b",cluster="mc",region="westus3"} 1+0x40
-			hostedClusterAPI_deleting{name="a",namespace="ns",_id="id-a",resource_id="rid-a",cluster="mc"} 1783672602+0x40
+			hostedClusterAPI_deletion_timestamp_seconds{name="a",namespace="ns",_id="id-a",resource_id="rid-a",cluster="mc"} 1783672602+0x40
 
 		# Rewritten sli_sum_15m. Cluster a is absent.
 		eval instant at 35m `+flat+`
