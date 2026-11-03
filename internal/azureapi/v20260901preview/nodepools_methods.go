@@ -197,9 +197,10 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.NodePool) (*coreapi.NodeP
 }
 
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
+// this API version doesn't know about.
 func preserveUnknownNodePoolFields(from, to *coreapi.NodePool) {
+	// IPForwarding was added in v20270201.
+	to.Properties.Platform.IPForwarding = from.Properties.Platform.IPForwarding
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *coreapi.NodePoolVersionProfile) {

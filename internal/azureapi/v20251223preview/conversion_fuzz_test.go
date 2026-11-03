@@ -36,13 +36,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
-		// IPForwarding was added in v20270201 and does not exist in v20251223preview.
 		func(j *coreapi.NodePoolPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j.SubnetID != nil {
 				j.SubnetID = coreapitesting.FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", coreapitesting.GenName(c))
 			}
-			j.IPForwarding = ""
 		},
 		// Ingress and CryptoRestrictions were added in v20260630preview and do not exist in v20251223preview.
 		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
@@ -112,7 +110,7 @@ func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
 	externalObj := v.NewNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	roundTrippedObj, err := externalObj.ConvertToInternal(original)
 	require.NoError(t, err)
 
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
