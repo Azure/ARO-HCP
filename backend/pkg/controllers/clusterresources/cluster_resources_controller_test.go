@@ -1257,6 +1257,114 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 	}
 }
 
+func TestProcessClusterResourcesNodePoolIPForwarding(t *testing.T) {
+	t.Parallel()
+
+	const testNodePoolName = "gpu-np-2"
+
+	nodePoolCR := `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"NodePool",` +
+		`"metadata":{"name":"` + testClusterName + `-` + testNodePoolName + `","namespace":"ocm-env-abc"},` +
+		`"spec":{"clusterName":"` + testClusterName + `"}}`
+
+	newNodePool := func(ipForwarding metadataapi.IPForwarding) *coreapi.NodePool {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+				"/nodePools/" + testNodePoolName,
+		))
+		np := &coreapi.NodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+			},
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{
+					ID:   resourceID,
+					Name: testNodePoolName,
+					Type: resourceID.ResourceType.String(),
+				},
+			},
+		}
+		np.ServiceProviderProperties.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(
+			metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123/node_pools/np123")))
+		np.Properties.Platform.IPForwarding = ipForwarding
+		return np
+	}
+
+	newSyncer := func(np *coreapi.NodePool) (*clusterResourcesController, cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]) {
+		mockKubeApplierClient := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+		mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+		mockClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
+
+		npCRUD, err := mockKubeApplierClient.ApplyDesiresForNodePool(
+			testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err, "failed to get node pool ApplyDesires CRUD")
+
+		mcLister := &fleetlistertesting.SliceManagementClusterLister{
+			ManagementClusters: []*fleetapi.ManagementCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: testManagementClusterResourceID,
+					},
+				},
+			},
+		}
+		return &clusterResourcesController{
+			nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{np}},
+			kubeApplierDBClients: mockClients,
+			applyDesireLister:    &kubeapplierlistertesting.DBApplyDesireLister{Clients: mockClients, Lister: mcLister},
+			readDesireLister:     &kubeapplierlistertesting.DBReadDesireLister{Clients: mockClients, Lister: mcLister},
+		}, npCRUD
+	}
+
+	t.Run("decorates base NodePool desire with ipForwarding field", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+		syncer, npCRUD := newSyncer(newNodePool(metadataapi.IPForwardingAllowAllAddresses))
+		require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+			buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+			"processClusterResources should succeed")
+
+		desire, err := npCRUD.Get(ctx, DesireNameNodePool)
+		require.NoError(t, err, "base NodePool ApplyDesire should exist")
+		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, desire.Spec.Type)
+		require.NotNil(t, desire.Spec.ServerSideApply)
+		assert.Equal(t, ClusterResourcesControllerName, desire.Tags[kubeapplierapi.TagControllerName])
+
+		var np unstructured.Unstructured
+		require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &np))
+		assert.Equal(t, "NodePool", np.GetKind())
+		assert.Equal(t, v1beta1.GroupVersion.String(), np.GetAPIVersion())
+
+		ipForwarding, found, err := unstructured.NestedString(np.Object, "spec", "platform", "azure", "ipForwarding")
+		require.NoError(t, err, "failed to extract ipForwarding field")
+		assert.True(t, found, "ipForwarding field should be present in base NodePool desire")
+		assert.Equal(t, string(metadataapi.IPForwardingAllowAllAddresses), ipForwarding)
+	})
+
+	t.Run("omits ipForwarding field when not set", func(t *testing.T) {
+		t.Parallel()
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+		syncer, npCRUD := newSyncer(newNodePool(""))
+		require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
+			buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+			"processClusterResources should succeed")
+
+		desire, err := npCRUD.Get(ctx, DesireNameNodePool)
+		require.NoError(t, err, "base NodePool ApplyDesire should exist")
+
+		var np unstructured.Unstructured
+		require.NoError(t, json.Unmarshal(desire.Spec.ServerSideApply.KubeContent.Raw, &np))
+
+		_, found, err := unstructured.NestedString(np.Object, "spec", "platform", "azure", "ipForwarding")
+		require.NoError(t, err, "failed to check ipForwarding field")
+		assert.False(t, found, "ipForwarding field should not be present when not set")
+	})
+}
+
 func TestEnsureHostedClusterAnnotations(t *testing.T) {
 	tests := []struct {
 		name                string
