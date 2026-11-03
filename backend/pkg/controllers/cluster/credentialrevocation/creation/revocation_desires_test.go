@@ -23,10 +23,16 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,9 +45,11 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
-		expectError bool
+		name            string
+		setupDB         func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		expectError     bool
+		providerPresent bool
+		finalIDPresent  bool
 	}{
 		{
 			name:        "revocation not found returns nil",
@@ -66,12 +74,29 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "cluster has no ClusterServiceID returns nil",
+			name: "service provider not found returns nil",
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
+				createTestRevocation(t, db, testRevocationName)
+				createTestCluster(t, db)
+			},
+		},
+		{
+			name:            "cluster has no ClusterServiceID returns nil",
+			providerPresent: true,
 			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName)
 				createTestCluster(t, db)
 			},
 			expectError: false,
+		},
+		{
+			name:            "provider with ClusterServiceID creates revocation desires",
+			providerPresent: true,
+			finalIDPresent:  true,
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
+				createTestRevocation(t, db, testRevocationName)
+				createTestCluster(t, db)
+			},
 		},
 	}
 
@@ -85,10 +110,29 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
 				clusters = append(clusters, c)
 			}
+			managementClusterID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/management/providers/Microsoft.ContainerService/managedClusters/test-mc"))
+			providerLister := &corelistertesting.SliceServiceProviderClusterLister{}
+			if tc.providerPresent {
+				provider := coreapitesting.ServiceProviderForCluster(clusters[0], nil, nil)
+				provider.Status.ManagementClusterResourceID = managementClusterID
+				provider.Status.ControlPlaneNamespace = "test-control-plane"
+				if tc.finalIDPresent {
+					finalID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))
+					provider.ClusterServiceID = &finalID
+				}
+				providerLister.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{provider}
+			}
+			kubeApplierDB := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			kubeApplierDBs := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			kubeApplierDBs.Register(managementClusterID, kubeApplierDB)
+			before := db.GetAllDocuments()
 			syncer := &revocationDesires{
 				resourcesDBClient:            db,
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
+				serviceProviderClusterLister: providerLister,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
+				kubeApplierDBClients:         kubeApplierDBs,
+				applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{},
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)
@@ -96,6 +140,12 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+			require.Equal(t, before, db.GetAllDocuments(), "reconciliation must not mutate parent or revocation documents")
+			if tc.finalIDPresent {
+				require.Len(t, kubeApplierDB.GetAllDocuments(), 2, "expected CRR apply and read desires")
+			} else {
+				require.Empty(t, kubeApplierDB.GetAllDocuments(), "no revocation desires may be created before a final ClusterServiceID exists")
 			}
 		})
 	}
