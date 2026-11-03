@@ -99,6 +99,8 @@ type completedOptions struct {
 	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
 	// percentage. Nil-safe callers tolerate an unset lookup.
 	cosmosAutoscaleMax autoscaleMaxLookup
+	// regionRGScope is the region resource group ID; collection is skipped when it does not exist.
+	regionRGScope string
 }
 
 type Options struct {
@@ -242,6 +244,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
+	regionRGScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", o.SubscriptionID, regionRG)
+
 	return &Options{completedOptions: &completedOptions{
 		AMWOnly:            o.AMWOnly,
 		OutputDir:          o.OutputDir,
@@ -252,7 +256,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		SeverityThreshold:  o.severityThreshold,
 		cred:               cred,
 		knownIssues:        knownIssues,
-		resourceGroups:     sets.New(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", o.SubscriptionID, regionRG)),
+		resourceGroups:     sets.New(regionRGScope),
+		regionRGScope:      regionRGScope,
 		workspaceErrors:    workspaceErrors,
 		queriesError:       queriesError,
 		knownIssuesError:   knownIssuesError,
@@ -303,27 +308,29 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 
 // Explicit dependencies let orchestration tests exercise failures without Azure.
 type gatherDependencies struct {
-	fetchAlerts           func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
-	fetchMetricAlertRules func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
-	fetchAlertRules       func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
-	lookupEndpoint        func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
-	queryRange            func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
-	queryMetrics          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
-	collectUtilization    func(context.Context, map[string]*workspaceData) utilizationReport
-	collectAMW            func(context.Context) amwReport
-	renderAMW             func(amwReport) ([]byte, error)
-	renderAlerts          func(any) ([]byte, error)
-	renderPanel           func(panelPageData) ([]byte, error)
-	renderUtilization     func(utilizationReport) ([]byte, error)
-	renderResourceHistory func(utilizationReport) ([]byte, error)
-	renderPage            func(string, []observabilityTab) error
-	writeFile             func(string, []byte, os.FileMode) error
-	writeJUnit            func(string, *junit.TestSuites) error
+	checkResourceGroupExists func(context.Context, azcore.TokenCredential, string) (bool, error)
+	fetchAlerts              func(context.Context, azcore.TokenCredential, string, time.Time, time.Time) ([]alert, error)
+	fetchMetricAlertRules    func(context.Context, azcore.TokenCredential, string, string) ([]string, error)
+	fetchAlertRules          func(context.Context, azcore.TokenCredential, azcorearm.ResourceID) (alertRuleInventory, error)
+	lookupEndpoint           func(context.Context, azcore.TokenCredential, string, string, string) (string, error)
+	queryRange               func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error)
+	queryMetrics             func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error)
+	collectUtilization       func(context.Context, map[string]*workspaceData) utilizationReport
+	collectAMW               func(context.Context) amwReport
+	renderAMW                func(amwReport) ([]byte, error)
+	renderAlerts             func(any) ([]byte, error)
+	renderPanel              func(panelPageData) ([]byte, error)
+	renderUtilization        func(utilizationReport) ([]byte, error)
+	renderResourceHistory    func(utilizationReport) ([]byte, error)
+	renderPage               func(string, []observabilityTab) error
+	writeFile                func(string, []byte, os.FileMode) error
+	writeJUnit               func(string, *junit.TestSuites) error
 }
 
 func (o Options) dependencies() gatherDependencies {
 	return gatherDependencies{
-		fetchAlerts: fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
+		checkResourceGroupExists: resourceGroupExists,
+		fetchAlerts:              fetchAlerts, fetchMetricAlertRules: fetchMetricAlertRules,
 		fetchAlertRules: fetchAlertRules, lookupEndpoint: promutil.LookupPrometheusEndpoint,
 		queryRange: promutil.QueryRange, queryMetrics: queryAzureMonitorMetrics,
 		collectUtilization: o.collectUtilization, renderUtilization: renderUtilizationHTML,
@@ -358,6 +365,24 @@ func (o Options) run(ctx context.Context, deps gatherDependencies) error {
 	record(o.queriesError)
 	record(o.cosmosError)
 	record(o.knownIssuesError)
+
+	// A missing region RG means provisioning never created anything to observe.
+	// Keyed on existence, not provision success: half-provisioned runs are still collected.
+	if o.regionRGScope != "" {
+		probeCtx, cancel := context.WithTimeout(ctx, resourceGroupProbeTimeout)
+		exists, err := deps.checkResourceGroupExists(probeCtx, o.cred, o.regionRGScope)
+		cancel()
+		switch {
+		case err != nil:
+			// A failed probe is not evidence of absence; the collectors report real access problems.
+			logger.Error(err, "failed to check region resource group; continuing with collection", "resourceGroup", o.regionRGScope)
+		case !exists:
+			// No artifacts: Kusto ingestion and CIHealth tolerate a missing junit_alerts.xml.
+			logger.Info("region resource group does not exist; skipping observability collection", "resourceGroup", o.regionRGScope)
+			return utils.TrackError(errors.Join(fatalErrors...))
+		}
+	}
+
 	resourceGroups := uniqueResourceGroups(o.Workspaces).Union(o.resourceGroups)
 
 	var allAlerts []alert
