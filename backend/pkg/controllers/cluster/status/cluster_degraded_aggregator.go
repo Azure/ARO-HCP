@@ -67,9 +67,9 @@ type clusterDegradedAggregator struct {
 	// applyDesireLister and readDesireLister expose the cluster's
 	// kube-applier ApplyDesires/ReadDesires so their Degraded conditions can be
 	// folded into the same aggregate Degraded condition.
-	applyDesireLister kubeapplierlisters.ApplyDesireLister
-	readDesireLister  kubeapplierlisters.ReadDesireLister
-	stackDesireLister azureresourceslisters.DeploymentStackDesireLister
+	applyDesireLister           kubeapplierlisters.ApplyDesireLister
+	readDesireLister            kubeapplierlisters.ReadDesireLister
+	deploymentStackDesireLister azureresourceslisters.DeploymentStackDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
@@ -111,15 +111,15 @@ func NewClusterDegradedAggregatorController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 	stackInformer, stackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 	syncer := &clusterDegradedAggregator{
-		clusterLister:     clusterLister,
-		controllerLister:  controllerLister,
-		resourcesDBClient: resourcesDBClient,
-		inertia:           clusterDegradedAggregatorInertia(),
-		clock:             clock,
-		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
-		applyDesireLister: applyDesireLister,
-		readDesireLister:  readDesireLister,
-		stackDesireLister: stackDesireLister,
+		clusterLister:               clusterLister,
+		controllerLister:            controllerLister,
+		resourcesDBClient:           resourcesDBClient,
+		inertia:                     clusterDegradedAggregatorInertia(),
+		clock:                       clock,
+		firstObservedBad:            statusutils.NewFirstObservedBadCache(clock),
+		applyDesireLister:           applyDesireLister,
+		readDesireLister:            readDesireLister,
+		deploymentStackDesireLister: stackDesireLister,
 	}
 	controller := controllerutils.NewClusterWatchingController(
 		ClusterDegradedAggregatorControllerName,
@@ -170,7 +170,7 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to list ReadDesires from cache: %w", err))
 	}
-	stackDesires, err := c.stackDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	deploymentStackDesires, err := c.deploymentStackDesireLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to list StackDesires from cache: %w", err))
 	}
@@ -196,22 +196,23 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		clusterApplyDesires, statusutils.ConditionsOfKnown, statusutils.ApplyDesireSourcePrefix, c.firstObservedBad)...)
 	sources = append(sources, statusutils.CollectDegradedConditions(
 		clusterReadDesires, statusutils.ConditionsOfKnown, statusutils.ReadDesireSourcePrefix, c.firstObservedBad)...)
-	// Stack outcomes describe only their observed spec. Pending desires without
+
+	// Deployment Stack Desire outcomes describe only their observed spec. Pending desires without
 	// a Degraded condition are not failures and must not synthesize degradation.
-	for _, desire := range stackDesires {
+	for _, desire := range deploymentStackDesires {
 		condition := apimeta.FindStatusCondition(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded)
-		if desire.ResourceID == nil || condition == nil || condition.Status == metav1.ConditionFalse {
+		if condition == nil || condition.Status == metav1.ConditionFalse {
 			continue
 		}
 		hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to hash StackDesire %s: %w", desire.ResourceID, err))
+			return utils.TrackError(fmt.Errorf("failed to hash DeploymentStackDesire %s: %w", desire.ResourceID, err))
 		}
 		if desire.Status.ObservedSpecHash != hash {
 			continue
 		}
 		sources = append(sources, statusutils.SourcedCondition{
-			ControllerName: "stackdesire" + strings.ToLower(desire.ResourceID.String()),
+			ControllerName: statusutils.DeploymentStackDesireSourcePrefix + strings.ToLower(desire.ResourceID.String()),
 			Condition:      *condition,
 		})
 	}
