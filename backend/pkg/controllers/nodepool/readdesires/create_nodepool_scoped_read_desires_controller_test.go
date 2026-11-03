@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -182,11 +181,8 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-				newTestNodePoolCluster(),
-				newTestNodePool(tt.nodePoolName),
-			})
-			require.NoError(t, err)
+			cluster := newTestNodePoolCluster()
+			nodePool := newTestNodePool(tt.nodePoolName)
 
 			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, nil)
@@ -202,9 +198,10 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &createNodePoolScopedReadDesiresSyncer{
-				resourcesDBClient:                   mockResourcesDBClient,
 				kubeApplierDBClients:                mockKubeApplierDBClients,
 				serviceProviderClusterLister:        serviceProviderClusterListerStub,
+				nodePoolLister:                      &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{nodePool}},
+				clusterLister:                       &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
 				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				hostedClusterNamespaceEnvIdentifier: nodePoolReadDesireTestEnvIdentifier,
 			}

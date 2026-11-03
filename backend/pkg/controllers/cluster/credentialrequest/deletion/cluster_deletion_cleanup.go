@@ -37,6 +37,7 @@ type credentialRequestDeletion struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	credentialRequestLister      corelisters.SystemAdminCredentialRequestLister
 }
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*credentialRequestDeletion)(nil)
@@ -63,11 +64,13 @@ func NewClusterDeletionCleanupController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
 
 	syncer := &credentialRequestDeletion{
 		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		credentialRequestLister:      credentialRequestLister,
 	}
 
 	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
@@ -96,15 +99,16 @@ func (c *credentialRequestDeletion) needsWork(cred *coreapi.SystemAdminCredentia
 func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	// Use cached data only — once DeletionTimestamp is set it is not cleared, and
+	// the subsequent Delete already tolerates NotFound.
+	cachedCred, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRequest: %w", err))
 	}
-	if !c.needsWork(cred) {
+	if !c.needsWork(cachedCred) {
 		return nil
 	}
 
@@ -148,6 +152,7 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 	}
 
 	// All of this credential request's desires are gone — delete the document.
+	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
 	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete credential %s: %w", key.CredentialName, err))
 	}

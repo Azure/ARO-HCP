@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
@@ -30,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unioninformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type childObservedDB struct {
@@ -84,20 +86,28 @@ func (childExistingCluster) Get(context.Context, string, string, string) (*corea
 	return &coreapi.Cluster{}, nil
 }
 
-type childExistingRequest struct {
+// childObservedRequestLister records SyncOnce via the cache-first credential
+// request Get used by request controllers, then returns NotFound so reconcile exits.
+type childObservedRequestLister struct {
 	corelisters.SystemAdminCredentialRequestLister
+	observed chan string
 }
 
-func (childExistingRequest) Get(context.Context, string, string, string, string) (*coreapi.SystemAdminCredentialRequest, error) {
-	return &coreapi.SystemAdminCredentialRequest{}, nil
+func (c childObservedRequestLister) Get(_ context.Context, _, _, _, name string) (*coreapi.SystemAdminCredentialRequest, error) {
+	c.observed <- name
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-type childExistingRevocation struct {
+// childObservedRevocationLister records SyncOnce via the cache-first revocation
+// Get used by revocation controllers, then returns NotFound so reconcile exits.
+type childObservedRevocationLister struct {
 	corelisters.SystemAdminCredentialRevocationLister
+	observed chan string
 }
 
-func (childExistingRevocation) Get(context.Context, string, string, string, string) (*coreapi.SystemAdminCredentialRevocation, error) {
-	return &coreapi.SystemAdminCredentialRevocation{}, nil
+func (c childObservedRevocationLister) Get(_ context.Context, _, _, _, name string) (*coreapi.SystemAdminCredentialRevocation, error) {
+	c.observed <- name
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (c childObservedExternalAuth) Get(_ context.Context, _, _, _, name string) (*coreapi.ExternalAuth, error) {
@@ -140,7 +150,7 @@ func TestCredentialAndExternalAuthChildWatches(t *testing.T) {
 				observed := make(chan string, 10)
 				backend := &interestBackendInformers{
 					sources: sources, clusters: childExistingCluster{}, externalAuths: childObservedExternalAuth{observed: observed},
-					requests: childExistingRequest{}, revocations: childExistingRevocation{},
+					requests: childObservedRequestLister{observed: observed}, revocations: childObservedRevocationLister{observed: observed},
 				}
 				union := unioninformers.NewUnionKubeApplierInformers()
 				mc := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/s1/managementClusters/default"))
@@ -186,7 +196,7 @@ func TestCredentialAndExternalAuthChildWatches(t *testing.T) {
 						want = append(want, fmt.Sprintf("event-%d", i))
 					}
 				}
-				ctx, cancel := context.WithCancel(t.Context())
+				ctx, cancel := context.WithCancel(utils.ContextWithLogger(t.Context(), testr.New(t)))
 				done := make(chan struct{})
 				go func() { defer close(done); controller.Run(ctx, 1) }()
 				defer func() { cancel(); <-done }()

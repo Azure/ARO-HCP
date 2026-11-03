@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -45,31 +46,35 @@ func TestRevocationCompletion_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		setupDB          func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupDB          func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation
 		readDesireLister *kubeapplierlistertesting.SliceReadDesireLister
 		expectError      bool
 	}{
 		{
-			name:             "revocation not found returns nil",
-			setupDB:          func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
+			name: "revocation not found returns nil",
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				return nil
+			},
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectError:      false,
 		},
 		{
 			name: "revocation with DeletionTimestamp is no-op",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
 				now := metav1.NewTime(fixedTime)
-				createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
+				rev := createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
 					r.Status.DeletionTimestamp = &now
 				})
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectError:      false,
 		},
 		{
 			name: "revocation without CRR mirrored waits",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestRevocation(t, db, testRevocationName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				rev := createTestRevocation(t, db, testRevocationName)
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectError:      false,
@@ -80,11 +85,12 @@ func TestRevocationCompletion_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tc.setupDB(db)
+			revs := tc.setupDB(db)
 
 			syncer := &revocationCompletion{
 				clock:             fakeClock,
 				resourcesDBClient: db,
+				revocationLister:  &corelistertesting.SliceSystemAdminCredentialRevocationLister{CredentialRevocations: revs},
 				readDesireLister:  tc.readDesireLister,
 			}
 
