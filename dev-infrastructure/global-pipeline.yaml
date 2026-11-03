@@ -312,6 +312,17 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+  - name: remove-legacy-acrs-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: Global.singleton.acrs
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
   # create global ARO HCP ACRs for OCP and SVC images
   - name: acrs
     action: ARM
@@ -321,6 +332,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+    - resourceGroup: singleton
+      step: remove-legacy-acrs-stack
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
     action: SecretSync
@@ -372,6 +385,17 @@ resourceGroups:
       - "i/o timeout"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
+  - name: remove-legacy-imagemirror-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: Global.singleton.imagemirror
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
@@ -381,3 +405,5 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: mirror-oc-mirror-image
+    - resourceGroup: singleton
+      step: remove-legacy-imagemirror-stack
