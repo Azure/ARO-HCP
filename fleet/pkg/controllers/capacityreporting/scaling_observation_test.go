@@ -54,7 +54,7 @@ func (transport scalingTransport) Do(request *http.Request) (*http.Response, err
 }
 
 func TestScalingObservationFallbackAndRecovery(t *testing.T) {
-	for _, scenario := range []string{"observed", "bootstrap", "partial-dimensions", "partial-pools", "no-pools", "unknown-pools", "missing-report", "absent-report", "failed-report", "degraded-report", "malformed-report", "noncurrent-report", "azure-error", "sku-error"} {
+	for _, scenario := range []string{"observed", "bootstrap", "partial-dimensions", "partial-pools", "no-pools", "unknown-pools", "null-pools", "later-page-null", "null-with-nonworker", "null-with-worker", "missing-report", "absent-report", "failed-report", "degraded-report", "malformed-report", "noncurrent-report", "azure-error", "sku-error"} {
 		for _, prior := range []string{"none", "zero", "positive"} {
 			t.Run(scenario+"/"+prior, func(t *testing.T) {
 				ctx := t.Context()
@@ -90,24 +90,43 @@ func TestScalingObservationFallbackAndRecovery(t *testing.T) {
 				if scenario != "missing-report" {
 					lister.Desires = []*kubeapplierapi.ReadDesire{desire}
 				}
-				phase, skuCalls := "initial", 0
+				phase, skuCalls, poolCalls := "initial", 0, 0
 				transport := scalingTransport(func(request *http.Request) (*http.Response, error) {
 					var body any
 					status := http.StatusOK
 					switch {
 					case strings.HasSuffix(request.URL.Path, "/agentPools"):
+						poolCalls++
 						pool := armcontainerservice.AgentPool{Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{VMSize: ptr.To("Standard_Test"), Count: ptr.To(int32(2)), NodeLabels: workerNodeLabels()}}
-						pools := []armcontainerservice.AgentPool{pool}
+						pools := []*armcontainerservice.AgentPool{&pool}
 						if phase == "empty" || (phase == "initial" && scenario == "no-pools") {
-							pools = nil
+							pools = []*armcontainerservice.AgentPool{}
 						}
 						if phase == "initial" && scenario == "unknown-pools" {
-							pools = []armcontainerservice.AgentPool{{}}
+							pools = []*armcontainerservice.AgentPool{{}}
 						}
 						if phase == "initial" && scenario == "partial-pools" {
-							pools = append(pools, armcontainerservice.AgentPool{})
+							pools = append(pools, &armcontainerservice.AgentPool{})
+						}
+						if phase == "initial" {
+							switch scenario {
+							case "null-pools", "later-page-null":
+								pools = []*armcontainerservice.AgentPool{nil}
+							case "null-with-nonworker":
+								pool.Properties.NodeLabels = nil
+								pools = append(pools, nil)
+							case "null-with-worker":
+								pools = append(pools, nil)
+							}
 						}
 						body = map[string]any{"value": pools}
+						if phase == "initial" && scenario == "later-page-null" && request.URL.Query().Get("page") == "" {
+							nextPage := *request.URL
+							query := nextPage.Query()
+							query.Set("page", "2")
+							nextPage.RawQuery = query.Encode()
+							body = map[string]any{"value": []*armcontainerservice.AgentPool{}, "nextLink": nextPage.String()}
+						}
 						if phase == "initial" && scenario == "azure-error" {
 							status = http.StatusForbidden
 						}
@@ -145,9 +164,12 @@ func TestScalingObservationFallbackAndRecovery(t *testing.T) {
 					require.NoError(t, err)
 				}
 				require.NoError(t, syncer.SyncOnce(ctx, key))
+				if scenario == "later-page-null" {
+					require.Equal(t, 2, poolCalls, "must inspect all Azure pages before establishing absence")
+				}
 				result, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
 				require.NoError(t, err)
-				success := scenario == "observed" || scenario == "bootstrap" || scenario == "partial-dimensions" || scenario == "partial-pools" || scenario == "no-pools"
+				success := scenario == "observed" || scenario == "bootstrap" || scenario == "partial-dimensions" || scenario == "partial-pools" || scenario == "no-pools" || scenario == "null-with-worker"
 				if success {
 					require.True(t, meta.IsStatusConditionTrue(result.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent))
 					if scenario == "no-pools" {
@@ -157,6 +179,12 @@ func TestScalingObservationFallbackAndRecovery(t *testing.T) {
 					}
 					if scenario == "partial-dimensions" {
 						require.Len(t, result.Status.ScaleCeiling.Capacity, 1)
+					}
+					if scenario == "null-with-worker" {
+						assertResourceListEqual(t, report.Status.Nodes[0].Allocatable, result.Status.ScaleCeiling.Capacity, "valid worker contributions retained")
+						condition := meta.FindStatusCondition(result.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent)
+						require.Equal(t, "DataCollectedPartial", condition.Reason)
+						require.Contains(t, condition.Message, "unavailable contributions")
 					}
 					if scenario == "bootstrap" {
 						require.Equal(t, "BootstrapEstimate", meta.FindStatusCondition(result.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent).Reason)
