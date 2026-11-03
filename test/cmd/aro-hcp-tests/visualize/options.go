@@ -553,7 +553,17 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
-	const overviewHeight = () => Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(window.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16));
+	/* An auto-height iframe cannot also determine its content height. */
+	let viewportWindow;
+	try {
+		viewportWindow = window.top || window;
+		void viewportWindow.innerHeight;
+	} catch {
+		viewportWindow = null;
+	}
+	const overviewHeight = () => viewportWindow
+		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16))
+		: __MINIMUM_OVERVIEW_HEIGHT__;
 	const renderItem = (params, api) => {
 		const test = ordered[params.dataIndex];
 		const y = api.coord([0, api.value(0)])[1];
@@ -607,10 +617,12 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		chart.getDom().style.height = height + 'px';
 		chart.resize({height});
 	};
-	window.addEventListener('resize', () => {
+	const resizeOverview = () => {
 		const zoom = chart.getOption().dataZoom[0];
 		if (zoom.start <= 0 && zoom.end >= 100) fitRowHeight();
-	});
+	};
+	window.addEventListener('resize', resizeOverview);
+	if (viewportWindow && viewportWindow !== window) viewportWindow.addEventListener('resize', resizeOverview);
 	const fitTimeRange = (start, end) => {
 		const [first, last] = visibleRowBounds(start, end);
 		let earliest = Infinity;
