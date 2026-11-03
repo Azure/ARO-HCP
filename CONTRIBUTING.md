@@ -106,6 +106,10 @@ allowlists in sync when adding a new workspace directory. Builders use `-mod=ven
 
 Local binary targets invoke `go build` on every request so Go's build cache can
 track changes in shared modules, vendored dependencies, and embedded files.
+Runtime CI steps using an image with templatize prebuilt from the same source
+revision may export `TEMPLATIZE_USE_PREBUILT=1` to reuse it without compiling.
+This setting propagates through recursive Make calls and rejects a missing or
+non-executable binary. Do not enable it for image builds or local development.
 Repository formatting, license updates, and YAML wrapping skip vendor directories
 to preserve upstream contents.
 
