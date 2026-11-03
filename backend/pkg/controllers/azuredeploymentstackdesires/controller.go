@@ -276,7 +276,7 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 		if result.action == applyStack {
 			stack, err := submitApply(ctx, client, desire.Spec)
 			if err != nil {
-				status, executionErr = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, err)
+				status, executionErr = stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, err)
 			} else {
 				status, executionErr = stackDesireStatusForAssociatedApply(hash, stack)
 				properties := ptr.Deref(stack.Properties, armdeploymentstacks.DeploymentStackProperties{})
@@ -328,9 +328,9 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 func (c *controller) stackClient(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (*armdeploymentstacks.Client, error) {
 	authentication := desire.Spec.Authentication
 	if authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI {
-		return c.smi.DeploymentStacksClient(ctx, authentication.ClusterIdentityURL, authentication.SMIResourceID, desire.Spec.TargetResourceID.SubscriptionID)
+		return c.smi.DeploymentStacksClient(ctx, authentication.ServiceManagedIdentity.ClusterIdentityURL, authentication.ServiceManagedIdentity.ServiceManagedIdentityResourceID, desire.Spec.TargetResourceID.SubscriptionID)
 	}
-	return c.fpa.DeploymentStacksClient(authentication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
+	return c.fpa.DeploymentStacksClient(authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
 }
 
 type action string
@@ -372,46 +372,72 @@ func (result decision) validate() {
 
 // All events use this decision. GET is lazy and occurs at most once.
 func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentStackDesire, now time.Time, lazyGET func() (*armdeploymentstacks.DeploymentStack, error)) decision {
+	userAssignedIdentityResourceType := metadataapi.Must(azcorearm.ParseResourceType("Microsoft.ManagedIdentity/userAssignedIdentities"))
 	var desiredConditionType string
 	var mutation action
 	switch desire.Spec.Action {
-	case azureresourcesapi.DeploymentStackDesireActionApply:
-		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, applyStack
-	case azureresourcesapi.DeploymentStackDesireActionDelete:
-		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, deleteStack
+	case azureresourcesapi.DeploymentStackDesireActionTypeApply:
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, applyStack
+	case azureresourcesapi.DeploymentStackDesireActionTypeDelete:
+		desiredConditionType, mutation = azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, deleteStack
 	}
-	var validationErr error
+	var validationErrs []error
 	target := desire.Spec.TargetResourceID
-	switch {
-	case target == nil || target.Parent == nil:
-		validationErr = errors.New("stack target and scope are required")
-	case !strings.EqualFold(target.ResourceType.String(), "Microsoft.Resources/deploymentStacks"):
-		validationErr = errors.New("stack target must be a Microsoft.Resources/deploymentStacks resource")
-	case desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionApply && desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionDelete:
-		validationErr = fmt.Errorf("unsupported stack action %q", desire.Spec.Action)
-	case desire.Spec.Authentication.Type != azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA && desire.Spec.Authentication.Type != azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI:
-		validationErr = fmt.Errorf("unsupported stack authentication %q", desire.Spec.Authentication.Type)
-	case desire.Spec.Authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI && desire.Spec.Authentication.SMIResourceID == nil:
-		validationErr = errors.New("SMI authentication requires smiResourceID")
-	default:
+	if target == nil || target.Parent == nil {
+		validationErrs = append(validationErrs, errors.New("stack target and scope are required"))
+	} else {
+		if !strings.EqualFold(target.ResourceType.String(), "Microsoft.Resources/deploymentStacks") {
+			validationErrs = append(validationErrs, errors.New("stack target must be a Microsoft.Resources/deploymentStacks resource"))
+		}
 		switch strings.ToLower(target.Parent.ResourceType.String()) {
 		case "microsoft.resources/resourcegroups", "microsoft.resources/subscriptions", "microsoft.management/managementgroups":
 		default:
-			validationErr = fmt.Errorf("unsupported stack scope %q", target.Parent.ResourceType)
+			validationErrs = append(validationErrs, fmt.Errorf("unsupported stack scope %q", target.Parent.ResourceType))
 		}
 	}
+	if desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionTypeApply && desire.Spec.Action != azureresourcesapi.DeploymentStackDesireActionTypeDelete {
+		validationErrs = append(validationErrs, fmt.Errorf("unsupported stack action %q", desire.Spec.Action))
+	}
+	switch desire.Spec.Authentication.Type {
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI:
+		if desire.Spec.Authentication.ServiceManagedIdentity == nil {
+			validationErrs = append(validationErrs, errors.New("SMI authentication requires serviceManagedIdentity"))
+		} else {
+			smi := desire.Spec.Authentication.ServiceManagedIdentity
+			switch {
+			case smi.ServiceManagedIdentityResourceID == nil:
+				validationErrs = append(validationErrs, errors.New("SMI authentication requires serviceManagedIdentityResourceID"))
+			case !strings.EqualFold(smi.ServiceManagedIdentityResourceID.ResourceType.String(), userAssignedIdentityResourceType.String()):
+				validationErrs = append(validationErrs, errors.New("SMI authentication requires a serviceManagedIdentityResourceID with userAssignedIdentity type"))
+			}
+			if smi.ClusterIdentityURL == "" {
+				validationErrs = append(validationErrs, errors.New("SMI authentication requires clusterIdentityURL"))
+			}
+		}
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA:
+		if desire.Spec.Authentication.FirstPartyApplication == nil {
+			validationErrs = append(validationErrs, errors.New("FPA authentication requires firstPartyApplication"))
+		} else if desire.Spec.Authentication.FirstPartyApplication.TenantID == "" {
+			validationErrs = append(validationErrs, errors.New("FPA authentication requires tenantID"))
+		}
+	default:
+		validationErrs = append(validationErrs, fmt.Errorf("unsupported stack authentication %q", desire.Spec.Authentication.Type))
+	}
 	hash, hashErr := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
-	validationErr = errors.Join(validationErr, hashErr)
+	if hashErr != nil {
+		validationErrs = append(validationErrs, hashErr)
+	}
+	validationErr := errors.Join(validationErrs...)
 	if validationErr != nil {
 		status := desire.Status
 		if desiredConditionType == "" {
 			status.Conditions = []metav1.Condition{
-				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
 			}
 		} else {
 			status.Conditions = []metav1.Condition{
 				{Type: desiredConditionType, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
-				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "PreCheckFailed", Message: validationErr.Error()},
 			}
 		}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
@@ -440,8 +466,8 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 			return decision{action: applyStack, submissionMessage: "Attempting to create the deployment stack because it is absent"}
 		}
 		status := azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, ObservedAt: ptr.To(metav1.NewTime(now)), Conditions: []metav1.Condition{
-			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent"},
-			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue, Reason: "StackAbsent", Message: "The deployment stack is absent"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}}
 		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
 			logger.Info("Confirmed deployment stack deletion", "desiredSpecHash", hash)
@@ -474,7 +500,7 @@ func decideStackDesire(logger logr.Logger, desire *azureresourcesapi.DeploymentS
 	} else {
 		status = &azureresourcesapi.DeploymentStackDesireStatus{Stack: stack, Conditions: []metav1.Condition{
 			{Type: desiredConditionType, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
-			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}}
 	}
 	status.ObservedAt = ptr.To(metav1.NewTime(now))
@@ -684,27 +710,27 @@ func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks
 	switch state {
 	case armdeploymentstacks.DeploymentStackProvisioningStateSucceeded:
 		status.Conditions = []metav1.Condition{
-			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation"},
-			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue, Reason: "Succeeded", Message: "Azure completed the stack operation"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}
 	case armdeploymentstacks.DeploymentStackProvisioningStateFailed, armdeploymentstacks.DeploymentStackProvisioningStateCanceled:
 		message, invalid := classifyError(properties.Error)
 		if invalid {
 			status.Conditions = []metav1.Condition{
-				{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
-				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: message},
 			}
 		} else {
 			status.Conditions = []metav1.Condition{
-				{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: message},
-				{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "ExecutionFailed", Message: message},
+				{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "ExecutionFailed", Message: message},
 			}
 			err = errExecutionFailed
 		}
 	default:
 		status.Conditions = []metav1.Condition{
-			{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
-			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "WaitingForCompletion", Message: "Waiting for the Azure stack operation"},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 		}
 	}
 	return status, err
@@ -712,12 +738,12 @@ func stackDesireStatusForAssociatedApply(hash string, stack *armdeploymentstacks
 
 func stackDesireStatusForDeleteSubmission(hash string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
 	if err != nil {
-		return stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, err)
+		return stackDesireStatusForRejectedSubmission(hash, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, err)
 	}
 	// Even a synchronous Delete response is only acceptance; GET proves absence.
 	return &azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: hash, Conditions: []metav1.Condition{
-		{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionFalse, Reason: "WaitingForDeletion", Message: "Waiting for the deployment stack to disappear"},
-		{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionFalse, Reason: "WaitingForDeletion", Message: "Waiting for the deployment stack to disappear"},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 	}}, nil
 }
 
@@ -732,13 +758,13 @@ func stackDesireStatusForRejectedSubmission(hash, conditionType string, err erro
 	if invalid {
 		status.Conditions = []metav1.Condition{
 			{Type: conditionType, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
-			{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: err.Error()},
 		}
 		return status, nil
 	}
 	status.Conditions = []metav1.Condition{
 		{Type: conditionType, Status: metav1.ConditionFalse, Reason: "RequestFailed", Message: err.Error()},
-		{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: err.Error()},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: err.Error()},
 	}
 	return status, err
 }

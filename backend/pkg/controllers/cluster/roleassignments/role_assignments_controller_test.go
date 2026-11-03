@@ -131,9 +131,9 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 	require.NoError(t, err)
 	desire, err := desires.Get(t.Context(), RoleAssignmentsDesireName)
 	require.NoError(t, err)
-	require.Equal(t, "Apply", desire.Spec.Action)
-	require.Equal(t, "FPA", desire.Spec.Authentication.Type)
-	require.Equal(t, "customer-tenant", desire.Spec.Authentication.TenantID)
+	require.Equal(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, desire.Spec.Action)
+	require.Equal(t, azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA, desire.Spec.Authentication.Type)
+	require.Equal(t, "customer-tenant", desire.Spec.Authentication.FirstPartyApplication.TenantID)
 	require.Equal(t, 6*time.Hour, desire.Spec.ReconcileInterval.Duration)
 	require.Equal(t, spc.Status.AzureResources.ManagedResourceGroup.AzureResource.String()+"/providers/Microsoft.Resources/deploymentStacks/aro-hcp-role-assignments", desire.Spec.TargetResourceID.String())
 	require.Equal(t, cluster.ID.String()+"/"+azureresourcesapi.DeploymentStackDesireResourceTypeName+"/"+RoleAssignmentsDesireName, desire.ResourceID.String())
@@ -183,7 +183,7 @@ func TestStackTemplateAdoptsExistingClusterAndNoOp(t *testing.T) {
 }
 
 func TestStackReadiness(t *testing.T) {
-	applied := []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionTrue}}
+	applied := []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
 	succeeded := &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateSucceeded)}}
 	for _, tc := range []struct {
 		name            string
@@ -202,11 +202,11 @@ func TestStackReadiness(t *testing.T) {
 		{name: "different observed hash cannot satisfy intent", status: azureresourcesapi.DeploymentStackDesireStatus{ObservedSpecHash: "other", Stack: succeeded, Conditions: applied}},
 		{name: "same hash repair pending revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateDeploying)}}, Conditions: applied}},
 		{name: "same hash repair failed revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{ProvisioningState: ptr.To(armdeploymentstacks.DeploymentStackProvisioningStateFailed)}}, Conditions: applied}},
-		{name: "error outcome revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Error: &armdeploymentstacks.ErrorDetail{Code: ptr.To("AuthorizationFailed")}, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionDegraded, Status: metav1.ConditionTrue}}}},
+		{name: "error outcome revokes success", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Error: &armdeploymentstacks.ErrorDetail{Code: ptr.To("AuthorizationFailed")}, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue}}}},
 		{name: "missing success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded}},
-		{name: "false success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionFalse}}}},
-		{name: "unknown success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyApplied, Status: metav1.ConditionUnknown}}}},
-		{name: "deleted is not applied", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionSuccessfullyDeleted, Status: metav1.ConditionTrue}}}},
+		{name: "false success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse}}}},
+		{name: "unknown success condition", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: succeeded, Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionUnknown}}}},
+		{name: "deleted is not applied", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Conditions: []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue}}}},
 		{name: "absent stack", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Conditions: applied}},
 		{name: "absent stack properties", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{}, Conditions: applied}},
 		{name: "absent provisioning state", observed: true, status: azureresourcesapi.DeploymentStackDesireStatus{Stack: &armdeploymentstacks.DeploymentStack{Properties: &armdeploymentstacks.DeploymentStackProperties{}}, Conditions: applied}},

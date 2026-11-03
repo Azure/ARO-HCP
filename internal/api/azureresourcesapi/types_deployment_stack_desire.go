@@ -30,14 +30,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+type DeploymentStackDesireAuthenticationType string
+
 const (
-	DeploymentStackDesireActionApply                  = "Apply"
-	DeploymentStackDesireActionDelete                 = "Delete"
-	DeploymentStackDesireAuthenticationTypeFPA        = "FPA"
-	DeploymentStackDesireAuthenticationTypeSMI        = "SMI"
-	DeploymentStackDesireConditionSuccessfullyApplied = "SuccessfullyApplied"
-	DeploymentStackDesireConditionSuccessfullyDeleted = "SuccessfullyDeleted"
-	DeploymentStackDesireConditionDegraded            = "Degraded"
+	DeploymentStackDesireAuthenticationTypeFPA DeploymentStackDesireAuthenticationType = "FPA"
+	DeploymentStackDesireAuthenticationTypeSMI DeploymentStackDesireAuthenticationType = "SMI"
+)
+
+type DeploymentStackDesireActionType string
+
+const (
+	DeploymentStackDesireActionTypeApply  DeploymentStackDesireActionType = "Apply"
+	DeploymentStackDesireActionTypeDelete DeploymentStackDesireActionType = "Delete"
+)
+
+const (
+	DeploymentStackDesireConditionTypeSuccessfullyApplied = "SuccessfullyApplied"
+	DeploymentStackDesireConditionTypeSuccessfullyDeleted = "SuccessfullyDeleted"
+	DeploymentStackDesireConditionTypeDegraded            = "Degraded"
 )
 
 // DeploymentStackDesire manages an ARM deployment stack at any Azure scope. The desire
@@ -70,7 +80,7 @@ type DeploymentStackDesireSpec struct {
 	Authentication DeploymentStackDesireAuthentication `json:"authentication"`
 	// Action selects Apply to create or update the stack, or Delete to remove it.
 	// Written by: IdentityRoleAssignments
-	Action string `json:"action"`
+	Action DeploymentStackDesireActionType `json:"action"`
 	// Stack describes the deployment stack for both Apply and Delete. Apply sends
 	// the stack to Azure; Delete uses Properties.ActionOnUnmanage and
 	// Properties.BypassStackOutOfSyncError as its deletion policy.
@@ -87,16 +97,24 @@ type DeploymentStackDesireSpec struct {
 type DeploymentStackDesireAuthentication struct {
 	// Type selects first-party application (FPA) or service managed identity (SMI) credentials.
 	// Written by: IdentityRoleAssignments
-	Type string `json:"type"`
-	// TenantID is the Azure tenant in which the FPA obtains credentials.
-	// Written by: IdentityRoleAssignments
-	TenantID string `json:"tenantID,omitempty"`
-	// SMIResourceID identifies the service managed identity used for SMI authentication.
+	Type                   DeploymentStackDesireAuthenticationType                    `json:"type"`
+	ServiceManagedIdentity *DeploymentStackDesireAuthenticationServiceManagedIdentity `json:"serviceManagedIdentity,omitempty"`
+	FirstPartyApplication  *DeploymentStackDesireAuthenticationFirstPartyApplication  `json:"firstPartyApplication,omitempty"`
+}
+
+type DeploymentStackDesireAuthenticationServiceManagedIdentity struct {
+	// ServiceManagedIdentityResourceID identifies the service managed identity used for SMI authentication.
 	// Written by: DeploymentStackDesire producer (unused by IdentityRoleAssignments)
-	SMIResourceID *azcorearm.ResourceID `json:"smiResourceID,omitempty"`
+	ServiceManagedIdentityResourceID *azcorearm.ResourceID `json:"serviceManagedIdentityResourceID,omitempty"`
 	// ClusterIdentityURL is the cluster identity endpoint used to obtain SMI credentials.
 	// Written by: DeploymentStackDesire producer (unused by IdentityRoleAssignments)
 	ClusterIdentityURL string `json:"clusterIdentityURL,omitempty"`
+}
+
+type DeploymentStackDesireAuthenticationFirstPartyApplication struct {
+	// TenantID is the Azure tenant in which the FPA obtains credentials.
+	// Written by: IdentityRoleAssignments
+	TenantID string `json:"tenantID,omitempty"`
 }
 
 type DeploymentStackDesireStatus struct {

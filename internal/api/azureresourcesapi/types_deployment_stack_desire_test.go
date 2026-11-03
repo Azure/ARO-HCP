@@ -56,7 +56,10 @@ func TestDeploymentStackDesireRuntimeAndDeepCopy(t *testing.T) {
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, InstanceVersion: 42},
 		Spec: DeploymentStackDesireSpec{
 			TargetResourceID: target,
-			Authentication:   DeploymentStackDesireAuthentication{SMIResourceID: target},
+			Authentication: DeploymentStackDesireAuthentication{
+				Type:                   DeploymentStackDesireAuthenticationTypeSMI,
+				ServiceManagedIdentity: &DeploymentStackDesireAuthenticationServiceManagedIdentity{ServiceManagedIdentityResourceID: target},
+			},
 			Stack: &armdeploymentstacks.DeploymentStack{
 				Tags: map[string]*string{"tag": ptr.To("value")},
 				Properties: &armdeploymentstacks.DeploymentStackProperties{
@@ -87,7 +90,7 @@ func TestDeploymentStackDesireRuntimeAndDeepCopy(t *testing.T) {
 				Details:        []*armdeploymentstacks.ErrorDetail{{Message: ptr.To("detail")}},
 				AdditionalInfo: []*armdeploymentstacks.ErrorAdditionalInfo{{Info: map[string]any{"nested": []any{"info"}}}},
 			},
-			Conditions: []metav1.Condition{{Type: DeploymentStackDesireConditionSuccessfullyApplied}},
+			Conditions: []metav1.Condition{{Type: DeploymentStackDesireConditionTypeSuccessfullyApplied}},
 		},
 	}
 	metadata, err := meta.Accessor(desire)
@@ -103,7 +106,7 @@ func TestDeploymentStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	require.Equal(t, desire, copy)
 	require.NotSame(t, desire.ResourceID.Parent, copy.ResourceID.Parent)
 	require.NotSame(t, desire.Spec.TargetResourceID, copy.Spec.TargetResourceID)
-	require.NotSame(t, desire.Spec.Authentication.SMIResourceID, copy.Spec.Authentication.SMIResourceID)
+	require.NotSame(t, desire.Spec.Authentication.ServiceManagedIdentity, copy.Spec.Authentication.ServiceManagedIdentity)
 	*copy.Spec.Stack.Tags["tag"] = "changed"
 	copy.Spec.Stack.Properties.Template.(map[string]any)["resources"].([]any)[0].(map[string]any)["name"] = "changed"
 	copy.Spec.Stack.Properties.Parameters["parameter"].Value.(map[string]any)["key"] = "changed"
@@ -137,7 +140,7 @@ func TestDeploymentStackDesireRuntimeAndDeepCopy(t *testing.T) {
 	require.Equal(t, "detail", *desire.Status.Error.Details[0].Message)
 	require.Equal(t, "info", desire.Status.Error.AdditionalInfo[0].Info.(map[string]any)["nested"].([]any)[0])
 	require.False(t, desire.Status.ObservedAt.IsZero())
-	require.Equal(t, DeploymentStackDesireConditionSuccessfullyApplied, desire.Status.Conditions[0].Type)
+	require.Equal(t, DeploymentStackDesireConditionTypeSuccessfullyApplied, desire.Status.Conditions[0].Type)
 	list := &DeploymentStackDesireList{Items: []DeploymentStackDesire{*desire}}
 	var object runtime.Object = list
 	items, err := meta.ExtractList(object.DeepCopyObject())

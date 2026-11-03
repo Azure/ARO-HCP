@@ -199,7 +199,7 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	// Stack outcomes describe only their observed spec. Pending desires without
 	// a Degraded condition are not failures and must not synthesize degradation.
 	for _, desire := range stackDesires {
-		condition := apimeta.FindStatusCondition(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionDegraded)
+		condition := apimeta.FindStatusCondition(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded)
 		if desire.ResourceID == nil || condition == nil || condition.Status == metav1.ConditionFalse {
 			continue
 		}
