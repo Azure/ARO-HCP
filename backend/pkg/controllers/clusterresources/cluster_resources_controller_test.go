@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -235,6 +237,58 @@ func TestLegacyIngressDesireSuppression(test *testing.T) {
 	require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretSync))
 	require.NotContains(test, desireNames, strings.ToLower(DesireNameKubeAPIServerServingCertSecretProviderClass))
 	require.Contains(test, desireNames, strings.ToLower("HostedCluster"))
+}
+
+func TestAcceptedReleaseInHostedClusterDesire(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		acceptedVersion *semver.Version
+		wantImage       string
+	}{
+		{name: "unset accepted version preserves Cluster Service release", wantImage: "registry.example/old@sha256:abc"},
+		{
+			name:            "accepted version replaces Cluster Service release",
+			acceptedVersion: ptr.To(semver.MustParse("4.20.2")),
+			wantImage:       "registry.example/new@sha256:def",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+			clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			clients.Register(testManagementClusterResourceID, client)
+			managementClusters := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testManagementClusterResourceID}}}}
+			spc := newSPC(testManagementClusterResourceID)
+			spc.Spec.ControlPlaneVersion.AcceptedVersion = tt.acceptedVersion
+			spc.Spec.DesiredHostedCluster = &v1beta1.HostedCluster{Spec: v1beta1.HostedClusterSpec{
+				Release: v1beta1.Release{Image: "registry.example/new@sha256:def"},
+			}}
+			csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+			csClient.EXPECT().GetClusterResources(gomock.Any(), gomock.Any()).Return(buildClusterResources(map[string]string{
+				"hosted": `{"apiVersion":"hypershift.openshift.io/v1beta1","kind":"HostedCluster","metadata":{"name":"test-cluster","namespace":"hc"},"spec":{"release":{"image":"registry.example/old@sha256:abc"}}}`,
+			}), nil)
+			syncer := &clusterResourcesController{
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newCluster()}},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				clustersServiceClient:        csClient,
+				kubeApplierDBClients:         clients,
+				applyDesireLister:            &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: managementClusters},
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: clients, Lister: managementClusters},
+				resourcesCache:               lru.New(resourcesCacheCapacity),
+				clock:                        utilsclock.RealClock{},
+			}
+			require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+			desires, err := syncer.applyDesireLister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			require.Len(t, desires, 1)
+			var hostedCluster unstructured.Unstructured
+			require.NoError(t, json.Unmarshal(desires[0].Spec.ServerSideApply.KubeContent.Raw, &hostedCluster))
+			image, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "release", "image")
+			require.NoError(t, err)
+			require.True(t, found)
+			assert.Equal(t, tt.wantImage, image)
+		})
+	}
 }
 
 func TestSyncOnce(t *testing.T) {
@@ -1143,7 +1197,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 				NodePools: []*coreapi.NodePool{newNodePool(false)},
 			}
 			require.NoError(t, seedSyncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"seeding the NodePool ApplyDesire should succeed")
 			_, err = npCRUD.Get(ctx, "nodepool")
 			require.NoError(t, err, "seed pass should have created the NodePool ApplyDesire")
@@ -1151,7 +1205,7 @@ func TestProcessClusterResourcesNodePoolPath(t *testing.T) {
 			// Cluster Service still reports the CR, as it does until it removes the
 			// ManifestWork.
 			require.NoError(t, syncer.processClusterResources(ctx, testKey(), testManagementClusterResourceID,
-				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123"),
+				buildClusterResources(map[string]string{"node-pool": nodePoolCR}), "abc123", nil),
 				"processClusterResources should succeed")
 
 			desire, err := npCRUD.Get(ctx, "nodepool")
