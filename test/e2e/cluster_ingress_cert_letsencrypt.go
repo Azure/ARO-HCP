@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"embed"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -66,11 +65,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// Let's Encrypt staging root CAs from https://letsencrypt.org/docs/staging-environment/
-//
-//go:embed letsencrypt-stg-cas/*.crt
-var letsEncryptStagingCAs embed.FS
-
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
@@ -90,9 +84,9 @@ var _ = Describe("Customer", func() {
 				certManagerSAName    = "cert-manager"
 				ingressSecretName    = "letsencrypt-ingress-secret"
 				ingressNamespace     = "openshift-ingress"
-				issuerName           = "letsencrypt-staging" // we're using staging as prod has strict limits on cert signing
+				issuerName           = "letsencrypt-staging" // ONE-OFF: name kept so diagnostics still find it; points at production below
 				acmeEmail            = "noreply@redhat.com"
-				acmeServer           = "https://acme-staging-v02.api.letsencrypt.org/directory"
+				acmeServer           = "https://acme-v02.api.letsencrypt.org/directory" // ONE-OFF: production LE while staging is in maintenance; do not merge
 			)
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
@@ -516,11 +510,11 @@ var _ = Describe("Customer", func() {
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
-				"Certificate should be issued by Let's Encrypt staging via ACME DNS-01")
+				"Certificate should be issued by Let's Encrypt production via ACME DNS-01")
 
 			By("verifying the TLS Secret contains a valid certificate with the correct SAN")
 			err = expectTLSSecretIssuedByLetsEncrypt(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt staging with SAN %s", appsWildcard))
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt production with SAN %s", appsWildcard))
 
 			By("deploying a sample application before verifying the default ingress certificate")
 			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
@@ -546,8 +540,8 @@ var _ = Describe("Customer", func() {
 			Expect(certificateBlock).NotTo(BeNil(), "customer TLS secret must contain a PEM certificate")
 			customerCertificate, err := x509.ParseCertificate(certificateBlock.Bytes)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
-			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
-			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
+			roots, err := x509.SystemCertPool()
+			Expect(err).NotTo(HaveOccurred(), "failed to load system roots (ISRG)")
 
 			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
 			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
@@ -792,7 +786,7 @@ func printUnstructuredStatus(obj *unstructured.Unstructured, label string) {
 
 // expectTLSSecretIssuedByLetsEncrypt verifies that the named Secret exists, is
 // of type kubernetes.io/tls, has a leaf cert whose SAN matches expectedSAN,
-// and that the certificate chain validates up to a Let's Encrypt staging root CA.
+// and that the certificate chain validates up to a system-trusted (ISRG) root CA.
 func expectTLSSecretIssuedByLetsEncrypt(ctx context.Context, kubeClient kubernetes.Interface, ns, name, expectedSAN string) error {
 	s, err := kubeClient.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -836,16 +830,16 @@ func expectTLSSecretIssuedByLetsEncrypt(ctx context.Context, kubeClient kubernet
 		return fmt.Errorf("leaf cert SANs %v do not include expected %q", leaf.DNSNames, expectedSAN)
 	}
 
-	roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
+	roots, err := x509.SystemCertPool()
 	if err != nil {
-		return fmt.Errorf("loading Let's Encrypt staging root CAs: %w", err)
+		return fmt.Errorf("loading system root CAs: %w", err)
 	}
 
 	if err := verifyCertChain(certs, roots); err != nil {
-		return fmt.Errorf("certificate chain verification against Let's Encrypt staging roots failed: %w", err)
+		return fmt.Errorf("certificate chain verification against system roots failed: %w", err)
 	}
 
-	GinkgoLogr.Info("verified TLS Secret certificate chain to Let's Encrypt staging root",
+	GinkgoLogr.Info("verified TLS Secret certificate chain to a system-trusted root",
 		"secret", fmt.Sprintf("%s/%s", ns, name),
 		"san", leaf.DNSNames,
 		"issuerCN", leaf.Issuer.CommonName,
