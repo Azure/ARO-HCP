@@ -100,14 +100,14 @@ func TestCollectIngressCertificateDiagnosticsSafeArtifacts(t *testing.T) {
 func TestCollectIngressCertificateDiagnosticsPreservesPartialArtifacts(t *testing.T) {
 	client, _ := ingressDiagnosticsTestClient(t, true, true)
 	dynamicClient := ingressDiagnosticsDynamicClient()
-	require.NoError(t, dynamicClient.Resource(schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}).Delete(context.Background(), "letsencrypt-staging", metav1.DeleteOptions{}))
+	require.NoError(t, dynamicClient.Resource(schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}).Delete(context.Background(), ingressCertificateIssuerName, metav1.DeleteOptions{}))
 	directory := t.TempDir()
 	// A directory at one artifact filename forces a write failure without blocking others.
 	require.NoError(t, os.MkdirAll(filepath.Join(directory, "ingress-certificate-diagnostics", "cert-manager-pods.json"), 0700))
 	err := collectIngressCertificateDiagnostics(context.Background(), client, dynamicClient, directory)
 	require.ErrorContains(t, err, "list cert-manager deployments")
 	require.ErrorContains(t, err, "write cert-manager-pods.json")
-	require.ErrorContains(t, err, "get clusterissuers/letsencrypt-staging")
+	require.ErrorContains(t, err, "get clusterissuers/"+ingressCertificateIssuerName)
 	for _, name := range []string{"controller.log", "cert-manager-events.json", "dns-clusteroperator.json", "dns-service.json", "dns-endpointslices.json"} {
 		_, statErr := os.Stat(filepath.Join(directory, "ingress-certificate-diagnostics", name))
 		require.NoError(t, statErr)
@@ -125,7 +125,7 @@ func TestCollectIngressCertificateDiagnosticsDirectoryFailure(t *testing.T) {
 func ingressDiagnosticsDynamicClient() *dynamicfake.FakeDynamicClient {
 	issuer := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "cert-manager.io/v1", "kind": "ClusterIssuer",
-		"metadata": map[string]any{"name": "letsencrypt-staging", "annotations": map[string]any{"credential": "DO-NOT-EXPORT-annotation"}},
+		"metadata": map[string]any{"name": ingressCertificateIssuerName, "annotations": map[string]any{"credential": "DO-NOT-EXPORT-annotation"}},
 		"spec":     map[string]any{"acme": map[string]any{"privateKeySecretRef": map[string]any{"name": "DO-NOT-EXPORT-key"}}},
 		"status": map[string]any{
 			"conditions":          []any{map[string]any{"type": "Ready", "status": "False", "reason": "ErrInitIssuer", "message": "lookup acme-staging: no such host"}},

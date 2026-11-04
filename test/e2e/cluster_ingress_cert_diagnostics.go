@@ -138,7 +138,7 @@ func collectIngressCertificateDiagnostics(ctx context.Context, kubeClient kubern
 		name string
 		file string
 	}{
-		{schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}, "letsencrypt-staging", "clusterissuer.json"},
+		{schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}, ingressCertificateIssuerName, "clusterissuer.json"},
 		{schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusteroperators"}, "dns", "dns-clusteroperator.json"},
 	} {
 		object, getErr := dynamicClient.Resource(resource.gvr).Get(ctx, resource.name, metav1.GetOptions{})
@@ -157,7 +157,7 @@ func collectIngressCertificateDiagnostics(ctx context.Context, kubeClient kubern
 		}
 	}
 	issuerEvents, err := kubeClient.CoreV1().Events(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		FieldSelector: "involvedObject.kind=ClusterIssuer,involvedObject.name=letsencrypt-staging",
+		FieldSelector: "involvedObject.kind=ClusterIssuer,involvedObject.name=" + ingressCertificateIssuerName,
 	})
 	recordError("list ClusterIssuer events", err)
 	if err == nil {
