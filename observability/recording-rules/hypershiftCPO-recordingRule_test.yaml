@@ -1,0 +1,64 @@
+rule_files:
+- hypershiftCPO-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+- interval: 30s
+  name: "CPO availability preserves short outages and HCP identity"
+  input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x20"
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1 0 1+0x18"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-two", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x20"
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-two", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x20"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-scaled-down", deployment="control-plane-operator", cluster="mc1"}'
+    values: "0+0x20"
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-scaled-down", deployment="control-plane-operator", cluster="mc1"}'
+    values: "0+0x20"
+  promql_expr_test:
+  - expr: hypershift:cpo:availability:ratio1m
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hypershift:cpo:availability:ratio1m{cluster="mc1", namespace="ocm-one"}'
+      value: 0.5
+    - labels: 'hypershift:cpo:availability:ratio1m{cluster="mc1", namespace="ocm-two"}'
+      value: 1
+  - expr: min(avg_over_time(hypershift:cpo:availability:ratio1m[10m]))
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0.95
+- interval: 15s
+  name: "Staggered CPO HA scrapes preserve an outage spanning two evaluation windows"
+  input_series:
+  # Thirty-second scrapes offset by 15s observe an outage from 55s through 85s.
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1", prometheus_replica="r1"}'
+    values: "1 _ 1 _ 0 _ 1 _ 1"
+  - series: 'kube_deployment_status_replicas_available{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1", prometheus_replica="r2"}'
+    values: "_ 1 _ 1 _ 0 _ 1 _"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1", prometheus_replica="r1"}'
+    values: "1 _ 1 _ 1 _ 1 _ 1"
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-one", deployment="control-plane-operator", cluster="mc1", prometheus_replica="r2"}'
+    values: "_ 1 _ 1 _ 1 _ 1 _"
+  promql_expr_test:
+  - expr: hypershift:cpo:availability:ratio1m
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hypershift:cpo:availability:ratio1m{cluster="mc1", namespace="ocm-one"}'
+      value: 0.5
+  - expr: hypershift:cpo:availability:ratio1m
+    eval_time: 2m
+    exp_samples:
+    - labels: 'hypershift:cpo:availability:ratio1m{cluster="mc1", namespace="ocm-one"}'
+      value: 0.5
+- interval: 1m
+  name: "Missing CPO telemetry produces no availability observation"
+  input_series:
+  - series: 'kube_deployment_spec_replicas{namespace="ocm-missing", deployment="control-plane-operator", cluster="mc1"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: hypershift:cpo:availability:ratio1m
+    eval_time: 10m
+    exp_samples: []

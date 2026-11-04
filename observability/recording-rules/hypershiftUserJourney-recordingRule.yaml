@@ -14,8 +14,23 @@ spec:
   # max without(prometheus_replica) dedupes HA scrapes before summing.
   groups:
   - name: hypershift-operator-recording-rules
+    interval: 1m
     rules:
     # Used by hypershiftOperatorIdle.
     - record: hypershift:operator:reconcile:rate5m
       expr: |
         sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[5m])))
+    # Aggregate raw scrape samples before recording: point sampling a ratio
+    # would miss outages between rule evaluations. Zero desired replicas and
+    # missing deployment telemetry are not healthy availability observations.
+    # Keep the lowest replica window so staggered HA scrapes cannot hide outages.
+    - record: hypershift:operator:availability:ratio1m
+      expr: |
+        clamp_max(
+          min by (cluster) (
+            avg_over_time(kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"}[1m])
+            /
+            (avg_over_time(kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}[1m]) > 0)
+          ),
+          1
+        )

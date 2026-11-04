@@ -718,6 +718,10 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
         record: 'hypershift:operator:reconcile:rate5m'
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
       }
+      {
+        record: 'hypershift:operator:availability:ratio1m'
+        expression: 'clamp_max(min by (cluster, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}[1m]) / (avg_over_time(kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}[1m]) > 0)), 1)'
+      }
     ]
   }
 }
