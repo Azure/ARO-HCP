@@ -16,10 +16,11 @@ package operations
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr/testr"
+	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -146,6 +147,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
 		verifyDB               func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		// wantLogContains are substrings the sync must have logged.
+		wantLogContains []string
 	}{
 		{
 			name:                     "node pool ready transitions to succeeded",
@@ -288,8 +291,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline exceeded marks operation as failed",
-			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
+			name:            "deadline exceeded marks operation as failed",
+			wantLogContains: []string{"node pool create operation failed", "DeadlineExceeded"},
+			clock:           clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := fixture.NewNodePool()
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
@@ -313,8 +317,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			// Cluster Service reports no message. Once the deadline is exceeded, the error keeps
 			// the deadline sentence and appends the Hypershift NodePool AllMachinesReady message.
-			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
-			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
+			name:            "deadline exceeded surfaces hypershift AllMachinesReady message",
+			wantLogContains: []string{"node pool create operation failed", "DeadlineExceeded", "RequestDisallowedByPolicy"},
+			clock:           clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 				np := nodePoolWithTwoReplicas(fixture)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
@@ -376,8 +381,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+			var logged []string
+			ctx := utils.ContextWithLogger(context.Background(), funcr.New(func(_, args string) {
+				logged = append(logged, args)
+				t.Log(args)
+			}, funcr.Options{}))
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -425,6 +433,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 			if tt.verifyDB != nil {
 				tt.verifyDB(t, ctx, mockResourcesDBClient)
+			}
+			for _, want := range tt.wantLogContains {
+				require.Contains(t, strings.Join(logged, "\n"), want)
 			}
 		})
 	}

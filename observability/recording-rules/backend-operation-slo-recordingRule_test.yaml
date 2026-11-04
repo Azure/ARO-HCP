@@ -782,3 +782,116 @@ tests:
     exp_samples:
     - labels: 'inflight:backend_resource_operation:count{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
       value: 0
+# Customer caused failures (fault="customer") leave the error SLI, like cancellations.
+# The backend puts the same fault label on all three gauges of an operation; the
+# failed operations below carry it on phase_info and last_transition_time alike.
+- interval: 1m
+  input_series:
+  # Two node pool updates that succeeded (no fault label)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/s2", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/s2", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # Three node pool updates that failed because of the customer (for example QuotaExceeded)
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c1", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c1", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c2", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c2", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c3", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c3", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "0x200"
+  # One node pool update that failed for a system reason
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/f1", phase="failed", fault="system", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/f1", phase="failed", fault="system", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  # Only the system failure counts, in every window
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 1
+  - expr: 'errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_6h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 1
+  - expr: 'errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 1
+  # Denominator is 2 succeeded + 1 system failure; the 3 customer failures are out
+  - expr: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 3
+  - expr: 'errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_6h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 3
+  - expr: 'errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_3d{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 3
+  # 1 of 3, not 4 of 6 (which counting the customer failures would give)
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 0.3333333333333333
+# When every terminal operation in the window is a customer caused failure the
+# series still exist and read 0, not absent, so downstream alerts see a value.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c1", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c1", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c2", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/c2", phase="failed", fault="customer", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 0
+  - expr: 'errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 0
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 0
+# A failure with fault="system" is never excluded, even when it is the only
+# terminal operation: unclassified failures keep reaching the service team.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/f1", phase="failed", fault="system", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", resource_id="/f1", phase="failed", fault="system", environment="dev", region="eastus2"}'
+    values: "0x200"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
+      value: 1

@@ -56,7 +56,7 @@ func capturePodDiagnostics(ctx context.Context, client kubernetes.Interface, nam
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("[pod diagnostics] pod %s/%s unavailable: %s\n", namespace, podName, podDiagnosticError(err))
 	} else {
-		if pod.UID != "" {
+		if len(pod.UID) != 0 {
 			selector["involvedObject.uid"] = string(pod.UID)
 		}
 		writePodDiagnostic(artifactDir, namespace, podName, "pod.yaml", podDiagnosticPod(pod))
@@ -80,7 +80,7 @@ func podDiagnosticError(err error) string {
 			return contextErr.Error()
 		}
 	}
-	if reason := apierrors.ReasonForError(err); reason != "" {
+	if reason := apierrors.ReasonForError(err); len(reason) != 0 {
 		return string(reason)
 	}
 	return "request failed"
@@ -124,7 +124,7 @@ func writePodDiagnostic(artifactDir, namespace, podName, name string, object int
 		ginkgo.GinkgoWriter.Printf("[pod diagnostics] could not encode %s\n", name)
 		return
 	}
-	if artifactDir != "" {
+	if len(artifactDir) != 0 {
 		directory := filepath.Join(artifactDir, "pod-diagnostics", namespace, podName)
 		if err := os.MkdirAll(directory, 0700); err == nil {
 			path := filepath.Join(directory, name)

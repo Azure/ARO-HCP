@@ -209,7 +209,7 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
 `, resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime))
@@ -246,7 +246,7 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
 `, resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -409,7 +409,7 @@ func TestOperationPhaseMetricsHandler_VerifiesLabelValues(t *testing.T) {
 	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
 `, resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -448,7 +448,7 @@ func TestOperationPhaseMetricsHandler_ResourceIDIsExternalIDNotCosmosID(t *testi
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `, armID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -502,7 +502,7 @@ func TestOperationPhaseMetricsHandler_LowercasesResourceID(t *testing.T) {
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `, strings.ToLower(mixedCase))
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -533,7 +533,7 @@ func TestOperationPhaseMetricsHandler_SubscriptionIDFromExternalID(t *testing.T)
 	// subscription in malformed fixtures).
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id="/subscriptions/sub-target/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-target"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="accepted",resource_id="/subscriptions/sub-target/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-target"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -597,8 +597,8 @@ func TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCoexistByOperatio
 
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
-backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="succeeded",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
@@ -628,7 +628,7 @@ func TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries(t *t
 	// Only op2's labels remain (same operation_type, last writer wins).
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
@@ -666,7 +666,7 @@ func TestOperationPhaseMetricsHandler_DeleteDifferentTypeClearsOnlyExpired(t *te
 		"only the update series should survive after deleting the create operation")
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
@@ -743,7 +743,7 @@ func TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry(t 
 	resourceID := resourceIDMetricLabel(op1.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="create",phase="succeeded",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `, resourceID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"),
 		"survivor's labels (succeeded) should replace the expired op's labels (failed)")
@@ -941,7 +941,7 @@ func TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling(t *testi
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{fault="",operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }

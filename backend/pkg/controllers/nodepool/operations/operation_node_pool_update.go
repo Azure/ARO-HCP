@@ -56,6 +56,7 @@ type operationNodePoolUpdate struct {
 	activeOperationsLister          corelisters.ActiveOperationLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
+	quotaFailFast                   *quotaFailFast
 }
 
 const OperationNodePoolUpdateControllerName = "OperationNodePoolUpdate"
@@ -97,6 +98,7 @@ func NewOperationNodePoolUpdateController(
 		activeOperationsLister:          activeOperationsLister,
 		notificationClient:              notificationClient,
 		desiredVersionMismatchFirstSeen: lru.New(100000),
+		quotaFailFast:                   newQuotaFailFast(clock),
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -156,22 +158,18 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, existingNodePool)
+	deadlineExceeded := existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time)
+
+	operationalState, err := c.determineOperationState(ctx, operation, existingNodePool, deadlineExceeded)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	var persistErr *coreapi.CloudErrorBody
-	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    operationalState.CloudErrorCode,
-			Message: operationalState.Message,
-		}
-	}
+	persistErr := operationbase.PersistedOperationError(operationalState)
 
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline.Time) {
+	// A quota error at the deadline already made the state terminal, so it is not reported as a timeout.
+	if !operationalState.ProvisioningState.IsTerminal() && deadlineExceeded {
 		message := operationbase.DeadlineExceededMessage(
 			"node pool update did not complete before the deadline",
 			operationalState.Message,
@@ -190,6 +188,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		}
 	}
 
+	operationbase.LogOperationFailure(ctx, "node pool update", operationalState, persistErr)
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -208,7 +207,7 @@ func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(node
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool, deadlineExceeded bool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := existingNodePool.ServiceProviderProperties.ClusterServiceID
@@ -247,6 +246,11 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 	if operationState, hsErr := c.hypershiftNodePoolOperationState(ctx, existingNodePool, existingCSNodePool); hsErr != nil {
 		errs = append(errs, utils.TrackError(hsErr))
 	} else {
+		if deadlineExceeded {
+			operationState = c.quotaFailFast.applyPastDeadline(ctx, firstSeenKey(operation), operationState)
+		} else {
+			operationState = c.quotaFailFast.apply(ctx, firstSeenKey(operation), operationState)
+		}
 		operationStates = append(operationStates, operationState.WithSource("hypershiftNodePool"))
 	}
 
@@ -277,7 +281,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 
 	customerDesiredVersion := semver.MustParse(existingNodePool.Properties.Version.ID)
 
-	operationID := strings.ToLower(operation.ResourceID.String())
+	operationID := firstSeenKey(operation)
 	// If the operation is cancelled, its desiredVersionMismatchFirstSeen entry is never
 	// explicitly removed. This is safe because operation.ResourceID is unique per operation,
 	// so stale entries won't cause false matches for newer operations and will eventually

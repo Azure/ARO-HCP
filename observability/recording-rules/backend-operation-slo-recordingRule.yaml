@@ -14,6 +14,19 @@
 # counts as a failure nor dilutes the rate; success_rate and error_rate sum
 # to 1.
 #
+# Failures the customer must resolve are excluded the same way. The backend
+# labels every failed operation with fault="customer" when its persisted error
+# code is one the customer has to fix (for example QuotaExceeded) and
+# fault="system" for every other failure. The label is empty (absent) on
+# operations that have not failed. The error rules select fault!="customer", so
+# customer caused failures leave both the numerator and the denominator and the
+# error rate measures platform attributable outcomes. Anything not known to be
+# the customer's, including a failure with no error code, still counts.
+#
+# The fault label is intentionally absent from every max by (grouping set)
+# below. It is the same for all three backend_resource_operation_* gauges of an
+# operation, so aggregating it away cannot break matching between them.
+#
 # HA dedup: max by (grouping set) collapses duplicate series from
 # prometheus_replica HA pairs.
 apiVersion: monitoring.coreos.com/v1
@@ -38,7 +51,11 @@ spec:
   # Cosmos 7-day TTL.
   #
   # The `or 0 * ...` term on failed counts pins the value to 0 (not absent)
-  # when a cluster has operations but none failed in-window.
+  # when a cluster has operations but none failed in-window. It deliberately does
+  # not filter on fault, so the series still exists when every operation in the
+  # window was a customer caused failure.
+  #
+  # Both failed and total select fault!="customer"; see the header.
   - name: arohcp_backend_operation_slo_windowed_recording_rules
     interval: 1m
     rules:
@@ -47,7 +64,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase="failed"}
+            backend_resource_operation_phase_info{phase="failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
@@ -64,7 +81,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase=~"succeeded|failed"}
+            backend_resource_operation_phase_info{phase=~"succeeded|failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
@@ -87,7 +104,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase="failed"}
+            backend_resource_operation_phase_info{phase="failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
@@ -104,7 +121,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase=~"succeeded|failed"}
+            backend_resource_operation_phase_info{phase=~"succeeded|failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
@@ -127,7 +144,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase="failed"}
+            backend_resource_operation_phase_info{phase="failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
@@ -144,7 +161,7 @@ spec:
       expr: |
         count by (cluster, region, resource_type, operation_type) (
           (max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
-            backend_resource_operation_phase_info{phase=~"succeeded|failed"}
+            backend_resource_operation_phase_info{phase=~"succeeded|failed", fault!="customer"}
           ) == 1)
           and
           ((time() - max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (
