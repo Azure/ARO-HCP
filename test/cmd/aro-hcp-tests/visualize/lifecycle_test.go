@@ -138,7 +138,7 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	if summary.Rows[0].Incomplete != 1 {
 		t.Fatalf("incomplete sample selection is incorrect: %+v", summary.Rows[0])
 	}
-	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.Mean() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
+	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.P50() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
 		t.Fatalf("missing cleanup boundary cannot become a zero-second sample: %+v", got)
 	}
 	passed.Phases = []StepTimingMetadata{{Name: "cleanup interrupted", StartedAt: start.Add(20 * time.Second), FinishedAt: start.Add(40 * time.Second), Incomplete: true}}
@@ -149,10 +149,26 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 
 func TestDurationSummaryTruncatesToSeconds(t *testing.T) {
 	duration := 13*time.Minute + 42*time.Second + 854610143*time.Nanosecond
-	summary := durationSummary{Count: 1, Total: duration, Min: duration, Max: duration}
+	summary := durationSummary{Count: 1, Total: duration, Min: duration, Max: duration, samples: []time.Duration{duration}}
 	const want = "13m42s"
-	if summary.Minimum() != want || summary.Mean() != want || summary.Maximum() != want {
-		t.Fatalf("duration summary should truncate to seconds: min=%s mean=%s max=%s", summary.Minimum(), summary.Mean(), summary.Maximum())
+	if summary.Minimum() != want || summary.P50() != want || summary.Maximum() != want {
+		t.Fatalf("duration summary should truncate to seconds: min=%s p50=%s max=%s", summary.Minimum(), summary.P50(), summary.Maximum())
+	}
+}
+
+func TestDurationSummaryNearestRankPercentiles(t *testing.T) {
+	var s durationSummary
+	for i := 1; i <= 20; i++ {
+		s.add(time.Duration(i) * time.Second)
+	}
+	if got := s.P50(); got != "10s" {
+		t.Errorf("P50 = %s, want 10s", got)
+	}
+	if got := s.P95(); got != "19s" {
+		t.Errorf("P95 = %s, want 19s", got)
+	}
+	if got := s.P99(); got != "20s" {
+		t.Errorf("P99 = %s, want 20s", got)
 	}
 }
 
@@ -184,7 +200,7 @@ func TestLifecycleDurationRangesIncludeZeroAndFullCleanup(t *testing.T) {
 	}
 	summary := summarizeLifecycle(tests)
 	for _, row := range []durationSummary{summary.Rows[0], summary.Rows[4]} {
-		if row.Count != 3 || row.Minimum() != "0s" || row.Max == 0 || row.Mean() == "N/A" {
+		if row.Count != 3 || row.Minimum() != "0s" || row.Max == 0 || row.P50() == "N/A" {
 			t.Fatalf("zero duration is a valid sample, not missing data: %+v", row)
 		}
 	}
@@ -208,7 +224,7 @@ func TestLifecycleSummaryExcludesFailedAndUnknownOperationsInPassingTests(t *tes
 		}
 	}
 	for _, row := range summarizeLifecycle([]TestInfo{item}).Rows[:4] {
-		if row.Count != 0 || row.Total != 0 || row.Mean() != "N/A" || row.Minimum() != "N/A" || row.Maximum() != "N/A" {
+		if row.Count != 0 || row.Total != 0 || row.P50() != "N/A" || row.Minimum() != "N/A" || row.Maximum() != "N/A" {
 			t.Errorf("unsuccessful or unknown operations became successful samples: %+v", row)
 		}
 	}
@@ -319,10 +335,10 @@ steps:
 		t.Fatal(err)
 	}
 	text := string(html)
-	if !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>2s</td><td>2s</td><td>1</td>") {
-		t.Fatal("visible summary must show passed-only creation means and sample counts")
+	if !strings.Contains(text, "<td>create-cluster</td><td>2s</td><td>2s</td><td>2s</td><td>2s</td><td>2s</td><td>1</td>") {
+		t.Fatal("visible summary must show passed-only creation percentiles and sample counts")
 	}
-	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
+	if !strings.Contains(text, "<td>create-nodepool</td><td>3s</td><td>3s</td><td>3s</td><td>3s</td><td>3s</td><td>1</td>") {
 		t.Fatal("a passing negative test must count only the successful nodepool operation")
 	}
 	for _, label := range []string{"rejected nodepool (201 replicas) (failed)", "accepted nodepool (succeeded)", "historical nodepool (outcome unknown)"} {
