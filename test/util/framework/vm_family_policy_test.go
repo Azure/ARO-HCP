@@ -148,14 +148,14 @@ func TestApprovedFamilyFallbacks(t *testing.T) {
 			families:  [3]string{"StandardDsv6Family", "standardDSv5Family", "standardDASv5Family"},
 			sizes:     [3]string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5"},
 			oversized: [3]string{"Standard_D16s_v6", "Standard_D16s_v5", "Standard_D16as_v5"},
-			cpus:      "8", largerCPUs: "16", legacy: LegacyWorkerVMSize,
+			cpus:      "8", largerCPUs: "16", legacy: "Standard_D8s_v3",
 		},
 		{
 			name: "small-worker", constructor: SmallWorkerVMSizeSelector,
 			families:  [3]string{"StandardDsv6Family", "standardDSv5Family", "standardDASv5Family"},
 			sizes:     [3]string{"Standard_D4s_v6", "Standard_D4s_v5", "Standard_D4as_v5"},
 			oversized: [3]string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5"},
-			cpus:      "4", largerCPUs: "8", legacy: LegacySmallWorkerVMSize,
+			cpus:      "4", largerCPUs: "8", legacy: "Standard_D4s_v3",
 		},
 		{
 			name: "jumpbox", constructor: JumpboxVMSizeSelector,
@@ -315,9 +315,9 @@ func TestMalformedFamilyPolicyCannotFallBack(t *testing.T) {
 func TestPinnedSelectorBypassesFamilyPolicy(t *testing.T) {
 	t.Setenv(leaseenv.SelectedLocation, "")
 	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"]}`)
-	selector := VMSizeSelector{Name: "explicit-pin", Preferred: []string{LegacyWorkerVMSize}}
-	got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(LegacyWorkerVMSize, testLocation)}, testLocation, selector)
-	if err != nil || got != LegacyWorkerVMSize {
+	selector := VMSizeSelector{Name: "explicit-pin", Preferred: []string{"Standard_D8s_v3"}}
+	got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU("Standard_D8s_v3", testLocation)}, testLocation, selector)
+	if err != nil || got != "Standard_D8s_v3" {
 		t.Fatalf("expected explicit historical pin unchanged, got %q err=%v", got, err)
 	}
 }
@@ -361,8 +361,8 @@ func TestGeneralWorkerDefaultPreferenceAndLegacyOverride(t *testing.T) {
 				sizes       [4]string
 				cpus        string
 			}{
-				{DefaultWorkerVMSizeSelector, [4]string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", LegacyWorkerVMSize}, "8"},
-				{SmallWorkerVMSizeSelector, [4]string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", LegacySmallWorkerVMSize}, "4"},
+				{DefaultWorkerVMSizeSelector, [4]string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v3"}, "8"},
+				{SmallWorkerVMSizeSelector, [4]string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v3"}, "4"},
 			} {
 				t.Run(role.sizes[0], func(t *testing.T) {
 					selector := role.constructor()

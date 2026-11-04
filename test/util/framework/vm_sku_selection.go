@@ -54,12 +54,6 @@ const (
 	JumpboxVMSize       = "Standard_D2s_v3"
 )
 
-// Legacy worker sizes retain explicit v3 pins and ephemeral-disk selection.
-const (
-	LegacyWorkerVMSize      = "Standard_D8s_v3"
-	LegacySmallWorkerVMSize = "Standard_D4s_v3"
-)
-
 // DefaultDiskStorageAccountType is the OS disk storage account type used by the
 // default node pool params. It is centralized here so the node pool param
 // constructors and tests share a single source of truth.
@@ -632,7 +626,7 @@ func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "ephemeral-osdisk-worker",
 		Preferred: []string{
-			LegacyWorkerVMSize,   // Standard_D8s_v3 - Intel D-series v3
+			"Standard_D8s_v3",    // Intel D-series v3
 			"Standard_D8as_v4",   // AMD D-series v4
 			"Standard_E8s_v3",    // Intel E-series v3
 			"Standard_E8as_v4",   // AMD E-series v4
