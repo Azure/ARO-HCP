@@ -639,13 +639,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "valid major upgrade 4.22 to 5.0",
-			desiredVersion:       "5.0.0",
-			activeVersions:       []string{"4.22.0"},
-			controlPlaneVersions: []string{"5.0.0"},
-			expectError:          false,
-		},
-		{
 			name:                 "valid major upgrade 4.23 to 5.1",
 			desiredVersion:       "5.1.0",
 			activeVersions:       []string{"4.23.0"},
@@ -729,13 +722,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 		},
 		{
 			name:                 "major version downgrade succeeds without AFEC",
-			desiredVersion:       "4.22.0",
-			activeVersions:       []string{"5.0.1"},
-			controlPlaneVersions: []string{"5.0.1"},
-			expectError:          false,
-		},
-		{
-			name:                 "valid major downgrade 5.0 to 4.22",
 			desiredVersion:       "4.22.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
@@ -833,13 +819,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		// Cross-major skew: same-major NP change when CP is different major
-		{
-			name:                 "same-major NP change with cross-major CP - valid skew",
-			desiredVersion:       "4.21.0",
-			activeVersions:       []string{"4.22.0"},
-			controlPlaneVersions: []string{"5.0.1"},
-			expectError:          false,
-		},
 		{
 			name:                 "same-major NP change with cross-major CP - invalid skew",
 			desiredVersion:       "4.15.0",

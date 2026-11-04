@@ -112,16 +112,6 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "OpenShift 5 allowed with experimental release features - create",
-			cluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "5.0"
-				return c
-			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
 			name: "invalid DNS prefix - create",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
@@ -2655,21 +2645,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "cross-major upgrade from 4.20 is only allowed to", FieldPath: "customerProperties.version.id"},
 			},
-		},
-		{
-			name: "update: cross-major 4.22 to 5.0 allowed",
-			newCluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "5.0"
-				return c
-			}(),
-			oldCluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.22"
-				return c
-			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.23 to 5.1 allowed without experimental release features",

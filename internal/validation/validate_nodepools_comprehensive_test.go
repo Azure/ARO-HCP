@@ -46,6 +46,16 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "OpenShift 5.0 stable node pool allowed without experimental release features",
+			nodePool: func() *coreapi.NodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "5.0.0"
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "valid nodepool with autoscaling - create",
 			nodePool: func() *coreapi.NodePool {
 				np := createValidNodePool()
@@ -1896,16 +1906,6 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name:         "valid node pool with X.Y.Z version - no feature flag",
 			nodePool:     createValidNodePool(),
 			opOptions:    nil,
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name: "OpenShift 5.0 stable node pool allowed without experimental release features",
-			nodePool: func() *coreapi.NodePool {
-				np := createValidNodePool()
-				np.Properties.Version.ID = "5.0.0"
-				np.Properties.Version.ChannelGroup = "stable"
-				return np
-			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{

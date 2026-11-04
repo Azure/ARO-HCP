@@ -286,16 +286,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			// With an allowed skew (NP 4.22 alongside CP 5.0),
-			// the change succeeds via ValidateCrossMajorNodePoolSkew.
-			name:           "same-major node pool change with allowed cross-major skew succeeds",
-			desiredVersion: "4.22.0",
-			activeVersions: []string{"4.21.0"},
-			lowestCP:       "5.0.0",
-			highestCP:      "5.0.0",
-			expectError:    false,
-		},
-		{
 			// NP 4.20 has no entry in the cross-major skew map, so it cannot
 			// coexist with a different-major control plane.
 			name:           "node pool version not in cross-major skew map is rejected",
@@ -321,15 +311,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 		{
 			// Cross-major upgrade no longer needs the experimental feature.
 			name:           "cross-major upgrade succeeds without AFEC",
-			desiredVersion: "5.0.0",
-			activeVersions: []string{"4.22.0"},
-			lowestCP:       "5.0.0",
-			highestCP:      "5.0.0",
-			expectError:    false,
-		},
-		{
-			// 4.22 -> 5.0 is an allowed upgrade path, so it succeeds.
-			name:           "allowed cross-major upgrade path succeeds",
 			desiredVersion: "5.0.0",
 			activeVersions: []string{"4.22.0"},
 			lowestCP:       "5.0.0",

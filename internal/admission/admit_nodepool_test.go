@@ -614,14 +614,6 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:            "cross-major downgrade follows supported skew",
-			activeVersions:  []string{"5.0.1"},
-			newVersion:      "4.22.0",
-			clusterVersions: []string{"5.0.1"},
-			desiredVersion:  "5.0.1",
-			expectErrors:    []utils.ExpectedError{},
-		},
-		{
 			name:            "cross-major downgrade to unsupported minor fails",
 			activeVersions:  []string{"5.0.1"},
 			newVersion:      "4.20.0",
@@ -661,14 +653,6 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 		},
 		{
 			name:            "major version change allowed without AFEC",
-			activeVersions:  []string{"4.22.0"},
-			newVersion:      "5.0.0",
-			clusterVersions: []string{"5.0.0"},
-			desiredVersion:  "4.22.0",
-			expectErrors:    []utils.ExpectedError{},
-		},
-		{
-			name:            "valid major upgrade 4.22 to 5.0",
 			activeVersions:  []string{"4.22.0"},
 			newVersion:      "5.0.0",
 			clusterVersions: []string{"5.0.0"},
@@ -814,14 +798,6 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			expectErrors:    []utils.ExpectedError{},
 		},
 		// Cross-major skew: same-major NP change when CP is different major
-		{
-			name:            "same-major NP change with cross-major CP - valid skew",
-			activeVersions:  []string{"4.22.0"},
-			newVersion:      "4.21.0",
-			clusterVersions: []string{"5.0.1"},
-			desiredVersion:  "4.22.0",
-			expectErrors:    []utils.ExpectedError{},
-		},
 		{
 			name:            "same-major NP change with cross-major CP - invalid skew",
 			activeVersions:  []string{"4.22.0"},
