@@ -118,7 +118,10 @@ func (syncer *namespaceSyncer) SyncOnce(ctx context.Context, key controllerutils
 	if !syncer.needsWork(cluster, serviceProviderCluster) {
 		return nil
 	}
-	client := syncer.kubeApplierDBClients.For(ctx, serviceProviderCluster.Status.ManagementClusterResourceID)
+	client, err := syncer.kubeApplierDBClients.For(ctx, serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if client == nil {
 		return nil
 	}
