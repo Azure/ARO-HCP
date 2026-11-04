@@ -30,7 +30,6 @@ import (
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
-	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
@@ -1127,40 +1126,6 @@ func instantiateFetchManagedIdentitiesInfoController(controllerContext controlle
 	return fetchManagedIdentitiesInfoController, nil
 }
 
-func registerDataPlaneWorkloadsOIDCFederationIntentController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationIntentController, true),
-	}
-}
-
-func instantiateDataPlaneWorkloadsOIDCFederationIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationIntentController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
-		controllerContext.BackendInformers,
-	), nil
-}
-
-func registerDataPlaneWorkloadsOIDCFederationController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationController, true),
-	}
-}
-
-func instantiateDataPlaneWorkloadsOIDCFederationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
-		controllerContext.BackendInformers,
-		controllerContext.SMIClientBuilder,
-		controllerContext.FPAMIDataplaneClientBuilder,
-		controllerContext.ClusterScopedIdentitiesConfig,
-		controllerContext.ClusterOIDCIssuerBaseURL,
-	), nil
-}
-
 func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1435,8 +1400,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
-	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
-	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

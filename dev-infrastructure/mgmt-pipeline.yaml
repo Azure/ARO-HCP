@@ -165,6 +165,9 @@ resourceGroups:
       - "Timed out"
       - "dns readiness (login.microsoftonline.com): giving up"
       - "az login (globalMSI): giving up"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: infra
@@ -489,6 +492,9 @@ resourceGroups:
       - "InternalServerError"
       - "ServiceUnavailable"
       - "waiting for deployment aks-cluster-create: context deadline exceeded"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
@@ -646,6 +652,13 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
+    automatedRetry:
+      errorContainsAny:
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -780,6 +793,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: acrpull
@@ -809,6 +825,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: image-registry-policy
@@ -841,7 +860,7 @@ resourceGroups:
       - "client connection lost"
       - "unexpected error when reading response body"
       # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
-      - '"DetailStatus": "Waiting to run"'
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass-namespace
@@ -859,6 +878,13 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -893,6 +919,9 @@ resourceGroups:
       # recovers; the Job's before-hook-creation delete policy lets it recreate.
       - "failed post-install"
       - "Job Failed"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
@@ -931,7 +960,7 @@ resourceGroups:
       # provisioning failure distinct from an app-level script error. Matches
       # only the "still waiting to run" detail status, not any Failed shell run.
       # See AROSLSRE-1945.
-      - '"DetailStatus": "Waiting to run"'
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
@@ -963,6 +992,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
@@ -997,6 +1029,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -1050,6 +1085,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -1081,5 +1119,8 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m

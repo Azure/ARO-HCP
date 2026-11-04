@@ -405,10 +405,12 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
 		group := timingChartGroup{
-			Name:      identifier,
-			StartTime: item.StartedAt.UnixMilli(),
-			Duration:  float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
-			FirstRow:  len(names),
+			Name:          identifier,
+			StartTime:     item.StartedAt.UnixMilli(),
+			Duration:      float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
+			FirstRow:      len(names),
+			Outcome:       item.Outcome,
+			FullLifecycle: hasFullLifecycle(item),
 		}
 		highWaterMark = append(highWaterMark, opts.BarData{Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond)})
 		durations = append(durations, opts.BarData{Name: identifier, Value: group.Duration})
@@ -432,7 +434,7 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    "60vh",
+			Height:    "90vh",
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
@@ -507,14 +509,16 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 
 const timingChartMinimumWindowMillis = 1000
 const timingChartRowHeight = 26
-const timingChartMinimumOverviewHeight = 320
+const timingChartMinimumOverviewHeight = 640
 
 type timingChartGroup struct {
-	Name      string               `json:"name"`
-	StartTime int64                `json:"startTime"`
-	Duration  float64              `json:"duration"`
-	FirstRow  int                  `json:"firstRow"`
-	Segments  []timingChartSegment `json:"segments"`
+	Name          string               `json:"name"`
+	StartTime     int64                `json:"startTime"`
+	Duration      float64              `json:"duration"`
+	FirstRow      int                  `json:"firstRow"`
+	Segments      []timingChartSegment `json:"segments"`
+	Outcome       string               `json:"outcome"`
+	FullLifecycle bool                 `json:"fullLifecycle"`
 }
 
 type timingChartSegment struct {
@@ -546,13 +550,25 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	const chart = __CHART__;
 	const groups = __GROUPS__;
 	const initial = chart.getOption();
-	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time'}))}, {replaceMerge: ['dataZoom']});
+	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time', ...(index === 0 ? {showDataShadow:true} : {})}))}, {replaceMerge: ['dataZoom']});
 	const allOffsets = initial.series[0].data;
 	const allDurations = initial.series[1].data;
 	let currentLabels = groups.map(group => group.name);
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
 	const sort = document.getElementById('timing-sort');
+	const outcomeFilters = {
+		skipped: document.getElementById('timing-show-skipped'),
+		passed: document.getElementById('timing-show-passed'),
+		failed: document.getElementById('timing-show-failed')
+	};
+	const isVisible = test => {
+		const outcome = String(test.outcome || '').toLowerCase();
+		const category = ['skipped','pending'].includes(outcome) ? 'skipped'
+			: outcome === 'passed' ? 'passed'
+			: ['failed','timedout','panicked','interrupted','aborted'].includes(outcome) ? 'failed' : null;
+		return category === null || outcomeFilters[category]?.checked !== false;
+	};
 	/* An auto-height iframe cannot also determine its content height. */
 	let viewportWindow;
 	try {
@@ -562,12 +578,12 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		viewportWindow = null;
 	}
 	const overviewHeight = () => viewportWindow
-		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight - (document.querySelector('.container').getBoundingClientRect().top + window.scrollY) - 16))
+		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight * 0.9))
 		: __MINIMUM_OVERVIEW_HEIGHT__;
 	const renderItem = (params, api) => {
 		const test = ordered[params.dataIndex];
 		const y = api.coord([0, api.value(0)])[1];
-		const height = Math.max(1, api.size([0, 1])[1] * 0.8);
+		const height = Math.max(1, Math.min(__ROW_HEIGHT__, api.size([0, 1])[1]) * 0.8);
 		const segments = test.segments || [];
 		const start = api.value(1), end = api.value(2);
 		const boundaries = [...new Set([start, end, ...segments.flatMap(s => [s.start, s.end])])].sort((a,b) => a-b);
@@ -577,8 +593,9 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			if (right <= left) continue;
 			const active = segments.filter(s => s.start < right && s.end > left);
 			const operations = active.filter(s => s.kind !== 'phase' && s.kind !== 'gap');
+			const gaps = active.filter(s => s.kind === 'gap');
 			const phases = active.filter(s => s.kind === 'phase');
-			const layers = operations.length ? operations : phases.length ? phases : active;
+			const layers = operations.length ? operations : gaps.length ? gaps : phases;
 			const colors = layers.length ? layers.map(s => s.color) : ['#64748b'];
 			const x = api.coord([left, 0])[0], xEnd = api.coord([right, 0])[0];
 			colors.forEach((color, lane) => {
@@ -590,39 +607,136 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	};
 	let ordered = groups.slice();
 	const tooltip = params => {
-		const item = Array.isArray(params) ? params[0] : params;
+		const item = Array.isArray(params) ? params.find(value => value.seriesId === 'timing-tests') : params;
 		if (!item) return '';
 		const test = ordered[item.dataIndex];
-		const content = document.createElement('div');
-		content.style.whiteSpace = 'pre-line';
-		content.style.maxWidth = 'min(600px, 80vw)';
-		content.textContent = test.name + '\n' + Math.floor(test.duration / 1000) + 's' +
-			(test.segments || []).map(s => '\n' + s.name + ': ' + Math.floor((s.end-s.start)/1000) + 's').join('');
+		if (!test) return '';
+		const start = Number(currentOffsets[item.dataIndex].value);
+		const duration = Math.max(0, test.duration);
+		const testEnd = start + duration;
+		const endpointTolerance = Number.EPSILON * Math.max(1, Math.abs(start), duration, Math.abs(testEnd)) * 4;
+		const formatDuration = value => {
+			if (value > 0 && value < 1000) return '<1s';
+			const total = Math.floor(value / 1000);
+			const hours = Math.floor(total / 3600);
+			const minutes = Math.floor(total % 3600 / 60);
+			return (hours ? hours + 'h' : '') + (minutes ? minutes + 'm' : '') + total % 60 + 's';
+		};
+		const element = (tag, style, text) => {
+			const node = document.createElement(tag);
+			Object.assign(node.style, style);
+			if (text !== undefined) node.textContent = text;
+			return node;
+		};
+		const content = element('div', {width:'min(720px, 80vw)', maxHeight:Math.max(1, Math.min(520, chart.getHeight() - 32)) + 'px', overflowY:'auto', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
+		content.append(
+			element('div', {fontWeight:'600', fontSize:'14px', overflowWrap:'anywhere'}, test.name),
+			element('div', {opacity:'0.75', margin:'4px 0 12px'}, 'Total duration: ' + formatDuration(duration))
+		);
+		const gaps = (test.segments || []).filter(segment => segment.kind === 'gap');
+		const gapDuration = gaps.reduce((total, segment) => total + segment.end - segment.start, 0);
+		const gapPercent = duration > 0 ? gapDuration / duration * 100 : 0;
+		const percentage = gapPercent > 0 && gapPercent < 1 ? '<1%' : Math.round(gapPercent) + '%';
+		content.append(
+			element('div', {opacity:'0.8', margin:'0 0 12px'}, 'No recorded operation: ' + formatDuration(gapDuration) + ' (' + percentage + ' of recorded time)'),
+			...(test.fullLifecycle === false ? [element('div', {opacity:'0.7', marginBottom:'12px'}, 'Recorded interval only; cleanup coverage unknown.')] : [])
+		);
+		const timelineGrid = (segments, showAxis = false) => {
+			const grid = element('div', {display:'grid', gridTemplateColumns:'minmax(0, 1.2fr) minmax(0, 1.8fr) 64px', gap:'8px 12px', alignItems:'center'});
+			if (showAxis) {
+				const axis = element('div', {display:'flex', justifyContent:'space-between', opacity:'0.65', fontSize:'11px'});
+				axis.append(element('span', {}, '0s'));
+				if (duration > 0) axis.append(element('span', {}, formatDuration(duration / 2)), element('span', {}, formatDuration(duration)));
+				grid.append(element('span', {opacity:'0.65'}, 'Stage / operation'), axis, element('span', {opacity:'0.65'}, 'Duration'));
+			}
+			for (const segment of segments) {
+				const stage = segment.kind === 'phase';
+				const primary = segment.displayName || (segment.kind === 'gap' ? 'No recorded operation' : segment.name);
+				const label = element(stage ? 'h3' : 'div', {borderLeft:'3px solid ' + segment.color, paddingLeft:stage ? '6px' : '14px', margin:'0', fontSize:stage ? '13px' : '12px', fontWeight:stage ? '600' : '400', overflowWrap:'anywhere'}, primary);
+				if (segment.kind === 'gap' && segment.name && segment.name !== primary) label.append(element('div', {opacity:'0.7', fontSize:'11px'}, segment.name));
+				const track = element('div', {position:'relative', height:'10px', borderRadius:'2px', overflow:'hidden', background:'rgba(128,128,128,0.18)'});
+				const left = duration > 0 ? (segment.start - start) / duration * 100 : 0;
+				const width = duration > 0 ? (segment.end - segment.start) / duration * 100 : 0;
+				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:width === 0 ? 'min(' + left + '%, calc(100% - 2px))' : left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
+				grid.append(label, track, element('span', {textAlign:'right', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}, formatDuration(segment.end - segment.start)));
+			}
+			return grid;
+		};
+		const segments = (test.segments || []).slice().sort((a,b) => a.start - b.start || b.end - a.end);
+		const stageName = phase => phase.name.replace(/^Phase: /, '');
+		const stages = segments.filter(segment => segment.kind === 'phase').map(phase => ({phase, rows:[]}));
+		const crossing = [], outside = [];
+		for (const segment of segments.filter(segment => segment.kind !== 'phase')) {
+			const overlaps = stages.filter(({phase}) => segment.start === segment.end
+				? phase.start <= segment.start && (segment.start < phase.end || Math.abs(phase.end - testEnd) <= endpointTolerance && segment.start === phase.end || phase.start === phase.end && segment.start === phase.start)
+				: phase.start < segment.end && phase.end > segment.start);
+			if (overlaps.length === 1 && overlaps[0].phase.start <= segment.start && overlaps[0].phase.end >= segment.end) {
+				overlaps[0].rows.push(segment);
+			} else if (overlaps.length) {
+				let cursor = segment.start, uncovered = false;
+				for (const {phase} of overlaps) {
+					if (phase.start > cursor) uncovered = true;
+					cursor = Math.max(cursor, phase.end);
+				}
+				uncovered ||= cursor < segment.end;
+				const context = overlaps.map(({phase}) => stageName(phase));
+				if (uncovered) context.push('outside recorded stages');
+				crossing.push({...segment, displayName:(segment.kind === 'gap' ? 'No recorded operation' : segment.name) + '; overlaps: ' + context.join(', ')});
+			} else {
+				outside.push({...segment, displayName:segment.name});
+			}
+		}
+		const appendRows = (section, rows) => {
+			const tiny = segment => segment.kind === 'gap' && segment.end > segment.start && segment.end - segment.start < 1000;
+			const tinyGaps = rows.filter(tiny);
+			section.append(timelineGrid(rows.filter(segment => !tiny(segment))));
+			if (tinyGaps.length) {
+				const details = element('details', {marginTop:'10px'});
+				const tinyDuration = tinyGaps.reduce((total, segment) => total + segment.end - segment.start, 0);
+				details.append(
+					element('summary', {cursor:'pointer', opacity:'0.8', marginBottom:'8px', paddingLeft:'14px'}, 'Small uncovered intervals (<1s): ' + tinyGaps.length + ', total ' + formatDuration(tinyDuration)),
+					timelineGrid(tinyGaps)
+				);
+				section.append(details);
+			}
+		};
+		content.append(timelineGrid([], true));
+		for (const {phase, rows} of stages) {
+			const section = element('section', {marginTop:'12px', borderTop:'1px solid rgba(128,128,128,0.25)', background:'rgba(128,128,128,0.06)'});
+			const details = element('details', {padding:'8px 0'});
+			const summary = element('summary', {cursor:'pointer', listStyle:'none'});
+			summary.append(timelineGrid([{...phase, displayName:stageName(phase)}]));
+			const body = element('div', {marginTop:'8px'});
+			appendRows(body, rows);
+			details.append(summary, body);
+			section.append(details);
+			content.append(section);
+		}
+		for (const [name, rows] of [['Across recorded stages', crossing], ['Outside recorded stages', outside]]) {
+			if (!rows.length) continue;
+			const section = element('section', {marginTop:'12px', paddingTop:'8px', borderTop:'1px solid rgba(128,128,128,0.25)'});
+			section.append(element('h3', {fontSize:'13px', margin:'0 0 8px', fontWeight:'600'}, name));
+			appendRows(section, rows);
+			content.append(section);
+		}
 		return content;
 	};
 	const visibleRowBounds = (start, end) => {
-		const lastIndex = Math.max(0, currentLabels.length - 1);
+		const lastIndex = currentLabels.length - 1;
+		if (lastIndex < 0) return [0, -1];
 		return [
 			Math.max(0, Math.round(lastIndex * start / 100)),
 			Math.min(lastIndex, Math.round(lastIndex * end / 100))
 		];
 	};
-	const fitRowHeight = () => {
-		const zoom = chart.getOption().dataZoom[0];
-		const fullRange = zoom.start <= 0 && zoom.end >= 100;
-		const [first, last] = visibleRowBounds(zoom.start, zoom.end);
-		const visibleRows = last - first + 1;
-		const height = fullRange ? overviewHeight() : Math.max(__MINIMUM_OVERVIEW_HEIGHT__, 130 + Math.ceil(visibleRows) * __ROW_HEIGHT__);
+	const fitViewportHeight = () => {
+		const height = overviewHeight();
 		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
 		chart.getDom().style.height = height + 'px';
 		chart.resize({height});
 	};
-	const resizeOverview = () => {
-		const zoom = chart.getOption().dataZoom[0];
-		if (zoom.start <= 0 && zoom.end >= 100) fitRowHeight();
-	};
-	window.addEventListener('resize', resizeOverview);
-	if (viewportWindow && viewportWindow !== window) viewportWindow.addEventListener('resize', resizeOverview);
+	window.addEventListener('resize', fitViewportHeight);
+	if (viewportWindow && viewportWindow !== window) viewportWindow.addEventListener('resize', fitViewportHeight);
 	const fitTimeRange = (start, end) => {
 		const [first, last] = visibleRowBounds(start, end);
 		let earliest = Infinity;
@@ -642,7 +756,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		chart.dispatchAction({type: 'dataZoom', dataZoomId: 'timing-time', start: startPercent, end: endPercent});
 	};
 	const update = () => {
-		const visible = groups.slice();
+		const visible = groups.filter(isVisible);
 		const mode = sort.value;
 		visible.sort((a, b) => {
 			if (mode === 'duration' && a.duration !== b.duration) return b.duration - a.duration;
@@ -666,34 +780,38 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			earliest = Math.min(earliest, offset);
 			latest = Math.max(latest, offset + Number(durations[i].value));
 		}
-		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
-		const totalDuration = __TIME_RANGE__;
-		const timeStart = Math.max(0, earliest - padding);
-		const timeEnd = Math.min(totalDuration, latest + padding);
-		timeRange.start = timeStart / totalDuration * 100;
-		timeRange.end = Math.min(100, Math.max(timeRange.start + 0.1, timeEnd / totalDuration * 100));
+		if (visibleRows > 0) {
+			const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
+			const totalDuration = __TIME_RANGE__;
+			const timeStart = Math.max(0, earliest - padding);
+			const timeEnd = Math.min(totalDuration, latest + padding);
+			timeRange.start = timeStart / totalDuration * 100;
+			timeRange.end = Math.min(100, Math.max(timeRange.start + 0.1, timeEnd / totalDuration * 100));
+		}
 		currentLabels = labels;
 		currentOffsets = offsets;
 		currentDurations = durations;
 		chart.setOption({
 			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
-			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, formatter:tooltip},
+			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, confine:true, enterable:true, hideDelay:200, formatter:tooltip},
 			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
 				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
 			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]
 		}, {replaceMerge:['series']});
-		fitRowHeight();
+		fitViewportHeight();
+		const counter = document.getElementById('timing-visible-count');
+		if (counter) counter.textContent = visibleRows + ' of ' + groups.length + ' tests shown';
 	};
 	sort.addEventListener('change', update);
+	Object.values(outcomeFilters).forEach(control => control?.addEventListener?.('change', update));
 	chart.on('datazoom', event => {
 		const updates = event.batch || [event];
 		const rows = updates.find(item => item.dataZoomId === 'timing-rows');
 		if (!rows) return;
-		fitRowHeight();
 		fitTimeRange(rows.start, rows.end);
 	});
 	update();
-	window.addEventListener('load', fitRowHeight);
+	window.addEventListener('load', fitViewportHeight);
 })();`)
 }
 
@@ -913,7 +1031,7 @@ const testTimingTooltipFormatter = `(params) => {
 	content.style.maxWidth = 'min(600px, 80vw)';
 	const hours = Math.floor(item.value / 3600000);
 	const minutes = Math.floor(item.value % 3600000 / 60000);
-	const seconds = item.value % 60000 / 1000;
+	const seconds = Math.floor(item.value % 60000 / 1000);
 	content.textContent = item.name + ': ' + (hours ? hours + 'h' : '') +
 		(hours || minutes ? minutes + 'm' : '') + seconds + 's';
 	return content;
@@ -929,7 +1047,6 @@ const multiValueFormatter = `(params) => {
 		const hours = Math.floor(totalMilliseconds / (60 * 60 * 1000));
     	const minutes = Math.floor((totalMilliseconds % (60 * 60 * 1000)) / (60 * 1000));
     	const seconds = Math.floor((totalMilliseconds % (60 * 1000))/1000);
-		const milliseconds = totalMilliseconds % (1000);
 
     	let result = '';
     	if (hours > 0) {
@@ -938,7 +1055,7 @@ const multiValueFormatter = `(params) => {
 	    if (minutes > 0 || hours > 0) {
 	        result += ` + "`${minutes}m`" + `;
 	    }
-	    result += ` + "`${seconds}.${milliseconds}s`" + `;
+	    result += ` + "`${seconds}s`" + `;
 	    return item.name + ": " + result;
 	}
 }`

@@ -329,23 +329,19 @@ collected before deletion; final timing metadata and the spec outcome are saved
 after teardown, including failed or timed-out cleanup. SDK logging stays open
 through teardown.
 
-The report shows one segmented bar per test. Operation colors occupy their actual
-time intervals within that bar; concurrent operations share its height rather
-than extending its duration. Phases fill intervals without a named operation,
-and gray identifies untracked work. Hover a test for its phase and operation timings.
-Operation coverage uses interval unions, not sums of overlapping parent/child
-steps. The elapsed envelope excludes Prow builds and pre/post-job steps.
-The summary and chart follow the browser's light/dark color scheme. The
-overview shows all tests within the available screen height. The
-vertical slider expands selected test bars for detail and the horizontal slider
-navigates the full time range. Sort tests by start time, total duration
-(longest first) or name.
+The report shows one segmented bar per test. Hover a test to see its recorded
+stages. Stages start collapsed; expand a stage to see its operations. Uncovered
+time is labeled **No recorded operation**. It means missing operation coverage,
+not idle time. The elapsed envelope excludes Prow builds and pre/post-job steps.
 
-Embedded reports size the overview from the outer browser viewport, independently
-of the iframe's content height. If cross-origin restrictions hide that viewport,
-the overview uses a fixed 320px chart height.
+The overview chart is sized to 90% of the outer viewport height, with a 640px
+minimum. Embedded reports fall back to 640px when cross-origin restrictions hide
+the viewport. The horizontal slider navigates the full time range. Sort tests by
+start time, total duration (longest first) or name. The Skipped, Passed and
+Failed filters change only the chart, alongside a visible test count; the
+full-run summary is unchanged.
 
-The summary reports minimum, mean and maximum durations plus sample counts for
+The full-run summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
 cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out

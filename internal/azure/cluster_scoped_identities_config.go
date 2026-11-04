@@ -16,7 +16,6 @@ package azure
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -26,15 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-// clusterOperatorIdentifierForbiddenRune is sometimes used as a delimiter
-// ClusterOperatorIdentifier is encoded as part of a composite map key.
-// Identifiers must not contain this rune so the encoding can be split
-// unambiguously.
-const clusterOperatorIdentifierForbiddenRune = '|'
-
-// ClusterOperatorIdentifier is the identifier of a cluster operator.
-// Identifiers must not contain '|' because they can be used as part of a
-// composite map key that uses '|' as the delimiter.
+// ClusterOperatorIdentifier is the identifier of a cluster operator
 type ClusterOperatorIdentifier string
 
 // The set of cluster operators recognized by the service.
@@ -169,52 +160,11 @@ func NewClusterScopedIdentitiesConfig(setName RoleDefinitionConfigSetName) *Clus
 		},
 	}
 
-	cfg := &ClusterScopedIdentitiesConfig{
+	return &ClusterScopedIdentitiesConfig{
 		ControlPlaneOperatorsIdentities: controlPlaneOperatorsIdentities,
 		DataPlaneOperatorsIdentities:    dataPlaneOperatorsIdentities,
 		ServiceManagedIdentity:          serviceManagedIdentity,
 	}
-
-	if err := validateClusterOperatorIdentifiers(cfg); err != nil {
-		// This is a programming/configuration error. Fail fast.
-		panic(err)
-	}
-	return cfg
-}
-
-// validateClusterOperatorIdentifiers returns an error if any operator
-// identifier in the config contains clusterOperatorIdentifierForbiddenRune.
-// That rune is the delimiter in composite map keys that include an operator
-// identifier, so it must not appear in the identifier itself.
-func validateClusterOperatorIdentifiers(c *ClusterScopedIdentitiesConfig) error {
-	for operator, identity := range c.ControlPlaneOperatorsIdentities {
-		if err := validateClusterOperatorIdentifier("control plane", operator); err != nil {
-			return err
-		}
-		if identity != nil {
-			if err := validateClusterOperatorIdentifier("control plane", identity.ClusterOperatorIdentifier); err != nil {
-				return err
-			}
-		}
-	}
-	for operator, identity := range c.DataPlaneOperatorsIdentities {
-		if err := validateClusterOperatorIdentifier("data plane", operator); err != nil {
-			return err
-		}
-		if identity != nil {
-			if err := validateClusterOperatorIdentifier("data plane", identity.ClusterOperatorIdentifier); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func validateClusterOperatorIdentifier(source string, operator ClusterOperatorIdentifier) error {
-	if strings.ContainsRune(string(operator), clusterOperatorIdentifierForbiddenRune) {
-		return fmt.Errorf("%s operator identifier %q must not contain %q", source, operator, clusterOperatorIdentifierForbiddenRune)
-	}
-	return nil
 }
 
 // BaseClusterScopedIdentity is the base configuration for all cluster scoped identities.
