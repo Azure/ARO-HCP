@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package e2e
+package framework
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"math/big"
+	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,10 +45,12 @@ import (
 // that record against the zone's authoritative nameserver before issuing.
 //
 // Pinned by tag and digest. Bump deliberately; do not float.
-const pebbleImage = "ghcr.io/letsencrypt/pebble:2.10.1@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199"
+const PebbleImage = "ghcr.io/letsencrypt/pebble:2.10.1@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199"
 
 const (
-	pebbleNamespace      = "pebble"
+	// PebbleNamespace is the guest-cluster namespace Pebble runs in.
+	PebbleNamespace = "pebble"
+
 	pebbleName           = "pebble"
 	pebbleACMEPort       = 14000
 	pebbleManagementPort = 15000
@@ -59,74 +58,12 @@ const (
 	pebbleConfigMapName  = "pebble-config"
 )
 
-// pebbleServiceHost is the in-cluster name cert-manager uses to reach Pebble,
+// PebbleServiceHost is the in-cluster name cert-manager uses to reach Pebble,
 // and the name Pebble's serving certificate is issued for.
-var pebbleServiceHost = fmt.Sprintf("%s.%s.svc", pebbleName, pebbleNamespace)
+var PebbleServiceHost = fmt.Sprintf("%s.%s.svc", pebbleName, PebbleNamespace)
 
-// pebbleDirectoryURL is the ACME directory cert-manager's ClusterIssuer points at.
-var pebbleDirectoryURL = fmt.Sprintf("https://%s:%d/dir", pebbleServiceHost, pebbleACMEPort)
-
-// pebbleServingTLS holds the PEM-encoded material for Pebble's own HTTPS
-// listener. The CA is handed to cert-manager as the ClusterIssuer caBundle; it
-// is unrelated to the CA Pebble issues ACME certificates from.
-type pebbleServingTLS struct {
-	caPEM   []byte
-	certPEM []byte
-	keyPEM  []byte
-}
-
-// newPebbleServingTLS creates a short-lived CA and a serving certificate for
-// Pebble's in-cluster Service names.
-func newPebbleServingTLS(now time.Time) (*pebbleServingTLS, error) {
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("generating Pebble serving CA key: %w", err)
-	}
-	caTemplate := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "aro-hcp-e2e pebble serving CA"},
-		NotBefore:             now.Add(-time.Hour),
-		NotAfter:              now.Add(24 * time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
-	if err != nil {
-		return nil, fmt.Errorf("creating Pebble serving CA certificate: %w", err)
-	}
-	caCert, err := x509.ParseCertificate(caDER)
-	if err != nil {
-		return nil, fmt.Errorf("parsing Pebble serving CA certificate: %w", err)
-	}
-
-	serverKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("generating Pebble serving key: %w", err)
-	}
-	serverTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: pebbleServiceHost},
-		DNSNames:     []string{pebbleServiceHost, pebbleServiceHost + ".cluster.local"},
-		NotBefore:    now.Add(-time.Hour),
-		NotAfter:     now.Add(24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	}
-	serverDER, err := x509.CreateCertificate(rand.Reader, serverTemplate, caCert, &serverKey.PublicKey, caKey)
-	if err != nil {
-		return nil, fmt.Errorf("creating Pebble serving certificate: %w", err)
-	}
-	serverKeyDER, err := x509.MarshalECPrivateKey(serverKey)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling Pebble serving key: %w", err)
-	}
-	return &pebbleServingTLS{
-		caPEM:   pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}),
-		certPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER}),
-		keyPEM:  pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: serverKeyDER}),
-	}, nil
-}
+// PebbleDirectoryURL is the ACME directory a ClusterIssuer points at.
+var PebbleDirectoryURL = fmt.Sprintf("https://%s:%d/dir", PebbleServiceHost, pebbleACMEPort)
 
 // pebbleConfigJSON renders Pebble's configuration file. Field names follow
 // cmd/pebble/main.go in the pinned release.
@@ -153,26 +90,56 @@ func pebbleConfigJSON() ([]byte, error) {
 // caching. The trailing dot keeps the pod's DNS search path out of the lookup.
 func pebbleDNSServer(authoritativeNameserver string) string {
 	host := authoritativeNameserver
-	if len(host) > 0 && host[len(host)-1] != '.' {
+	if !strings.HasSuffix(host, ".") {
 		host += "."
 	}
-	return fmt.Sprintf("%s:53", host)
+	return host + ":53"
 }
 
-// deployPebble installs Pebble into the guest cluster and returns the CA bundle
-// cert-manager needs to trust Pebble's ACME endpoint. It does not wait for
-// readiness; see waitForPebbleReady.
-func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authoritativeNameserver string) ([]byte, error) {
-	servingTLS, err := newPebbleServingTLS(time.Now())
+// ensurePebbleServingSecret creates the TLS Secret for Pebble's own HTTPS
+// listener and returns the CA that signs it. The CA is stored alongside the
+// key pair so a repeated call returns the bundle that matches the certificate
+// Pebble is actually serving, rather than a fresh, unrelated CA.
+func ensurePebbleServingSecret(ctx context.Context, kubeClient kubernetes.Interface) ([]byte, error) {
+	caPEM, certPEM, keyPEM, err := consoleFixtureCertificates(PebbleServiceHost, time.Now())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating Pebble serving certificate: %w", err)
 	}
+	_, err = kubeClient.CoreV1().Secrets(PebbleNamespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: pebbleTLSSecretName},
+		Type:       corev1.SecretTypeTLS,
+		Data: map[string][]byte{
+			corev1.TLSCertKey:              certPEM,
+			corev1.TLSPrivateKeyKey:        keyPEM,
+			corev1.ServiceAccountRootCAKey: caPEM,
+		},
+	}, metav1.CreateOptions{})
+	if err == nil {
+		return caPEM, nil
+	}
+	if !apierrors.IsAlreadyExists(err) {
+		return nil, fmt.Errorf("creating Pebble TLS Secret: %w", err)
+	}
+	existing, err := kubeClient.CoreV1().Secrets(PebbleNamespace).Get(ctx, pebbleTLSSecretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("reading existing Pebble TLS Secret: %w", err)
+	}
+	existingCA := existing.Data[corev1.ServiceAccountRootCAKey]
+	if len(existingCA) == 0 {
+		return nil, fmt.Errorf("existing Pebble TLS Secret %s/%s has no %s", PebbleNamespace, pebbleTLSSecretName, corev1.ServiceAccountRootCAKey)
+	}
+	return existingCA, nil
+}
+
+// DeployPebble installs Pebble into the guest cluster and returns the CA bundle
+// cert-manager needs to trust Pebble's ACME endpoint (the ClusterIssuer's
+// spec.acme.caBundle). It is safe to call again against an existing install.
+// It does not wait for readiness; see CheckPebbleReady.
+func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authoritativeNameserver string) ([]byte, error) {
 	config, err := pebbleConfigJSON()
 	if err != nil {
 		return nil, fmt.Errorf("rendering Pebble config: %w", err)
 	}
-
-	podLabels := map[string]string{"app.kubernetes.io/name": pebbleName}
 	create := func(kind string, err error) error {
 		if err != nil && !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("creating Pebble %s: %w", kind, err)
@@ -181,25 +148,18 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 	}
 
 	_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: pebbleNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: PebbleNamespace},
 	}, metav1.CreateOptions{})
 	if err := create("Namespace", err); err != nil {
 		return nil, err
 	}
 
-	_, err = kubeClient.CoreV1().Secrets(pebbleNamespace).Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: pebbleTLSSecretName},
-		Type:       corev1.SecretTypeTLS,
-		Data: map[string][]byte{
-			corev1.TLSCertKey:       servingTLS.certPEM,
-			corev1.TLSPrivateKeyKey: servingTLS.keyPEM,
-		},
-	}, metav1.CreateOptions{})
-	if err := create("TLS Secret", err); err != nil {
+	caBundle, err := ensurePebbleServingSecret(ctx, kubeClient)
+	if err != nil {
 		return nil, err
 	}
 
-	_, err = kubeClient.CoreV1().ConfigMaps(pebbleNamespace).Create(ctx, &corev1.ConfigMap{
+	_, err = kubeClient.CoreV1().ConfigMaps(PebbleNamespace).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: pebbleConfigMapName},
 		Data:       map[string]string{"pebble-config.json": string(config)},
 	}, metav1.CreateOptions{})
@@ -207,7 +167,8 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		return nil, err
 	}
 
-	_, err = kubeClient.AppsV1().Deployments(pebbleNamespace).Create(ctx, &appsv1.Deployment{
+	podLabels := map[string]string{"app.kubernetes.io/name": pebbleName}
+	_, err = kubeClient.AppsV1().Deployments(PebbleNamespace).Create(ctx, &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: pebbleName, Labels: podLabels},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: ptr.To[int32](1),
@@ -225,7 +186,7 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 					},
 					Containers: []corev1.Container{{
 						Name:  pebbleName,
-						Image: pebbleImage,
+						Image: PebbleImage,
 						Args: []string{
 							"-config", "/etc/pebble/config/pebble-config.json",
 							"-dnsserver", pebbleDNSServer(authoritativeNameserver),
@@ -235,7 +196,7 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 							// instead of after a random 0-15s delay.
 							{Name: "PEBBLE_VA_NOSLEEP", Value: "1"},
 							// Pebble rejects 5% of valid nonces by default to exercise
-							// client retries; that is not what this test is about.
+							// client retries; that is not what these tests are about.
 							{Name: "PEBBLE_WFE_NONCEREJECT", Value: "0"},
 						},
 						Ports: []corev1.ContainerPort{
@@ -276,7 +237,7 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		return nil, err
 	}
 
-	_, err = kubeClient.CoreV1().Services(pebbleNamespace).Create(ctx, &corev1.Service{
+	_, err = kubeClient.CoreV1().Services(PebbleNamespace).Create(ctx, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: pebbleName, Labels: podLabels},
 		Spec: corev1.ServiceSpec{
 			Selector: podLabels,
@@ -290,12 +251,12 @@ func deployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		return nil, err
 	}
 
-	return servingTLS.caPEM, nil
+	return caBundle, nil
 }
 
-// checkPebbleReady reports whether the Pebble Deployment has a ready replica.
-func checkPebbleReady(ctx context.Context, kubeClient kubernetes.Interface) error {
-	deployment, err := kubeClient.AppsV1().Deployments(pebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
+// CheckPebbleReady reports whether the Pebble Deployment has a ready replica.
+func CheckPebbleReady(ctx context.Context, kubeClient kubernetes.Interface) error {
+	deployment, err := kubeClient.AppsV1().Deployments(PebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -305,13 +266,13 @@ func checkPebbleReady(ctx context.Context, kubeClient kubernetes.Interface) erro
 	return nil
 }
 
-// fetchPebbleIssuanceRoots returns the root CA Pebble issues certificates
+// FetchPebbleIssuanceRoots returns the root CA Pebble issues certificates
 // from. Pebble generates it at startup, so it must be read from the running
 // instance; the API server's service proxy reaches the management port
 // without exposing it outside the cluster.
-func fetchPebbleIssuanceRoots(ctx context.Context, kubeClient kubernetes.Interface) (*x509.CertPool, error) {
-	body, err := kubeClient.CoreV1().Services(pebbleNamespace).
-		ProxyGet("https", pebbleName, fmt.Sprintf("%d", pebbleManagementPort), "roots/0", nil).
+func FetchPebbleIssuanceRoots(ctx context.Context, kubeClient kubernetes.Interface) (*x509.CertPool, error) {
+	body, err := kubeClient.CoreV1().Services(PebbleNamespace).
+		ProxyGet("https", pebbleName, strconv.Itoa(pebbleManagementPort), "roots/0", nil).
 		DoRaw(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching Pebble root CA via service proxy: %w", err)

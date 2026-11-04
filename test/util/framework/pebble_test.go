@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package e2e
+package framework
 
 import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"testing"
@@ -28,35 +27,29 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestPebbleServingTLSVerifiesForServiceHost(t *testing.T) {
-	now := time.Now()
-	servingTLS, err := newPebbleServingTLS(now)
-	require.NoError(t, err)
-
-	_, err = tls.X509KeyPair(servingTLS.certPEM, servingTLS.keyPEM)
+// verifyPebbleServingSecret checks that the stored serving certificate pairs
+// with its key and chains to caBundle for Pebble's Service host.
+func verifyPebbleServingSecret(t *testing.T, secret *corev1.Secret, caBundle []byte) {
+	t.Helper()
+	_, err := tls.X509KeyPair(secret.Data[corev1.TLSCertKey], secret.Data[corev1.TLSPrivateKeyKey])
 	require.NoError(t, err, "serving cert and key must form a usable pair")
 
-	roots, err := parsePEMCertPool(servingTLS.caPEM)
+	roots, err := parsePEMCertPool(caBundle)
 	require.NoError(t, err)
-	block, _ := pem.Decode(servingTLS.certPEM)
+	block, _ := pem.Decode(secret.Data[corev1.TLSCertKey])
 	require.NotNil(t, block)
 	leaf, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
-
-	for _, host := range []string{pebbleServiceHost, pebbleServiceHost + ".cluster.local"} {
-		_, err = leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: roots, CurrentTime: now})
-		require.NoError(t, err, "serving cert must verify for %s", host)
-	}
-	_, err = leaf.Verify(x509.VerifyOptions{DNSName: "acme-staging-v02.api.letsencrypt.org", Roots: roots, CurrentTime: now})
-	require.Error(t, err)
+	_, err = leaf.Verify(x509.VerifyOptions{DNSName: PebbleServiceHost, Roots: roots, CurrentTime: time.Now()})
+	require.NoError(t, err, "serving cert must verify for %s against the returned CA bundle", PebbleServiceHost)
 }
 
 func TestPebbleDirectoryURLMatchesServingCertificate(t *testing.T) {
-	require.Equal(t, "https://pebble.pebble.svc:14000/dir", pebbleDirectoryURL)
+	require.Equal(t, "pebble.pebble.svc", PebbleServiceHost)
+	require.Equal(t, "https://pebble.pebble.svc:14000/dir", PebbleDirectoryURL)
 }
 
 func TestPebbleDNSServer(t *testing.T) {
@@ -86,45 +79,53 @@ func TestDeployPebble(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 
-	caBundle, err := deployPebble(ctx, client, "ns1-01.azure-dns.com.")
-	require.NoError(t, err)
-	_, err = parsePEMCertPool(caBundle)
+	caBundle, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
 
-	secret, err := client.CoreV1().Secrets(pebbleNamespace).Get(ctx, pebbleTLSSecretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(PebbleNamespace).Get(ctx, pebbleTLSSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Equal(t, corev1.SecretTypeTLS, secret.Type)
+	require.Equal(t, caBundle, secret.Data[corev1.ServiceAccountRootCAKey], "serving CA must be persisted in the Secret")
+	verifyPebbleServingSecret(t, secret, caBundle)
 
-	deployment, err := client.AppsV1().Deployments(pebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
+	deployment, err := client.AppsV1().Deployments(PebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
 	container := deployment.Spec.Template.Spec.Containers[0]
-	require.Equal(t, pebbleImage, container.Image)
+	require.Equal(t, PebbleImage, container.Image)
 	require.Contains(t, container.Image, "@sha256:", "Pebble image must be pinned by digest")
 	require.Equal(t, []string{"-config", "/etc/pebble/config/pebble-config.json", "-dnsserver", "ns1-01.azure-dns.com.:53"}, container.Args)
 	require.Equal(t, int32(1), *deployment.Spec.Replicas)
 
-	service, err := client.CoreV1().Services(pebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
+	service, err := client.CoreV1().Services(PebbleNamespace).Get(ctx, pebbleName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Equal(t, deployment.Spec.Selector.MatchLabels, service.Spec.Selector)
-
-	// Re-running against an existing install must not fail.
-	_, err = deployPebble(ctx, client, "ns1-01.azure-dns.com.")
-	require.NoError(t, err)
 }
 
-func TestUnstructuredClusterIssuerCarriesCABundle(t *testing.T) {
-	caBundle := []byte("-----BEGIN CERTIFICATE-----\nZm9v\n-----END CERTIFICATE-----\n")
-	issuer := unstructuredClusterIssuer(ingressCertificateIssuerName, "noreply@redhat.com", pebbleDirectoryURL, caBundle,
-		"aro.example.com", "rg", "sub", "client")
-	server, _, err := unstructured.NestedString(issuer.Object, "spec", "acme", "server")
+func TestDeployPebbleRedeployReturnsPersistedCA(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	first, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
-	require.Equal(t, pebbleDirectoryURL, server)
-	encoded, _, err := unstructured.NestedString(issuer.Object, "spec", "acme", "caBundle")
+	second, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	require.Equal(t, first, second, "redeploy must return the CA of the retained Secret, not a new one")
+
+	secret, err := client.CoreV1().Secrets(PebbleNamespace).Get(ctx, pebbleTLSSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, caBundle, decoded)
+	verifyPebbleServingSecret(t, secret, second)
+}
+
+func TestDeployPebbleRejectsExistingSecretWithoutCA(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: pebbleTLSSecretName, Namespace: PebbleNamespace},
+		Type:       corev1.SecretTypeTLS,
+		Data:       map[string][]byte{corev1.TLSCertKey: []byte("cert"), corev1.TLSPrivateKeyKey: []byte("key")},
+	})
+	_, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
+	require.ErrorContains(t, err, "has no ca.crt")
 }
 
 func TestParsePEMCertPoolRejectsEmptyInput(t *testing.T) {

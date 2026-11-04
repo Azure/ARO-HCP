@@ -67,7 +67,7 @@ import (
 )
 
 // ingressCertificateIssuerName is the cert-manager ClusterIssuer backed by the
-// in-cluster Pebble ACME server (see cluster_ingress_cert_pebble.go).
+// in-cluster Pebble ACME server (see test/util/framework/pebble.go).
 const ingressCertificateIssuerName = "pebble"
 
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
@@ -291,7 +291,7 @@ var _ = Describe("Customer", func() {
 			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
 
 			By("deploying the Pebble ACME test server, validating DNS-01 against the zone's authoritative nameserver")
-			pebbleCABundle, err := deployPebble(ctx, kubeClient, nameservers[0])
+			pebbleCABundle, err := framework.DeployPebble(ctx, kubeClient, nameservers[0])
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy Pebble ACME test server")
 
 			By("waiting for the cert-manager controller deployment to become Available")
@@ -369,7 +369,7 @@ var _ = Describe("Customer", func() {
 			By("waiting for the Pebble ACME test server to become ready")
 			var lastPebbleErr string
 			Eventually(func() error {
-				err := checkPebbleReady(ctx, kubeClient)
+				err := framework.CheckPebbleReady(ctx, kubeClient)
 				if err != nil && err.Error() != lastPebbleErr {
 					GinkgoLogr.Info("waiting for Pebble", "status", err.Error())
 					lastPebbleErr = err.Error()
@@ -380,12 +380,12 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for guest DNS readiness and in-cluster ACME hostname resolution")
 			Expect(waitForIngressCertificateDNS(ctx, kubeClient, configClient, certManagerNamespace,
-				pebbleServiceHost, 10*time.Minute, 10*time.Second)).To(Succeed(),
+				framework.PebbleServiceHost, 10*time.Minute, 10*time.Second)).To(Succeed(),
 				"guest DNS must be ready before ACME account registration")
 
 			By("creating a ClusterIssuer with ACME DNS-01 solver targeting the DNS zone in the managed resource group")
 			issuerObj := unstructuredClusterIssuer(
-				issuerName, acmeEmail, pebbleDirectoryURL, pebbleCABundle,
+				issuerName, acmeEmail, framework.PebbleDirectoryURL, pebbleCABundle,
 				delegatedDomain, managedResourceGroupName, subscriptionID, uamiClientID,
 			)
 			issuerGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}
@@ -516,7 +516,7 @@ var _ = Describe("Customer", func() {
 				"Certificate should be issued by Pebble via ACME DNS-01")
 
 			By("reading the root CA Pebble issued the certificate from")
-			roots, err := fetchPebbleIssuanceRoots(ctx, kubeClient)
+			roots, err := framework.FetchPebbleIssuanceRoots(ctx, kubeClient)
 			Expect(err).NotTo(HaveOccurred(), "failed to read Pebble's issuance root CA")
 
 			By("verifying the TLS Secret contains a valid certificate with the correct SAN")
@@ -764,7 +764,7 @@ func dumpCertManagerIssuanceDiagnostics(ctx context.Context, dynClient dynamic.I
 		}
 	}
 
-	for _, namespace := range []string{certManagerNamespace, pebbleNamespace} {
+	for _, namespace := range []string{certManagerNamespace, framework.PebbleNamespace} {
 		pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			GinkgoWriter.Printf("failed to list pods in namespace %s: %v\n", namespace, err)
