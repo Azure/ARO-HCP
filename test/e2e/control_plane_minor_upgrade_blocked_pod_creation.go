@@ -27,7 +27,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
@@ -43,21 +43,21 @@ import (
 )
 
 const (
-	ystreamDenyExpectedNodes = 2
-	ystreamDenyNodePoolName  = "np-deny-pods"
-	ystreamDenyPolicyName    = "deny-pods-e2e-ystream"
-	ystreamDenyPolicyMessage = "e2e: pod CREATE denied while control plane y-stream upgrade is in progress"
+	ystreamTaintedExpectedNodes = 2
+	ystreamTaintedNodePoolName  = "np-tainted"
+	ystreamTaintKey             = "dedicated"
+	ystreamTaintValue           = "workload"
 )
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should upgrade control plane minor version when pods cannot be created",
+	DescribeTable("should upgrade control plane minor version when all workers are tainted NoSchedule",
 		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
 			const (
-				customerNetworkSecurityGroupName = "customer-nsg-ystream-deny-pods-"
-				customerVnetName                 = "customer-vnet-ystream-deny-pods-"
-				customerVnetSubnetName           = "customer-vnet-subnet-ystream-deny-pods-"
-				customerClusterNamePrefix        = "cp-ystream-deny-pods-"
+				customerNetworkSecurityGroupName = "customer-nsg-ystream-tainted-"
+				customerVnetName                 = "customer-vnet-ystream-tainted-"
+				customerVnetSubnetName           = "customer-vnet-subnet-ystream-tainted-"
+				customerClusterNamePrefix        = "cp-ystream-tainted-"
 			)
 
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
@@ -124,15 +124,15 @@ var _ = Describe("Customer", func() {
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 
 			By("creating resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cp-ystream-deny-pods-"+versionLabel, tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for y-stream deny-pods upgrade to %s", targetMinor)
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cp-ystream-tainted-"+versionLabel, tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for y-stream tainted-worker upgrade to %s", targetMinor)
 
 			By("creating cluster parameters at install (previous minor) version")
 			clusterParams := framework.NewDefaultClusterParams20260901()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersionId
 			clusterParams.ChannelGroup = channelGroup
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-cp-ystream-deny-pods-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-cp-ystream-tainted-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
@@ -147,7 +147,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for y-stream deny-pods upgrade cluster %q", clusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for y-stream tainted-worker upgrade cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster at install version %s (previous minor)", installVersionId))
 			err = tc.CreateHCPClusterFromParam20260901(
@@ -178,41 +178,48 @@ var _ = Describe("Customer", func() {
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
 
-			By(fmt.Sprintf("creating a 2-replica nodepool at version %s", nodePoolVersionId))
+			By(fmt.Sprintf("creating a %d-replica node pool at version %s whose every worker is tainted NoSchedule", ystreamTaintedExpectedNodes, nodePoolVersionId))
 			nodePoolParams := framework.NewDefaultNodePoolParams20260901()
 			nodePoolParams.ClusterName = clusterName
-			nodePoolParams.NodePoolName = ystreamDenyNodePoolName
-			nodePoolParams.Replicas = int32(ystreamDenyExpectedNodes)
+			nodePoolParams.NodePoolName = ystreamTaintedNodePoolName
+			nodePoolParams.Replicas = int32(ystreamTaintedExpectedNodes)
 			nodePoolParams.OpenshiftVersionId = nodePoolVersionId
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.AutoRepair = true
 			smallVMSize, err := tc.SelectVMSize(ctx, framework.SmallWorkerVMSizeSelector())
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve a small worker VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 			nodePoolParams.VMSize = smallVMSize
-			err = tc.CreateNodePoolFromParam20260901(
+			// Taint in the create body so kubelet registers the nodes with NoSchedule.
+			// A taint applied to nodes that are already running does not keep add-on operands off them.
+			nodePool := framework.BuildNodePoolFromParams20260901(nodePoolParams, tc.Location())
+			nodePool.Properties.Taints = []*hcpsdk20260901preview.Taint{
+				{
+					Key:    to.Ptr(ystreamTaintKey),
+					Value:  to.Ptr(ystreamTaintValue),
+					Effect: to.Ptr(hcpsdk20260901preview.EffectNoSchedule),
+				},
+			}
+			_, err = framework.CreateNodePoolAndWait20260901(
 				ctx,
-				GinkgoLogr,
+				tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
-				managedResourceGroupName,
 				clusterName,
-				nodePoolParams,
+				ystreamTaintedNodePoolName,
+				nodePool,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", ystreamDenyNodePoolName, clusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create tainted node pool %q for cluster %q", ystreamTaintedNodePoolName, clusterName)
 
-			By("waiting for guest nodes to be ready")
+			By("waiting for tainted guest nodes to be ready")
 			Eventually(func() error {
-				if err := verifiers.VerifyNodeCount(clusterName, ystreamDenyExpectedNodes).Verify(ctx, adminRESTConfig); err != nil {
+				if err := verifiers.VerifyNodeCount(clusterName, ystreamTaintedExpectedNodes).Verify(ctx, adminRESTConfig); err != nil {
 					return err
 				}
 				return verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)
-			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(framework.StandardPollInterval).Should(Succeed(), "guest nodes were not ready after creating node pool %q on cluster %q", ystreamDenyNodePoolName, clusterName)
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(framework.StandardPollInterval).Should(Succeed(), "tainted nodes were not ready after creating node pool %q on cluster %q", ystreamTaintedNodePoolName, clusterName)
 
-			By("applying a deny-pod ValidatingAdmissionPolicy")
-			Expect(applyPodDenyAdmissionPolicy(ctx, kubeClient)).To(Succeed(), "failed to apply deny-pod ValidatingAdmissionPolicy on cluster %q", clusterName)
-			Eventually(func() error {
-				return verifiers.VerifyProbePodDeniedByAdmissionPolicy(ystreamDenyPolicyName, ystreamDenyPolicyMessage).Verify(ctx, adminRESTConfig)
-			}).WithContext(ctx).WithTimeout(2*time.Minute).WithPolling(framework.StandardPollInterval).Should(Succeed(), "probe pod CREATE was not denied by ValidatingAdmissionPolicy on cluster %q", clusterName)
+			By("verifying every worker is tainted NoSchedule")
+			expectWorkersTaintedNoSchedule(ctx, kubeClient, clusterName)
 
 			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
@@ -239,10 +246,10 @@ var _ = Describe("Customer", func() {
 
 			By("verifying control plane reached the target minor")
 			Eventually(func() error {
-				// This test deliberately degrades the data plane with a deny-pod admission
-				// policy, so the guest CVO may never report the upgrade as complete. The
-				// activeVersions check reads HostedCluster controlPlaneVersion by way of the
-				// backend, and so reports control-plane completion regardless. Both must pass.
+				// Every worker carries an untolerated NoSchedule taint, so add-on operands
+				// cannot schedule and the guest CVO may never report the upgrade as complete.
+				// The activeVersions check reads HostedCluster controlPlaneVersion by way of
+				// the backend, and so reports control-plane completion regardless. All three must pass.
 				return errors.Join(
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion).Verify(ctx, adminRESTConfig),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installVersionId, upgradeVersionId).Verify(ctx, adminRESTConfig),
@@ -253,14 +260,14 @@ var _ = Describe("Customer", func() {
 						clusterName,
 						upgradeVersionId),
 				)
-			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q with deny-pod ValidatingAdmissionPolicy", upgradeVersionId, clusterName)
+			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).Should(Succeed(), "control plane did not reach %s on cluster %q while all workers are tainted NoSchedule", upgradeVersionId, clusterName)
 
 			By("verifying cluster API remains reachable after control plane upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster %q API after y-stream upgrade to %s", clusterName, upgradeVersionId)
 
-			By("asserting probe pod CREATE is still denied by the ValidatingAdmissionPolicy")
-			Expect(verifiers.VerifyProbePodDeniedByAdmissionPolicy(ystreamDenyPolicyName, ystreamDenyPolicyMessage).Verify(ctx, adminRESTConfig)).To(Succeed(), "probe pod CREATE was no longer denied after upgrade on cluster %q", clusterName)
+			By("asserting workers are still tainted NoSchedule after the control plane upgrade")
+			expectWorkersTaintedNoSchedule(ctx, kubeClient, clusterName)
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22"),
@@ -281,56 +288,10 @@ var _ = Describe("Customer", func() {
 	)
 })
 
-func applyPodDenyAdmissionPolicy(ctx context.Context, kubeClient kubernetes.Interface) error {
-	policy := &admissionregistrationv1.ValidatingAdmissionPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: ystreamDenyPolicyName},
-		Spec: admissionregistrationv1.ValidatingAdmissionPolicySpec{
-			FailurePolicy: to.Ptr(admissionregistrationv1.Fail),
-			MatchConstraints: &admissionregistrationv1.MatchResources{
-				NamespaceSelector: &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      "kubernetes.io/metadata.name",
-							Operator: metav1.LabelSelectorOpNotIn,
-							Values:   []string{"kube-system"},
-						},
-					},
-				},
-				ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{
-					{
-						RuleWithOperations: admissionregistrationv1.RuleWithOperations{
-							Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-							Rule: admissionregistrationv1.Rule{
-								APIGroups:   []string{""},
-								APIVersions: []string{"v1"},
-								Resources:   []string{"pods"},
-							},
-						},
-					},
-				},
-			},
-			Validations: []admissionregistrationv1.Validation{
-				{
-					Expression: "false",
-					Message:    ystreamDenyPolicyMessage,
-					Reason:     to.Ptr(metav1.StatusReasonForbidden),
-				},
-			},
-		},
-	}
-	if _, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Create(ctx, policy, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("failed to create ValidatingAdmissionPolicy %s: %w", ystreamDenyPolicyName, err)
-	}
-
-	binding := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: ystreamDenyPolicyName},
-		Spec: admissionregistrationv1.ValidatingAdmissionPolicyBindingSpec{
-			PolicyName:        ystreamDenyPolicyName,
-			ValidationActions: []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny},
-		},
-	}
-	if _, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Create(ctx, binding, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("failed to create ValidatingAdmissionPolicyBinding %s: %w", ystreamDenyPolicyName, err)
-	}
-	return nil
+func expectWorkersTaintedNoSchedule(ctx context.Context, kubeClient kubernetes.Interface, clusterName string) {
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	Expect(err).NotTo(HaveOccurred(), "failed to list nodes on cluster %q", clusterName)
+	Expect(framework.HasNodeTaint(nodes.Items, ystreamTaintKey, ystreamTaintValue, corev1.TaintEffectNoSchedule, ystreamTaintedExpectedNodes)).To(BeTrue(),
+		"expected all %d workers on cluster %q to have taint %s=%s:NoSchedule",
+		ystreamTaintedExpectedNodes, clusterName, ystreamTaintKey, ystreamTaintValue)
 }
