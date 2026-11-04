@@ -13,7 +13,6 @@ package dns_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -66,29 +65,6 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 					spc := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(id.String() + "/serviceProviderClusters/default")), PartitionKey: testSubscriptionID}}
 					spc.Spec.ManagementClusterResourceID = managementID
 					spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
-					// Satisfy ClusterClusterServiceCreate's data-plane OIDC federation precondition so
-					// PostCluster dispatch is not gated on a controller this test does not exercise.
-					dataPlaneOperators := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
-					federation := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(dataPlaneOperators))
-					for operatorName, resourceID := range dataPlaneOperators {
-						identityResourceIDStr := strings.ToLower(resourceID.String())
-						target := coreapi.DataplaneOIDCFederationIdentityInstance{
-							ClientID:    identityResourceIDStr + "-client",
-							PrincipalID: identityResourceIDStr + "-principal",
-							TenantID:    identityResourceIDStr + "-tenant",
-						}
-						federation[coreapi.DataplaneOIDCFederationAssignmentKey{
-							IdentityResourceID: identityResourceIDStr,
-							OperatorName:       operatorName,
-						}] = &coreapi.DataplaneOIDCFederationAssignmentStatus{
-							TargetIdentity:  target,
-							EnsuredIdentity: &target,
-							AzureResources: []*azcorearm.ResourceID{
-								metadataapi.Must(azcorearm.ParseResourceID(resourceID.String() + "/federatedIdentityCredentials/00000000-0000-0000-0000-000000000001")),
-							},
-						}
-					}
-					spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = federation
 					subscriptionID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 					subscription := &coreapi.Subscription{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subscriptionID, PartitionKey: testSubscriptionID}, Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("11111111-1111-1111-1111-111111111111")}}
 					management := &fleetapi.ManagementCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementID, PartitionKey: "1"}, Status: fleetapi.ManagementClusterStatus{PublicDNSZoneResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/dns/providers/Microsoft.Network/dnsZones/example.com")), ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID)))}}
