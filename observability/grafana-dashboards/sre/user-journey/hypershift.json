@@ -2854,7 +2854,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst node CPU utilization across management clusters, including shared/HCP workloads. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
+      "description": "Worst node CPU utilization across management clusters, including shared/HCP workloads. Every node in current kube_node_info inventory must have a current idle counter and a usable 5m rate; incomplete coverage is No data. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2935,7 +2935,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(100 * (1 - avg by (cluster, instance) (max without(prometheus_replica) (rate(node_cpu_seconds_total{cluster=~\".*-mgmt-[0-9]+\", mode=\"idle\"}[5m])))))",
+          "expr": "max((100 * (1 - avg by (cluster, instance) (max without(prometheus_replica) (rate(node_cpu_seconds_total{cluster=~\".*-mgmt-[0-9]+\", mode=\"idle\"}[5m]) and node_cpu_seconds_total{cluster=~\".*-mgmt-[0-9]+\", mode=\"idle\"})))) and on(cluster, instance) label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on() (label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on(cluster, instance) (rate(node_cpu_seconds_total{cluster=~\".*-mgmt-[0-9]+\", mode=\"idle\"}[5m]) and node_cpu_seconds_total{cluster=~\".*-mgmt-[0-9]+\", mode=\"idle\"})))",
           "instant": true,
           "legendFormat": "Worst management node",
           "range": false,
@@ -2950,7 +2950,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst node used/total memory across management clusters. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
+      "description": "Worst node used/total memory across management clusters. Every node in current kube_node_info inventory must have current available and positive total bytes; incomplete coverage is No data. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3031,7 +3031,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(100 * (1 - max without(prometheus_replica) (node_memory_MemAvailable_bytes{cluster=~\".*-mgmt-[0-9]+\"}) / (max without(prometheus_replica) (node_memory_MemTotal_bytes{cluster=~\".*-mgmt-[0-9]+\"}) > 0)))",
+          "expr": "max((100 * (1 - max without(prometheus_replica) (node_memory_MemAvailable_bytes{cluster=~\".*-mgmt-[0-9]+\"}) / (max without(prometheus_replica) (node_memory_MemTotal_bytes{cluster=~\".*-mgmt-[0-9]+\"}) > 0))) and on(cluster, instance) label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on() (label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on(cluster, instance) (max without(prometheus_replica) (node_memory_MemAvailable_bytes{cluster=~\".*-mgmt-[0-9]+\"}) / (max without(prometheus_replica) (node_memory_MemTotal_bytes{cluster=~\".*-mgmt-[0-9]+\"}) > 0))))",
           "instant": true,
           "legendFormat": "Worst management node",
           "range": false,
@@ -3046,7 +3046,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst writable physical filesystem used/size across management clusters. Read-only and virtual filesystems excluded. Operational guides: 75% warning, 85% limit (15% free filesystem warning boundary).",
+      "description": "Worst writable physical filesystem used/size across management clusters. Current kube_node_info nodes must report filesystem telemetry. Physical mount identities observed over 30d on those nodes require current available bytes, positive size, and read-only status; missing inputs are No data. Explicitly read-only, zero-size, virtual, and empty-mountpoint filesystems remain excluded. An unmounted filesystem remains expected for up to 30d. Operational guides: 75% warning, 85% limit (15% free filesystem warning boundary).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3127,7 +3127,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max((100 * (1 - max without(prometheus_replica) (node_filesystem_avail_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) / (max without(prometheus_replica) (node_filesystem_size_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) > 0))) and (max without(prometheus_replica) (node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) == 0))",
+          "expr": "max(((100 * (1 - max without(prometheus_replica) (node_filesystem_avail_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) / (max without(prometheus_replica) (node_filesystem_size_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) > 0))) and (max without(prometheus_replica) (node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) == 0)) and on(cluster, instance) label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on() (label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\") unless on(cluster, instance) node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\"}) unless on() (((group by (cluster, instance, device, mountpoint, fstype) (last_over_time(node_filesystem_size_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}[30d]) or last_over_time(node_filesystem_avail_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}[30d]) or last_over_time(node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}[30d]))) and on(cluster, instance) label_replace(kube_node_info{cluster=~\".*-mgmt-[0-9]+\"}, \"instance\", \"$1\", \"node\", \"(.+)\")) unless on(cluster, instance, device, mountpoint, fstype) ((max by (cluster, instance, device, mountpoint, fstype) (node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) != 0) or (max by (cluster, instance, device, mountpoint, fstype) (node_filesystem_size_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) == 0)) unless on(cluster, instance, device, mountpoint, fstype) (max without(prometheus_replica) (node_filesystem_avail_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) and (max without(prometheus_replica) (node_filesystem_size_bytes{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) > 0) and (max without(prometheus_replica) (node_filesystem_readonly{cluster=~\".*-mgmt-[0-9]+\", fstype!~\"tmpfs|devtmpfs|overlay|squashfs\", mountpoint!=\"\"}) == 0))))",
           "instant": true,
           "legendFormat": "Worst writable management filesystem",
           "range": false,

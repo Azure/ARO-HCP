@@ -130,6 +130,151 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 		}
 		runQueries(t, nil, expressions)
 	})
+	t.Run("node saturation requires complete current inputs", func(t *testing.T) {
+		type metric struct {
+			name    string
+			healthy string
+			hot     string
+		}
+		for _, gauge := range []struct {
+			name    string
+			panelID int
+			labels  string
+			metrics []metric
+		}{
+			{
+				name: "CPU", panelID: 39, labels: `,cpu="0",mode="idle"`,
+				metrics: []metric{{name: "node_cpu_seconds_total", healthy: "0+48", hot: "0+3"}},
+			},
+			{
+				name: "memory", panelID: 40,
+				metrics: []metric{
+					{name: "node_memory_MemAvailable_bytes", healthy: "80", hot: "5"},
+					{name: "node_memory_MemTotal_bytes", healthy: "100", hot: "100"},
+				},
+			},
+			{
+				name: "disk", panelID: 41, labels: `,device="/dev/sda",mountpoint="/",fstype="ext4"`,
+				metrics: []metric{
+					{name: "node_filesystem_avail_bytes", healthy: "80", hot: "5"},
+					{name: "node_filesystem_size_bytes", healthy: "100", hot: "100"},
+					{name: "node_filesystem_readonly", healthy: "0", hot: "0"},
+				},
+			},
+		} {
+			t.Run(gauge.name, func(t *testing.T) {
+				expr := "round(" + queries[gauge.panelID]["A"] + ")"
+				losses := []string{"all inputs", "node inventory", "retired node", "one HA replica"}
+				for _, metric := range gauge.metrics {
+					losses = append(losses, metric.name)
+				}
+				for _, loss := range losses {
+					t.Run(loss, func(t *testing.T) {
+						var input []inputSeries
+						for _, node := range []string{"node-a", "node-b"} {
+							inventory := "1x60"
+							if loss == "node inventory" || (node == "node-b" && loss == "retired node") {
+								inventory = "1x30 stale"
+							}
+							input = append(input, inputSeries{
+								Series: fmt.Sprintf(`kube_node_info{cluster="test-mgmt-1",node="%s"}`, node), Values: inventory,
+							})
+							for _, metric := range gauge.metrics {
+								value, suffix := metric.healthy, "x60"
+								if node == "node-b" {
+									value = metric.hot
+									if loss == "all inputs" || loss == "retired node" || loss == "one HA replica" || loss == metric.name {
+										suffix = "x30 stale"
+									}
+								}
+								if loss != "node inventory" {
+									input = append(input, inputSeries{
+										Series: `kube_node_info{cluster="other-mgmt-1",node="node-b"}`, Values: "1x60",
+									})
+									for _, metric := range gauge.metrics {
+										input = append(input, inputSeries{
+											Series: fmt.Sprintf(`%s{cluster="other-mgmt-1",instance="node-b"%s}`, metric.name, gauge.labels),
+											Values: metric.healthy + "x60",
+										})
+									}
+								}
+								labels := fmt.Sprintf(`{cluster="test-mgmt-1",instance="%s",prometheus_replica="a"%s}`, node, gauge.labels)
+								input = append(input, inputSeries{Series: metric.name + labels, Values: value + suffix})
+								if node == "node-b" && loss == "one HA replica" {
+									labels := fmt.Sprintf(`{cluster="test-mgmt-1",instance="%s",prometheus_replica="b"%s}`, node, gauge.labels)
+									input = append(input, inputSeries{Series: metric.name + labels, Values: value + "x60"})
+								}
+							}
+						}
+						var expected []sample
+						switch loss {
+						case "one HA replica":
+							expected = []sample{{Labels: "{}", Value: 95}}
+						case "retired node":
+							expected = []sample{{Labels: "{}", Value: 20}}
+						}
+						runQueries(t, input, []expressionTest{
+							{Expr: expr, EvalTime: "30m", Expected: []sample{{Labels: "{}", Value: 95}}},
+							{Expr: expr, EvalTime: "31m", Expected: expected},
+							{Expr: expr, EvalTime: "60m", Expected: expected},
+						})
+					})
+				}
+			})
+		}
+	})
+	t.Run("disk saturation requires every expected filesystem", func(t *testing.T) {
+		expr := "round(" + queries[41]["A"] + ")"
+		for _, testCase := range []struct {
+			name     string
+			avail    string
+			size     string
+			readonly string
+			expected []sample
+		}{
+			{name: "all mount inputs disappear", avail: "5x30 stale", size: "100x30 stale", readonly: "0x30 stale"},
+			{name: "available bytes disappear", avail: "5x30 stale", size: "100x60", readonly: "0x60"},
+			{name: "size disappears", avail: "5x60", size: "100x30 stale", readonly: "0x60"},
+			{name: "read only status disappears", avail: "5x60", size: "100x60", readonly: "0x30 stale"},
+			{
+				name: "explicitly read only mounts remain excluded", avail: "5x30 stale", size: "100x60", readonly: "0x30 1x29",
+				expected: []sample{{Labels: "{}", Value: 20}},
+			},
+			{
+				name: "zero size mounts remain excluded", avail: "5x30 stale", size: "100x30 0x29", readonly: "0x60",
+				expected: []sample{{Labels: "{}", Value: 20}},
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				input := []inputSeries{
+					{Series: `kube_node_info{cluster="test-mgmt-1",node="node-a"}`, Values: "1x60"},
+					{Series: `node_filesystem_avail_bytes{cluster="test-mgmt-1",instance="node-a",device="/dev/sda",mountpoint="/",fstype="ext4"}`, Values: "80x60"},
+					{Series: `node_filesystem_size_bytes{cluster="test-mgmt-1",instance="node-a",device="/dev/sda",mountpoint="/",fstype="ext4"}`, Values: "100x60"},
+					{Series: `node_filesystem_readonly{cluster="test-mgmt-1",instance="node-a",device="/dev/sda",mountpoint="/",fstype="ext4"}`, Values: "0x60"},
+					{Series: `node_filesystem_avail_bytes{cluster="test-mgmt-1",instance="node-a",device="/dev/sdb",mountpoint="/data",fstype="ext4"}`, Values: testCase.avail},
+					{Series: `node_filesystem_size_bytes{cluster="test-mgmt-1",instance="node-a",device="/dev/sdb",mountpoint="/data",fstype="ext4"}`, Values: testCase.size},
+					{Series: `node_filesystem_readonly{cluster="test-mgmt-1",instance="node-a",device="/dev/sdb",mountpoint="/data",fstype="ext4"}`, Values: testCase.readonly},
+				}
+				for _, excluded := range []struct{ fstype, mountpoint string }{
+					{fstype: "tmpfs", mountpoint: "/tmp"},
+					{fstype: "devtmpfs", mountpoint: "/dev"},
+					{fstype: "overlay", mountpoint: "/overlay"},
+					{fstype: "squashfs", mountpoint: "/snap"},
+					{fstype: "ext4", mountpoint: ""},
+				} {
+					input = append(input, inputSeries{
+						Series: fmt.Sprintf(`node_filesystem_size_bytes{cluster="test-mgmt-1",instance="node-a",device="excluded",mountpoint="%s",fstype="%s"}`, excluded.mountpoint, excluded.fstype),
+						Values: "100x60",
+					})
+				}
+				runQueries(t, input, []expressionTest{
+					{Expr: expr, EvalTime: "30m", Expected: []sample{{Labels: "{}", Value: 95}}},
+					{Expr: expr, EvalTime: "31m", Expected: testCase.expected},
+					{Expr: expr, EvalTime: "60m", Expected: testCase.expected},
+				})
+			})
+		}
+	})
 	t.Run("pod capacity requires complete node reporting", func(t *testing.T) {
 		expr := queries[42]["A"]
 		require.NotEmpty(t, expr)

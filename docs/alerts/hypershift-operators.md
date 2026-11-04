@@ -62,6 +62,18 @@ They do not change the paging policy.
   SLOs. Missing capacity metrics show **No data**. Zero wait counts require
   reporting HostedCluster inventory; zero KAS counts require reporting KAS
   availability. Missing inventory must not manufacture a healthy zero.
+- CPU, memory, and disk maxima require reporting from every node in current
+  `kube_node_info` inventory. Its `node` label identifies the managed node-exporter
+  `instance`, as in the existing AKS performance dashboard. CPU rates also require
+  current idle counters; historical rate samples alone do not establish coverage.
+  Disk coverage remembers filesystem identities observed in any of its three
+  inputs over 30 days, restricted to current nodes. Missing available bytes,
+  positive size, or read-only status makes the gauge **No data**, even when other
+  nodes or mounts remain healthy. Explicitly read-only, zero-size, virtual, and
+  empty-mountpoint filesystems remain excluded. Without an independent mount
+  inventory, an intentional unmount also remains unknown until its last samples
+  expire from that window; removing a node from current inventory retires its
+  filesystems immediately.
 
 Validate changes with the recording-rule generators and
 `cd tooling/prometheus-rules && go test ./...`. `TestHyperShiftDashboardQueries`
