@@ -1,4 +1,4 @@
-# ARO-HCP
+# <img src="./icon.svg" alt="Azure Red Hat OpenShift" width="32" height="32"> ARO-HCP
 
 # Description
 This repository contains the code, configuration, and deployment pipelines for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It includes the ARM Resource Provider (frontend/backend), Cluster Service integration, management cluster controllers, and all Azure infrastructure as code.
