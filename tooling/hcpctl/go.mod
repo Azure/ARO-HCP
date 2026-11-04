@@ -20,7 +20,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-retryablehttp v0.7.8
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20261026111431-8782e72e5a1f
 	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
 	github.com/roasbeef/claude-agent-sdk-go v1.1.0
 	github.com/spf13/cobra v1.10.2
