@@ -2309,11 +2309,12 @@ autoscaling object fails that manifest before its desired ID is recorded, so the
 existing stale sweep can remove its previous intent; other manifests still process.
 
 During manifest processing, also sets `spec.monitoring.metricsForwarding.mode`
-to `Forward` on all HostedCluster resources. This enables forwarding of control
-plane metrics (e.g. kube-apiserver, etcd) from the management cluster into the
-hosted cluster's own monitoring stack, so customers (and ACM federating from
-guest Prometheus) get visibility into their control plane without manual
-intervention.
+to `Forward` and `spec.monitoring.metricsForwarding.metricsSet` to `Telemetry`
+on all HostedCluster resources. This enables forwarding of the minimal Telemetry
+control-plane metrics set (e.g. kube-apiserver, etcd) from the management cluster
+into the hosted cluster's own monitoring stack, so customers (and ACM federating
+from guest Prometheus) get visibility into their control plane without manual
+intervention, without inheriting the HyperShift Operator's SRE metrics set.
 
 On cluster deletion, stops fetching manifests and runs the [removal chain](../../backend/pkg/controllers/clusterresources/apply_desire_removal_chain.go). First drops NodePool and supporting configuration ApplyDesires to stop reconciliation while leaving their Kubernetes objects for HostedCluster or namespace cleanup. Then explicitly requests deletion, waiting for kube-applier confirmation at each stage: ManagedCluster → ingress manifests in the shared policy namespace → HostedCluster → PodNetworkInstance → PodNetwork → cluster namespaces. A pending deletion or error blocks subsequent stages. HyperShift owns NodePool cleanup during HostedCluster deletion; if the HostedCluster is absent, remaining NodePools depend on namespace deletion and their finalizers. Dropping a NodePool document alone is not evidence that machines were removed.
 

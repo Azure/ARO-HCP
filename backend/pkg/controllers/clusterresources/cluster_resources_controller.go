@@ -541,12 +541,21 @@ func removeNullUsernamePrefixes(hostedCluster *unstructured.Unstructured) error 
 // HostedCluster. This enables forwarding of control plane metrics (e.g. kube-apiserver,
 // etcd) from the management cluster into the hosted cluster's own monitoring stack, so
 // customers get visibility into their control plane without manual intervention.
+//
+// metricsSet is pinned to Telemetry so the customer-facing forward path stays on the
+// minimal set and does not inherit the HyperShift Operator's SRE metrics set.
 func ensureHostedClusterMonitoring(hostedCluster *unstructured.Unstructured) error {
 	if err := unstructured.SetNestedField(
 		hostedCluster.Object, string(v1beta1.MetricsForwardingModeForward),
 		"spec", "monitoring", "metricsForwarding", "mode",
 	); err != nil {
 		return fmt.Errorf("failed to set spec.monitoring.metricsForwarding.mode: %w", err)
+	}
+	if err := unstructured.SetNestedField(
+		hostedCluster.Object, string(v1beta1.MetricsSetTelemetry),
+		"spec", "monitoring", "metricsForwarding", "metricsSet",
+	); err != nil {
+		return fmt.Errorf("failed to set spec.monitoring.metricsForwarding.metricsSet: %w", err)
 	}
 	return nil
 }

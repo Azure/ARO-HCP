@@ -454,6 +454,8 @@ func TestSyncOnce(t *testing.T) {
 				require.True(t, ok, "spec.monitoring.metricsForwarding field should be a map")
 				assert.Equal(t, "Forward", metricsForwarding["mode"],
 					"HostedCluster should have metrics forwarding mode set to Forward")
+				assert.Equal(t, "Telemetry", metricsForwarding["metricsSet"],
+					"HostedCluster should pin metrics forwarding to the Telemetry set")
 
 				// Verify Secret does NOT have the annotation
 				secretDesire, err := crud.Get(ctx, "ocppullsecret")
@@ -1267,34 +1269,39 @@ func TestEnsureHostedClusterAutoscaling(t *testing.T) {
 
 func TestEnsureHostedClusterMonitoring(t *testing.T) {
 	tests := []struct {
-		name         string
-		inputSpec    map[string]interface{}
-		expectedMode string
+		name               string
+		inputSpec          map[string]interface{}
+		expectedMode       string
+		expectedMetricsSet string
 	}{
 		{
-			name:         "sets metrics forwarding mode to Forward when spec is empty",
-			inputSpec:    map[string]interface{}{},
-			expectedMode: "Forward",
+			name:               "sets metrics forwarding mode to Forward and metricsSet to Telemetry when spec is empty",
+			inputSpec:          map[string]interface{}{},
+			expectedMode:       "Forward",
+			expectedMetricsSet: "Telemetry",
 		},
 		{
-			name: "preserves other spec fields when setting metrics forwarding mode",
+			name: "preserves other spec fields when setting metrics forwarding config",
 			inputSpec: map[string]interface{}{
 				"release": map[string]interface{}{
 					"image": "quay.io/example/release:test",
 				},
 			},
-			expectedMode: "Forward",
+			expectedMode:       "Forward",
+			expectedMetricsSet: "Telemetry",
 		},
 		{
-			name: "overwrites existing metrics forwarding mode with Forward",
+			name: "overwrites existing metrics forwarding mode and metricsSet",
 			inputSpec: map[string]interface{}{
 				"monitoring": map[string]interface{}{
 					"metricsForwarding": map[string]interface{}{
-						"mode": "None",
+						"mode":       "None",
+						"metricsSet": "SRE",
 					},
 				},
 			},
-			expectedMode: "Forward",
+			expectedMode:       "Forward",
+			expectedMetricsSet: "Telemetry",
 		},
 	}
 
@@ -1334,6 +1341,11 @@ func TestEnsureHostedClusterMonitoring(t *testing.T) {
 			require.NoError(t, err, "reading spec.monitoring.metricsForwarding.mode should not error")
 			require.True(t, found, "spec.monitoring.metricsForwarding.mode should be set")
 			assert.Equal(t, tt.expectedMode, mode, "metrics forwarding mode should match expected")
+
+			metricsSet, found, err := unstructured.NestedString(hostedCluster.Object, "spec", "monitoring", "metricsForwarding", "metricsSet")
+			require.NoError(t, err, "reading spec.monitoring.metricsForwarding.metricsSet should not error")
+			require.True(t, found, "spec.monitoring.metricsForwarding.metricsSet should be set")
+			assert.Equal(t, tt.expectedMetricsSet, metricsSet, "metrics forwarding metricsSet should match expected")
 
 			if hadRelease {
 				actualRelease, found, err := unstructured.NestedMap(hostedCluster.Object, "spec", "release")
