@@ -1871,7 +1871,7 @@ github.com/openshift-online/ocm-sdk-go/statusboard
 github.com/openshift-online/ocm-sdk-go/statusboard/v1
 github.com/openshift-online/ocm-sdk-go/webrca
 github.com/openshift-online/ocm-sdk-go/webrca/v1
-# github.com/openshift/api v0.0.0-20260930220732-5588d747a72b
+# github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7
 ## explicit; go 1.26.0
 github.com/openshift/api/config/v1
 github.com/openshift/api/config/v1alpha1
@@ -1879,7 +1879,7 @@ github.com/openshift/api/config/v1alpha2
 github.com/openshift/api/operator/v1
 github.com/openshift/api/operator/v1alpha1
 github.com/openshift/api/route/v1
-# github.com/openshift/client-go v0.0.0-20261001003915-dcaad1dc7fe8
+# github.com/openshift/client-go v0.0.0-20261027103500-48133ed95dad
 ## explicit; go 1.26.0
 github.com/openshift/client-go/config/applyconfigurations
 github.com/openshift/client-go/config/applyconfigurations/config/v1
@@ -1946,7 +1946,7 @@ github.com/openshift/hypershift/client/listers/certificates/v1alpha1
 github.com/openshift/hypershift/client/listers/hypershift/v1beta1
 github.com/openshift/hypershift/client/listers/karpenter/v1
 github.com/openshift/hypershift/client/listers/scheduling/v1alpha1
-# github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
+# github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b
 ## explicit; go 1.26.0
 github.com/openshift/hypershift/api/auditlogpersistence
 github.com/openshift/hypershift/api/auditlogpersistence/v1alpha1

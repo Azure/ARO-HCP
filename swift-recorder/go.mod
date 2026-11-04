@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/go-logr/logr v1.4.4
 	github.com/google/uuid v1.6.0
-	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b
+	github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.59.0
 	golang.org/x/sys v0.48.0
@@ -58,7 +58,7 @@ require (
 	github.com/onsi/gomega v1.42.1 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.512 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c // indirect
+	github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect

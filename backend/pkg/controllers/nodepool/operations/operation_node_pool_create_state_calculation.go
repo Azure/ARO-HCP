@@ -77,6 +77,9 @@ func (c *operationNodePoolCreate) hypershiftNodePoolSpecMatchesDesired(nodePool 
 	if matches, message := c.hypershiftNodePoolTaintsSpecMatchesDesired(nodePool.Properties.Taints, observed.Taints); !matches {
 		return false, message
 	}
+	if matches, message := c.hypershiftNodePoolIPForwardingSpecMatchesDesired(nodePool, observed); !matches {
+		return false, message
+	}
 	return true, ""
 }
 
@@ -141,6 +144,22 @@ func (c *operationNodePoolCreate) hypershiftNodePoolTaintsSpecMatchesDesired(des
 		if !found {
 			return false, fmt.Sprintf("hypershift NodePool missing desired taint {effect:%s key:%s value:%s}", want.Effect, want.Key, want.Value)
 		}
+	}
+	return true, ""
+}
+
+// hypershiftNodePoolIPForwardingSpecMatchesDesired reports whether Hypershift NodePool azure
+// ipForwarding spec reflects desired state's ipForwarding.
+func (c *operationNodePoolCreate) hypershiftNodePoolIPForwardingSpecMatchesDesired(desired *coreapi.NodePool, observed v1beta1.NodePoolSpec) (bool, string) {
+	want := desired.Properties.Platform.IPForwarding
+	if len(want) == 0 {
+		return true, ""
+	}
+	if observed.Platform.Azure == nil {
+		return false, fmt.Sprintf("hypershift NodePool azure platform is unset, want ipForwarding=%s", want)
+	}
+	if string(observed.Platform.Azure.IPForwarding) != string(want) {
+		return false, fmt.Sprintf("hypershift NodePool ipForwarding is %q, want %q", observed.Platform.Azure.IPForwarding, want)
 	}
 	return true, ""
 }
