@@ -74,7 +74,7 @@ const ingressCertificateIssuerName = "pebble"
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+	DescribeTable("should be able to issue the default ingress serving certificate from an in-cluster Pebble ACME server using cert-manager with DNS-01 challenges",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -83,7 +83,7 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			const (
-				customerClusterName  = "ingress-cert-le"
+				customerClusterName  = "ingress-cert-pebble"
 				customerNodePoolName = "np-1"
 				certManagerNamespace = "cert-manager"
 				certManagerSAName    = "cert-manager"
@@ -99,7 +99,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "ingress-cert-le", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "ingress-cert-pebble", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters")
