@@ -515,7 +515,7 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 }
 
 // DefaultWorkerVMSizeSelector selects the general-purpose worker SKU used by the
-// default node pool, preferring DSv6, DSv5, then DASv5.
+// default node pool.
 //
 // Candidates are restricted to SKU families that are enabled in the ARO-HCP RP
 // instance-type allowlist (see cluster-service
@@ -542,7 +542,7 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 }
 
 // SmallWorkerVMSizeSelector selects a smaller general-purpose worker SKU used by
-// tests that want faster provisioning, preferring DSv6, DSv5, then DASv5.
+// tests that want faster provisioning.
 //
 // Candidates are restricted to RP-allowlisted D-series families (plain "s" for
 // v3-v6 and AMD "as" for v4/v5 only); see DefaultWorkerVMSizeSelector for the

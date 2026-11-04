@@ -450,29 +450,73 @@ See the [slot-manager design](../cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--wo
 for the catalog and runtime contract.
 
 Configured selectors search supplied families in order, then choose a usable
-preferred size or deterministic discovery result within a family. Restriction
-and capability checks still apply; see
-[`vm_sku_selection.go`](../util/framework/vm_sku_selection.go) for selector
-behavior.
+preferred size or deterministic discovery result within a family. If a family
+has no suitable SKU, selection advances to the next configured family.
+Restriction and capability checks still apply. These are family preferences,
+not instance-size pins; keep the preference order in code and the slot catalog
+rather than duplicating it here.
 
-Local runs can supply the same resolved override without slot-manager:
+Local runs can supply a resolved policy through
+`ARO_HCP_E2E_VM_FAMILY_POLICY`. Omit it to use the selector defaults. Keep the
+usual local subscription, location, and authentication setup: a policy does not
+choose a subscription or region, or grant quota.
 
-```bash
-export ARO_HCP_E2E_VM_FAMILY_POLICY='{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}'
-./test/aro-hcp-tests run-suite integration/parallel
+Only reported **restrictions** are honoured; remaining quota headroom is not
+checked. Ordered selection does not retry deployments after allocation or quota
+failures. Azure SKU metadata and quota approval do not reserve physical capacity.
+
+## Planning Azure vCPU quota
+
+A test case that creates one default node pool requests **two 8-vCPU workers,
+or 16 worker vCPUs**. This is customer-subscription demand, not the CI runner's
+CPU request or the service/management cluster's control-plane capacity.
+The [node pool constructors](../util/framework/helpers_v20240610preview.go)
+define the default replica count; the
+[VM size selectors](../util/framework/vm_sku_selection.go) define the worker
+shapes. Tests can override replicas, create more pools or clusters, or use
+specialized SKUs, so 16 is a baseline, not a per-test ceiling.
+
+| Workload shape | Calculation | Worker/helper vCPUs |
+| --- | --- | ---: |
+| One default two-node pool | 2 workers × 8 vCPUs | 16 |
+| Two small workers, when requested by a test | 2 workers × 4 vCPUs | 8 |
+| One helper VM at the preferred shape | 1 helper × 2 vCPUs | 2 |
+| Both three-node pools in the [nodepool autoscaling test](nodepool_autoscaling.go) | 2 pools × 3 workers × 8 vCPUs | 48 |
+
+The autoscaling row describes the combined pool minima when both zonal and
+non-zonal pools are created, not a maximum allocation. An autoscaling `Max`
+setting is not evidence that the test allocates that many nodes. Use actual
+selected SKU sizes and simultaneous node counts, including scale-out and
+rolling-replacement overlap, when calculating peak demand. Helpers use their
+own family quotas and can select a different size through fallback.
+
+There is no fixed vCPU requirement for an entire E2E suite. Size each
+subscription/region for all jobs that can overlap there:
+
+```text
+family peak = sum(simultaneously allocated VM count × vCPUs per VM
+                  for every worker pool and helper using that family)
+regional peak = sum(family peaks) + other regional VM usage
+required headroom = planned peak + allowance for replacements and delayed cleanup
 ```
 
-Keep the usual local subscription, location, and authentication setup. The
-override does not choose a subscription or region, or grant quota.
+For example, 25 simultaneous default two-node pools need 400 worker vCPUs;
+75 need 1,200. These are arithmetic examples, not concurrency settings or
+complete-suite budgets: add helpers, additional pools, autoscaling, overlapping
+jobs and existing usage. Apply the calculation to each family that fallback
+can select as well as the shared regional total.
 
-Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope. [ARO-30092](https://redhat.atlassian.net/browse/ARO-30092)
-records 2,000 vCPUs for each configured worker family, 350 for each helper
-family, and a shared 6,950-vCPU regional limit in the target subscription.
-Enabling further families requires checking their quota, total regional quota,
-and workload demand first. Azure SKU metadata and quota approval do not reserve
-physical capacity or guarantee that a later VM allocation succeeds. Ordered
-selection does not retry deployments after allocation or quota failures.
+Inspect the selected suite's concurrency in
+[`suites.go`](../cmd/aro-hcp-tests/suites.go) and
+[`concurrency.go`](../cmd/aro-hcp-tests/concurrency.go):
+`ARO_HCP_SUITE_PARALLELISM`, the acquired lease and `--max-concurrency` can affect
+the effective worker count. Identity-container admission is an independent
+resource ceiling, not a CPU reservation; a single spec can require multiple
+containers. See [identity leasing and capacity planning](../../docs/ci/identity-leasing.md#pool-sizing-and-subscription-constraints).
+
+Check live family and regional usage/limits before enabling a pool or increasing
+concurrency, and retain operational margin in both. Do not copy a subscription's
+current quota values into this guide.
 
 ## Updating E2E Timeouts
 
