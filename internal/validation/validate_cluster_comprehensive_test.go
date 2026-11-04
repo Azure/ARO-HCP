@@ -102,15 +102,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
+			name: "OpenShift 5.0 stable allowed on create without experimental release features",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "OpenShift 5 allowed with experimental release features - create",
@@ -2627,7 +2626,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: cross-major 4.22 to 5.0 rejected without experimental release features",
+			name: "update: cross-major 4.22 to 5.0 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
@@ -2638,9 +2637,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.20 to 5.0 rejected (4.20 not in 4→5 pairing map)",
@@ -2675,7 +2672,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "update: cross-major 4.23 to 5.1 allowed",
+			name: "update: cross-major 4.23 to 5.1 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.1"
@@ -2686,7 +2683,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.23"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{

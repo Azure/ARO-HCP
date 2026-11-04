@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 func TestMutateNodePool(t *testing.T) {
@@ -561,13 +560,12 @@ func assertNodePoolEqual(t *testing.T, expected, actual *coreapi.NodePool) {
 
 func TestAdmitNodePool_VersionValidation(t *testing.T) {
 	tests := []struct {
-		name               string
-		newVersion         string
-		activeVersions     []string // current active versions in ServiceProviderNodePool (first is highest)
-		clusterVersions    []string // active versions in ServiceProviderCluster (first is highest)
-		desiredVersion     string   // desired version in ServiceProviderNodePool.Spec
-		allowMajorUpgrades bool     // experimental feature flag
-		expectErrors       []utils.ExpectedError
+		name            string
+		newVersion      string
+		activeVersions  []string // current active versions in ServiceProviderNodePool (first is highest)
+		clusterVersions []string // active versions in ServiceProviderCluster (first is highest)
+		desiredVersion  string   // desired version in ServiceProviderNodePool.Spec
+		expectErrors    []utils.ExpectedError
 	}{
 		{
 			name:            "valid z-stream upgrade",
@@ -608,42 +606,37 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			desiredVersion:  "4.18.0",
 		},
 		{
-			name:            "cross-major downgrade fails without flag",
+			name:            "cross-major downgrade succeeds without AFEC",
 			activeVersions:  []string{"5.0.1"},
 			newVersion:      "4.22.0",
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "5.0.1",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major downgrade succeeds with flag",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.22.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "cross-major downgrade follows supported skew",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.22.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major downgrade to unsupported minor fails",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.20.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
+			name:            "cross-major downgrade to unsupported minor fails",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.20.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:               "cross-major downgrade to incompatible CP minor fails",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.23.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
+			name:            "cross-major downgrade to incompatible CP minor fails",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.23.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
 			},
@@ -667,62 +660,55 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			},
 		},
 		{
-			name:            "major version change not allowed by default",
+			name:            "major version change allowed without AFEC",
 			activeVersions:  []string{"4.22.0"},
 			newVersion:      "5.0.0",
 			clusterVersions: []string{"5.0.0"},
 			desiredVersion:  "4.22.0",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "valid major upgrade 4.22 to 5.0",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "valid major upgrade 4.22 to 5.0",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.0"},
+			desiredVersion:  "4.22.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "valid major upgrade 4.23 to 5.1",
-			activeVersions:     []string{"4.23.0"},
-			newVersion:         "5.1.0",
-			clusterVersions:    []string{"5.1.0"},
-			desiredVersion:     "4.23.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "valid major upgrade 4.23 to 5.1",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "5.1.0",
+			clusterVersions: []string{"5.1.0"},
+			desiredVersion:  "4.23.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "invalid major upgrade 4.22 to 5.1",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "5.1.0",
-			clusterVersions:    []string{"5.1.0"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.22 to 5.1",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "5.1.0",
+			clusterVersions: []string{"5.1.0"},
+			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "4.22 can only upgrade to 5.0"},
 			},
 		},
 		{
-			name:               "invalid major upgrade 4.23 to 5.0",
-			activeVersions:     []string{"4.23.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.23.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.23 to 5.0",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.0"},
+			desiredVersion:  "4.23.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "4.23 can only upgrade to 5.1"},
 			},
 		},
 		{
-			name:               "invalid major upgrade 4.20 not supported",
-			activeVersions:     []string{"4.20.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.20.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.20 not supported",
+			activeVersions:  []string{"4.20.0"},
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.0"},
+			desiredVersion:  "4.20.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "major version upgrades are not supported"},
 			},
@@ -820,44 +806,39 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 		},
 		// Cross-major downgrade: additional skew map entries
 		{
-			name:               "valid major downgrade 5.0 to 4.21",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.21.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "valid major downgrade 5.0 to 4.21",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		// Cross-major skew: same-major NP change when CP is different major
 		{
-			name:               "same-major NP change with cross-major CP - valid skew",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "4.21.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "same-major NP change with cross-major CP - valid skew",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "4.22.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "same-major NP change with cross-major CP - invalid skew",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "4.15.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
+			name:            "same-major NP change with cross-major CP - invalid skew",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "4.15.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:            "same-major NP change with cross-major CP - rejected without AFEC",
+			name:            "same-major NP change with cross-major CP - allowed without AFEC",
 			activeVersions:  []string{"4.22.0"},
 			newVersion:      "4.21.0",
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "4.22.0",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
 		{
@@ -949,7 +930,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 
 			// Use cluster version from test case's clusterVersions if cross-major upgrade
 			clusterVersion := "4.18"
-			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+			if len(tt.clusterVersions) > 0 {
 				clusterVersion = tt.clusterVersions[0]
 			}
 
@@ -962,19 +943,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Create operation based on allowMajorUpgrades flag
-			var op operation.Operation
-			if tt.allowMajorUpgrades {
-				op = operation.Operation{
-					Type: operation.Update,
-					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
-						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
-						State: ptr.To("Registered"),
-					}}),
-				}
-			} else {
-				op = operation.Operation{Type: operation.Update}
-			}
+			op := operation.Operation{Type: operation.Update}
 
 			// Build ServiceProviderNodePool with active versions
 			var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
@@ -1026,11 +995,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 
 func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 	tests := []struct {
-		name               string
-		newVersion         string
-		clusterVersions    []string
-		allowMajorUpgrades bool
-		expectErrors       []utils.ExpectedError
+		name            string
+		newVersion      string
+		clusterVersions []string
+		expectErrors    []utils.ExpectedError
 	}{
 		{
 			name:            "valid version within N-2 skew",
@@ -1055,34 +1023,29 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 			},
 		},
 		{
-			name:            "cross-major rejected without AFEC",
+			name:            "cross-major valid skew without AFEC",
 			newVersion:      "4.22.0",
 			clusterVersions: []string{"5.0.1"},
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major valid skew with AFEC",
-			newVersion:         "4.22.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "OpenShift 5.0 node pool create without AFEC",
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.1"},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major invalid skew with AFEC",
-			newVersion:         "4.20.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
+			name:            "cross-major invalid skew",
+			newVersion:      "4.20.0",
+			clusterVersions: []string{"5.0.1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:               "cross-major incompatible CP minor with AFEC",
-			newVersion:         "4.23.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
+			name:            "cross-major incompatible CP minor",
+			newVersion:      "4.23.0",
+			clusterVersions: []string{"5.0.1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
 			},
@@ -1101,7 +1064,7 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 			}
 
 			clusterVersion := "4.22"
-			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+			if len(tt.clusterVersions) > 0 {
 				clusterVersion = tt.clusterVersions[0]
 			}
 
@@ -1114,18 +1077,7 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 				},
 			}
 
-			var op operation.Operation
-			if tt.allowMajorUpgrades {
-				op = operation.Operation{
-					Type: operation.Create,
-					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
-						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
-						State: ptr.To("Registered"),
-					}}),
-				}
-			} else {
-				op = operation.Operation{Type: operation.Create}
-			}
+			op := operation.Operation{Type: operation.Create}
 
 			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 

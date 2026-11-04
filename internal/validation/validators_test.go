@@ -150,7 +150,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 		activeVersions []string
 		lowestCP       string // empty string means an unknown (nil) *semver.Version
 		highestCP      string // empty string means an unknown (nil) *semver.Version
-		allowMajor     bool
 		expectError    bool
 		errContains    string
 	}{
@@ -278,26 +277,22 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 
 		// --- Same-major NP change while the control plane is on a different major ---
 		{
-			// NP stays on major 4 while CP moved to major 5. Without the major
-			// upgrade flag this is rejected.
-			name:           "same-major node pool change with different-major control plane requires major upgrade flag",
+			// NP stays on major 4 while CP moved to major 5; the skew map allows this change.
+			name:           "same-major node pool change with supported cross-major skew succeeds without AFEC",
 			desiredVersion: "4.22.0",
 			activeVersions: []string{"4.21.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     false,
-			expectError:    true,
-			errContains:    "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)",
+			expectError:    false,
 		},
 		{
-			// With the flag set and an allowed skew (NP 4.22 alongside CP 5.0),
+			// With an allowed skew (NP 4.22 alongside CP 5.0),
 			// the change succeeds via ValidateCrossMajorNodePoolSkew.
 			name:           "same-major node pool change with allowed cross-major skew succeeds",
 			desiredVersion: "4.22.0",
 			activeVersions: []string{"4.21.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     true,
 			expectError:    false,
 		},
 		{
@@ -308,7 +303,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			activeVersions: []string{"4.19.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     true,
 			expectError:    true,
 			errContains:    "node pool version 4.20.0 is not allowed to coexist with a different-major control plane",
 		},
@@ -319,22 +313,19 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			activeVersions: []string{"4.20.0"},
 			lowestCP:       "5.1.0",
 			highestCP:      "5.1.0",
-			allowMajor:     true,
 			expectError:    true,
 			errContains:    "node pool version 4.21.0 cannot coexist with control plane version 5.1.0",
 		},
 
 		// --- Cross-major upgrade (desired major above the active lowest) ---
 		{
-			// Cross-major upgrade without the flag is rejected.
-			name:           "cross-major upgrade requires major upgrade flag",
+			// Cross-major upgrade no longer needs the experimental feature.
+			name:           "cross-major upgrade succeeds without AFEC",
 			desiredVersion: "5.0.0",
 			activeVersions: []string{"4.22.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     false,
-			expectError:    true,
-			errContains:    "major version changes are not supported",
+			expectError:    false,
 		},
 		{
 			// 4.22 -> 5.0 is an allowed upgrade path, so it succeeds.
@@ -343,7 +334,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			activeVersions: []string{"4.22.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     true,
 			expectError:    false,
 		},
 		{
@@ -353,7 +343,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			activeVersions: []string{"4.22.0"},
 			lowestCP:       "5.1.0",
 			highestCP:      "5.1.0",
-			allowMajor:     true,
 			expectError:    true,
 			errContains:    "invalid upgrade path from 4.22.0 to 5.1.0: 4.22 can only upgrade to 5.0",
 		},
@@ -364,21 +353,19 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			activeVersions: []string{"4.21.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     true,
 			expectError:    true,
 			errContains:    "invalid upgrade path from 4.21.0 to 5.0.0: major version upgrades are not supported",
 		},
 
 		// --- Cross-major downgrade (desired major below the active highest) ---
 		{
-			// Cross-major downgrade with the flag and an allowed skew (NP 4.22
+			// Cross-major downgrade with an allowed skew (NP 4.22
 			// alongside CP 5.0) succeeds via ValidateCrossMajorNodePoolSkew.
 			name:           "cross-major downgrade with allowed skew succeeds",
 			desiredVersion: "4.22.0",
 			activeVersions: []string{"5.0.0"},
 			lowestCP:       "5.0.0",
 			highestCP:      "5.0.0",
-			allowMajor:     true,
 			expectError:    false,
 		},
 
@@ -434,7 +421,6 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 				nodePoolActiveVersions(tt.activeVersions...),
 				lowestCP,
 				highestCP,
-				tt.allowMajor,
 			)
 			if tt.expectError {
 				if err == nil {

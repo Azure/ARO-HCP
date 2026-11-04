@@ -1024,9 +1024,9 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 // are operationally identical to upgrades. Constraints:
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
 //   - Downgrade: at most -2 minor versions from the highest control plane version
-//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - Cross-major upgrades must follow the supported upgrade paths
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.ServiceProviderNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.ServiceProviderNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av coreapi.ServiceProviderNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
@@ -1066,22 +1066,16 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	// validate that the desired NP version can coexist with the CP version.
 	// This applies to both upgrades (4.21→4.22) and downgrades (4.22→4.21) within
 	// the same major. NP changes that cross majors (e.g., 5.0→4.22) skip this and
-	// go through the AFEC gate below.
+	// use the cross-major path or skew check below.
 	isSameMajorNPChange := highest == nil || desiredVersion.Major == highest.Major
 	if desiredVersion.Major != highestCPVersion.Major && isSameMajorNPChange {
-		if !allowMajorUpgrade {
-			return fmt.Errorf("node pool version changes are not supported while the control plane is on a different major version (node pool major version %d vs control plane major version %d)", desiredVersion.Major, highestCPVersion.Major)
-		}
 		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
 	}
 
-	// Cross-major change (upgrade or downgrade): gated behind FeatureExperimentalReleaseFeatures.
+	// Cross-major changes must follow the supported upgrade path or skew rules.
 	isCrossMajorUpgrade := lowest != nil && desiredVersion.Major > lowest.Major
 	isCrossMajorDowngrade := highest != nil && desiredVersion.Major < highest.Major
 	if isCrossMajorUpgrade || isCrossMajorDowngrade {
-		if !allowMajorUpgrade {
-			return fmt.Errorf("major version changes are not supported")
-		}
 		if isCrossMajorUpgrade {
 			return ValidateMajorUpgrade(*lowest, desiredVersion)
 		}

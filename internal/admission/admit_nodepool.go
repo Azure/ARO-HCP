@@ -392,9 +392,9 @@ func canRunWorkerNodes(np *coreapi.NodePoolProperties) bool {
 // It checks:
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
 //   - Downgrade: at most -2 minor versions from the highest control plane version
-//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - Cross-major upgrades must follow the supported upgrade paths
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
+func validateNodePoolVersionChange(_ context.Context, admissionContext *NodePoolAdmissionContext, _ operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
 	// Skip validation if no version is specified or version didn't change
 	if len(newObj.ID) == 0 || (oldObj != nil && newObj.ID == oldObj.ID) {
@@ -422,8 +422,7 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
-	experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)
-	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, experimentalFeaturesEnabled); err != nil {
+	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 
