@@ -93,6 +93,8 @@ github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshi
 github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 # github.com/Azure/ARO-HCP/tooling/azutils v0.0.0-00010101000000-000000000000 => ./tooling/azutils
 ## explicit; go 1.26.0
+# github.com/Azure/ARO-HCP/tooling/cifailurepatterns v0.0.0-00010101000000-000000000000 => ./tooling/cifailurepatterns
+## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d => ./tooling/cleanup-sweeper
 ## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-00010101000000-000000000000 => ./tooling/hcpctl

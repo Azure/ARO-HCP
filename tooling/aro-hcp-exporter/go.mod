@@ -48,6 +48,7 @@ require (
 )
 
 replace (
+	github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../cifailurepatterns
 	github.com/Azure/ARO-HCP/tooling/hcpctl => ../hcpctl
 	github.com/Azure/ARO-HCP/tooling/metricscache => ../metricscache
 )

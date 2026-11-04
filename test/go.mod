@@ -418,6 +418,8 @@ replace github.com/Azure/ARO-HCP/internal => ../internal
 
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 
+replace github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../tooling/cifailurepatterns
+
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes

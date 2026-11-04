@@ -118,6 +118,7 @@ require (
 replace (
 	github.com/Azure/ARO-HCP/internal => ../../internal
 	github.com/Azure/ARO-HCP/tooling/azutils => ../azutils
+	github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../cifailurepatterns
 	github.com/Azure/ARO-HCP/tooling/hcpctl => ../hcpctl
 	github.com/Azure/ARO-HCP/tooling/metricscache => ../metricscache
 	github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes
