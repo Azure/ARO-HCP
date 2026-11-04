@@ -383,6 +383,13 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard0-slot
       slot_count: 3
+      vm_family_policy:
+        regions:
+          westeurope:
+            worker_families:
+            - StandardDsv6Family
+            - standardDSv5Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -395,6 +402,13 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
       slot_count: 3
+      vm_family_policy:
+        regions:
+          westeurope:
+            worker_families:
+            - StandardDsv6Family
+            - standardDSv5Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
