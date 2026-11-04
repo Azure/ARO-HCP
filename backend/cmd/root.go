@@ -595,6 +595,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
 		OrphanedMRGCleanupConfig:      orphanedMRGCleanupConfig,
+		ClusterOIDCIssuerBaseURL:      azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 	}
 
 	return backendOptions, nil
