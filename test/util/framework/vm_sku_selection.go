@@ -47,11 +47,17 @@ import (
 var ErrNoUsableVMSize = errors.New("no unrestricted VM size satisfied the selector in the test location; " +
 	"this typically indicates a VM SKU restriction or quota issue with the test subscription/region, not a product defect")
 
-// Historical SKU preferences for explicit legacy worker selection and helpers.
+// General-purpose worker defaults and the independent helper preference.
 const (
-	DefaultWorkerVMSize = "Standard_D8s_v3"
-	SmallWorkerVMSize   = "Standard_D4s_v3"
+	DefaultWorkerVMSize = "Standard_D8s_v6"
+	SmallWorkerVMSize   = "Standard_D4s_v6"
 	JumpboxVMSize       = "Standard_D2s_v3"
+)
+
+// Legacy worker sizes retain explicit v3 pins and ephemeral-disk selection.
+const (
+	LegacyWorkerVMSize      = "Standard_D8s_v3"
+	LegacySmallWorkerVMSize = "Standard_D4s_v3"
 )
 
 // DefaultDiskStorageAccountType is the OS disk storage account type used by the
@@ -535,7 +541,7 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
 	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "default-worker",
-		Preferred:   []string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5"},
+		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5"},
 		NamePattern: defaultWorkerVMSizePattern,
 		MinVCPUs:    8,
 	}, false)
@@ -553,7 +559,7 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 func SmallWorkerVMSizeSelector() VMSizeSelector {
 	return withVMFamilyPolicy(VMSizeSelector{
 		Name:        "small-worker",
-		Preferred:   []string{"Standard_D4s_v6", "Standard_D4s_v5", "Standard_D4as_v5"},
+		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5"},
 		NamePattern: smallWorkerVMSizePattern,
 		MinVCPUs:    4,
 	}, false)
@@ -626,7 +632,7 @@ func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "ephemeral-osdisk-worker",
 		Preferred: []string{
-			DefaultWorkerVMSize,  // Standard_D8s_v3 - Intel D-series v3
+			LegacyWorkerVMSize,   // Standard_D8s_v3 - Intel D-series v3
 			"Standard_D8as_v4",   // AMD D-series v4
 			"Standard_E8s_v3",    // Intel E-series v3
 			"Standard_E8as_v4",   // AMD E-series v4

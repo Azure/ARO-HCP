@@ -288,12 +288,6 @@ environments:
       region_mode: fixed
       resource_type: aro-hcp-int-shard0-slot
       slot_count: 1
-      vm_family_policy:
-        worker_families:
-        - standardDSv3Family
-        - standardDSv5Family
-        - standardDASv5Family
-        - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -401,12 +395,6 @@ environments:
           eastus2:
             worker_families:
             - standardDSv5Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -437,12 +425,6 @@ environments:
           eastus2:
             worker_families:
             - standardDSv5Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -470,24 +452,6 @@ environments:
           westeurope:
             worker_families:
             - standardDSv5Family
-          centralindia:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -515,24 +479,6 @@ environments:
           westeurope:
             worker_families:
             - standardDSv5Family
-          centralindia:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -560,24 +506,6 @@ environments:
           westeurope:
             worker_families:
             - standardDSv5Family
-          centralindia:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -605,24 +533,6 @@ environments:
           westeurope:
             worker_families:
             - standardDSv5Family
-          centralindia:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
-          eastus2euap:
-            worker_families:
-            - standardDSv3Family
-            - standardDSv5Family
-            - standardDASv5Family
-            - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
