@@ -20,6 +20,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,7 +30,27 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"sigs.k8s.io/yaml"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
+
+const testOCPACR = "arohcpocpdev.azurecr.io"
+
+// platformMirrors returns the ImageDigestMirrorSet an ARO HCP guest cluster
+// gets from its HostedCluster's imageContentSources.
+func platformMirrors(acr string) configv1client.ConfigV1Interface {
+	return configfake.NewSimpleClientset(&configv1.ImageDigestMirrorSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "image-digest-mirror"},
+		Spec: configv1.ImageDigestMirrorSetSpec{ImageDigestMirrors: []configv1.ImageDigestMirrors{
+			{Source: "quay.io/openshift-release-dev/ocp-v4.0-art-dev", Mirrors: []configv1.ImageMirror{configv1.ImageMirror(acr + "/openshift-release-dev/ocp-v4.0-art-dev")}},
+			{Source: "quay.io/openshift-release-dev/ocp-release", Mirrors: []configv1.ImageMirror{configv1.ImageMirror(acr + "/openshift-release-dev/ocp-release")}},
+		}},
+	}).ConfigV1()
+}
 
 // verifyPebbleServingSecret checks that the stored serving certificate pairs
 // with its key and chains to caBundle for Pebble's Service host.
@@ -75,12 +97,46 @@ func TestPebbleConfigJSON(t *testing.T) {
 	require.Equal(t, "/etc/pebble/tls/tls.key", config.Pebble.PrivateKey)
 }
 
+func TestResolvePebbleImageUsesOCPACR(t *testing.T) {
+	image, err := resolvePebbleImage(context.Background(), platformMirrors("arohcpocpint.azurecr.io"))
+	require.NoError(t, err)
+	require.Equal(t, "arohcpocpint.azurecr.io/letsencrypt/pebble@"+pebbleDigest, image)
+}
+
+func TestResolvePebbleImageWithoutPlatformMirror(t *testing.T) {
+	_, err := resolvePebbleImage(context.Background(), configfake.NewSimpleClientset().ConfigV1())
+	require.ErrorContains(t, err, "quay.io/openshift-release-dev/ocp-release")
+}
+
+// The E2E pipeline mirrors only what config lists, so the digest the test
+// deploys must be the one every rendered environment mirrors.
+func TestPebbleDigestMatchesMirroredConfig(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "..", "config", "rendered", "dev", "*", "*.yaml"))
+	require.NoError(t, err)
+	require.NotEmpty(t, files, "no rendered configs found")
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		require.NoError(t, err)
+		var rendered struct {
+			E2E struct {
+				PebbleImage struct{ Registry, Repository, Digest string } `json:"pebbleImage"`
+			} `json:"e2e"`
+		}
+		require.NoError(t, yaml.Unmarshal(data, &rendered), file)
+		pebble := rendered.E2E.PebbleImage
+		require.Equal(t, pebbleSourceRegistry, pebble.Registry, file)
+		require.Equal(t, pebbleSourceRepository, pebble.Repository, file)
+		require.Equal(t, pebbleDigest, pebble.Digest, file)
+	}
+}
+
 func TestDeployPebble(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 
-	caBundle, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
+	caBundle, image, err := DeployPebble(ctx, client, platformMirrors(testOCPACR), "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
+	require.Equal(t, testOCPACR+"/letsencrypt/pebble@"+pebbleDigest, image)
 
 	secret, err := client.CoreV1().Secrets(PebbleNamespace).Get(ctx, pebbleTLSSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
@@ -92,7 +148,7 @@ func TestDeployPebble(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
 	container := deployment.Spec.Template.Spec.Containers[0]
-	require.Equal(t, PebbleImage, container.Image)
+	require.Equal(t, image, container.Image)
 	require.Contains(t, container.Image, "@sha256:", "Pebble image must be pinned by digest")
 	require.Equal(t, []string{"-config", "/etc/pebble/config/pebble-config.json", "-dnsserver", "ns1-01.azure-dns.com.:53"}, container.Args)
 	require.Equal(t, int32(1), *deployment.Spec.Replicas)
@@ -106,9 +162,9 @@ func TestDeployPebbleRedeployReturnsPersistedCA(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 
-	first, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
+	first, _, err := DeployPebble(ctx, client, platformMirrors(testOCPACR), "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
-	second, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
+	second, _, err := DeployPebble(ctx, client, platformMirrors(testOCPACR), "ns1-01.azure-dns.com.")
 	require.NoError(t, err)
 	require.Equal(t, first, second, "redeploy must return the CA of the retained Secret, not a new one")
 
@@ -124,7 +180,7 @@ func TestDeployPebbleRejectsExistingSecretWithoutCA(t *testing.T) {
 		Type:       corev1.SecretTypeTLS,
 		Data:       map[string][]byte{corev1.TLSCertKey: []byte("cert"), corev1.TLSPrivateKeyKey: []byte("key")},
 	})
-	_, err := DeployPebble(ctx, client, "ns1-01.azure-dns.com.")
+	_, _, err := DeployPebble(ctx, client, platformMirrors(testOCPACR), "ns1-01.azure-dns.com.")
 	require.ErrorContains(t, err, "has no ca.crt")
 }
 

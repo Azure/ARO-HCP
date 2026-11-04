@@ -290,9 +290,10 @@ var _ = Describe("Customer", func() {
 
 			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
 
-			By("deploying the Pebble ACME test server, validating DNS-01 against the zone's authoritative nameserver")
-			pebbleCABundle, err := framework.DeployPebble(ctx, kubeClient, nameservers[0])
+			By("deploying the Pebble ACME test server from the OCP ACR, validating DNS-01 against the zone's authoritative nameserver")
+			pebbleCABundle, pebbleImage, err := framework.DeployPebble(ctx, kubeClient, configClient, nameservers[0])
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy Pebble ACME test server")
+			GinkgoLogr.Info("deployed Pebble ACME test server", "image", pebbleImage, "dnsServer", nameservers[0])
 
 			By("waiting for the cert-manager controller deployment to become Available")
 			var lastDeployErr string

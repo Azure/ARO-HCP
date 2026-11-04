@@ -274,6 +274,10 @@ dns:
   regionalSubdomain: usw3ptest
   svcParentZoneName: hcpsvc.osadev.cloud
 e2e:
+  pebbleImage:
+    digest: sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199
+    registry: ghcr.io
+    repository: letsencrypt/pebble
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:

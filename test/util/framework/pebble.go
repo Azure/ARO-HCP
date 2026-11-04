@@ -31,6 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
+
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
 // Pebble is Let's Encrypt's ACME test server, recommended for CI instead of
@@ -44,8 +46,20 @@ import (
 // in the cluster's Azure DNS zone via workload identity, and Pebble validates
 // that record against the zone's authoritative nameserver before issuing.
 //
-// Pinned by tag and digest. Bump deliberately; do not float.
-const PebbleImage = "ghcr.io/letsencrypt/pebble:2.10.1@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199"
+// The image is pulled from the environment's OCP ACR rather than ghcr.io. The
+// E2E pipeline (test/e2e-pipeline.yaml, step mirror-pebble-image) mirrors it there
+// from config e2e.pebbleImage, which must list the same digest, keeping the
+// repository path. Bump deliberately, in both places; do not float.
+const (
+	pebbleSourceRegistry   = "ghcr.io"
+	pebbleSourceRepository = "letsencrypt/pebble"
+	pebbleDigest           = "sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199" // v2.10.1
+)
+
+// ocpReleaseMirrorSource is the platform image source every ARO HCP guest
+// cluster mirrors to its environment's OCP ACR via the HostedCluster's
+// imageContentSources, which surface in the guest as ImageDigestMirrorSets.
+const ocpReleaseMirrorSource = "quay.io/openshift-release-dev/ocp-release"
 
 const (
 	// PebbleNamespace is the guest-cluster namespace Pebble runs in.
@@ -131,14 +145,42 @@ func ensurePebbleServingSecret(ctx context.Context, kubeClient kubernetes.Interf
 	return existingCA, nil
 }
 
-// DeployPebble installs Pebble into the guest cluster and returns the CA bundle
-// cert-manager needs to trust Pebble's ACME endpoint (the ClusterIssuer's
-// spec.acme.caBundle). It is safe to call again against an existing install.
+// resolvePebbleImage returns Pebble's pullspec in the guest cluster's OCP ACR.
+// The ACR host is read from the platform's release-image mirror in the guest's
+// ImageDigestMirrorSets, so the same code works in every environment.
+func resolvePebbleImage(ctx context.Context, configClient configv1client.ConfigV1Interface) (string, error) {
+	sets, err := configClient.ImageDigestMirrorSets().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("listing ImageDigestMirrorSets to find the OCP ACR: %w", err)
+	}
+	for _, set := range sets.Items {
+		for _, mirror := range set.Spec.ImageDigestMirrors {
+			if mirror.Source != ocpReleaseMirrorSource || len(mirror.Mirrors) == 0 {
+				continue
+			}
+			host, _, _ := strings.Cut(string(mirror.Mirrors[0]), "/")
+			if host == "" {
+				continue
+			}
+			return fmt.Sprintf("%s/%s@%s", host, pebbleSourceRepository, pebbleDigest), nil
+		}
+	}
+	return "", fmt.Errorf("no ImageDigestMirrorSet mirrors %s; cannot locate the OCP ACR Pebble is mirrored to", ocpReleaseMirrorSource)
+}
+
+// DeployPebble installs Pebble into the guest cluster, pulling the image from
+// the environment's OCP ACR. It returns the CA bundle cert-manager needs to
+// trust Pebble's ACME endpoint (the ClusterIssuer's spec.acme.caBundle) and the
+// image it deployed. It is safe to call again against an existing install.
 // It does not wait for readiness; see CheckPebbleReady.
-func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authoritativeNameserver string) ([]byte, error) {
+func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, configClient configv1client.ConfigV1Interface, authoritativeNameserver string) (caBundle []byte, image string, err error) {
+	image, err = resolvePebbleImage(ctx, configClient)
+	if err != nil {
+		return nil, "", err
+	}
 	config, err := pebbleConfigJSON()
 	if err != nil {
-		return nil, fmt.Errorf("rendering Pebble config: %w", err)
+		return nil, "", fmt.Errorf("rendering Pebble config: %w", err)
 	}
 	create := func(kind string, err error) error {
 		if err != nil && !apierrors.IsAlreadyExists(err) {
@@ -151,12 +193,12 @@ func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		ObjectMeta: metav1.ObjectMeta{Name: PebbleNamespace},
 	}, metav1.CreateOptions{})
 	if err := create("Namespace", err); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	caBundle, err := ensurePebbleServingSecret(ctx, kubeClient)
+	caBundle, err = ensurePebbleServingSecret(ctx, kubeClient)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	_, err = kubeClient.CoreV1().ConfigMaps(PebbleNamespace).Create(ctx, &corev1.ConfigMap{
@@ -164,7 +206,7 @@ func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		Data:       map[string]string{"pebble-config.json": string(config)},
 	}, metav1.CreateOptions{})
 	if err := create("ConfigMap", err); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	podLabels := map[string]string{"app.kubernetes.io/name": pebbleName}
@@ -186,7 +228,7 @@ func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 					},
 					Containers: []corev1.Container{{
 						Name:  pebbleName,
-						Image: PebbleImage,
+						Image: image,
 						Args: []string{
 							"-config", "/etc/pebble/config/pebble-config.json",
 							"-dnsserver", pebbleDNSServer(authoritativeNameserver),
@@ -234,7 +276,7 @@ func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		},
 	}, metav1.CreateOptions{})
 	if err := create("Deployment", err); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	_, err = kubeClient.CoreV1().Services(PebbleNamespace).Create(ctx, &corev1.Service{
@@ -248,10 +290,10 @@ func DeployPebble(ctx context.Context, kubeClient kubernetes.Interface, authorit
 		},
 	}, metav1.CreateOptions{})
 	if err := create("Service", err); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return caBundle, nil
+	return caBundle, image, nil
 }
 
 // CheckPebbleReady reports whether the Pebble Deployment has a ready replica.
