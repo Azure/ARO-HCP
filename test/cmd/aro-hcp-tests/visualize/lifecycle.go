@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"math"
 	"slices"
 	"time"
 
@@ -206,6 +207,7 @@ type durationSummary struct {
 	Min        time.Duration
 	Max        time.Duration
 	Incomplete int
+	samples    []time.Duration
 }
 
 // Records one successful sample without merging overlapping resource operations.
@@ -218,6 +220,7 @@ func (s *durationSummary) add(duration time.Duration) {
 	}
 	s.Count++
 	s.Total += duration
+	s.samples = append(s.samples, duration)
 }
 
 // Minimum formats the shortest successful sample, including a valid zero duration.
@@ -241,13 +244,25 @@ func formatTimingDuration(duration time.Duration) string {
 	return duration.Truncate(time.Second).String()
 }
 
-// Mean formats a duration only when the category has successful complete samples.
-func (s durationSummary) Mean() string {
+// Percentile returns the nearest-rank p-th percentile of successful samples, or N/A when there are none.
+func (s durationSummary) Percentile(p float64) string {
 	if s.Count == 0 {
 		return "N/A"
 	}
-	return formatTimingDuration(s.Total / time.Duration(s.Count))
+	sorted := slices.Clone(s.samples)
+	slices.Sort(sorted)
+	rank := max(1, int(math.Ceil(p/100*float64(len(sorted)))))
+	return formatTimingDuration(sorted[rank-1])
 }
+
+// P50 formats the median successful sample.
+func (s durationSummary) P50() string { return s.Percentile(50) }
+
+// P95 formats the 95th percentile successful sample.
+func (s durationSummary) P95() string { return s.Percentile(95) }
+
+// P99 formats the 99th percentile successful sample.
+func (s durationSummary) P99() string { return s.Percentile(99) }
 
 type lifecycleSummary struct {
 	Rows                              []durationSummary
@@ -345,7 +360,7 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 </style><section class="timing-summary">
 <h2>Operation durations</h2>
 <p>Full-run summary (unchanged by chart filters): {{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
-<table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
+<table><thead><tr><th>Operation</th><th>Min</th><th>P50</th><th>P95</th><th>P99</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.P50}}</td><td>{{.P95}}</td><td>{{.P99}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
 <p>Bar colors match the table · Purple: enclosing phase context, not operation coverage · Slate: No recorded operation, not necessarily idle time. Each bar is one test; concurrent operations share the bar height. Vertical zoom expands selected tests for detail.</p>
 <div class="timing-controls">
 <label for="timing-sort">Sort tests by
