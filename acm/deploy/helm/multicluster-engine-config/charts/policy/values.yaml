@@ -5,7 +5,7 @@ global:
     governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:fffb08b187c450bf6df82a7aca0b889c015b14eac0ad47edd1fd6aaea5b836ac"
     config_policy_controller: "config-policy-controller-rhel9@sha256:caa9db5cf68f0e6b017b0c922d5f96a675c5cc693678da3a95d9085c1577c63c"
     governance_policy_framework_addon: "acm-governance-policy-framework-addon-rhel9@sha256:471d40fc142472499971d82c65ccd8b10a9cef749e411676cc48acae73c90908"
-    klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:98d4999a5c00cba70a701b589cead4658d111a57390280a4463666fb7d2169e2"
+    klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:6f518c3310d39b9cc3b1d8f1a7d58295347c00ba54fa624fa8ca75e3580cbb48"
   namespace: multicluster-engine
   pullSecret: open-cluster-management-image-pull-credentials
   cma:
