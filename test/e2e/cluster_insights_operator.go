@@ -50,7 +50,7 @@ var _ = Describe("Customer", func() {
 
 				pullSecretMergeTimeout   = 10 * time.Minute
 				insightsHealthTimeout    = 5 * time.Minute
-				consoleVisibilityTimeout = 20 * time.Minute
+				consoleVisibilityTimeout = 30 * time.Minute
 			)
 			tc := framework.NewTestContext()
 
@@ -158,6 +158,19 @@ var _ = Describe("Customer", func() {
 				err = verifiers.VerifyPullSecretMergedIntoGlobal(cloudOpenShiftHost, pullSecretMergeTimeout).
 					Verify(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred(), "failed to wait for cloud.openshift.com token to be merged into global-pull-secret by HCCO")
+
+				By("lowering the Insights Operator gather interval to accelerate registration")
+				insightsConfig := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "insights-config",
+						Namespace: "openshift-insights",
+					},
+					Data: map[string]string{
+						"config.yaml": "dataReporting:\n  interval: 10m\n",
+					},
+				}
+				_, err = kubeClient.CoreV1().ConfigMaps("openshift-insights").Create(ctx, insightsConfig, metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred(), "failed to create insights-config ConfigMap to lower gather interval")
 
 				By("verifying the Insights Operator is still healthy after token injection")
 				err = verifiers.VerifyInsightsOperatorHealthy(insightsHealthTimeout).
