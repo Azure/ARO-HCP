@@ -67777,6 +67777,61 @@ data:
             type: StateSet
           help: Backup phase
           name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: Backup CR presence indicator, independent of status.phase - one row per
+            existing CR
+          name: info
+      - groupVersionKind:
+          group: velero.io
+          kind: DeleteBackupRequest
+          version: v1
+        labelsFromPath:
+          backupName:
+          - spec
+          - backupName
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+        metricNamePrefix: veleroDeleteBackupRequest
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - InProgress
+              - Processed
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: DeleteBackupRequest phase
+          name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: DeleteBackupRequest CR presence indicator, independent of status.phase
+            - one row per existing CR
+          name: info
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -67950,6 +68005,13 @@ rules:
   - velero.io
   resources:
   - backups
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
   verbs:
   - list
   - watch
