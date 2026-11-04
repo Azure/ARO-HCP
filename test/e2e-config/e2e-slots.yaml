@@ -379,13 +379,7 @@ environments:
       slot_count: 3
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
-            worker_families:
-            - standardDSv5Family
-          canadacentral:
             worker_families:
             - standardDSv5Family
           centralindia:
@@ -409,15 +403,9 @@ environments:
       slot_count: 3
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
             worker_families:
             - standardDSv3Family
-          canadacentral:
-            worker_families:
-            - standardDSv5Family
           centralindia:
             worker_families:
             - standardDSv5Family
@@ -440,16 +428,7 @@ environments:
       identity_container_provisioning_count: 100
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
-            worker_families:
-            - standardDSv5Family
-          canadacentral:
-            worker_families:
-            - standardDSv5Family
-          westeurope:
             worker_families:
             - standardDSv5Family
       slot_assets:
@@ -467,16 +446,7 @@ environments:
       identity_container_provisioning_count: 100
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
-            worker_families:
-            - standardDSv5Family
-          canadacentral:
-            worker_families:
-            - standardDSv5Family
-          westeurope:
             worker_families:
             - standardDSv5Family
       slot_assets:
@@ -494,16 +464,7 @@ environments:
       identity_container_provisioning_count: 100
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
-            worker_families:
-            - standardDSv5Family
-          canadacentral:
-            worker_families:
-            - standardDSv5Family
-          westeurope:
             worker_families:
             - standardDSv5Family
       slot_assets:
@@ -521,16 +482,7 @@ environments:
       identity_container_provisioning_count: 100
       vm_family_policy:
         regions:
-          uksouth:
-            worker_families:
-            - standardDSv5Family
           switzerlandnorth:
-            worker_families:
-            - standardDSv5Family
-          canadacentral:
-            worker_families:
-            - standardDSv5Family
-          westeurope:
             worker_families:
             - standardDSv5Family
       slot_assets:
