@@ -126,6 +126,7 @@ func (c *operationClusterCreate) newStatusCalculators() (operationbase.Operation
 		&clusterCreateServingCACheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDefaultIngressCertificateCheck{readDesireLister: c.readDesireLister},
 		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateEgressPublicIPsCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
 		&clusterCreateDataPlaneOIDCFederationCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister},
 	)
