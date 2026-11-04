@@ -21,7 +21,7 @@ FLEET_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(FLEET_SOURCES)
+$(BINARY): $(FLEET_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 clean:
@@ -75,3 +75,7 @@ record-latest-override: $(YQ)
 		"$(FLEET_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
 		"fleet" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
 .PHONY: record-latest-override
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

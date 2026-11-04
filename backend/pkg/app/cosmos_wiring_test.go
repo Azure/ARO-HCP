@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
@@ -111,7 +112,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		require.True(t, cosmosstorageutils.IsNotFoundError(err), "%v", err)
 		mc, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		kubeApplier, err := factory.KubeApplierStorageClients("normal").For(ctx, mc)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier, "its Fleet lookup uses that controller's Fleet budget")
 		desires, err := kubeApplier.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -121,7 +123,8 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 		// Debt in one MC container must not consume the next MC's allocation.
 		mc2, err := azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/2/managementClusters/default")
 		require.NoError(t, err)
-		kubeApplier2 := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		kubeApplier2, err := factory.KubeApplierStorageClients("normal").For(ctx, mc2)
+		require.NoError(t, err)
 		require.NotNil(t, kubeApplier2)
 		desires2, err := kubeApplier2.ReadDesiresForCluster("sub", "rg", "cluster")
 		require.NoError(t, err)
@@ -227,13 +230,24 @@ func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {
 }
 
 func TestBackendStorageRegistrations(t *testing.T) {
-	for _, realFPA := range []bool{false, true} {
-		names := BackendStorageControllerNames(realFPA)
+	contexts := []ControllerContext{
+		{HasRealFPA: false},
+		{HasRealFPA: true},
+		{HasRealFPA: false, OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{TargetSubscriptionAFECFlags: "target"}},
+		{HasRealFPA: true, OrphanedMRGCleanupConfig: &controllerconfig.OrphanedMRGCleanupConfig{ExcludedSubscriptionAFECFlags: []string{"excluded"}}},
+	}
+	for _, controllerContext := range contexts {
+		names := BackendStorageControllerNames(controllerContext)
+		if controllerContext.OrphanedMRGCleanupConfig.Enabled() {
+			require.Contains(t, names, "managedresourcegroupwatching")
+		} else {
+			require.NotContains(t, names, "managedresourcegroupwatching")
+		}
 		options := storageTestOptions(t, func(*http.Request) (*http.Response, error) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
 		})
-		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(realFPA))
+		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(controllerContext))
 		require.NoError(t, err)
 		for _, name := range names {
 			require.NotNil(t, factory.ResourcesStorageClient(name))
@@ -247,7 +261,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		options := BackendStorageFactoryOptions(false)
+		options := BackendStorageFactoryOptions(ControllerContext{})
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,

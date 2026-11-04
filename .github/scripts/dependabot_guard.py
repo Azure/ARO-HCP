@@ -12,6 +12,108 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
+OWNER = "aro-hcp-robot[bot]"
+SECURITY_LABEL = "agentic-dependabot"
+WORKFLOW_MARKER = "<!-- gh-aw-workflow-id: dependabot-remediation -->"
+
+
+def gh_json(endpoint, *, paginate=False):
+    command = ["gh", "api"]
+    if paginate:
+        command.extend(["--paginate", "--slurp"])
+    result = subprocess.run(
+        [*command, endpoint], check=True, capture_output=True, text=True,
+    )
+    value = json.loads(result.stdout)
+    if not paginate:
+        return value
+    if not isinstance(value, list) or not value or any(not isinstance(page, list) for page in value):
+        raise ValueError("incomplete paginated security inventory")
+    return [item for page in value for item in page]
+
+
+def validate_pr_identity(pr):
+    if (
+        not isinstance(pr, dict)
+        or type(pr.get("number")) is not int or pr["number"] <= 0
+        or not isinstance(pr.get("user"), dict)
+        or not isinstance(pr["user"].get("login"), str) or not pr["user"]["login"]
+        or pr.get("state") not in ("open", "closed")
+    ):
+        raise ValueError("incomplete security pull-request identity")
+
+
+def security_pr(pr):
+    """Recognize only this workflow, including the pre-label publication window."""
+    if (
+        not isinstance(pr.get("labels"), list)
+        or any(not isinstance(label, dict) or not isinstance(label.get("name"), str)
+               for label in pr["labels"])
+        or not isinstance(pr.get("title"), str)
+        or "body" not in pr
+        or (pr["body"] is not None and not isinstance(pr["body"], str))
+    ):
+        raise ValueError("incomplete security pull-request metadata")
+    return (
+        any(label["name"] == SECURITY_LABEL for label in pr["labels"])
+        or (
+            pr["title"].startswith("fix(deps): ")
+            and WORKFLOW_MARKER in (pr["body"] or "").splitlines()
+        )
+    )
+
+
+def owned_inventory(repo):
+    """Return fresh owned security metadata without inspecting unrelated PRs."""
+    issues = gh_json(
+        f"repos/{repo}/issues?state=open&creator=aro-hcp-robot%5Bbot%5D&per_page=100",
+        paginate=True,
+    )
+    seen = set()
+    result = []
+    for issue in issues:
+        validate_pr_identity(issue)
+        if issue["number"] in seen:
+            raise ValueError("duplicate security pull-request inventory")
+        seen.add(issue["number"])
+        if issue["user"]["login"] != OWNER or issue["state"] != "open" or "pull_request" not in issue:
+            continue
+        if not isinstance(issue["pull_request"], dict):
+            raise ValueError("incomplete security pull-request issue metadata")
+        if not security_pr(issue):
+            continue
+        pr = gh_json(f"repos/{repo}/pulls/{issue['number']}")
+        validate_pr_identity(pr)
+        if pr["number"] != issue["number"]:
+            raise ValueError("security pull-request number changed")
+        if pr["user"]["login"] != OWNER or pr["state"] != "open":
+            continue
+        base = pr.get("base")
+        if not isinstance(base, dict) or not isinstance(base.get("ref"), str) or not base["ref"]:
+            raise ValueError("incomplete security pull-request base")
+        if base["ref"] != "main":
+            continue
+        if not security_pr(pr):
+            continue
+        head = pr.get("head")
+        if (
+            not isinstance(head, dict)
+            or not isinstance(head.get("ref"), str) or not head["ref"]
+            or not isinstance(head.get("sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", head["sha"])
+            or not isinstance(head.get("repo"), dict) or head["repo"].get("full_name") != repo
+            or not isinstance(base.get("repo"), dict) or base["repo"].get("full_name") != repo
+            or type(pr.get("draft")) is not bool
+        ):
+            raise ValueError("incomplete or foreign security pull-request head/base identity")
+        result.append({
+            "number": pr["number"], "title": pr["title"], "body": pr["body"] or "",
+            "head": head["ref"], "head_repo": head["repo"]["full_name"], "base": base["ref"],
+            "sha": head["sha"], "draft": pr["draft"], "author": pr["user"]["login"],
+            "labels": [label["name"] for label in pr["labels"]],
+        })
+    return result
+
+
 
 def gh_lines(path, expression, token=None):
     env = os.environ.copy()
@@ -422,14 +524,9 @@ def guard_create(output, repo):
         for _, other_family, _, _ in groups[:index]:
             if family_matches(family, other_family) or family_matches(other_family, family):
                 raise ValueError("multiple new PRs for the same family")
-    prs = gh_lines(
-        f"repos/{repo}/pulls?state=open&per_page=100",
-        '.[] | {number, title, body, base: .base.ref}',
-    )
+    prs = owned_inventory(repo)
     deferred = set()
     for pr in prs:
-        if pr["base"] != "main":
-            continue
         files = gh_lines(
             f"repos/{repo}/pulls/{pr['number']}/files?per_page=100",
             ".[] | {filename, previous_filename, status, patch, additions, deletions}",
@@ -464,7 +561,7 @@ def guard_create(output, repo):
     output["items"] = [item for item in output["items"] if id(item) not in deferred]
     ensure_safe_output(output)
     print(
-        f"Checked {len(groups)} dependency groups against {len(prs)} open PRs; "
+        f"Checked {len(groups)} dependency groups against {len(prs)} owned security PRs; "
         f"deferred {len(deferred)} create(s) for open-PR or same-batch conflicts"
     )
 
@@ -538,6 +635,8 @@ def main():
                 item = json.load(source)
             group(item)
             print(json.dumps(item))
+        elif sys.argv[1] == "inventory" and len(sys.argv) == 3:
+            print(json.dumps(owned_inventory(sys.argv[2])))
         elif sys.argv[1] == "create" and len(sys.argv) == 4:
             path = sys.argv[2]
             with open(path, encoding="utf-8") as source:
@@ -547,7 +646,7 @@ def main():
         elif sys.argv[1] == "retest" and len(sys.argv) == 6:
             guard_retest(*sys.argv[2:])
         else:
-            raise ValueError("usage: dependabot_guard.py validate PROPOSAL | create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
+            raise ValueError("usage: dependabot_guard.py validate PROPOSAL | inventory REPO | create OUTPUT REPO | retest REPO PR SHA EVIDENCE")
     except (OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Dependabot guard refused action: {error}", file=sys.stderr)
         sys.exit(1)

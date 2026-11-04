@@ -41,18 +41,21 @@ func TestValidateClaudeCodeProvider(t *testing.T) {
 	opts.DataDir = dataDir
 	opts.AROHCPPath = dataDir
 	opts.HypershiftPath = dataDir
-	opts.MaestroPath = dataDir
 	opts.ClustersServicePath = dataDir
 	cmd := &cobra.Command{}
 	if err := bindAnalyzeOptions(opts, cmd); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmd.ParseFlags([]string{"--provider=claude-code", "--model=custom-model"}); err != nil {
+	// A legacy invocation must accept --maestro without checking or using its path.
+	if err := cmd.ParseFlags([]string{"--provider=claude-code", "--model=custom-model", "--maestro=" + filepath.Join(dataDir, "missing-maestro")}); err != nil {
 		t.Fatal(err)
 	}
 	validated, err := opts.validate()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(validated.worktreePaths) != 3 || validated.worktreePaths["maestro"] != "" {
+		t.Fatalf("compatibility flag changed source checkouts: %v", validated.worktreePaths)
 	}
 	if validated.claudeCodeConfig == nil || validated.claudeCodeConfig.Model != "custom-model" || validated.copilotConfig != nil || validated.claudeConfig != nil {
 		t.Fatal("claude-code did not select its own configuration")
@@ -106,7 +109,6 @@ func TestValidateClaudeBackends(t *testing.T) {
 				opts.DataDir = dataDir
 				opts.AROHCPPath = dataDir
 				opts.HypershiftPath = dataDir
-				opts.MaestroPath = dataDir
 				opts.ClustersServicePath = dataDir
 				cmd := &cobra.Command{}
 				if err := bindAnalyzeOptions(opts, cmd); err != nil {
@@ -340,7 +342,6 @@ func TestValidateReasoningEffort(t *testing.T) {
 			opts.DataDir = dataDir
 			opts.AROHCPPath = dataDir
 			opts.HypershiftPath = dataDir
-			opts.MaestroPath = dataDir
 			opts.ClustersServicePath = dataDir
 			cmd := &cobra.Command{}
 			if err := bindAnalyzeOptions(opts, cmd); err != nil {

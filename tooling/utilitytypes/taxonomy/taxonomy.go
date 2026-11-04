@@ -40,6 +40,7 @@ const (
 	L2ClusterService = "Cluster Service"
 	L2Backend        = "Backend"
 	L2Maestro        = "Maestro"
+	L2KubeApplier    = "Kube Applier"
 	L2HyperShift     = "HyperShift"
 	L2RHUpstream     = "RH Upstream"
 )
@@ -50,6 +51,7 @@ var ValidL2Subcategories = map[string]bool{
 	L2ClusterService: true,
 	L2Backend:        true,
 	L2Maestro:        true,
+	L2KubeApplier:    true,
 	L2HyperShift:     true,
 	L2RHUpstream:     true,
 }

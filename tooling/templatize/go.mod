@@ -4,17 +4,18 @@ go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
-	github.com/Azure/ARO-Tools/config v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261027163642-a8d4876e7d4f
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261027163642-a8d4876e7d4f
+	github.com/Azure/ARO-Tools/config v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20261029184915-ae250b4c53dd
+	github.com/Azure/ARO-Tools/tools/stackctl v0.0.0-20261029184915-ae250b4c53dd
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -52,7 +53,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261027163642-a8d4876e7d4f // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20261029184915-ae250b4c53dd // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
@@ -138,7 +139,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
@@ -313,7 +314,7 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/kubectl v0.37.1 // indirect
-	knative.dev/pkg v0.0.0-20260318013857-98d5a706d4fd // indirect
+	knative.dev/pkg v0.0.0-20260531000007-52dbd5ece63f // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
 	sigs.k8s.io/controller-runtime v0.25.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect

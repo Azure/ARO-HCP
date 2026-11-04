@@ -293,3 +293,19 @@ resourceGroups:
     template: ../../templates/ci-bot-rbac.bicep
     parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+# Tenant-quota collector Reader on every subscription it monitors. The
+# application and service principal come from E2ESubscriptionRBAC (looked up by
+# uniqueName); the subscription list is the same ci.<env> set the collector chart
+# reads, so config and grants cannot drift. Legacy `az role assignment create`
+# Reader assignments for this principal must be removed before this step is
+# deployed because Azure permits only one assignment per principal, role, and
+# scope, regardless of the assignment resource name.
+- name: tenant-quota
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: tenant-quota-rbac
+    action: ARM
+    template: ../../templates/tenant-quota-rbac.bicep
+    parameters: ../../configurations/tenant-quota-rbac.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

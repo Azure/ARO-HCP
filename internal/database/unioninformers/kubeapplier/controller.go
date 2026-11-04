@@ -79,11 +79,10 @@ func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 //
 // The returned KubeApplierInformers must be unstarted: the controller owns
 // the lifecycle and will call RunWithContext on a child context. Returning
-// nil signals "no per-MC informers available for this resourceID" — the
-// controller silently skips this sync and waits for the next event for
-// that MC.
+// nil, nil signals "no per-MC informers available for this resourceID".
+// The controller retries both unavailability and errors through its workqueue.
 type PerMCKubeApplierInformerFactory interface {
-	NewKubeApplierInformers(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) kubeapplierinformers.KubeApplierInformers
+	NewKubeApplierInformers(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) (kubeapplierinformers.KubeApplierInformers, error)
 }
 
 // UnionKubeApplierInformersController owns a UnionKubeApplierInformers and
@@ -330,7 +329,10 @@ func (c *UnionKubeApplierInformersController) ensureAdded(ctx context.Context, r
 		return nil
 	}
 
-	sub := c.factory.NewKubeApplierInformers(ctx, rid)
+	sub, err := c.factory.NewKubeApplierInformers(ctx, rid)
+	if err != nil {
+		return err
+	}
 	if sub == nil {
 		return fmt.Errorf("kube-applier informers unavailable for management cluster %s", rid)
 	}

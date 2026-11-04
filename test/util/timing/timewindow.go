@@ -112,6 +112,9 @@ func LoadSteps(ctx context.Context, dir string) ([]pipeline.NodeInfo, error) {
 
 // LoadTestTimingInfo reads all timing-metadata-*.yaml(.gz) files from a
 // directory and returns parsed timing info keyed by test identifier.
+// CleanupStartedAt preserves the body/cleanup boundary when FinishedAt includes
+// teardown; historical artifacts used FinishedAt for that boundary. Missing body
+// spans fall back to setup completion or the spec start, retaining body diagnostics.
 func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo, error) {
 	if dir == "" {
 		return nil, nil
@@ -158,13 +161,21 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			return fmt.Errorf("failed to unmarshal %s: %w", p, err)
 		}
 
-		startedAt, err := time.Parse(time.RFC3339, tm.StartedAt)
+		startedAt, err := time.Parse(time.RFC3339Nano, tm.StartedAt)
 		if err != nil {
 			return fmt.Errorf("failed to parse startedAt in %s: %w", p, err)
 		}
-		finishedAt, err := time.Parse(time.RFC3339, tm.FinishedAt)
+		finishedAt, err := time.Parse(time.RFC3339Nano, tm.FinishedAt)
 		if err != nil {
 			return fmt.Errorf("failed to parse finishedAt in %s: %w", p, err)
+		}
+
+		cleanupStart := finishedAt
+		if tm.CleanupStartedAt != "" {
+			cleanupStart, err = time.Parse(time.RFC3339Nano, tm.CleanupStartedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse cleanupStartedAt in %s: %w", p, err)
+			}
 		}
 
 		rgNames := make([]string, 0)
@@ -174,7 +185,7 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			}
 		}
 
-		setupFinishTime, testStartTime := deriveSetupTestBoundary(tm.Steps)
+		setupFinishTime, testStartTime := deriveSetupTestBoundary(tm.Steps, startedAt, cleanupStart)
 
 		key := strings.Join(tm.Identifier, " ")
 		result[key] = TimingInfo{
@@ -182,7 +193,7 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			EndTime:            finishedAt.Add(endGracePeriodDuration),
 			SetupFinishTime:    setupFinishTime,
 			TestStartTime:      testStartTime,
-			CleanupStartTime:   finishedAt,
+			CleanupStartTime:   cleanupStart,
 			ResourceGroupNames: rgNames,
 			SubscriptionID:     tm.SubscriptionID,
 			Steps:              tm.Steps,
@@ -195,38 +206,54 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 	return result, nil
 }
 
-// identityContainerStep reports whether a step name refers to identity container setup.
+// Reports whether a step name refers to identity container setup.
 func identityContainerStep(name string) bool {
 	return strings.Contains(strings.ToLower(name), "identity container")
 }
 
-// deriveSetupTestBoundary inspects the steps in the timing metadata and returns:
-//   - setupFinishTime: the latest FinishedAt among steps whose name contains
-//     "identity container" (setup steps).
-//   - testStartTime: the earliest StartedAt among steps whose name does NOT
-//     contain "identity container" (test steps).
-//
-// Either or both may be zero when the relevant steps are not present or their
-// timestamps cannot be parsed.
-func deriveSetupTestBoundary(steps []StepTimingMetadata) (setupFinishTime, testStartTime time.Time) {
+// Derives ordered setup/test boundaries from work that starts before cleanup.
+// Setup spans crossing cleanup are capped at that boundary. Without a named body
+// span, the test starts at setup completion or the spec start to retain requests.
+func deriveSetupTestBoundary(steps []StepTimingMetadata, startedAt, cleanupStart time.Time) (setupFinishTime, testStartTime time.Time) {
 	for _, step := range steps {
+		stepStart, startErr := time.Parse(time.RFC3339Nano, step.StartedAt)
+		if startErr == nil && !cleanupStart.IsZero() && !stepStart.Before(cleanupStart) {
+			continue
+		}
 		if identityContainerStep(step.Name) {
-			if step.FinishedAt != "" {
-				if t, err := time.Parse(time.RFC3339, step.FinishedAt); err == nil {
-					if setupFinishTime.IsZero() || t.After(setupFinishTime) {
-						setupFinishTime = t
-					}
-				}
+			stepFinish, err := time.Parse(time.RFC3339Nano, step.FinishedAt)
+			if err != nil {
+				continue
 			}
-		} else {
-			if step.StartedAt != "" {
-				if t, err := time.Parse(time.RFC3339, step.StartedAt); err == nil {
-					if testStartTime.IsZero() || t.Before(testStartTime) {
-						testStartTime = t
-					}
+			if !cleanupStart.IsZero() && stepFinish.After(cleanupStart) {
+				if startErr != nil {
+					continue
 				}
+				stepFinish = cleanupStart
+			}
+			if !startedAt.IsZero() && stepFinish.Before(startedAt) {
+				continue
+			}
+			if setupFinishTime.IsZero() || stepFinish.After(setupFinishTime) {
+				setupFinishTime = stepFinish
+			}
+		} else if startErr == nil {
+			if !startedAt.IsZero() && stepStart.Before(startedAt) {
+				stepStart = startedAt
+			}
+			if testStartTime.IsZero() || stepStart.Before(testStartTime) {
+				testStartTime = stepStart
 			}
 		}
+	}
+	if testStartTime.IsZero() {
+		testStartTime = setupFinishTime
+		if testStartTime.IsZero() {
+			testStartTime = startedAt
+		}
+	}
+	if !testStartTime.IsZero() && setupFinishTime.After(testStartTime) {
+		setupFinishTime = testStartTime
 	}
 	return setupFinishTime, testStartTime
 }

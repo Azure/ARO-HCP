@@ -1,0 +1,34 @@
+digraph serving_certificate_delivery {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Serving certificates · observation, intent and external delivery", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  vault [label="Cluster Service / Key Vault\ncertificate exists; operation completed or 404", fillcolor="#fff0da", color="#b27624"];
+  observe [label="KubeAPIServerTLSCertificate\nIngressTLSCertificate\nindependent read-only Azure observers"];
+  gates [label="ALL live-delivery prerequisites\nobserved placement + namespace + CS ID\nconfirmed certificate + fleet vault/identity\nservice tenant\ncloudName passed through, not validated", fillcolor="#e4f2e5", color="#4c8053"];
+  ingress [label="IngressServingCertificateK8sResources\nIngressCertificate* desire pair\ndefault kube-applier field manager"];
+  kas [label="KubeAPIServerServingCertificateK8sResources\nKubeAPIServerServingCert* desire pair\nretain work-agent field manager"];
+  intents [label="ReadDesire then ApplyDesire\nSecretProviderClass + SecretSync\nno certificate/private-key contents in Cosmos", fillcolor="#e4f2e5", color="#4c8053"];
+  kube [label="ApplyDesireController\napply objects in HostedCluster namespace"];
+  sync [label="External secret-sync / Key Vault\nmaterialize named TLS Secret", fillcolor="#fff0da", color="#b27624"];
+  dns [label="DNS allocation / backfill: persisted base domain\n+ customer DNS prefix\nBOTH nonempty", fillcolor="#e4f2e5", color="#4c8053"];
+  desired [label="Provider Spec.DesiredHostedCluster\ningress defaultCertificate / API named certificate\nintent only; not a live apply acknowledgement", fillcolor="#e4f2e5", color="#4c8053"];
+  mirror [label="ReadDesireKubernetesController\nmirror SecretSync / HostedCluster observations"];
+  completion [label="OperationClusterCreate\ningress SecretCreated + IngressDefaultCertificateSynced\nplus other existing create gates\nno new dedicated KAS-delivery predicate"];
+  deletion [label="Cluster deletion\nplacement still required\ndedicated controllers delete known desire documents\nnamespace teardown deletes Kubernetes objects", fillcolor="#eee7fb", color="#7b59a4"];
+  vault -> observe [label="read existence / operation"];
+  observe -> gates [label="per-certificate AzureReference"];
+  gates -> ingress [label="ingress reference"];
+  gates -> kas [label="KAS reference"];
+  ingress -> intents [label="ensure ingress pair"];
+  kas -> intents [label="ensure / adopt KAS pair"];
+  intents -> kube [label="persisted SSA intent"];
+  kube -> sync [label="supporting Kubernetes objects"];
+  ingress -> desired [label="ingress defaultCertificate"];
+  kas -> desired [label="API-hostname mapping; requires DNS"];
+  dns -> desired [label="KAS mapping only; not secret delivery"];
+  sync -> mirror [label="SecretSync status", style=dashed, color="#857456"];
+  mirror -> completion [label="ingress delivery / synchronization gates"];
+  mirror -> ingress [label="named desire event / resync", style=dashed, color="#857456", constraint=false];
+  mirror -> kas [label="named desire event / resync", style=dashed, color="#857456", constraint=false];
+  deletion -> intents [label="remove documents, not objects", style=dashed, color="#857456", constraint=false];
+}

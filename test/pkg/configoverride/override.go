@@ -32,8 +32,16 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
+// RunCostTagKey tags per-run infrastructure with the Prow job that created it.
+// AKS copies cluster tags onto each cluster's node resource group, and Cost
+// Management tag inheritance on the E2E subscriptions attributes the usage
+// records of everything inside a tagged resource group to the run.
+const RunCostTagKey = "jobID.aro-hcp-ci.redhat.com"
+
 type Inputs struct {
 	DeployEnvironment            string
+	BuildID                      string
+	RunCostTagValue              string
 	Images                       map[string]string
 	OCLoginRegistries            string
 	MSIMockLease                 string
@@ -70,6 +78,9 @@ var (
 	resourceGroupName = regexp.MustCompile(`^[A-Za-z0-9._()-]*[A-Za-z0-9_()-]$`)
 	identityName      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 	stampName         = regexp.MustCompile(`^[1-9][0-9]*$`)
+	// azureTagValue constrains a run cost tag value to characters that are
+	// safe as an Azure tag value.
+	azureTagValue = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 )
 
 // InputsFromEnvironment reads CI overlay inputs and rejects unknown *_IMAGE
@@ -91,6 +102,10 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.InfrastructureIdentityBundle = value
 		case "USE_OC_LOGIN_REGISTRIES":
 			input.OCLoginRegistries = value
+		case "BUILD_ID":
+			input.BuildID = value
+		case "RUN_COST_TAG_VALUE":
+			input.RunCostTagValue = value
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -223,6 +238,17 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		}}
 	}
 
+	runCostTag, err := resolveRunCostTag(input)
+	if err != nil {
+		return Result{}, err
+	}
+	if runCostTag != "" {
+		// The whole tags key is replaced, mirroring the values ci00/ci01
+		// otherwise resolve from config/config.yaml.
+		setDefault(defaults, svcAKSTags+","+RunCostTagKey+"="+runCostTag, "svc", "aks", "tags")
+		setDefault(defaults, mgmtAKSTags+","+RunCostTagKey+"="+runCostTag, "mgmt", "aks", "tags")
+	}
+
 	root := map[string]interface{}{}
 	if len(defaults) > 0 {
 		root["clouds"] = map[string]interface{}{"dev": map[string]interface{}{
@@ -246,7 +272,55 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("encode configuration override: %w", err)
 	}
-	return Result{YAML: data, OCLoginRegistries: registries}, nil
+	result := Result{YAML: data, OCLoginRegistries: registries}
+	return result, nil
+}
+
+// AKS cluster tag defaults ci00/ci01 otherwise inherit from config/config.yaml
+// (they define no aks.tags of their own); keep them in sync when that file
+// changes.
+const (
+	svcAKSTags  = "clusterType=svc-cluster"
+	mgmtAKSTags = "clusterType=mgmt-cluster"
+)
+
+// resolveRunCostTag returns the value of the run cost tag, or "" when the job
+// has not opted in. RUN_COST_TAG_VALUE comes from the job configuration: the
+// literal "BUILD_ID" resolves to this job's Prow build ID, because ci-operator
+// configuration cannot expand $(BUILD_ID) itself; any other value is used
+// verbatim.
+func resolveRunCostTag(input Inputs) (string, error) {
+	value := input.RunCostTagValue
+	source := "RUN_COST_TAG_VALUE"
+	if value == "BUILD_ID" {
+		if input.BuildID == "" {
+			return "", fmt.Errorf("RUN_COST_TAG_VALUE is BUILD_ID but BUILD_ID is not set")
+		}
+		value = input.BuildID
+		source = "BUILD_ID"
+	}
+	if value == "" {
+		return "", nil
+	}
+	if !azureTagValue.MatchString(value) {
+		return "", fmt.Errorf("%s %q is not a valid %s tag value", source, value, RunCostTagKey)
+	}
+	return value, nil
+}
+
+// setDefault stores value at the nested defaults path, creating intermediate
+// maps and preserving entries other generators placed along the path.
+func setDefault(defaults map[string]interface{}, value string, path ...string) {
+	current := defaults
+	for _, key := range path[:len(path)-1] {
+		next, ok := current[key].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			current[key] = next
+		}
+		current = next
+	}
+	current[path[len(path)-1]] = value
 }
 
 func decodeYAML(data []byte, out interface{}) error {

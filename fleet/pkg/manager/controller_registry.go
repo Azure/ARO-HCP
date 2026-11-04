@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
-	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/nodepool"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/sharedingress"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -36,7 +35,6 @@ func newControllerRegistry() map[string]controllerconfig.ControllerRegistration 
 	clustersserviceregistration.Register(registry)
 	hcpresourcerequirements.Register(registry)
 	lifecycle.Register(registry)
-	maestroregistration.Register(registry)
 	nodepool.Register(registry)
 	sharedingress.Register(registry)
 	unionkubeapplierinformers.Register(registry, func(ctx controllerconfig.ControllerContext) *unionkubeapplierinformers.UnionKubeApplierInformersController {
@@ -60,7 +58,6 @@ func (m *Manager) newControllerContext(ctx context.Context) controllerconfig.Con
 	return controllerconfig.ControllerContext{
 		FleetDBClient:                       m.FleetDBClient,
 		ClustersServiceClient:               m.ClustersServiceClient,
-		MaestroConsumerClientFactory:        m.MaestroConsumerClientFactory,
 		KubeApplierDBClients:                m.KubeApplierDBClients,
 		Region:                              m.Region,
 		AzureCredential:                     m.AzureCredential,

@@ -33,7 +33,7 @@ update-codegen: $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(APPLYCONFIGURATION
 build: $(BINARY)
 .PHONY: build
 
-$(BINARY): $(SESSION_GATE_SOURCES)
+$(BINARY): $(SESSION_GATE_SOURCES) force-go-build
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run:
@@ -91,3 +91,7 @@ record-latest-override: $(YQ)
 deploy: build-and-push record-override
 	make -C .. pipeline/SessionGate OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

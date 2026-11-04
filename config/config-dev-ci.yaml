@@ -131,7 +131,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            digest: sha256:04195b6d519040f29cabfaa9be852f52826e360675dfeae7a75e8b95cb4199cd # 5bc0fb9 (2026-10-22 13:45)
+            digest: sha256:c8050457fa16e456c8724cf6a8519691dbfdf5ce4fb75a756b2565205a000916 # 4056d21 (2026-10-31 22:09)
           disableRuntimeWorkloads: false
           app:
             replicas: 2
@@ -163,7 +163,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:4c9207e462c3849bdffedaf8b8f8a578e602c1b2b3e882225ddbb45c3b524b3d # ef4e2de (2026-10-25 16:58)
+            digest: sha256:a72e81f478c0a5e296a585e3233d3618235651f56e4f487d1c822508a95dec08 # af28207215a2db4ea9e3df9e2b64a13eb8e4fb8a (2026-11-02 21:43)
           ciJobOutcomes:
             # Records the outcome of each CI job run so the alerts and logs in
             # the dev Kusto can be attributed to the run that produced them.
@@ -222,6 +222,10 @@ clouds:
             redHat0:
               tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
               tenantName: "RedHat0"
+              # Entra application reconciled by the privileged E2ESubscriptionRBAC
+              # and E2ESubscriptionRBACGrants service groups: Graph consent,
+              # Reader on every ci.<env> subscription, and the Key Vault secret.
+              applicationName: "custom-metrics-collector-redhat0-ms-graph-ro"
               servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f"
               keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
               directoryQuota: true
@@ -247,7 +251,7 @@ clouds:
           # Regions charted on the Dev quota dashboard: the three regions the
           # dev tenant-quota subscriptions actually collect quota for above.
           regions: "westus3,centralus,canadacentral"
-          e2eSubscriptions: "974ebd46-8ad3-41e3-afef-7ef25fd5c371=ARO HCP E2E Hosted Clusters (EA Subscription),e8c5a115-842d-4d7e-98ad-cfb2c50b209e=ARO HCP E2E Hosted Clusters 2 (EA Subscription),e627aa70-36a3-40b0-8e68-975269e39d7b=ARO HCP E2E Hosted Clusters - Dev - 02,6ed122d1-7e03-4a01-baae-9020abf350d4=ARO HCP E2E Hosted Clusters - Dev - 03,be741169-a256-480b-a903-cfb1cd057021=ARO HCP E2E Hosted Clusters - Dev - 04"
+          e2eSubscriptions: "974ebd46-8ad3-41e3-afef-7ef25fd5c371=ARO HCP E2E Hosted Clusters (EA Subscription),e8c5a115-842d-4d7e-98ad-cfb2c50b209e=ARO HCP E2E Hosted Clusters 2 (EA Subscription),e627aa70-36a3-40b0-8e68-975269e39d7b=ARO HCP E2E Hosted Clusters - Dev - 02,6ed122d1-7e03-4a01-baae-9020abf350d4=ARO HCP E2E Hosted Clusters - Dev - 03,be741169-a256-480b-a903-cfb1cd057021=ARO HCP E2E Hosted Clusters - Dev - 04,db0895af-700d-49a4-8524-7b7d403ffd13=ARO HCP E2E Hosted Clusters - Dev - 05 (MCA Sponsorship),05845285-645e-461e-b411-caa2af69bbc9=ARO HCP E2E Hosted Clusters - Dev - 06 (MCA Sponsorship),264677fa-49fb-481c-bba4-d88491a6b01d=ARO HCP E2E Hosted Clusters - Dev - 07 (MCA Sponsorship),cd378f45-1197-407a-98f0-ad41e46013bf=ARO HCP E2E Hosted Clusters - Dev - 08 (MCA Sponsorship),81021692-fab7-458b-a9c3-a50257f159d8=ARO HCP E2E Hosted Clusters - Dev - 09 (MCA Sponsorship),38172cae-8bdd-499c-a9f8-bb5b4db42fd6=ARO HCP E2E Hosted Clusters - Dev - 10 (MCA Sponsorship)"
           infrastructureSubscriptions: "1d3378d3-5a3f-4712-85a1-2485495dfc4b=ARO Hosted Control Planes (EA Subscription 1),0ef1ad54-9296-44cd-9600-5dc8e9a74034=ARO HCP E2E Infrastructure (EA Subscription)"
           infrastructureSubscriptionsGlobals: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
           infrastructureSubscriptionsCostTags: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"

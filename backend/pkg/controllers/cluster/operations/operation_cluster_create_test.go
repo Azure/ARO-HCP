@@ -16,7 +16,9 @@ package operations
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	secretsyncv1alpha1 "sigs.k8s.io/secrets-store-sync-controller/api/v1alpha1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -1397,6 +1401,99 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 	}
 }
 
+func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+	syncedAt := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T10:30:00Z"))
+
+	for _, tc := range []struct {
+		name       string
+		status     secretsyncv1alpha1.SecretSyncStatus
+		unobserved bool
+		succeeded  bool
+	}{
+		{name: "not yet synced"},
+		{
+			name: "initial sync not yet attempted",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "NoUpdatesAttemptedYet"}},
+			},
+		},
+		{
+			name: "failed initial Secret apply",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				Conditions: []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ControllerPatchError"}},
+			},
+		},
+		{
+			name: "successful sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "missing condition does not undo a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+			},
+			succeeded: true,
+		},
+		{
+			name: "unknown condition does not undo a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionUnknown, Reason: "Unknown"}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "later update failure does not undo a successful first sync",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionFalse, Reason: "ProviderError"}},
+			},
+			succeeded: true,
+		},
+		{
+			name: "cached successful sync with unsuccessful observation",
+			status: secretsyncv1alpha1.SecretSyncStatus{
+				LastSuccessfulSyncTime: &syncedAt,
+				Conditions:             []metav1.Condition{{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"}},
+			},
+			unobserved: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desire := operationtesting.NewIngressSecretSyncReadDesire(t)
+			content, err := json.Marshal(&secretsyncv1alpha1.SecretSync{Status: tc.status})
+			require.NoError(t, err)
+			desire.Status.KubeContent.Raw = content
+			if tc.unobserved {
+				desire.Status.Conditions[0].Status = metav1.ConditionFalse
+			}
+			controller := &operationClusterCreate{
+				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
+					Desires: []*kubeapplierapi.ReadDesire{desire},
+				},
+			}
+
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			state, err := controller.serviceProviderDefaultIngressServingCertificateStatus(ctx, operation)
+			require.NoError(t, err)
+			require.NotNil(t, state)
+			if tc.succeeded {
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, state.ProvisioningState)
+				assert.Empty(t, state.Message)
+			} else {
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+				assert.Contains(t, state.Message, "default ingress certificate not yet")
+			}
+		})
+	}
+}
+
 func confirmedTLSCertificate(name string) *coreapi.TLSCertificate {
 	return &coreapi.TLSCertificate{AzureReference: &coreapi.AzureTLSCertificateReference{
 		KeyVaultURL:     "https://certificates.vault.azure.net/",
@@ -1531,6 +1628,150 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMsgSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestDataPlaneOIDCFederationOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	identityResourceID := func(name string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/identity-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name))
+	}
+	const diskCSIOperator = "disk-csi-driver"
+	const fileCSIOperator = "file-csi-driver"
+	diskCSIIdentity := identityResourceID("disk-csi-identity")
+	fileCSIIdentity := identityResourceID("file-csi-identity")
+
+	cluster := fixture.NewCluster(nil)
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+		diskCSIOperator: diskCSIIdentity,
+		fileCSIOperator: fileCSIIdentity,
+	}
+
+	// fullyEnsuredAssignment builds a (key, status) pair reporting the
+	// operator's identity as ensured with at least one confirmed FIC and
+	// nothing pending.
+	fullyEnsuredAssignment := func(identity *azcorearm.ResourceID, operatorName string) (coreapi.DataplaneOIDCFederationAssignmentKey, *coreapi.DataplaneOIDCFederationAssignmentStatus) {
+		identityResourceIDStr := strings.ToLower(identity.String())
+		target := coreapi.DataplaneOIDCFederationIdentityInstance{
+			ClientID:    identityResourceIDStr + "-client",
+			PrincipalID: identityResourceIDStr + "-principal",
+			TenantID:    identityResourceIDStr + "-tenant",
+		}
+		return coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: identityResourceIDStr, OperatorName: operatorName},
+			&coreapi.DataplaneOIDCFederationAssignmentStatus{
+				TargetIdentity:  target,
+				EnsuredIdentity: &target,
+				AzureResources: []*azcorearm.ResourceID{
+					metadataapi.Must(azcorearm.ParseResourceID(identity.String() + "/federatedIdentityCredentials/00000000-0000-0000-0000-000000000001")),
+				},
+			}
+	}
+
+	spcLister := func(federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation: federation,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		federation     map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		expectedState  coreapi.ProvisioningState
+		wantMsgSubstrs []string
+	}{
+		{
+			name: "both operators fully ensured → Succeeded",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				k, v = fullyEnsuredAssignment(fileCSIIdentity, fileCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "no assignments at all → Provisioning naming every pending operator",
+			federation:    nil,
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"2 operator(s)",
+				diskCSIOperator,
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one of two fully ensured, the other entirely missing → Provisioning naming only the missing one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+		{
+			name: "one fully ensured, the other has a freshly created entry with no FIC confirmed yet → Provisioning naming only that one",
+			federation: func() map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus {
+				m := map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{}
+				k, v := fullyEnsuredAssignment(diskCSIIdentity, diskCSIOperator)
+				m[k] = v
+				// The intent controller has resolved the identity and written
+				// TargetIdentity, but the executor hasn't ensured anything yet:
+				// EnsuredIdentity is nil. This must not be mistaken for
+				// "nothing to do".
+				m[coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(fileCSIIdentity.String()), OperatorName: fileCSIOperator}] = &coreapi.DataplaneOIDCFederationAssignmentStatus{
+					TargetIdentity: coreapi.DataplaneOIDCFederationIdentityInstance{
+						ClientID:    "client",
+						PrincipalID: "principal",
+						TenantID:    "tenant",
+					},
+				}
+				return m
+			}(),
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstrs: []string{
+				"1 operator(s)",
+				fileCSIOperator,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: spcLister(tt.federation),
+			}
+
+			result, err := controller.dataPlaneOIDCFederationOperationStatus(ctx, operation, cluster)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			for _, substr := range tt.wantMsgSubstrs {
+				assert.Contains(t, result.Message, substr)
 			}
 		})
 	}

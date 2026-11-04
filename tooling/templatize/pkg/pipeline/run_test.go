@@ -183,6 +183,11 @@ func TestMockedPipelineRun(t *testing.T) {
 	if assert.Len(t, suites.Suites, 1) {
 		assert.Equal(t, "templatize-pipeline", suites.Suites[0].Name)
 		assert.Len(t, suites.Suites[0].TestCases, len(order))
+		for _, testCase := range suites.Suites[0].TestCases {
+			started, err := time.Parse(time.RFC3339, testCase.Timestamp)
+			assert.NoError(t, err, "test case %q must carry an RFC 3339 start timestamp", testCase.Name)
+			assert.False(t, started.IsZero(), "test case %q has a zero start timestamp", testCase.Name)
+		}
 	}
 
 	lock.Lock()
@@ -1183,6 +1188,34 @@ func TestStepContextTimeout(t *testing.T) {
 	t.Run("invalid istio duration", func(t *testing.T) {
 		_, err := stepContextTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
 		assert.Error(t, err)
+	})
+
+	t.Run("arm stack delete 60m is not capped at the default", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 60*time.Minute, d)
+	})
+
+	t.Run("arm stack delete unset defaults to 30m", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("arm stack create ignores timeout", func(t *testing.T) {
+		d, err := stepContextTimeout(&types.ARMStackStep{Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepContextTimeout, d)
+	})
+
+	t.Run("invalid arm stack delete duration", func(t *testing.T) {
+		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "soon"})
+		assert.ErrorContains(t, err, "ARM stack delete step timeout")
+	})
+
+	t.Run("non-positive arm stack delete duration", func(t *testing.T) {
+		_, err := stepContextTimeout(&types.ARMStackStep{Operation: types.ARMStackOperationDelete, Timeout: "0s"})
+		assert.ErrorContains(t, err, "must be positive")
 	})
 }
 

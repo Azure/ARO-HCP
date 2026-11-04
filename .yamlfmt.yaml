@@ -1,6 +1,7 @@
 continue_on_error: true
 match_type: doublestar
 exclude:
+- '**/vendor/**'
 - '**/zz_fixture_*.yaml'
 - '.github/workflows/*.lock.yml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'

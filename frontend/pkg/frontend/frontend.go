@@ -89,10 +89,9 @@ type Frontend struct {
 	// definition config set it is built from varies per environment, so it is supplied by the
 	// caller rather than chosen here.
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig
-
-	exitOnPanic bool
 }
 
+// NewFrontend constructs an instance without changing process-wide panic policy.
 func NewFrontend(
 	logger logr.Logger,
 	listener net.Listener,
@@ -104,7 +103,6 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
-	exitOnPanic bool,
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 ) *Frontend {
 	// zero side-effect registration path
@@ -144,7 +142,6 @@ func NewFrontend(
 		),
 		azureLocation: azureLocation,
 		apiRegistry:   apiRegistry,
-		exitOnPanic:   exitOnPanic,
 	}
 
 	_, f.clusterLister = informers.Clusters()
@@ -157,6 +154,7 @@ func NewFrontend(
 	return f
 }
 
+// Run warms admission caches and serves the frontend and metrics until shutdown.
 func (f *Frontend) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	logger := utils.LoggerFromContext(ctx)
@@ -184,10 +182,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
-
-	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
-	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
-	k8sutilruntime.ReallyCrash = f.exitOnPanic
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))

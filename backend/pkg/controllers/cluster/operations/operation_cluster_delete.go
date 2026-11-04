@@ -350,7 +350,6 @@ func (c *operationClusterDelete) shouldCountChild(child *cosmosstorageutils.Type
 }
 
 func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
 	typeCounts := map[string]int{}
 
 	resourcesCRUD, err := c.resourcesDBClient.UntypedCRUD(*cluster.ID)
@@ -363,15 +362,21 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
+		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster for kube-applier resource count: %w", err))
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		kaClient, err := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to resolve kube-applier client: %w", err))
+		}
+		if kaClient == nil {
+			return nil, utils.TrackError(fmt.Errorf("kube-applier inventory unavailable for management cluster %s", spc.Status.ManagementClusterResourceID))
+		}
 		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
 		if kaErr != nil {
-			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
+			return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier untyped CRUD: %w", kaErr))
 		} else if err := countDescendants(ctx, kaCRUD, c.shouldCountChild, typeCounts); err != nil {
-			logger.Error(err, "failed to count kube-applier descendant resources")
+			return nil, utils.TrackError(fmt.Errorf("failed to count kube-applier descendant resources: %w", err))
 		}
 	}
 

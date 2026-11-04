@@ -16,6 +16,8 @@ package integrationutils
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"path"
 	"testing"
 
@@ -64,18 +66,52 @@ func (m *MockCosmosIntegrationTestInfo) FleetDBClient() fleetcosmosstorage.Fleet
 }
 
 func (m *MockCosmosIntegrationTestInfo) LoadContent(ctx context.Context, content []byte) error {
-	return m.mockResourcesDBClient.LoadContent(ctx, content)
+	document, container, err := prepareCosmosDocument(content)
+	if err != nil {
+		return err
+	}
+	switch container {
+	case "Resources":
+		m.mockResourcesDBClient.StoreDocument(document.ID, content)
+	case "Fleet":
+		m.mockFleetDBClient.StoreDocument(document.ID, content)
+	}
+	return nil
 }
 
 func (m *MockCosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
-	return m.mockResourcesDBClient.ListAllDocuments(ctx)
+	containers, err := m.ListDocumentsByContainer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return listAllContainerDocuments(containers), nil
+}
+
+func (m *MockCosmosIntegrationTestInfo) ListDocumentsByContainer(ctx context.Context) (map[string][]*cosmosstorageutils.TypedDocument, error) {
+	resources, err := m.mockResourcesDBClient.ListAllDocuments(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Resources documents: %w", err)
+	}
+	var fleet []*cosmosstorageutils.TypedDocument
+	for _, content := range m.mockFleetDBClient.GetAllDocuments() {
+		var document cosmosstorageutils.TypedDocument
+		if err := json.Unmarshal(content, &document); err != nil {
+			return nil, fmt.Errorf("failed to decode Fleet document: %w", err)
+		}
+		fleet = append(fleet, &document)
+	}
+	return map[string][]*cosmosstorageutils.TypedDocument{"Resources": resources, "Fleet": fleet}, nil
 }
 
 func (m *MockCosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Save all database content before deleting
-	if err := saveAllDatabaseContent(ctx, m.mockResourcesDBClient, m.ArtifactsDir); err != nil {
+	containers, err := m.ListDocumentsByContainer(ctx)
+	if err == nil {
+		err = saveAllDatabaseContent(ctx, containers, m.ArtifactsDir)
+	}
+	if err != nil {
 		logger.Error(err, "Failed to save database content")
 		// Continue with deletion even if saving fails
 	}

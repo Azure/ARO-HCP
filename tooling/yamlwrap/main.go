@@ -16,9 +16,11 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dusted-go/logging/prettylog"
@@ -61,6 +63,23 @@ The unwrap operation reverses this transformation, restoring the original templa
 			slog.Error("failed to add command", "error", err)
 			os.Exit(1)
 		}
+		// The upstream directory walker has no exclusions. Keep dependency
+		// sources untouched while reusing upstream file transformations.
+		runFile := c.RunE
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			dir, err := cmd.Flags().GetString("dir")
+			if err != nil {
+				return err
+			}
+			if dir == "" {
+				return runFile(cmd, args)
+			}
+			skipValidation, err := cmd.Flags().GetBool("no-validate-result")
+			if err != nil {
+				return err
+			}
+			return processDirectory(dir, cmd.Name() == "wrap", !skipValidation)
+		}
 		rootCmd.AddCommand(c)
 	}
 
@@ -74,6 +93,31 @@ The unwrap operation reverses this transformation, restoring the original templa
 		logger.Error(err, "Command failed.")
 		os.Exit(1)
 	}
+}
+
+func processDirectory(dir string, wrap, validate bool) error {
+	return filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case "vendor", ".git", ".bingo":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if ext := filepath.Ext(path); ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+		if wrap {
+			return yamlwrap.WrapFile(path, path, validate)
+		}
+		return yamlwrap.UnwrapFile(path, path)
+	})
 }
 
 func createLogger(verbosity int) logr.Logger {

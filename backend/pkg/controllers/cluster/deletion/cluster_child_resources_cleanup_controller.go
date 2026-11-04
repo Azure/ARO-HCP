@@ -17,6 +17,7 @@ package deletion
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -256,8 +257,9 @@ func hasSkippedResourceTypePrefix(resourceID *azcorearm.ResourceID, skipSubtreeT
 }
 
 // extraDeleteGateShouldDeleteServiceProviderCluster returns false while the
-// ServiceProviderCluster still has Maestro readonly bundles or cluster-scoped
-// kube-applier *Desire documents.
+// ServiceProviderCluster still has a managed resource group, remaining
+// data-plane OIDC federation credentials, Maestro readonly bundles, or
+// cluster-scoped kube-applier *Desire documents.
 func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderCluster(ctx context.Context, serviceProviderClusterResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -302,6 +304,27 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
+	// Do not delete the ServiceProviderCluster while there are any remaining data-plane federated identity credential
+	// still reflected as present (either confirmed or pending). We keep the ServiceProviderCluster document alive
+	// so that reflected state remains available.
+	remainingFederatedIdentityCredentialIDStrs := make([]string, 0)
+	for _, status := range spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		if status == nil {
+			continue
+		}
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.AzureResources)...)
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.PendingAzureResources)...)
+	}
+	if len(remainingFederatedIdentityCredentialIDStrs) > 0 {
+		slices.Sort(remainingFederatedIdentityCredentialIDStrs)
+		logger.Info("waiting for data-plane OIDC federation to be deleted before removing the ServiceProviderCluster document",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"federatedIdentityCredentialResourceIDs", remainingFederatedIdentityCredentialIDStrs)
+		return false, nil
+	}
+
 	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments.
 	// Deny assignments are scoped to the managed resource group, so Azure deletes them in cascade
 	// when that resource group is removed during cluster teardown; the ClusterDenyAssignment
@@ -318,7 +341,10 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		kaClient, err := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if err != nil {
+			return false, err
+		}
 		if kaClient == nil {
 			logger.Info("no kube-applier client for management cluster. Continuing with deletion of ServiceProviderCluster document",
 				"serviceProviderClusterResourceID", spc.ResourceID.String(),
@@ -376,9 +402,12 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return nil
 	}
 
-	// Best-effort: if the kube-applier client is unavailable, skip desire deletion here.
+	// Best-effort: if the management cluster is unregistered, skip desire deletion here.
 	// Remaining *Desires are cleaned up by later deletion stages and the orphan scraper.
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		logger.Info("no kube-applier client configured for management cluster; skipping cluster-scoped desire deletion",
 			"managementClusterResourceID", mcResourceID.String())
@@ -470,6 +499,17 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	logger.Info("all included cluster-scoped kube-applier child resources deleted")
 
 	return nil
+}
+
+func (c *clusterChildResourcesCleanupController) resourceIDStrings(resourceIDs []*azcorearm.ResourceID) []string {
+	ids := make([]string, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		if resourceID == nil {
+			continue
+		}
+		ids = append(ids, resourceID.String())
+	}
+	return ids
 }
 
 func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {

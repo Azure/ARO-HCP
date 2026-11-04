@@ -2,13 +2,11 @@ ARG PLATFORM
 
 # Builder image installs tools needed to build kube-applier
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 AS builder
-ENV GOTOOLCHAIN=local
-COPY internal/go.mod internal/go.sum internal/
-COPY kube-applier/go.mod kube-applier/go.sum kube-applier/
-RUN cd kube-applier && go mod download
+ENV GOTOOLCHAIN=local GOWORK=/app/go.work GOFLAGS=-mod=vendor GOPROXY=off
 WORKDIR /app
-COPY internal/ internal/
-COPY --exclude=kube-applier/kube-applier kube-applier/ kube-applier/
+# Dockerfile.dockerignore includes the complete workspace and vendor tree,
+# while excluding locally built binaries and development setup files.
+COPY . .
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

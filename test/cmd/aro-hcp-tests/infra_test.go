@@ -49,7 +49,7 @@ func TestOfflineCommandsSkipSuiteSetup(t *testing.T) {
 				leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.InfrastructureIdentityBundle,
 				"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 				"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
-				"USE_OC_LOGIN_REGISTRIES",
+				"USE_OC_LOGIN_REGISTRIES", "BUILD_ID",
 			} {
 				t.Setenv(key, "")
 			}

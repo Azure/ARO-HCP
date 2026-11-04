@@ -62,6 +62,7 @@ type ControllerContext struct {
 	FleetDBClient                                       fleetcosmosstorage.FleetDBClient
 	HasRealFPA                                          bool
 	HardcodedIdentity                                   *azureclient.HardcodedIdentity
+	ClusterOIDCIssuerBaseURL                            string
 	KubeApplierDBClients                                kubeappliercosmosstorage.KubeApplierDBClients
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	MaestroSourceEnvironmentIdentifier                  string
@@ -70,6 +71,8 @@ type ControllerContext struct {
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
 	Clock                                               utilsclock.PassiveClock
 	AsyncOperationNotificationClient                    *http.Client
+
+	OrphanedMRGCleanupConfig *OrphanedMRGCleanupConfig
 
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers

@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -255,6 +256,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("tlsCertificates"))
+	}
+	if currState, err := c.dataPlaneOIDCFederationOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("dataPlaneOIDCFederation"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -482,33 +488,50 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 }
 
 // serviceProviderDefaultIngressServingCertificateStatus blocks cluster creation until
-// the ingress wildcard certificate's SecretSync has synced the TLS Secret at least once
-// (a True "SecretCreated" condition). "SecretCreated" is the condition type
-// secrets-store-sync-controller sets on SecretSync.Status.Conditions once it has synced
-// the Secret:
-// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.5/internal/controller/conditions.go#L30.
-// As an example, an observed SecretSync.Status once synced looks like:
+// the ingress wildcard certificate's SecretSync records a successful sync.
+// Later failures do not undo this creation milestone; conditions are diagnostic only.
+//
+// With secrets-store-sync-controller v0.0.6, SecretCreated is no longer written;
+// successful creates and updates use SecretUpdated=True with reason SecretUpToDate.
+// Conditions: https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.6/pkg/controller/conditions.go#L29-L82
+//
+// During initial ingress certificate synchronization with v0.0.6, the following
+// SecretSync.Status transitions were observed:
+//
+// After creation, the status field was absent.
+//
+// Initial condition (lastSuccessfulSyncTime and syncHash absent):
 //
 //	{
 //		"conditions": [
 //			{
-//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
-//				"message": "Secret created successfully.",
-//				"reason": "CreateSuccessful",
-//				"status": "True",
-//				"type": "SecretCreated"
-//			},
+//				"lastTransitionTime": "2026-10-28T12:16:35Z",
+//				"message": "",
+//				"reason": "NoUpdatesAttemptedYet",
+//				"status": "Unknown",
+//				"type": "SecretUpdated"
+//			}
+//		]
+//	}
+//
+// After the first successful sync:
+//
+//	{
+//		"conditions": [
 //			{
-//				"lastTransitionTime": "2026-10-09T18:04:41.0000000Z",
+//				"lastTransitionTime": "2026-10-28T12:16:35Z",
 //				"message": "Secret contains last observed values.",
 //				"reason": "SecretUpToDate",
 //				"status": "True",
 //				"type": "SecretUpdated"
 //			}
 //		],
-//		"lastSuccessfulSyncTime": "2026-10-09T18:04:41.0000000Z",
-//		"syncHash": "v1:9965d9a30245cf20e300a5417c01268bb5557980f10e2c51de479a09b3cd7584"
+//		"lastSuccessfulSyncTime": "2026-10-28T12:16:35Z",
+//		"syncHash": "v1:15c9e563cc7c9af7056cf1484de26b53213a33d0fa295b0441ef34ae35da06cc"
 //	}
+//
+// Upstream failure handling, unchanged-hash return, and successful status update:
+// https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.6/pkg/controller/secretsync_controller.go#L350-L389
 func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificateStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -524,7 +547,12 @@ func (c *operationClusterCreate) serviceProviderDefaultIngressServingCertificate
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "default ingress certificate not yet observed"), nil
 	}
 
-	if meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretCreated") {
+	// A later failure does not invalidate the initial sync. In v0.0.6,
+	// unchanged-data recovery can leave SecretUpdated=False after a prior failure.
+	if !secretSync.Status.LastSuccessfulSyncTime.IsZero() {
+		if !meta.IsStatusConditionTrue(secretSync.Status.Conditions, "SecretUpdated") {
+			logger.Info("ingress SecretSync previously synced; latest update condition is not true", "secretSync.Status.Conditions", secretSync.Status.Conditions)
+		}
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	// Don't expose the SecretSync's own condition details on the operation; just log
@@ -572,6 +600,47 @@ func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Cont
 		}
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+// dataPlaneOIDCFederationOperationStatus blocks cluster creation completion
+// until data-plane OIDC federation is ensured (see
+// coreapihelpers.IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured) for
+// every data-plane operator identity the cluster currently requires. Each
+// operator is checked individually against
+// ServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+// rather than inspecting whichever assignments already exist there, for the
+// same reason as roleAssignmentsOperationStatus's sibling check: an operator
+// whose identity metadata has not resolved yet has no entry in that map at
+// all. Every operator is checked (not just the first pending one) so the
+// Provisioning message reports how many, and which, operators are still
+// pending.
+func (c *operationClusterCreate) dataPlaneOIDCFederationOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	dataPlaneOIDCFederation := serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+	var pending []string
+	for operatorName, resourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		key := coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(resourceID.String()), OperatorName: operatorName}
+		status := dataPlaneOIDCFederation[key]
+		if status == nil || !coreapihelpers.IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured(status) {
+			pending = append(pending, fmt.Sprintf("%s (%s)", operatorName, resourceID))
+		}
+	}
+	if len(pending) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	slices.Sort(pending)
+	logger.Info("data-plane OIDC federation not yet ensured", "pendingDataPlaneOIDCFederation", pending)
+	message := fmt.Sprintf("data-plane OIDC federation not yet ensured for %d operator(s): %s", len(pending), strings.Join(pending, ", "))
+	return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
 }
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {

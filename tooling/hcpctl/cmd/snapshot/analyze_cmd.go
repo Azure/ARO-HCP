@@ -46,7 +46,6 @@ type RawAnalyzeOptions struct {
 	DataDir             string
 	AROHCPPath          string
 	HypershiftPath      string
-	MaestroPath         string
 	ClustersServicePath string
 	ReviewRounds        int
 	MaxRounds           int
@@ -101,7 +100,7 @@ func defaultAnalyzeOptions() *RawAnalyzeOptions {
 func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.AROHCPPath, "aro-hcp", opts.AROHCPPath, "Path to ARO-HCP git checkout (required)")
 	cmd.Flags().StringVar(&opts.HypershiftPath, "hypershift", opts.HypershiftPath, "Path to HyperShift git checkout (required)")
-	cmd.Flags().StringVar(&opts.MaestroPath, "maestro", opts.MaestroPath, "Path to Maestro git checkout (required)")
+	cmd.Flags().String("maestro", "", "Does nothing; retained only for backwards compatibility")
 	cmd.Flags().StringVar(&opts.ClustersServicePath, "clusters-service", opts.ClustersServicePath, "Path to Clusters Service git checkout (required)")
 	cmd.Flags().IntVar(&opts.ReviewRounds, "review-rounds", opts.ReviewRounds, "Number of review rounds")
 	cmd.Flags().IntVar(&opts.MaxRounds, "max-rounds", opts.MaxRounds, "Maximum validation rounds per cycle")
@@ -131,7 +130,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
 	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for claude or claude-code Vertex AI (env: GOOGLE_VERTEX_REGION)")
 
-	for _, flag := range []string{"aro-hcp", "hypershift", "maestro", "clusters-service"} {
+	for _, flag := range []string{"aro-hcp", "hypershift", "clusters-service"} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
 			return fmt.Errorf("failed to mark %s as required: %w", flag, err)
 		}
@@ -176,7 +175,6 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 	worktreePaths := map[string]string{
 		"ARO-HCP":          o.AROHCPPath,
 		"hypershift":       o.HypershiftPath,
-		"maestro":          o.MaestroPath,
 		"clusters-service": o.ClustersServicePath,
 	}
 	for name, path := range worktreePaths {
@@ -709,7 +707,6 @@ source code for evidence in its causal chain.`,
   hcpctl snapshot analyze ./snapshot-20250101-120000/periodic-ci-.../12345/TestFoo \
     --aro-hcp ~/code/ARO-HCP \
     --hypershift ~/code/hypershift \
-    --maestro ~/code/maestro \
     --clusters-service ~/code/clusters-service
 
   # Analyze with Anthropic Claude (direct API)
@@ -718,7 +715,6 @@ source code for evidence in its causal chain.`,
     --anthropic-api-key-file ~/.config/anthropic/api_key \
     --aro-hcp ~/code/ARO-HCP \
     --hypershift ~/code/hypershift \
-    --maestro ~/code/maestro \
     --clusters-service ~/code/clusters-service
 
   # Analyze with Claude via Google Vertex AI (keyless ADC auth)
@@ -729,14 +725,12 @@ source code for evidence in its causal chain.`,
     --vertex-region us-east5 \
     --aro-hcp ~/code/ARO-HCP \
     --hypershift ~/code/hypershift \
-    --maestro ~/code/maestro \
     --clusters-service ~/code/clusters-service
 
   # With custom model and output directory
   hcpctl snapshot analyze ./data \
     --aro-hcp ~/code/ARO-HCP \
     --hypershift ~/code/hypershift \
-    --maestro ~/code/maestro \
     --clusters-service ~/code/clusters-service \
     --model gpt-4o \
     --output ./results`,

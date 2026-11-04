@@ -17,8 +17,11 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
@@ -36,6 +39,7 @@ func validBaseFlags() BackendRootCmdFlags {
 		AzureClusterScopedIdentitiesRoleSetName: string(internalazure.RoleDefinitionConfigSetNameDev),
 		BackupScheduleCadence:                   "testing",
 		BackupScheduleState:                     "Disabled",
+		OrphanedMRGCleanupRunningMode:           "dry-run",
 	}
 }
 
@@ -201,4 +205,61 @@ func writeFile(t *testing.T, path, contents string) {
 
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func TestValidateOrphanedMRGMutualExclusion(t *testing.T) {
+	f := validBaseFlags()
+	f.OrphanedMRGCleanupRunningMode = "dry-run"
+	f.OrphanedMRGCleanupTargetSubscriptionAFECFlags = "Microsoft.RedHatOpenShift/INT-APPROVED"
+	f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags = []string{"Microsoft.RedHatOpenShift/STAGING-APPROVED"}
+
+	err := f.validate()
+	if err == nil {
+		t.Fatal("expected error when both target and excluded subscription AFEC flags are set, got nil")
+	}
+	if !contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExcludedSubscriptionAFECFlagsParseAtCLI(t *testing.T) {
+	f := validBaseFlags()
+	cmd := &cobra.Command{}
+	f.AddFlags(cmd)
+
+	err := cmd.Flags().Set("orphaned-mrg-cleanup-excluded-subscription-afec-flags", "Microsoft.RedHatOpenShift/STAGING-APPROVED,Microsoft.RedHatOpenShift/INT-APPROVED")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"Microsoft.RedHatOpenShift/STAGING-APPROVED", "Microsoft.RedHatOpenShift/INT-APPROVED"}
+	if !slices.Equal(f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags, want) {
+		t.Fatalf("excluded AFEC flags = %v, want %v", f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags, want)
+	}
+}
+
+func TestValidateOrphanedMRGCleanupRunningMode(t *testing.T) {
+	// Valid modes
+	for _, mode := range []string{"delete", "dry-run"} {
+		f := validBaseFlags()
+		f.OrphanedMRGCleanupRunningMode = mode
+		err := f.validate()
+		if err != nil {
+			t.Fatalf("expected no error for mode %q, got %v", mode, err)
+		}
+	}
+
+	// Invalid mode
+	f := validBaseFlags()
+	f.OrphanedMRGCleanupRunningMode = "invalid"
+	err := f.validate()
+	if err == nil {
+		t.Fatal("expected error for invalid running mode, got nil")
+	}
+	if !contains(err.Error(), "must be 'delete' or 'dry-run'") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

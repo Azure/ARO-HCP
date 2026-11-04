@@ -14,7 +14,7 @@ digraph cluster_create {
   cs [label="Cluster Service cluster exists\nClusterServiceID confirmed\nContinue in convergence panel", fillcolor="#e4f2e5", color="#4c8053"];
   put -> sp [label="missing service-provider\ndocument"];
   put -> id [label="missing pending/confirmed ID"];
-  sp -> ver [label="nil desired version +\nrequested channel / override"];
+  sp -> ver [label="normal: nil desired + channel\nforced: policy-specific gates"];
   rollout -> ver [label="selected target"];
   sp -> place [label="placement unresolved"];
   fleet -> place [label="Ready + schedulable +\ncurrent capacity"];
@@ -31,7 +31,7 @@ digraph cluster_create {
   id -> allocation [label="pending CS ID for adoption check"];
   allocation -> claims [label="persist SPC desired name first;\ncreate claim in separate reconcile"];
   claims -> allocation [label="owned: commit base domain\nconflict: choose another", style=dashed];
-  allocation -> create [label="persisted prefix + claimed base domain"];
-  create -> cs [label="POST persisted prefix + base domain;\npersist CS ID in same reconcile"];
+  allocation -> create [label="new POST only: persisted prefix + base domain"];
+  create -> cs [label="adopt before DNS gate or POST allocated name;\npersist CS ID in same reconcile"];
   create -> create [label="missing prerequisite: wait", style=dashed, color="#857456", constraint=false];
 }

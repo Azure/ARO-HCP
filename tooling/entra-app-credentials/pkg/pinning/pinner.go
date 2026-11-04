@@ -23,14 +23,16 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
 	keyCredentialType  = "AsymmetricX509Cert"
 	keyCredentialUsage = "Verify"
-)
 
-var verificationInterval = 2 * time.Second
+	defaultVerificationInterval = 2 * time.Second
+)
 
 // Binding maps an Entra application display name to a Key Vault certificate.
 type Binding struct {
@@ -77,16 +79,33 @@ type ApplicationClient interface {
 
 // Pinner reconciles Key Vault certificates onto Entra applications.
 type Pinner struct {
-	certificates CertificateClient
-	applications ApplicationClient
+	certificates         CertificateClient
+	applications         ApplicationClient
+	verificationInterval time.Duration
+}
+
+// PinnerOption configures a Pinner.
+type PinnerOption func(*Pinner)
+
+// WithVerificationInterval sets how long to wait between reads while verifying
+// that Microsoft Graph returns the pinned credential.
+func WithVerificationInterval(interval time.Duration) PinnerOption {
+	return func(p *Pinner) {
+		p.verificationInterval = interval
+	}
 }
 
 // NewPinner creates a certificate reconciler.
-func NewPinner(certificates CertificateClient, applications ApplicationClient) *Pinner {
-	return &Pinner{
-		certificates: certificates,
-		applications: applications,
+func NewPinner(certificates CertificateClient, applications ApplicationClient, options ...PinnerOption) *Pinner {
+	pinner := &Pinner{
+		certificates:         certificates,
+		applications:         applications,
+		verificationInterval: defaultVerificationInterval,
 	}
+	for _, option := range options {
+		option(pinner)
+	}
+	return pinner
 }
 
 func (p *Pinner) Pin(ctx context.Context, bindings []Binding, options Options) error {
@@ -107,9 +126,11 @@ func (p *Pinner) Pin(ctx context.Context, bindings []Binding, options Options) e
 			logger.Error(err, "failed to pin certificate", "application", binding.ApplicationDisplayName, "certificate", binding.CertificateName)
 			continue
 		}
-		if result == resultUnchanged {
+
+		switch result {
+		case resultUnchanged:
 			unchanged++
-		} else {
+		case resultPinned:
 			pinned++
 		}
 	}
@@ -128,14 +149,7 @@ const (
 func (p *Pinner) pinOne(ctx context.Context, binding Binding, options Options) (pinResult, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	certificate, err := p.certificates.GetCertificate(ctx, binding.CertificateName)
-	if errors.Is(err, ErrCertificateNotFound) && options.CreateMissing {
-		logger.Info("creating missing Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
-		certificate, err = p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, nil)
-	} else if err == nil && options.Rotate {
-		logger.Info("disruptively rotating Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
-		certificate, err = p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, certificate)
-	}
+	certificate, err := p.reconcileCertificate(ctx, binding, options)
 	if err != nil {
 		return resultUnchanged, fmt.Errorf("reconcile Key Vault certificate %q: %w", binding.CertificateName, err)
 	}
@@ -157,10 +171,12 @@ func (p *Pinner) pinOne(ctx context.Context, binding Binding, options Options) (
 		return resultPinned, nil
 	}
 
-	if err := p.applications.ReplaceKeyCredentials(ctx, application.ID, binding.CertificateName, certificate); err != nil {
+	err = p.applications.ReplaceKeyCredentials(ctx, application.ID, binding.CertificateName, certificate)
+	if err != nil {
 		return resultUnchanged, fmt.Errorf("replace key credentials: %w", err)
 	}
-	if err := p.waitForDesiredCredential(ctx, application.ID, thumbprint[:]); err != nil {
+	err = p.waitForDesiredCredential(ctx, application.ID, thumbprint[:])
+	if err != nil {
 		return resultUnchanged, err
 	}
 
@@ -168,25 +184,39 @@ func (p *Pinner) pinOne(ctx context.Context, binding Binding, options Options) (
 	return resultPinned, nil
 }
 
+// reconcileCertificate returns the Key Vault certificate to pin, creating it
+// when missing or rotating it as requested.
+func (p *Pinner) reconcileCertificate(ctx context.Context, binding Binding, options Options) ([]byte, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	certificate, err := p.certificates.GetCertificate(ctx, binding.CertificateName)
+	switch {
+	case errors.Is(err, ErrCertificateNotFound) && options.CreateMissing:
+		logger.Info("creating missing Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
+		return p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, nil)
+	case err == nil && options.Rotate:
+		logger.Info("disruptively rotating Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
+		return p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, certificate)
+	default:
+		return certificate, err
+	}
+}
+
 func (p *Pinner) waitForDesiredCredential(ctx context.Context, applicationID string, thumbprint []byte) error {
-	var lastErr error
-	for {
+	err := wait.PollUntilContextCancel(ctx, p.verificationInterval, true, func(ctx context.Context) (bool, error) {
 		updated, err := p.applications.GetApplication(ctx, applicationID)
 		if err != nil {
-			return fmt.Errorf("verify updated application: %w", err)
+			return false, fmt.Errorf("verify updated application: %w", err)
 		}
-		if hasDesiredCredential(updated.KeyCredentials, thumbprint) {
-			return nil
-		}
-		lastErr = fmt.Errorf("desired certificate thumbprint is not the application's sole key credential")
-
-		timer := time.NewTimer(verificationInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return fmt.Errorf("verify updated application: %w (last error: %v)", ctx.Err(), lastErr)
-		case <-timer.C:
-		}
+		return hasDesiredCredential(updated.KeyCredentials, thumbprint), nil
+	})
+	switch {
+	case err == nil:
+		return nil
+	case ctx.Err() != nil:
+		return fmt.Errorf("verify updated application: desired certificate thumbprint is not the application's sole key credential: %w", ctx.Err())
+	default:
+		return err
 	}
 }
 

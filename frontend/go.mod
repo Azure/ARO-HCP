@@ -89,7 +89,7 @@ require (
 	go.opentelemetry.io/contrib/bridges/prometheus v0.72.0 // indirect
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/host v0.62.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/runtime v0.67.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.68.0 // indirect
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.23.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.23.0 // indirect

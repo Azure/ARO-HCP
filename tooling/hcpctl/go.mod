@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	cloud.google.com/go/storage v1.62.1
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261027163642-a8d4876e7d4f
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
@@ -81,7 +81,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect
 	github.com/go-openapi/jsonreference v1.0.1 // indirect
