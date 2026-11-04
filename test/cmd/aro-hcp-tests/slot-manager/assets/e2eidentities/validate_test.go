@@ -134,6 +134,85 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	}
 }
 
+func TestCompareIdentityPoolInventoryOptionalIdentityNotUnexpected(t *testing.T) {
+	t.Parallel()
+
+	pools := []identityPool{{
+		SubscriptionName:        "dev-sub",
+		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
+		Slots: []slots.ExpandedSlot{{
+			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
+			IdentityContainerCount:  1,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+			}},
+		}},
+	}}
+
+	identityNames := framework.NewDefaultIdentities().ToSlice()
+	actualIdentities := append([]string{}, identityNames...)
+	actualIdentities = append(actualIdentities, framework.DpAutoNodeMiName)
+
+	actual := subscriptionInventory{
+		ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+		Identities: map[string][]string{
+			"aro-hcp-msi-container-dev-00-00": actualIdentities,
+		},
+	}
+
+	result, err := compareIdentityPoolInventory(pools, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.valid() {
+		t.Fatalf("expected staged-rollout identity %q to not be drift: %+v", framework.DpAutoNodeMiName, result)
+	}
+	if len(result.UnexpectedIdentities) != 0 {
+		t.Fatalf("expected no unexpected identities, got: %v", result.UnexpectedIdentities)
+	}
+}
+
+func TestCompareIdentityPoolInventoryUnknownIdentityStillUnexpected(t *testing.T) {
+	t.Parallel()
+
+	pools := []identityPool{{
+		SubscriptionName:        "dev-sub",
+		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
+		Slots: []slots.ExpandedSlot{{
+			IdentityContainerPrefix: "aro-hcp-msi-container-dev-00",
+			IdentityContainerCount:  1,
+			Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
+				ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+			}},
+		}},
+	}}
+
+	identityNames := framework.NewDefaultIdentities().ToSlice()
+	actualIdentities := append([]string{}, identityNames...)
+	actualIdentities = append(actualIdentities, framework.DpAutoNodeMiName, "totally-unknown-identity")
+
+	actual := subscriptionInventory{
+		ResourceGroups: []string{"aro-hcp-msi-container-dev-00-00"},
+		Identities: map[string][]string{
+			"aro-hcp-msi-container-dev-00-00": actualIdentities,
+		},
+	}
+
+	result, err := compareIdentityPoolInventory(pools, actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.valid() {
+		t.Fatal("expected a genuinely unknown identity name to still be reported as drift")
+	}
+	if len(result.UnexpectedIdentities) != 1 || result.UnexpectedIdentities[0] != (identityReference{
+		ResourceGroup: "aro-hcp-msi-container-dev-00-00",
+		Name:          "totally-unknown-identity",
+	}) {
+		t.Fatalf("expected exactly the unknown identity to be unexpected, got: %v", result.UnexpectedIdentities)
+	}
+}
+
 func TestCompareIdentityPoolInventoryMergesCaseVariantResourceGroups(t *testing.T) {
 	t.Parallel()
 	pool := identityPool{
