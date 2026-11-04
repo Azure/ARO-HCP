@@ -133,6 +133,10 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	// doc will be non-nil if it was found in either the cache or the database. If it wasn't found in either place, we'll create it.
 	if doc == nil {
 		// Billing document doesn't exist yet, create it
+		managedRGName := existingCluster.CustomerProperties.Platform.ManagedResourceGroup
+		if len(managedRGName) == 0 {
+			return utils.TrackError(errors.New("cannot create billing document: cluster has no configured managed resource group; correct cluster configuration to enable billing"))
+		}
 		subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 		if err != nil {
 			return utils.TrackError(err)
@@ -150,10 +154,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		if subscription.Properties != nil {
 			doc.TenantID = ptr.Deref(subscription.Properties.TenantId, "")
 		}
-		managedRGName := existingCluster.ID.ResourceGroupName
-		if len(existingCluster.CustomerProperties.Platform.ManagedResourceGroup) != 0 {
-			managedRGName = existingCluster.CustomerProperties.Platform.ManagedResourceGroup
-		}
+		// The customer RG is not a substitute for the managed RG used to locate compute usage.
 		doc.ManagedResourceGroup = coreapihelpers.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 
 		err = billingDocCRUD.Create(ctx, doc)
