@@ -271,9 +271,11 @@ Slot-manager resolves policy against the acquired **runtime region**, including
 weighted and runtime-selected pools, and exports the resolved JSON object as
 `ARO_HCP_E2E_VM_FAMILY_POLICY`. Consumers must not re-resolve it. A pool without
 policy exports `{}` to clear inherited policy. Unset/null whole policy means no
-policy; an empty object `{}` means historical selector behavior. Invalid
-configuration, including explicit empty/null role lists or unknown fields,
-fails rather than silently falling back. The region must be chosen at acquire;
+policy; omitted worker policy prefers DSv6, DSv5, then DASv5, while helpers keep
+their independent defaults. Explicit worker lists express quota, eligibility,
+or legacy-preference exceptions. Invalid configuration, including explicit
+empty/null role lists or unknown fields, fails rather than silently falling back.
+The region must be chosen at acquire;
 consumers reject a subsequent location that differs from `SELECTED_LOCATION`.
 
 See [E2E VM size selection](../../../e2e/README.md#selecting-vm-sizes-skus) for

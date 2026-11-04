@@ -233,7 +233,7 @@ func unsetVMFamilyPolicy(t *testing.T) {
 	}
 }
 
-func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
+func TestUnconfiguredFamilyPolicyUsesSelectorDefaults(t *testing.T) {
 	for _, override := range []string{"unset", "{}"} {
 		t.Run(override, func(t *testing.T) {
 			unsetVMFamilyPolicy(t)
@@ -247,18 +247,18 @@ func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
 				fallback    string
 				cpus        string
 			}{
-				{DefaultWorkerVMSizeSelector, DefaultWorkerVMSize, "Standard_D8s_v4", "8"},
-				{SmallWorkerVMSizeSelector, SmallWorkerVMSize, "Standard_D4s_v4", "4"},
+				{DefaultWorkerVMSizeSelector, "Standard_D8s_v6", "Standard_D8s_v4", "8"},
+				{SmallWorkerVMSizeSelector, "Standard_D4s_v6", "Standard_D4s_v4", "4"},
 				{JumpboxVMSizeSelector, JumpboxVMSize, "Standard_D2s_v5", "2"},
 			} {
 				selector := tt.constructor()
 				if selector.Families != nil || selector.MaxVCPUs != 0 || selector.CPUArchitecture != "" {
-					t.Fatalf("unconfigured role must preserve historical selector constraints: %+v", selector)
+					t.Fatalf("unconfigured role must retain selector discovery constraints: %+v", selector)
 				}
 				for _, name := range []string{tt.preferred, tt.fallback} {
 					got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(name, testLocation, withCapability(capabilityVCPUs, tt.cpus))}, testLocation, selector)
 					if err != nil || got != name {
-						t.Fatalf("expected unchanged legacy selection %q, got %q err=%v", name, got, err)
+						t.Fatalf("expected default selection %q, got %q err=%v", name, got, err)
 					}
 				}
 			}
@@ -266,7 +266,7 @@ func TestUnconfiguredFamilyPolicyPreservesLegacySelection(t *testing.T) {
 	}
 }
 
-func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
+func TestFamilyPolicyOmittedRoleUsesSelectorDefaults(t *testing.T) {
 	t.Setenv(leaseenv.SelectedLocation, "")
 	for _, tt := range []struct {
 		policy      string
@@ -274,8 +274,8 @@ func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
 		preferred   string
 		cpus        string
 	}{
-		{`{"helper_families":["helper"]}`, DefaultWorkerVMSizeSelector, DefaultWorkerVMSize, "8"},
-		{`{"helper_families":["helper"]}`, SmallWorkerVMSizeSelector, SmallWorkerVMSize, "4"},
+		{`{"helper_families":["helper"]}`, DefaultWorkerVMSizeSelector, "Standard_D8s_v6", "8"},
+		{`{"helper_families":["helper"]}`, SmallWorkerVMSizeSelector, "Standard_D4s_v6", "4"},
 		{`{"worker_families":["worker"]}`, JumpboxVMSizeSelector, JumpboxVMSize, "2"},
 	} {
 		t.Run(tt.preferred, func(t *testing.T) {
@@ -283,7 +283,7 @@ func TestFamilyPolicyOmittedRolePreservesLegacySelection(t *testing.T) {
 			selector := tt.constructor()
 			got, _, err := selectVMSize([]*armcompute.ResourceSKU{makeSKU(tt.preferred, testLocation, withCapability(capabilityVCPUs, tt.cpus))}, testLocation, selector)
 			if err != nil || got != tt.preferred || selector.Families != nil {
-				t.Fatalf("expected omitted role to retain historical selection %q, got %q err=%v", tt.preferred, got, err)
+				t.Fatalf("expected omitted role to retain default selection %q, got %q err=%v", tt.preferred, got, err)
 			}
 		})
 	}
@@ -343,6 +343,49 @@ func TestConfiguredFamilyCapabilityChecks(t *testing.T) {
 			_, _, err := selectVMSize([]*armcompute.ResourceSKU{sku}, testLocation, selector)
 			if !errors.Is(err, ErrNoUsableVMSize) {
 				t.Fatalf("expected configured family to preserve %s check, got %v", tt.name, err)
+			}
+		})
+	}
+}
+
+func TestGeneralWorkerDefaultPreferenceAndLegacyOverride(t *testing.T) {
+	t.Setenv(leaseenv.SelectedLocation, "")
+	for _, policy := range []string{"unset", "{}", `{"helper_families":["helper"]}`, `{"worker_families":["standardDSv3Family","standardDSv5Family","standardDASv5Family","StandardDsv6Family"]}`} {
+		t.Run(policy, func(t *testing.T) {
+			unsetVMFamilyPolicy(t)
+			if policy != "unset" {
+				t.Setenv(leaseenv.VMFamilyPolicy, policy)
+			}
+			for _, role := range []struct {
+				constructor func() VMSizeSelector
+				sizes       [4]string
+				cpus        string
+			}{
+				{DefaultWorkerVMSizeSelector, [4]string{"Standard_D8s_v6", "Standard_D8s_v5", "Standard_D8as_v5", DefaultWorkerVMSize}, "8"},
+				{SmallWorkerVMSizeSelector, [4]string{"Standard_D4s_v6", "Standard_D4s_v5", "Standard_D4as_v5", SmallWorkerVMSize}, "4"},
+			} {
+				t.Run(role.sizes[0], func(t *testing.T) {
+					selector := role.constructor()
+					families := [4]string{"StandardDsv6Family", "standardDSv5Family", "standardDASv5Family", "standardDSv3Family"}
+					for blocked := range 3 {
+						var skus []*armcompute.ResourceSKU
+						for i := len(role.sizes) - 1; i >= 0; i-- {
+							sku := familySKU(role.sizes[i], families[i], role.cpus)
+							if i < blocked {
+								withLocationRestriction(testLocation)(sku)
+							}
+							skus = append(skus, sku)
+						}
+						want := role.sizes[blocked]
+						if selector.Families != nil {
+							want = role.sizes[3]
+						}
+						got, _, err := selectVMSize(skus, testLocation, selector)
+						if got != want || err != nil {
+							t.Fatalf("policy %s with %d restricted preferred SKUs: got %q, %v; want %q", policy, blocked, got, err, want)
+						}
+					}
+				})
 			}
 		})
 	}
