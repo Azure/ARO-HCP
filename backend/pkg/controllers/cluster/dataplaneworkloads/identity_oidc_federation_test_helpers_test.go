@@ -302,7 +302,6 @@ func ficNames(ids []*azcorearm.ResourceID) []string {
 func buildTestOIDCFederationCluster(t *testing.T, serviceManagedIdentity *azcorearm.ResourceID, operators map[string]*azcorearm.ResourceID, opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	t.Helper()
 	cluster := buildTestClusterWithIdentities(t, testClusterName, serviceManagedIdentity, operators)
-	cluster.ServiceProviderProperties.ClusterServiceID = buildTestClusterServiceID()
 	for _, opt := range opts {
 		opt(cluster)
 	}
@@ -314,6 +313,7 @@ func buildTestOIDCFederationServiceProviderCluster(
 	opts ...func(*coreapi.ServiceProviderCluster),
 ) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := buildTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	serviceProviderCluster.ClusterServiceID = buildTestClusterServiceID()
 	if federation != nil {
 		copied := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(federation))
 		for key, status := range federation {
@@ -327,8 +327,8 @@ func buildTestOIDCFederationServiceProviderCluster(
 	return serviceProviderCluster
 }
 
-func withTestNoClusterServiceID(cluster *coreapi.Cluster) {
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
+func withTestNoClusterServiceID(provider *coreapi.ServiceProviderCluster) {
+	provider.ClusterServiceID = nil
 }
 
 func withTestClusterDeletionTimestamp(ts *metav1.Time) func(*coreapi.Cluster) {

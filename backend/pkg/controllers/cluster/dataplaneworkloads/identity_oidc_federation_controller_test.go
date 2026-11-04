@@ -252,13 +252,15 @@ func TestDataPlaneWorkloadIdentityOIDCFederationSyncer_needsWork(t *testing.T) {
 			cluster := tc.cluster
 			if cluster == nil {
 				cluster = &coreapi.Cluster{}
-				cluster.ServiceProviderProperties.ClusterServiceID = buildTestClusterServiceID()
 			}
 			seedTestDesiredDataPlaneOperators(cluster, tc.federation)
 			if tc.dataPlaneOperators != nil {
 				cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = tc.dataPlaneOperators
 			}
 			serviceProviderCluster := &coreapi.ServiceProviderCluster{}
+			if tc.cluster == nil {
+				serviceProviderCluster.ClusterServiceID = buildTestClusterServiceID()
+			}
 			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = tc.federation
 			if tc.controllerRecheck != nil {
 				serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
@@ -496,13 +498,13 @@ func TestDataPlaneWorkloadIdentityOIDCFederationSyncer_needsWork_ensuredDesiredS
 	cluster := buildTestClusterWithIdentities(t, testClusterName, nil, map[string]*azcorearm.ResourceID{
 		testDiskCSIOperator: identityA,
 	})
-	cluster.ServiceProviderProperties.ClusterServiceID = buildTestClusterServiceID()
 
 	syncer := &dataPlaneWorkloadIdentityOIDCFederationSyncer{
 		clock:                         clocktesting.NewFakePassiveClock(now),
 		clusterScopedIdentitiesConfig: buildTestDataPlaneOIDCFederationIdentitiesConfig(),
 	}
 	serviceProviderCluster := &coreapi.ServiceProviderCluster{}
+	serviceProviderCluster.ClusterServiceID = buildTestClusterServiceID()
 	serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
 		DataPlaneWorkloadIdentityOIDCFederationControllerName: &earliestRecheckAt,
 	}
@@ -1335,8 +1337,8 @@ func TestDataPlaneWorkloadIdentityOIDCFederationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                   "skips configure when ClusterServiceID is missing",
-			cluster:                buildTestOIDCFederationCluster(t, serviceManagedIdentity, operatorsDiskA, withTestNoClusterServiceID),
-			serviceProviderCluster: buildTestOIDCFederationServiceProviderCluster(pendingDiskA),
+			cluster:                buildTestOIDCFederationCluster(t, serviceManagedIdentity, operatorsDiskA),
+			serviceProviderCluster: buildTestOIDCFederationServiceProviderCluster(pendingDiskA, withTestNoClusterServiceID),
 			skipFICClient:          true,
 			want:                   pendingDiskA,
 		},
@@ -1359,8 +1361,8 @@ func TestDataPlaneWorkloadIdentityOIDCFederationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                   "deconfigures even when ClusterServiceID is missing",
-			cluster:                buildTestOIDCFederationCluster(t, serviceManagedIdentity, nil, withTestNoClusterServiceID),
-			serviceProviderCluster: buildTestOIDCFederationServiceProviderCluster(deconfigureElapsedDiskA),
+			cluster:                buildTestOIDCFederationCluster(t, serviceManagedIdentity, nil),
+			serviceProviderCluster: buildTestOIDCFederationServiceProviderCluster(deconfigureElapsedDiskA, withTestNoClusterServiceID),
 			wantDeletes:            diskCSIFICNamesA,
 		},
 		{
@@ -1458,11 +1460,11 @@ func TestDataPlaneWorkloadIdentityOIDCFederationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name:    "deconfigures a sibling when ClusterServiceID is missing and does not refresh EarliestRecheckTime for a remaining pending assignment",
-			cluster: buildTestOIDCFederationCluster(t, serviceManagedIdentity, operatorsDiskA, withTestNoClusterServiceID),
+			cluster: buildTestOIDCFederationCluster(t, serviceManagedIdentity, operatorsDiskA),
 			serviceProviderCluster: buildTestOIDCFederationServiceProviderCluster(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
 				buildTestOIDCAssignmentKey(keyA, testDiskCSIOperator): buildTestOIDCAssignmentWithTarget(testOIDCFederationIdentityA, buildTestOIDCAssignmentNotEnsured()),
 				buildTestOIDCAssignmentKey(keyB, testImageRegistryOp): buildTestOIDCAssignmentWithTarget(testOIDCFederationIdentityA, buildTestOIDCAssignmentDeconfigure(&elapsed, imageFICsB, nil)),
-			}, withTestEarliestOIDCFederationRecheck(&future)),
+			}, withTestEarliestOIDCFederationRecheck(&future), withTestNoClusterServiceID),
 			wantDeletes:            imageFICNamesB,
 			wantDeleteIdentityName: identityB.Name,
 			want:                   pendingDiskA,

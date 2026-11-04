@@ -587,15 +587,17 @@ func TestDataPlaneWorkloadIdentityOIDCFederationIntentSyncer_SyncOnce(t *testing
 			},
 		},
 		{
-			name: "deconfigures after CS is confirmed gone even if PendingClusterServiceID is still set",
+			name: "deconfigures after durable CS completion even with a stale pending ID",
 			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
-				cluster.ServiceProviderProperties.PendingClusterServiceID = pendingClusterServiceID
+				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
 				keyA: resolvedA,
-			}, ensuredWithFIC),
+			}, ensuredWithFIC, func(provider *coreapi.ServiceProviderCluster) {
+				provider.PendingClusterServiceID = pendingClusterServiceID
+			}),
 			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
 				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): {
 					TargetIdentity:       targetA,
@@ -603,6 +605,19 @@ func TestDataPlaneWorkloadIdentityOIDCFederationIntentSyncer_SyncOnce(t *testing
 					AzureResources:       []*azcorearm.ResourceID{ficA},
 					DeconfigureTimestamp: &deconfigureAt,
 				},
+			},
+		},
+		{
+			name: "does not deconfigure on dispatch with a lagging provider lacking the final ID",
+			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
+			}),
+			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
+				keyA: resolvedA,
+			}, ensuredWithFIC),
+			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
 		},
 		{
@@ -622,11 +637,13 @@ func TestDataPlaneWorkloadIdentityOIDCFederationIntentSyncer_SyncOnce(t *testing
 			cluster: buildTestOIDCIntentCluster(t, map[string]*azcorearm.ResourceID{"cloud-controller-manager": identityA}, func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = deletionTimestamp
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = clusterServiceDeletionTimestamp
-				cluster.ServiceProviderProperties.ClusterServiceID = clusterServiceID
+				cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			serviceProviderCluster: buildTestOIDCIntentServiceProviderCluster(map[string]*coreapi.ManagedIdentityMetadata{
 				keyA: resolvedA,
-			}, ensuredWithFIC),
+			}, ensuredWithFIC, func(provider *coreapi.ServiceProviderCluster) {
+				provider.ClusterServiceID = clusterServiceID
+			}),
 			want: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
 				buildTestOIDCAssignmentKey(keyA, "cloud-controller-manager"): buildTestOIDCAssignmentWithTarget(targetA, buildTestOIDCAssignmentEnsured(targetA, []*azcorearm.ResourceID{ficA})),
 			},
@@ -751,6 +768,7 @@ func buildTestOIDCIntentCluster(t *testing.T, operators map[string]*azcorearm.Re
 func buildTestOIDCIntentServiceProviderCluster(
 	details map[string]*coreapi.ManagedIdentityMetadata,
 	federation map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus,
+	opts ...func(*coreapi.ServiceProviderCluster),
 ) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := buildTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
 	if details != nil {
@@ -766,6 +784,9 @@ func buildTestOIDCIntentServiceProviderCluster(
 			copied[key] = status.DeepCopy()
 		}
 		serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = copied
+	}
+	for _, opt := range opts {
+		opt(serviceProviderCluster)
 	}
 	return serviceProviderCluster
 }
