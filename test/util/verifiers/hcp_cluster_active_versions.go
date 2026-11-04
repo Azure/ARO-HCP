@@ -53,7 +53,7 @@ func VerifyClusterActiveVersionsSettledAtMinor(
 
 	resp, err := hcpClient.Get(ctx, resourceGroupName, clusterName, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get cluster %q via 2026-10-01: %w", clusterName, err)
+		return fmt.Errorf("failed to get cluster %q: %w", clusterName, err)
 	}
 
 	if resp.Properties == nil || resp.Properties.Status == nil || len(resp.Properties.Status.ActiveVersions) == 0 {
