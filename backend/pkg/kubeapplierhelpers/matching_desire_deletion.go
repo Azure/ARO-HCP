@@ -49,18 +49,18 @@ func EnsureMatchingApplyDesiresRemoved(
 		desireName := desire.ResourceID.Name
 		scope, err := kubeappliercosmosstorage.ParseDesireScope(desire.ResourceID.Parent)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, utils.TrackError(err))
 			continue
 		}
 		crud, err := kubeApplierDBClient.ApplyDesiresFor(scope)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, utils.TrackError(err))
 			continue
 		}
 
 		removed, err := EnsureApplyDesireRemoved(ctx, desireName, crud)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, utils.TrackError(err))
 			continue
 		}
 		if !removed {
@@ -82,7 +82,7 @@ func EnsureMatchingApplyDesiresRemoved(
 		// incomplete and retries on the next reconcile.
 		readDesireCRUD, readErr := kubeApplierDBClient.ReadDesiresFor(scope)
 		if readErr != nil {
-			return false, readErr
+			return false, utils.TrackError(readErr)
 		}
 		if delErr := readDesireCRUD.Delete(ctx, desireName); delErr != nil && !cosmosstorageutils.IsNotFoundError(delErr) {
 			return false, utils.TrackError(fmt.Errorf("delete ReadDesire %s: %w", desireName, delErr))
@@ -93,7 +93,7 @@ func EnsureMatchingApplyDesiresRemoved(
 	// Report errors ahead of the wait list: a step that could not be fully
 	// processed must not be treated as drained, so the chain stops here.
 	if len(errs) > 0 {
-		return false, errors.Join(errs...)
+		return false, utils.TrackError(errors.Join(errs...))
 	}
 
 	if len(waitingFor) > 0 {

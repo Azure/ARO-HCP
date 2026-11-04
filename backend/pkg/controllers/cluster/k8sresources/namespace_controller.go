@@ -120,7 +120,7 @@ func (syncer *namespaceSyncer) SyncOnce(ctx context.Context, key controllerutils
 	}
 	client, err := syncer.kubeApplierDBClients.For(ctx, serviceProviderCluster.Status.ManagementClusterResourceID)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 	if client == nil {
 		return nil
@@ -154,20 +154,20 @@ func (syncer *namespaceSyncer) ensureNamespaces(
 ) error {
 	hostedNamespace, err := buildHostedClusterNamespaceDesire(key, cluster, serviceProviderCluster, syncer.envIdentifier)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 	desires := []*kubeapplierapi.ApplyDesire{hostedNamespace}
 	if len(serviceProviderCluster.Status.ControlPlaneNamespace) > 0 {
 		controlPlaneNamespace, err := buildControlPlaneNamespaceDesire(key, cluster, serviceProviderCluster)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 		desires = append(desires, controlPlaneNamespace)
 	}
 	for _, desire := range desires {
 		readResourceID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desire.ResourceID.Name))
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 		read := &kubeapplierapi.ReadDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: readResourceID, PartitionKey: desire.PartitionKey},
@@ -175,10 +175,10 @@ func (syncer *namespaceSyncer) ensureNamespaces(
 			Tags:           desire.Tags,
 		}
 		if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, syncer.readDesireLister, read); err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, syncer.applyDesireLister, desire); err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 	}
 	return nil
@@ -193,30 +193,30 @@ func (syncer *namespaceSyncer) deleteNamespaces(
 ) error {
 	ready, err := syncer.deletePreconditionApplyDesireRemovalChainDrained(ctx, key, client)
 	if err != nil || !ready {
-		return err
+		return utils.TrackError(err)
 	}
 	iterator, err := applyCRUD.List(ctx, nil)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 	var desires []*kubeapplierapi.ApplyDesire
 	for _, desire := range iterator.Items(ctx) {
 		desires = append(desires, desire)
 	}
 	if err := iterator.GetError(); err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 	done, err := kubeapplierhelpers.EnsureMatchingApplyDesiresRemoved(ctx, client, NamespaceControllerName, desires, func(desire *kubeapplierapi.ApplyDesire) bool {
 		return isNamespaceDesire(desire.ResourceID.Name)
 	})
 	if err != nil || !done {
-		return err
+		return utils.TrackError(err)
 	}
 	// Retry orphan ReadDesire cleanup even if its ApplyDesire was removed during
 	// an earlier reconcile whose paired read deletion failed.
 	for _, name := range []string{HostedClusterNamespaceDesireName, ControlPlaneNamespaceDesireName} {
 		if err := readCRUD.Delete(ctx, strings.ToLower(name)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return err
+			return utils.TrackError(err)
 		}
 	}
 	return nil
@@ -241,16 +241,16 @@ func NamespaceDeletionPreconditionDesireNames() sets.Set[string] {
 func (syncer *namespaceSyncer) deletePreconditionApplyDesireRemovalChainDrained(ctx context.Context, key controllerutils.HCPClusterKey, client kubeappliercosmosstorage.KubeApplierDBClient) (bool, error) {
 	crud, err := client.UntypedCRUD(*key.GetResourceID())
 	if err != nil {
-		return false, err
+		return false, utils.TrackError(err)
 	}
 	iterator, err := crud.ListRecursive(ctx, nil)
 	if err != nil {
-		return false, err
+		return false, utils.TrackError(err)
 	}
 	prerequisites := NamespaceDeletionPreconditionDesireNames()
 	for _, child := range iterator.Items(ctx) {
 		if child.ResourceID == nil {
-			return false, fmt.Errorf("desire document %s has no resource ID", child.ID)
+			return false, utils.TrackError(fmt.Errorf("desire document %s has no resource ID", child.ID))
 		}
 		if strings.HasSuffix(strings.ToLower(child.ResourceType), "/"+strings.ToLower(kubeapplierapi.ApplyDesireResourceTypeName)) && prerequisites.Has(strings.ToLower(child.ResourceID.Name)) {
 			utils.LoggerFromContext(ctx).Info("waiting for teardown before namespace deletion", "applyDesire", child.ResourceID.String())
@@ -258,7 +258,7 @@ func (syncer *namespaceSyncer) deletePreconditionApplyDesireRemovalChainDrained(
 		}
 	}
 	if err := iterator.GetError(); err != nil {
-		return false, err
+		return false, utils.TrackError(err)
 	}
 	return true, nil
 }
@@ -276,7 +276,7 @@ func (syncer *namespaceSyncer) needsWork(cluster *coreapi.Cluster, serviceProvid
 func buildControlPlaneNamespaceDesire(key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (*kubeapplierapi.ApplyDesire, error) {
 	resourceID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, ControlPlaneNamespaceDesireName))
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	namespace := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
@@ -293,7 +293,7 @@ func buildControlPlaneNamespaceDesire(key controllerutils.HCPClusterKey, cluster
 	}
 	content, err := json.Marshal(namespace)
 	if err != nil {
-		return nil, fmt.Errorf("marshal control plane namespace: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("marshal control plane namespace: %w", err))
 	}
 	managementCluster := serviceProviderCluster.Status.ManagementClusterResourceID
 	return &kubeapplierapi.ApplyDesire{
@@ -316,13 +316,13 @@ func buildControlPlaneNamespaceDesire(key controllerutils.HCPClusterKey, cluster
 
 func buildHostedClusterNamespaceDesire(key controllerutils.HCPClusterKey, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, envIdentifier string) (*kubeapplierapi.ApplyDesire, error) {
 	if len(envIdentifier) == 0 {
-		return nil, fmt.Errorf("environment identifier is required for the HostedCluster namespace")
+		return nil, utils.TrackError(fmt.Errorf("environment identifier is required for the HostedCluster namespace"))
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
 	namespaceName := serviceProviderCluster.Status.HostedClusterNamespace
 	resourceID, err := azcorearm.ParseResourceID(kubeapplierapihelpers.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, HostedClusterNamespaceDesireName))
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	namespace := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
@@ -340,7 +340,7 @@ func buildHostedClusterNamespaceDesire(key controllerutils.HCPClusterKey, cluste
 	}
 	content, err := json.Marshal(namespace)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	managementCluster := serviceProviderCluster.Status.ManagementClusterResourceID
 	return &kubeapplierapi.ApplyDesire{
