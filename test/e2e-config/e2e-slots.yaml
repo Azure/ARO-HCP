@@ -382,13 +382,18 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
           centralindia:
             worker_families:
             - standardDSv5Family
             - standardDASv5Family
+            - StandardDsv6Family
           eastus2:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -406,13 +411,19 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv3Family
+            - StandardDsv6Family
+            - standardDSv5Family
+            - standardDASv5Family
           centralindia:
             worker_families:
             - standardDSv5Family
             - standardDASv5Family
+            - StandardDsv6Family
           eastus2:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -431,6 +442,18 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -449,6 +472,18 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -467,6 +502,18 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -485,6 +532,18 @@ environments:
           switzerlandnorth:
             worker_families:
             - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
