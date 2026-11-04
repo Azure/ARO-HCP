@@ -186,6 +186,7 @@ spec:
         - "--exit-on-panic=true"
         - "--log-verbosity=4"
         - "--orphaned-mrg-cleanup-running-mode=dry-run"
+        - "--storage-account-network-access-validation-enabled=true"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
         env:

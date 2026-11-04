@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
@@ -34,6 +35,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -152,6 +154,41 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
 }
 
+// setStorageAccountNetworkAccessValidationPassed marks the
+// StorageAccountNetworkAccessValidation condition as Passed, satisfying the
+// createPreconditionStorageAccountNetworkAccessValidationPassed gate.
+func setStorageAccountNetworkAccessValidationPassed(spc *coreapi.ServiceProviderCluster) {
+	meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+		Type:   validationutils.StorageAccountNetworkAccessValidationName,
+		Status: metav1.ConditionTrue,
+		Reason: "AsExpected",
+	})
+}
+
+// setStorageAccountNetworkAccessValidationFailed marks the
+// StorageAccountNetworkAccessValidation condition as Failed, as it would be once the
+// validation controller detects a conflicting Azure Policy assignment.
+func setStorageAccountNetworkAccessValidationFailed(spc *coreapi.ServiceProviderCluster) {
+	meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+		Type:    validationutils.StorageAccountNetworkAccessValidationName,
+		Status:  metav1.ConditionFalse,
+		Reason:  "StorageAccountPublicNetworkAccessDenied",
+		Message: "a conflicting Azure Policy assignment denies Storage Account public network access",
+	})
+}
+
+// setStorageAccountNetworkAccessValidationUnknown marks the
+// StorageAccountNetworkAccessValidation condition as Unknown, as it would be while the
+// validation controller is still inconclusive (e.g. a transient Azure API error).
+func setStorageAccountNetworkAccessValidationUnknown(spc *coreapi.ServiceProviderCluster) {
+	meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+		Type:    validationutils.StorageAccountNetworkAccessValidationName,
+		Status:  metav1.ConditionUnknown,
+		Reason:  "InternalError",
+		Message: "unable to verify Storage Account network access policy compliance",
+	})
+}
+
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
@@ -181,6 +218,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setStorageAccountNetworkAccessValidationPassed(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -312,6 +350,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// Placement is resolved so the (independent) placement gate does not block; this
 				// case isolates the deny-assignment behaviour.
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setStorageAccountNetworkAccessValidationPassed(spc)
 			}),
 			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			denyAssignmentsDisabled: true,
@@ -406,6 +445,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setStorageAccountNetworkAccessValidationPassed(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -433,6 +473,145 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
+				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+			},
+		},
+		{
+			name: "storage account network access validation not yet reported waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				// All other preconditions pass; the StorageAccountNetworkAccessValidation
+				// condition is intentionally left absent (controller hasn't reported yet).
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				// Only the adoption lookup is expected: gomock fails the test if the
+				// controller POSTs a new Cluster Service cluster.
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mockCS.EXPECT().
+					ListClusters(gomock.Any()).
+					Return(ocm.NewSimpleClusterListIterator(nil, nil))
+				return mockCS
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch before StorageAccountNetworkAccessValidation has reported a result")
+			},
+		},
+		{
+			name: "storage account network access validation Unknown waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+				setStorageAccountNetworkAccessValidationUnknown(spc)
+			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mockCS.EXPECT().
+					ListClusters(gomock.Any()).
+					Return(ocm.NewSimpleClusterListIterator(nil, nil))
+				return mockCS
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while StorageAccountNetworkAccessValidation is Unknown")
+			},
+		},
+		{
+			name: "storage account network access validation Failed waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+				setStorageAccountNetworkAccessValidationFailed(spc)
+			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				// Only the adoption lookup is expected: a conflicting policy must stop a new
+				// Cluster Service cluster from ever being created, not merely delay it.
+				// gomock fails the test if the controller POSTs.
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mockCS.EXPECT().
+					ListClusters(gomock.Any()).
+					Return(ocm.NewSimpleClusterListIterator(nil, nil))
+				return mockCS
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch once StorageAccountNetworkAccessValidation has Failed")
+			},
+		},
+		{
+			name: "adopts existing Cluster Service cluster even when storage account network access validation Failed",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDenyAssignmentsCreated(spc)
+				setStorageAccountNetworkAccessValidationFailed(spc)
+			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				// The Cluster Service cluster already exists (e.g. the POST succeeded but
+				// persisting its ID failed); the storage gate must not strand it.
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				csCluster, err := arohcpv1alpha1.NewCluster().
+					HREF(testClusterServiceIDStr).
+					DomainPrefix("testcluster").
+					Azure(arohcpv1alpha1.NewAzure().
+						SubscriptionID(strings.ToLower(testSubscriptionID)).
+						ResourceGroupName(strings.ToLower(testResourceGroupName)).
+						ResourceName(strings.ToLower(testClusterName)).
+						TenantID(testTenantID).
+						ManagedResourceGroupName(testManagedResourceGroup)).
+					Build()
+				require.NoError(t, err)
+				mockCS.EXPECT().
+					ListClusters(gomock.Any()).
+					Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{csCluster}, nil))
+				return mockCS
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "existing Cluster Service cluster must be adopted regardless of storage validation")
 				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
 			},
 		},
@@ -491,6 +670,29 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				tt.verifyDB(t, ctx, mockDB)
 			}
 		})
+	}
+}
+
+func TestStorageAccountNetworkAccessCreationPrecondition(t *testing.T) {
+	for _, state := range []metadataapi.ClusterImageRegistryState{metadataapi.ClusterImageRegistryStateEnabled, metadataapi.ClusterImageRegistryStateDisabled} {
+		for _, status := range []string{"absent", string(metav1.ConditionTrue), string(metav1.ConditionFalse), string(metav1.ConditionUnknown)} {
+			t.Run(string(state)+"/"+status, func(t *testing.T) {
+				cluster := newTestCluster(func(cluster *coreapi.Cluster) {
+					cluster.CustomerProperties.ClusterImageRegistry.State = state
+				})
+				spc := newTestSPC()
+				if status != "absent" {
+					meta.SetStatusCondition(&spc.Status.Validations, metav1.Condition{
+						Type:   validationutils.StorageAccountNetworkAccessValidationName,
+						Status: metav1.ConditionStatus(status),
+						Reason: "Test",
+					})
+				}
+				controller := &clusterClusterServiceCreateSyncer{}
+				ready := controller.createPreconditionStorageAccountNetworkAccessValidationPassed(context.Background(), cluster, spc)
+				assert.Equal(t, state == metadataapi.ClusterImageRegistryStateDisabled || status == string(metav1.ConditionTrue), ready)
+			})
+		}
 	}
 }
 

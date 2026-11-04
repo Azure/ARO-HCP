@@ -15,6 +15,9 @@ orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTa
 orphanedMRGCleanupExcludedSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}"
 # Shared rollout mode for all environments; change here when promoting to delete mode.
 orphanedMRGCleanupRunningMode: "dry-run"
+# Kill switch for the image registry Storage Account policy preflight. When false
+# the validation reports Passed without reading Azure Policy.
+storageAccountNetworkAccessValidationEnabled: true
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"

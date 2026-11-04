@@ -72,6 +72,7 @@ func (b *Backend) newControllerContext(ctx context.Context) ControllerContext {
 		Clock:                                               b.clock,
 		AsyncOperationNotificationClient:                    http.DefaultClient,
 		OrphanedMRGCleanupConfig:                            b.options.OrphanedMRGCleanupConfig,
+		StorageAccountNetworkAccessValidationEnabled:        b.options.StorageAccountNetworkAccessValidationEnabled,
 		BackendInformers:                                    backendInformers,
 		FleetInformers:                                      fleetInformers,
 		UnionKubeApplierInformers:                           unionKubeApplierInformers,

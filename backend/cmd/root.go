@@ -76,6 +76,7 @@ type BackendRootCmdFlags struct {
 	OrphanedMRGCleanupTargetSubscriptionAFECFlags                                                 string
 	OrphanedMRGCleanupExcludedSubscriptionAFECFlags                                               []string
 	OrphanedMRGCleanupRunningMode                                                                 string
+	StorageAccountNetworkAccessValidationEnabled                                                  bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -248,6 +249,8 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrphanedMRGCleanupRunningMode, "orphaned-mrg-cleanup-running-mode", f.OrphanedMRGCleanupRunningMode,
 		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
 	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
+	cmd.Flags().BoolVar(&f.StorageAccountNetworkAccessValidationEnabled, "storage-account-network-access-validation-enabled", f.StorageAccountNetworkAccessValidationEnabled,
+		"Check Azure Policy for conflicts with the image registry Storage Account's public network access before creating clusters. When false, the check reports Passed without reading Azure Policy.")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -588,13 +591,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		HardcodedIdentity:                  hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
-		SMIClientBuilder:              smiClientBuilder,
-		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		CloudEnvironment:              azureConfig.CloudEnvironment,
-		MetricsRegisterer:             legacyregistry.Registerer(),
-		MetricsGatherer:               legacyregistry.DefaultGatherer,
-		OrphanedMRGCleanupConfig:      orphanedMRGCleanupConfig,
+		SMIClientBuilder:                             smiClientBuilder,
+		CheckAccessV2ClientBuilder:                   checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:                clusterScopedIdentitiesConfig,
+		CloudEnvironment:                             azureConfig.CloudEnvironment,
+		MetricsRegisterer:                            legacyregistry.Registerer(),
+		MetricsGatherer:                              legacyregistry.DefaultGatherer,
+		OrphanedMRGCleanupConfig:                     orphanedMRGCleanupConfig,
+		StorageAccountNetworkAccessValidationEnabled: f.StorageAccountNetworkAccessValidationEnabled,
 	}
 
 	return backendOptions, nil
@@ -619,6 +623,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
 		OrphanedMRGCleanupRunningMode:                   "dry-run",
+		StorageAccountNetworkAccessValidationEnabled:    true,
 	}
 
 	return flags
