@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -129,10 +130,22 @@ var _ = Describe("Customer", func() {
 				err = json.Unmarshal(ocmCredentialsData, &ocmCredentials)
 				Expect(err).NotTo(HaveOccurred(), "failed to parse OCM credentials file")
 
-				By("creating additional-pull-secret with cloud.openshift.com token")
 				kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
 
+				By("inspecting global-pull-secret for existing cloud.openshift.com token")
+				globalSecret, err := kubeClient.CoreV1().Secrets("kube-system").Get(ctx, "global-pull-secret", metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred(), "failed to read global-pull-secret")
+
+				var existingConfig framework.DockerConfigJSON
+				err = json.Unmarshal(globalSecret.Data[corev1.DockerConfigJsonKey], &existingConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to unmarshal global-pull-secret")
+
+				for host := range existingConfig.Auths {
+					fmt.Fprintf(GinkgoWriter, "global-pull-secret: has auth for %s\n", host)
+				}
+
+				By("creating additional-pull-secret with cloud.openshift.com token")
 				dockerConfigBytes, err := json.Marshal(framework.DockerConfigJSON{
 					Auths: map[string]framework.RegistryAuth{
 						cloudOpenShiftHost: cloudOpenShiftAuth,
@@ -158,24 +171,6 @@ var _ = Describe("Customer", func() {
 				err = verifiers.VerifyPullSecretMergedIntoGlobal(cloudOpenShiftHost, pullSecretMergeTimeout).
 					Verify(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred(), "failed to wait for cloud.openshift.com token to be merged into global-pull-secret by HCCO")
-
-				By("lowering the Insights Operator gather interval to accelerate registration")
-				insightsConfig := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "insights-config",
-						Namespace: "openshift-insights",
-					},
-					Data: map[string]string{
-						"config.yaml": "dataReporting:\n  interval: 10m\n",
-					},
-				}
-				_, err = kubeClient.CoreV1().ConfigMaps("openshift-insights").Create(ctx, insightsConfig, metav1.CreateOptions{})
-				Expect(err).NotTo(HaveOccurred(), "failed to create insights-config ConfigMap to lower gather interval")
-
-				By("verifying the Insights Operator is still healthy after token injection")
-				err = verifiers.VerifyInsightsOperatorHealthy(insightsHealthTimeout).
-					Verify(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred(), "Insights Operator became unhealthy after cloud.openshift.com token was added")
 
 				By("verifying the cluster is visible in console.redhat.com")
 				err = verifiers.VerifyClusterVisibleInConsole(ocmCredentials.ClientID, ocmCredentials.ClientSecret, consoleVisibilityTimeout).

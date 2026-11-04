@@ -16,10 +16,13 @@ package verifiers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
@@ -107,7 +110,63 @@ func (v verifyClusterVisibleInConsole) Verify(ctx context.Context, adminRESTConf
 	}
 	defer connection.Close()
 
-	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+	diagnose := func(ctx context.Context, restConfig *rest.Config) string {
+		var diag []string
+
+		diagClient, err := configv1client.NewForConfig(restConfig)
+		if err != nil {
+			return fmt.Sprintf("failed to create config client for diagnostics: %v", err)
+		}
+		co, err := diagClient.ClusterOperators().Get(ctx, insightsOperatorName, metav1.GetOptions{})
+		if err != nil {
+			diag = append(diag, fmt.Sprintf("ClusterOperator %q: %v", insightsOperatorName, err))
+		} else {
+			if len(co.Status.Conditions) == 0 {
+				diag = append(diag, "ClusterOperator conditions: EMPTY (no conditions set)")
+			}
+			for _, c := range co.Status.Conditions {
+				diag = append(diag, fmt.Sprintf("  %s=%s (reason=%s, message=%s)", c.Type, c.Status, c.Reason, c.Message))
+			}
+			for _, v := range co.Status.Versions {
+				diag = append(diag, fmt.Sprintf("  version: %s=%s", v.Name, v.Version))
+			}
+			for _, ro := range co.Status.RelatedObjects {
+				diag = append(diag, fmt.Sprintf("  relatedObject: %s/%s %s/%s", ro.Group, ro.Resource, ro.Namespace, ro.Name))
+			}
+		}
+
+		kubeClient, err := kubernetes.NewForConfig(restConfig)
+		if err != nil {
+			diag = append(diag, fmt.Sprintf("failed to create kube client: %v", err))
+		} else {
+			for _, ref := range []struct{ ns, name string }{
+				{"openshift-config", "pull-secret"},
+				{"kube-system", "global-pull-secret"},
+			} {
+				secret, sErr := kubeClient.CoreV1().Secrets(ref.ns).Get(ctx, ref.name, metav1.GetOptions{})
+				if sErr != nil {
+					diag = append(diag, fmt.Sprintf("%s/%s: %v", ref.ns, ref.name, sErr))
+					continue
+				}
+				var cfg struct {
+					Auths map[string]json.RawMessage `json:"auths"`
+				}
+				if jErr := json.Unmarshal(secret.Data[".dockerconfigjson"], &cfg); jErr != nil {
+					diag = append(diag, fmt.Sprintf("%s/%s: failed to parse: %v", ref.ns, ref.name, jErr))
+					continue
+				}
+				var hosts []string
+				for h := range cfg.Auths {
+					hosts = append(hosts, h)
+				}
+				diag = append(diag, fmt.Sprintf("%s/%s auths: %v", ref.ns, ref.name, hosts))
+			}
+		}
+
+		return strings.Join(diag, "\n")
+	}
+
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, adminRESTConfig, DefaultDiagnoseTimeout, diagnose, func(ctx context.Context) error {
 		response, err := connection.ClustersMgmt().V1().Clusters().List().
 			Search(fmt.Sprintf("external_id = '%s'", clusterID)).
 			Size(1).
