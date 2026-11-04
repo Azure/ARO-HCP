@@ -622,19 +622,29 @@ type AzureResources struct {
 	// for the cluster's control-plane and data-plane operator identities and its service
 	// managed identity.
 	// Written by: IdentityRoleAssignments
-	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
+	RoleAssignments RoleAssignments `json:"roleAssignments,omitempty"`
 }
 
-// AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
-// PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
-// AzureResources holds resource IDs that have been confirmed to exist.
-type AzureMultiReference struct {
+type RoleAssignments struct {
 	// StackReady reports that the persisted and observed role assignment stack specs
 	// match current intent, SuccessfullyApplied is true, and Azure reports Succeeded.
 	// Pending or failed repairs revoke readiness even when the spec is unchanged.
 	// Legacy resource lists are retained for persisted compatibility, not readiness.
 	// Written by: IdentityRoleAssignments
 	StackReady bool `json:"stackReady,omitempty"`
+	// PendingAzureResources contains resource IDs that have been requested but
+	// not yet confirmed to exist in Azure.
+	// Note: not used. Kept so it is not unset during transition period.
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
+	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
+	// Note: not used. Kept so it is not unset during transition period.
+	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
+}
+
+// AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
+// PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
+// AzureResources holds resource IDs that have been confirmed to exist.
+type AzureMultiReference struct {
 	// PendingAzureResources contains resource IDs that have been requested but
 	// not yet confirmed to exist in Azure.
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
