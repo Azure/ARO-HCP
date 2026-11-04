@@ -99,7 +99,7 @@ func instantiateStorageAccountNetworkAccessValidationController(controllerContex
 
 	return clustervalidation.NewNamedClusterValidationController(
 		clustervalidation.ClusterValidationStorageAccountNetworkAccessValidationControllerName,
-		validationutils.NewStorageAccountNetworkAccessValidation(controllerContext.FPAClientBuilder),
+		validationutils.NewStorageAccountNetworkAccessValidation(controllerContext.FPAClientBuilder, controllerContext.StorageAccountNetworkAccessValidationEnabled),
 		controllerContext.ResourcesDBClient,
 		serviceProviderClusterLister,
 		controllerContext.BackendInformers,

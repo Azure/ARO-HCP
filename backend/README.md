@@ -64,5 +64,18 @@ Subscription roles do not grant permission to read custom definitions or
 initiatives located in ancestor management groups; those reads require separate
 authorization. The mock identity role includes the subscription permissions.
 Exemptions use the `2022-07-01-preview` REST API through the authenticated ARM
-pipeline because the current policy SDK has no exemptions client. Read failures
-remain Unknown and retry; they are not interpreted as an absence of restrictions.
+pipeline because the current policy SDK has no exemptions client.
+
+Authorization failures (HTTP 403) on any policy read are treated as inconclusive:
+the affected assignment, definition, or initiative member is skipped (other
+readable policies are still evaluated) and a 403 on the assignment list passes
+with reason `PolicyReadNotAuthorized`. This avoids failing creations for
+customers whose policies live in management groups the identity cannot read.
+Other read failures remain Unknown and retry; they are not interpreted as an
+absence of restrictions.
+
+The preflight can be turned off with the backend flag
+`--storage-account-network-access-validation-enabled=false` (Helm value
+`storageAccountNetworkAccessValidationEnabled`). When disabled, the validation
+passes with reason `ValidationDisabled` without calling Azure, so the Cluster
+Service creation gate is not blocked.

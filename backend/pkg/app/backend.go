@@ -100,6 +100,7 @@ type BackendOptions struct {
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
 	OrphanedMRGCleanupConfig                            *controllerconfig.OrphanedMRGCleanupConfig
+	StorageAccountNetworkAccessValidationEnabled        bool
 }
 
 const backendShutdownTimeout = 31 * time.Second

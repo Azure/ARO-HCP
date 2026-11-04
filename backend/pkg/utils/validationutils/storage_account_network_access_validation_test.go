@@ -429,7 +429,7 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 			v := NewStorageAccountNetworkAccessValidation(&storagePolicyTestBuilder{
 				FirstPartyApplicationClientBuilder: fpaBuilder,
 				exemptions:                         &storagePolicyTestExemptions{},
-			})
+			}, true)
 			result := v.Validate(context.Background(), clusterSubscription, cluster)
 
 			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)
@@ -441,6 +441,6 @@ func TestStorageAccountNetworkAccessValidation_Validate(t *testing.T) {
 }
 
 func TestStorageAccountNetworkAccessValidation_Name(t *testing.T) {
-	v := NewStorageAccountNetworkAccessValidation(nil)
+	v := NewStorageAccountNetworkAccessValidation(nil, true)
 	assert.Equal(t, "StorageAccountNetworkAccessValidation", v.Name())
 }

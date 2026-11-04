@@ -73,6 +73,7 @@ spec:
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--orphaned-mrg-cleanup-running-mode={{ .Values.orphanedMRGCleanupRunningMode }}"
+        - "--storage-account-network-access-validation-enabled={{ .Values.storageAccountNetworkAccessValidationEnabled }}"
         {{- if .Values.orphanedMRGCleanupTargetSubscriptionAFECFlags }}
         - "--orphaned-mrg-cleanup-target-subscription-afec-flags"
         - "{{ .Values.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"

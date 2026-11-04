@@ -73,6 +73,11 @@ type ControllerContext struct {
 
 	OrphanedMRGCleanupConfig *OrphanedMRGCleanupConfig
 
+	// StorageAccountNetworkAccessValidationEnabled enables the image registry
+	// Storage Account policy preflight. When false the validation reports Passed
+	// without reading Azure Policy.
+	StorageAccountNetworkAccessValidationEnabled bool
+
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers

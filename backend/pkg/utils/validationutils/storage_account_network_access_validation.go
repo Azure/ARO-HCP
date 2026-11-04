@@ -28,6 +28,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // This built-in defaults to Audit, not Deny.
@@ -39,14 +40,21 @@ const knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID = "/providers
 // Unsupported expressions, resource selectors, effect overrides and pinned
 // definition versions not satisfied by the latest version are deliberate
 // conservative gaps: an inconclusive policy must not prevent cluster creation.
+// Policy reads denied with 403 (e.g. definitions in ancestor management groups,
+// or an identity without policy read permissions) are inconclusive for the same
+// reason; other read failures remain Unknown and retry.
 type StorageAccountNetworkAccessValidation struct {
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
+	// enabled switches the policy check off without stranding creations: the
+	// Cluster Service creation gate requires this condition to be True, so a
+	// disabled check reports Passed instead of not running.
+	enabled bool
 }
 
 var _ ClusterValidation = (*StorageAccountNetworkAccessValidation)(nil)
 
-func NewStorageAccountNetworkAccessValidation(builder azureclient.FirstPartyApplicationClientBuilder) *StorageAccountNetworkAccessValidation {
-	return &StorageAccountNetworkAccessValidation{azureFPAClientBuilder: builder}
+func NewStorageAccountNetworkAccessValidation(builder azureclient.FirstPartyApplicationClientBuilder, enabled bool) *StorageAccountNetworkAccessValidation {
+	return &StorageAccountNetworkAccessValidation{azureFPAClientBuilder: builder, enabled: enabled}
 }
 
 // StorageAccountNetworkAccessValidationName is shared with creation preconditions.
@@ -60,6 +68,10 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 	if cluster.CustomerProperties.ClusterImageRegistry.State == metadataapi.ClusterImageRegistryStateDisabled || cluster.ServiceProviderProperties.ClusterServiceID != nil {
 		return SkippedValidation("NotApplicable", "Storage Account network access validation is only required when creating a cluster with its image registry enabled.", "Registry disabled or cluster already created; skipping creation-only validation.")
 	}
+	if !v.enabled {
+		return PassedValidation("ValidationDisabled", "Storage Account network access policy validation is disabled.", "Storage Account network access policy validation is disabled by backend configuration; not checking policy assignments.")
+	}
+	logger := utils.LoggerFromContext(ctx)
 	unknown := func(err error) ValidationResult {
 		return UnknownValidation("InternalError", "Unable to verify Storage Account network access policy compliance.", err.Error(), ControllerReportingPolicyTypeError)
 	}
@@ -79,16 +91,27 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 	pager := assignmentsClient.NewListForResourceGroupPager(rg, &armpolicy.AssignmentsClientListForResourceGroupOptions{Filter: to.Ptr("atScope()")})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
+		if azureclient.IsAzureCoreResponseErrorHTTP403(err) {
+			// Without read access no conflict can be confirmed; blocking would fail
+			// every creation in this subscription, so report inconclusive as Passed.
+			message := fmt.Sprintf("Not authorized to read policy assignments for %q; Storage Account network access policy conflicts were not checked.", target)
+			logger.Info(message, "error", err.Error())
+			return PassedValidation("PolicyReadNotAuthorized", message, message+" "+err.Error())
+		}
 		if err != nil {
 			return unknown(fmt.Errorf("failed to list policy assignments for managed resource group: %w", err))
 		}
 		assignments = append(assignments, page.Value...)
 	}
 	var exemptions []*azureclient.PolicyExemption
-	exemptionsLoaded := false
+	exemptionsLoaded, exemptionsForbidden := false, false
 	// Only a confirmed candidate needs exemptions. Cache the list, not the
 	// applicability decision: each candidate has its own assignment/member.
+	// Unreadable exemptions (403) cannot disprove an exemption: treat as exempt.
 	isExempt := func(assignment *armpolicy.Assignment, reference string) (bool, error) {
+		if exemptionsForbidden {
+			return true, nil
+		}
 		if !exemptionsLoaded {
 			client, err := v.azureFPAClientBuilder.PolicyExemptionsClient(tenant, sub)
 			if err != nil {
@@ -97,6 +120,11 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 			pager := client.NewListForResourceGroupPager(rg)
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
+				if azureclient.IsAzureCoreResponseErrorHTTP403(err) {
+					logger.Info("Not authorized to read policy exemptions; treating policy conflict as inconclusive", "error", err.Error())
+					exemptionsForbidden = true
+					return true, nil
+				}
 				if err != nil {
 					return false, fmt.Errorf("failed to list policy exemptions: %w", err)
 				}
@@ -127,6 +155,10 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 				return unknown(fmt.Errorf("failed to get policy set definitions client: %w", err))
 			}
 			set, err := getStoragePolicySet(ctx, sets, scope, name, sub)
+			if azureclient.IsAzureCoreResponseErrorHTTP403(err) {
+				logger.Info("Not authorized to read policy set definition; skipping assignment as inconclusive", "policySetDefinitionID", id, "error", err.Error())
+				continue
+			}
 			if err != nil {
 				return unknown(fmt.Errorf("failed to get policy set %q: %w", id, err))
 			}
@@ -150,6 +182,10 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 					ref = *member.PolicyDefinitionReferenceID
 				}
 				blocks, err = storagePolicyDenies(ctx, definitions, *member.PolicyDefinitionID, ptr.Deref(member.DefinitionVersion, ""), sub, member.Parameters, parameters, cluster.Location)
+				if azureclient.IsAzureCoreResponseErrorHTTP403(err) {
+					logger.Info("Not authorized to read policy definition; skipping initiative member as inconclusive", "policyDefinitionID", *member.PolicyDefinitionID, "error", err.Error())
+					continue
+				}
 				if err != nil {
 					return unknown(err)
 				}
@@ -166,6 +202,10 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 			}
 		} else {
 			blocks, err = storagePolicyDenies(ctx, definitions, id, definitionVersion, sub, assignment.Properties.Parameters, nil, cluster.Location)
+			if azureclient.IsAzureCoreResponseErrorHTTP403(err) {
+				logger.Info("Not authorized to read policy definition; skipping assignment as inconclusive", "policyDefinitionID", id, "error", err.Error())
+				continue
+			}
 			if err != nil {
 				return unknown(err)
 			}

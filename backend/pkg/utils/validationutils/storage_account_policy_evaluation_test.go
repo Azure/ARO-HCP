@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -35,6 +39,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
+
+// errStoragePolicyForbidden is the error Azure returns when the identity lacks
+// policy read permission at the requested scope.
+var errStoragePolicyForbidden = &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"}
 
 type storagePolicyTestBuilder struct {
 	azureclient.FirstPartyApplicationClientBuilder
@@ -533,6 +541,27 @@ func TestStoragePolicyValidationRegressions(t *testing.T) {
 			f.definitions.definition.Properties.Version = to.Ptr("1.0.0")
 		}, OutcomeTypeFailed},
 		{"assignment page failure", func(f *fixture) { f.assignments.err = errors.New("page error") }, OutcomeTypeUnknown},
+		{"assignment list forbidden is inconclusive", func(f *fixture) {
+			f.assignments.err = errStoragePolicyForbidden
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"definition fetch forbidden is inconclusive", func(f *fixture) {
+			f.assignment.Properties.PolicyDefinitionID = to.Ptr(customID)
+			f.definitions.err = errStoragePolicyForbidden
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"initiative fetch forbidden is inconclusive", func(f *fixture) {
+			f.sets.err = errStoragePolicyForbidden
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"forbidden initiative member does not hide other blocking member", func(f *fixture) {
+			other := *f.sets.definition.Properties.PolicyDefinitions[0]
+			other.PolicyDefinitionReferenceID = to.Ptr("other")
+			f.sets.definition.Properties.PolicyDefinitions[0].PolicyDefinitionID = to.Ptr(customID)
+			f.sets.definition.Properties.PolicyDefinitions = append(f.sets.definition.Properties.PolicyDefinitions, &other)
+			f.definitions.err = errStoragePolicyForbidden
+		}, OutcomeTypeFailed},
+		{"exemption list forbidden is inconclusive", func(f *fixture) { f.exemptions.err = errStoragePolicyForbidden }, OutcomeTypePassed},
 		{"exemption page failure", func(f *fixture) { f.exemptions.err = errors.New("page error") }, OutcomeTypeUnknown},
 		{"definition fetch failure", func(f *fixture) {
 			f.assignment.Properties.PolicyDefinitionID = to.Ptr(customID)
@@ -571,7 +600,7 @@ func TestStoragePolicyValidationRegressions(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(f)
 			}
-			result := NewStorageAccountNetworkAccessValidation(f.builder).Validate(context.Background(), f.subscription, f.cluster)
+			result := NewStorageAccountNetworkAccessValidation(f.builder, true).Validate(context.Background(), f.subscription, f.cluster)
 			assert.Equal(t, tt.want, result.Outcome.Type, result.InternalMessage())
 			assert.LessOrEqual(t, f.exemptions.calls, 1, "exemptions must be listed once, not per assignment/member")
 			assert.LessOrEqual(t, f.builder.exemptionCalls, 1, "exemption client must be created at most once")
@@ -609,10 +638,32 @@ func TestStoragePolicyCreationOnlySkipsBeforeCredentials(t *testing.T) {
 				cluster.CustomerProperties.ClusterImageRegistry.State = metadataapi.ClusterImageRegistryStateDisabled
 			}
 			// nil builder and missing tenant/cluster ID would panic if accessed.
-			result := NewStorageAccountNetworkAccessValidation(nil).Validate(context.Background(), &coreapi.Subscription{}, cluster)
+			result := NewStorageAccountNetworkAccessValidation(nil, true).Validate(context.Background(), &coreapi.Subscription{}, cluster)
 			assert.Equal(t, OutcomeTypeSkipped, result.Outcome.Type)
 		})
 	}
+}
+
+func TestStoragePolicyDisabledPassesWithoutAzureCalls(t *testing.T) {
+	cluster := &coreapi.Cluster{}
+	cluster.CustomerProperties.ClusterImageRegistry.State = metadataapi.ClusterImageRegistryStateEnabled
+	// nil builder and missing tenant/cluster ID would panic if accessed.
+	result := NewStorageAccountNetworkAccessValidation(nil, false).Validate(context.Background(), &coreapi.Subscription{}, cluster)
+	assert.Equal(t, OutcomeTypePassed, result.Outcome.Type)
+	assert.Equal(t, "ValidationDisabled", result.Reason())
+	assert.Equal(t, metav1.ConditionTrue, result.ToCondition(StorageAccountNetworkAccessValidationName).Status, "a disabled check must satisfy the creation gate")
+}
+
+func TestStoragePolicyAssignmentListForbiddenReason(t *testing.T) {
+	cluster := &coreapi.Cluster{
+		TrackedResource:    coreapi.TrackedResource{Resource: coreapi.Resource{ID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/customer-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))}, Location: "eastus"},
+		CustomerProperties: coreapi.ClusterCustomerProperties{ClusterImageRegistry: coreapi.ClusterImageRegistryProfile{State: metadataapi.ClusterImageRegistryStateEnabled}, Platform: coreapi.CustomerPlatformProfile{ManagedResourceGroup: "managed-rg"}},
+	}
+	builder := &storagePolicyTestBuilder{assignments: &storagePolicyTestAssignments{t: t, err: errStoragePolicyForbidden}, fail: "definitions"}
+	result := NewStorageAccountNetworkAccessValidation(builder, true).Validate(context.Background(), &coreapi.Subscription{Properties: &coreapi.SubscriptionProperties{TenantId: to.Ptr("tenant")}}, cluster)
+	assert.Equal(t, OutcomeTypePassed, result.Outcome.Type)
+	assert.Equal(t, "PolicyReadNotAuthorized", result.Reason())
+	assert.Contains(t, result.InternalMessage(), "AuthorizationFailed")
 }
 
 func TestStoragePolicyDefinitionVersionMatches(t *testing.T) {

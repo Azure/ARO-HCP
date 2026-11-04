@@ -49,3 +49,9 @@ func IsAzureCoreResponseErrorHTTP404(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusNotFound
 }
+
+// IsAzureCoreResponseErrorHTTP403 returns true if the error is an azcore.ResponseError with http status code 403.
+func IsAzureCoreResponseErrorHTTP403(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusForbidden
+}
