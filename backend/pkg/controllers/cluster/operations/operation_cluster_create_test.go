@@ -40,6 +40,7 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -54,6 +55,7 @@ import (
 )
 
 func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
+	const storagePolicyConflictMessage = `Azure Policy assignment "deny-storage-public-access" (/subscriptions/sub/providers/Microsoft.Authorization/policyAssignments/deny-storage-public-access) conflicts with the image registry Storage Account's required public network access Enabled in managed resource group "/subscriptions/sub/resourceGroups/managed-rg". Exempt the managed resource group from the applicable policy, change its effective effect to Audit or Disabled, or recreate the cluster with properties.clusterImageRegistry.state set to Disabled.`
 	createdAt := operationtesting.MustParseTime("2025-01-15T10:30:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
 
@@ -261,6 +263,44 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "SubnetValidation: InvalidSubnet: subnet is unavailable")
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:  "storage account policy conflict fails create before cluster service creation with actionable error",
+			clock: clocktesting.NewFakePassiveClock(createdAt),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
+				// The creation gate blocks the Cluster Service POST while the policy conflicts.
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+				return cluster
+			}(),
+			existingOperation: func() *coreapi.Operation {
+				operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+				operation.StartTime = createdAt.Add(-time.Hour)
+				return operation
+			}(),
+			validations: []metav1.Condition{{
+				Type: validationutils.StorageAccountNetworkAccessValidationName, Status: metav1.ConditionFalse,
+				Reason:             "StorageAccountPublicNetworkAccessDenied",
+				Message:            storagePolicyConflictMessage,
+				LastTransitionTime: metav1.NewTime(createdAt.Add(-(10*time.Minute + time.Second))),
+			}},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				// No Cluster Service cluster exists, so no status lookup is expected.
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidResource, op.Error.Code)
+				assert.Contains(t, op.Error.Message, validationutils.StorageAccountNetworkAccessValidationName+": StorageAccountPublicNetworkAccessDenied: "+storagePolicyConflictMessage)
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)

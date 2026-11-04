@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 
@@ -34,7 +36,8 @@ const knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID = "/providers
 // StorageAccountNetworkAccessValidation detects confirmed policy conflicts with
 // creating the Enabled image registry's public-network-enabled Storage Account.
 // It does not validate other storage or implement private endpoint support.
-// Unsupported expressions, resource selectors and effect overrides are deliberate
+// Unsupported expressions, resource selectors, effect overrides and pinned
+// definition versions not satisfied by the latest version are deliberate
 // conservative gaps: an inconclusive policy must not prevent cluster creation.
 type StorageAccountNetworkAccessValidation struct {
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
@@ -115,6 +118,7 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 			continue
 		}
 		id := *assignment.Properties.PolicyDefinitionID
+		definitionVersion := ptr.Deref(assignment.Properties.DefinitionVersion, "")
 		kind, scope, name := storagePolicyDefinitionID(id)
 		blocks := false
 		if kind == "policysetdefinitions" {
@@ -129,6 +133,11 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 			if set == nil || set.Properties == nil {
 				continue
 			}
+			// A pinned initiative version the latest does not satisfy may have
+			// different members or parameters: inconclusive.
+			if !storagePolicyDefinitionVersionMatches(definitionVersion, set.Properties.Version) {
+				continue
+			}
 			parameters := storagePolicyParameters(set.Properties.Parameters, assignment.Properties.Parameters, nil)
 			// Nested/unknown references are ignored instead of recursively
 			// interpreting arbitrary definitions.
@@ -140,7 +149,7 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 				if member.PolicyDefinitionReferenceID != nil {
 					ref = *member.PolicyDefinitionReferenceID
 				}
-				blocks, err = storagePolicyDenies(ctx, definitions, *member.PolicyDefinitionID, sub, member.Parameters, parameters, cluster.Location)
+				blocks, err = storagePolicyDenies(ctx, definitions, *member.PolicyDefinitionID, ptr.Deref(member.DefinitionVersion, ""), sub, member.Parameters, parameters, cluster.Location)
 				if err != nil {
 					return unknown(err)
 				}
@@ -156,7 +165,7 @@ func (v *StorageAccountNetworkAccessValidation) Validate(ctx context.Context, su
 				}
 			}
 		} else {
-			blocks, err = storagePolicyDenies(ctx, definitions, id, sub, assignment.Properties.Parameters, nil, cluster.Location)
+			blocks, err = storagePolicyDenies(ctx, definitions, id, definitionVersion, sub, assignment.Properties.Parameters, nil, cluster.Location)
 			if err != nil {
 				return unknown(err)
 			}

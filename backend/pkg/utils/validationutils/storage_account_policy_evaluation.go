@@ -67,8 +67,10 @@ func storagePolicyParameters(defaults map[string]*armpolicy.ParameterDefinitions
 	return values
 }
 
-func storagePolicyDenies(ctx context.Context, client azureclient.PolicyDefinitionsClient, id, sub string, assigned map[string]*armpolicy.ParameterValuesValue, parent map[string]any, location string) (bool, error) {
-	if strings.EqualFold(id, knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID) {
+func storagePolicyDenies(ctx context.Context, client azureclient.PolicyDefinitionsClient, id, definitionVersion, sub string, assigned map[string]*armpolicy.ParameterValuesValue, parent map[string]any, location string) (bool, error) {
+	// The known built-in shortcut assumes its latest rule; a pinned version must
+	// be fetched and matched like any other definition.
+	if len(definitionVersion) == 0 && strings.EqualFold(id, knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID) {
 		parameters := storagePolicyParameters(map[string]*armpolicy.ParameterDefinitionsValue{"effect": {DefaultValue: "Audit"}}, assigned, parent)
 		effect, _ := parameters["effect"].(string)
 		return strings.EqualFold(effect, "Deny"), nil
@@ -101,8 +103,36 @@ func storagePolicyDenies(ctx context.Context, client azureclient.PolicyDefinitio
 	if definition.Properties == nil {
 		return false, nil
 	}
+	// Get returns the latest version. If the assignment pins a version that the
+	// latest does not satisfy, the evaluated rule could differ: inconclusive.
+	if !storagePolicyDefinitionVersionMatches(definitionVersion, definition.Properties.Version) {
+		return false, nil
+	}
 	parameters := storagePolicyParameters(definition.Properties.Parameters, assigned, parent)
 	return storagePolicyRuleDenies(definition.Properties.PolicyRule, parameters, location), nil
+}
+
+// storagePolicyDefinitionVersionMatches reports whether a fetched (latest)
+// definition version satisfies a requested definitionVersion such as "1.*.*" or
+// "1.0.0". An empty request means the latest version is used.
+func storagePolicyDefinitionVersionMatches(requested string, actual *string) bool {
+	requested = strings.TrimSpace(requested)
+	if len(requested) == 0 {
+		return true
+	}
+	if actual == nil || len(*actual) == 0 {
+		return false
+	}
+	want, got := strings.Split(requested, "."), strings.Split(*actual, ".")
+	if len(want) != len(got) {
+		return false
+	}
+	for i := range want {
+		if want[i] != "*" && !strings.EqualFold(want[i], got[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // The historical Denies name includes narrow Modify-to-Disabled conflicts. This

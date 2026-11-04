@@ -175,14 +175,6 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	ready, err = c.createPreconditionStorageAccountNetworkAccessValidationPassed(ctx, cluster, existingServiceProviderCluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	if !ready {
-		return nil
-	}
-
 	ready, err = c.createPreconditionDataPlaneOIDCFederationCreated(ctx, cluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -210,9 +202,13 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	if csCluster == nil {
-		// Adoption must remain possible before DNS allocation/backfill. This
-		// precondition gates only a new POST, unlike the prerequisites above.
+		// Adoption must remain possible before DNS allocation/backfill and before
+		// the storage policy validation passes. These preconditions gate only a
+		// new POST, unlike the prerequisites above.
 		if !c.createPreconditionDNSAllocated(ctx, cluster) {
+			return nil
+		}
+		if !c.createPreconditionStorageAccountNetworkAccessValidationPassed(ctx, cluster, existingServiceProviderCluster) {
 			return nil
 		}
 		csCluster, err = c.createClusterServiceCluster(csCtx, cluster, existingServiceProviderCluster, tenantID)
@@ -294,10 +290,12 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 // createPreconditionStorageAccountNetworkAccessValidationPassed prevents registry
 // provisioning until its policy preflight passes. A disabled registry has no such
 // prerequisite: its validator removes the condition, so absence cannot mean ready
-// for enabled registries, but must not strand disabled ones.
-func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetworkAccessValidationPassed(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+// for enabled registries, but must not strand disabled ones. It gates only a new
+// Cluster Service POST so an already-created Cluster Service cluster can still be
+// adopted.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetworkAccessValidationPassed(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if cluster.CustomerProperties.ClusterImageRegistry.State == metadataapi.ClusterImageRegistryStateDisabled {
-		return true, nil
+		return true
 	}
 	logger := utils.LoggerFromContext(ctx)
 
@@ -309,9 +307,9 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionStorageAccountNetw
 		}
 		logger.Info("StorageAccountNetworkAccessValidation has not passed yet, waiting before creating the Cluster Service cluster",
 			"validationConditionStatus", conditionStatus)
-		return false, nil
+		return false
 	}
-	return true, nil
+	return true
 }
 
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {

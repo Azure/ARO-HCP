@@ -491,6 +491,47 @@ func TestStoragePolicyValidationRegressions(t *testing.T) {
 		{"initiative member effect override", func(f *fixture) {
 			f.assignment.Properties.Overrides = []*armpolicy.Override{{Kind: to.Ptr(armpolicy.OverrideKindPolicyEffect), Value: to.Ptr("Audit"), Selectors: []*armpolicy.Selector{{Kind: to.Ptr(armpolicy.SelectorKindPolicyDefinitionReferenceID), In: []*string{to.Ptr("registry")}}}}}
 		}, OutcomeTypePassed},
+		{"custom pinned version satisfied by latest", func(f *fixture) {
+			f.assignment.Properties.PolicyDefinitionID = to.Ptr(customID)
+			f.assignment.Properties.DefinitionVersion = to.Ptr("1.*.*")
+			f.definitions.definition.Properties.Version = to.Ptr("1.2.0")
+		}, OutcomeTypeFailed},
+		{"custom pinned older major inconclusive", func(f *fixture) {
+			f.assignment.Properties.PolicyDefinitionID = to.Ptr(customID)
+			f.assignment.Properties.DefinitionVersion = to.Ptr("1.*.*")
+			f.definitions.definition.Properties.Version = to.Ptr("2.0.0")
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"custom pinned version without latest version inconclusive", func(f *fixture) {
+			f.assignment.Properties.PolicyDefinitionID = to.Ptr(customID)
+			f.assignment.Properties.DefinitionVersion = to.Ptr("1.0.0")
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"known builtin pinned version is fetched not shortcut", func(f *fixture) {
+			f.assignment.Properties.PolicyDefinitionID = to.Ptr(knownStorageAccountPublicNetworkAccessDenyPolicyDefinitionID)
+			f.assignment.Properties.DefinitionVersion = to.Ptr("1.*.*")
+			f.assignment.Properties.Parameters = map[string]*armpolicy.ParameterValuesValue{"effect": {Value: "Deny"}}
+			f.definitions.definition.Properties.Version = to.Ptr("2.0.0")
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"initiative pinned version satisfied by latest", func(f *fixture) {
+			f.assignment.Properties.DefinitionVersion = to.Ptr("2.*.*")
+			f.sets.definition.Properties.Version = to.Ptr("2.1.0")
+		}, OutcomeTypeFailed},
+		{"initiative pinned older major inconclusive", func(f *fixture) {
+			f.assignment.Properties.DefinitionVersion = to.Ptr("1.*.*")
+			f.sets.definition.Properties.Version = to.Ptr("2.0.0")
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"initiative member pinned older major inconclusive", func(f *fixture) {
+			f.sets.definition.Properties.PolicyDefinitions[0].DefinitionVersion = to.Ptr("1.*.*")
+			f.definitions.definition.Properties.Version = to.Ptr("2.0.0")
+			f.builder.fail = "exemptions"
+		}, OutcomeTypePassed},
+		{"initiative member pinned version satisfied by latest", func(f *fixture) {
+			f.sets.definition.Properties.PolicyDefinitions[0].DefinitionVersion = to.Ptr("1.*.*")
+			f.definitions.definition.Properties.Version = to.Ptr("1.0.0")
+		}, OutcomeTypeFailed},
 		{"assignment page failure", func(f *fixture) { f.assignments.err = errors.New("page error") }, OutcomeTypeUnknown},
 		{"exemption page failure", func(f *fixture) { f.exemptions.err = errors.New("page error") }, OutcomeTypeUnknown},
 		{"definition fetch failure", func(f *fixture) {
@@ -546,6 +587,12 @@ func TestStoragePolicyValidationRegressions(t *testing.T) {
 				assert.Contains(t, result.InternalMessage(), target)
 				assert.Contains(t, result.InternalMessage(), "Enabled")
 				assert.Contains(t, result.InternalMessage(), "properties.clusterImageRegistry.state")
+				condition := result.ToCondition(StorageAccountNetworkAccessValidationName)
+				assert.Equal(t, "StorageAccountPublicNetworkAccessDenied", condition.Reason)
+				assert.Equal(t, result.InternalMessage(), condition.Message, "customer-facing condition message must carry the same actionable detail")
+				assert.Contains(t, condition.Message, "Exempt the managed resource group")
+				assert.Contains(t, condition.Message, "Audit or Disabled")
+				assert.Contains(t, condition.Message, "set to Disabled")
 			}
 		})
 	}
@@ -568,6 +615,29 @@ func TestStoragePolicyCreationOnlySkipsBeforeCredentials(t *testing.T) {
 	}
 }
 
+func TestStoragePolicyDefinitionVersionMatches(t *testing.T) {
+	for _, tt := range []struct {
+		requested string
+		actual    *string
+		want      bool
+	}{
+		{"", nil, true},
+		{"", to.Ptr("3.0.0"), true},
+		{"1.*.*", to.Ptr("1.4.2"), true},
+		{"1.*.*", to.Ptr("2.0.0"), false},
+		{"1.0.0", to.Ptr("1.0.0"), true},
+		{"1.0.0", to.Ptr("1.0.1"), false},
+		{"1.*.*", to.Ptr("1.0.0-preview"), true},
+		{"1.*.*", nil, false},
+		{"1.*.*", to.Ptr(""), false},
+		{"1.*", to.Ptr("1.0.0"), false},
+	} {
+		t.Run(tt.requested+"/"+fmt.Sprint(tt.actual != nil && *tt.actual != ""), func(t *testing.T) {
+			assert.Equal(t, tt.want, storagePolicyDefinitionVersionMatches(tt.requested, tt.actual))
+		})
+	}
+}
+
 func TestStoragePolicyDefinitionScopes(t *testing.T) {
 	for _, tt := range []struct{ prefix, scope string }{
 		{"", "builtin"},
@@ -577,7 +647,7 @@ func TestStoragePolicyDefinitionScopes(t *testing.T) {
 		t.Run(tt.scope, func(t *testing.T) {
 			id := tt.prefix + "/providers/Microsoft.Authorization/policyDefinitions/custom"
 			client := &storagePolicyTestDefinitions{}
-			_, err := storagePolicyDenies(context.Background(), client, id, "sub", nil, nil, "eastus")
+			_, err := storagePolicyDenies(context.Background(), client, id, "", "sub", nil, nil, "eastus")
 			require.NoError(t, err)
 			assert.Equal(t, tt.scope, client.scope)
 			kind, scope, name := storagePolicyDefinitionID(tt.prefix + "/providers/Microsoft.Authorization/policySetDefinitions/initiative")
