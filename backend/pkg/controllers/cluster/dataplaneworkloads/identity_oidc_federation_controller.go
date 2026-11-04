@@ -153,7 +153,7 @@ func NewDataPlaneWorkloadIdentityOIDCFederationController(
 }
 
 func (s *dataPlaneWorkloadIdentityOIDCFederationSyncer) needsWork(cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	csClusterID := controllerutils.ClusterServiceIDForCluster(cluster)
+	csClusterID := controllerutils.ClusterServiceIDForCluster(serviceProviderCluster)
 	// We get the current time to use it in the assignmentNeedsWork function. This is so all of them have the same reference time.
 	now := s.clock.Now()
 	earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[DataPlaneWorkloadIdentityOIDCFederationControllerName]
@@ -289,9 +289,9 @@ func (s *dataPlaneWorkloadIdentityOIDCFederationSyncer) SyncOnce(ctx context.Con
 		return err
 	}
 
-	// Get the cluster service ID from the cluster. This can be empty if the cluster service is not yet created.
+	// Get the cluster service ID from the provider. This can be empty if the cluster service is not yet created.
 	// At this point we continue even if it's not set yet, because only some part of the logic requires it to be set.
-	csClusterID := controllerutils.ClusterServiceIDForCluster(existingCluster)
+	csClusterID := controllerutils.ClusterServiceIDForCluster(existingServiceProviderCluster)
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 
