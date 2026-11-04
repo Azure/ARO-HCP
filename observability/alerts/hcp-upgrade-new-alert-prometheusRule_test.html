@@ -1,0 +1,441 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Upgrade alert scenarios</title>
+<style>
+:root{color-scheme:light dark;--background:Canvas;--foreground:CanvasText;--muted:color-mix(in srgb,CanvasText 8%,Canvas);--border:color-mix(in srgb,CanvasText 25%,Canvas);--card:Canvas;--primary:Highlight;--primary-foreground:HighlightText;--chart-1:light-dark(#a84d05,#ffb86b);--chart-2:light-dark(#076b81,#70d5e9);--chart-3:light-dark(#6b46ae,#c4a6ff);--success:light-dark(#187343,#77dba0);--radius:12px;--font-sans:system-ui,sans-serif}body{margin:0;color:var(--foreground);font:15px/1.5 var(--font-sans)}main{max-width:960px;margin:auto}h2{font-size:20px;margin:18px 0 8px}p{margin:8px 0}.box{background:var(--muted);padding:16px;border-radius:var(--radius)}small{font-size:12px}.choices{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:14px 0}button{font:inherit;text-align:left;padding:9px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--foreground)}button[aria-pressed=true]{background:var(--primary);color:var(--primary-foreground)}button:focus-visible{outline:3px solid var(--primary)}.tag{font-size:12px;display:block}.legend{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0}.swatch{display:inline-block;width:16px;height:10px;margin-right:5px;background:var(--chart-1)}.pending{background:var(--chart-1);opacity:.35}.baseline{background:var(--chart-3);opacity:.5}.detect{background:var(--success)}.timeline{margin:14px 0}.axis,.lane{display:grid;grid-template-columns:190px 1fr;min-height:34px;align-items:center}.track{height:28px;position:relative;background:var(--muted)}.bar{position:absolute;top:7px;height:14px;background:var(--chart-1)}.bar.pending{top:10px;height:8px}.bar.baseline{background:var(--chart-3);opacity:.45}.bar.detect{background:var(--success)}.tick{position:absolute;transform:translateX(-50%);font-size:12px;white-space:nowrap}.marker{position:absolute;top:0;bottom:0;width:1px;background:var(--border)}.caption{font-size:12px}details{margin:16px 0;border-top:1px solid var(--border);padding-top:12px}summary{cursor:pointer}li{margin:6px 0}@media(max-width:520px){.choices{grid-template-columns:1fr}.axis,.lane{grid-template-columns:135px 1fr}.tick{font-size:11px}body{font-size:14px}}
+</style></head><body><main>
+<div class="box"><b>When HCPUpgradeNewAlert fires</b><p>An actual alert is firing, activated at or after upgrade start, and its alert type did not fire in the 24h before upgrade start.</p><p>Wait for completion; stop 24h afterward. Exclude upgrades lasting over 24h and alerts with missing activation timestamps. Each HCP, version and attempt gets its own HCPUpgradeNewAlert.</p></div>
+<h2>Choose a scenario</h2><div class="choices" id="cases" role="group" aria-label="Scenarios"></div>
+<section id="detail" aria-live="polite"></section>
+<details><summary>Limits and timing</summary><ul>
+<li>A and B are different objects with the same namespace and alert name. Objects are not distinguished in the baseline.</li>
+<li>Unless shown otherwise, upgrade starts at 0h, completes at +2h and expires at +26h.</li>
+<li>Timelines show the contract; collection and evaluation add delay. Missing samples do not prove a healthy baseline.</li>
+<li>Guest signals, HCPUpgradeNewAlert instances, missing ownership, missing namespaces and installation are excluded.</li>
+<li>The query scans 72h. Its baseline includes start −24h and excludes upgrade start itself.</li>
+</ul><p><a href="hcp-upgrade-new-alert-prometheusRule_test.yaml">Alert tests</a> · <a href="../recording-rules/hcp-upgrade-recordingRule_test.yaml">Upgrade tests</a> · <a href="../../docs/alerts/hcp-upgrade-new-alert/README.md">Documentation</a></p></details>
+</main><script>
+const scenarios = [
+  {
+    "t": "New alert after completion",
+    "a": [
+      [
+        4,
+        16
+      ]
+    ],
+    "result": "Detects from +4h until the actual alert clears.",
+    "firing": [
+      [
+        4,
+        16
+      ]
+    ]
+  },
+  {
+    "t": "New alert during the upgrade",
+    "a": [
+      [
+        1,
+        12
+      ]
+    ],
+    "result": "Waits for upgrade completion at +2h, then detects the still-firing alert.",
+    "firing": [
+      [
+        2,
+        12
+      ]
+    ]
+  },
+  {
+    "t": "Pending before, firing after start",
+    "p": [
+      [
+        -2,
+        1
+      ]
+    ],
+    "a": [
+      [
+        1,
+        12
+      ]
+    ],
+    "result": "Excluded: activation began before the upgrade.",
+    "firing": []
+  },
+  {
+    "t": "New problem clears, then returns",
+    "a": [
+      [
+        3,
+        6
+      ],
+      [
+        10,
+        18
+      ]
+    ],
+    "result": "Detects both periods. Neither was present in the pre-upgrade baseline.",
+    "firing": [
+      [
+        3,
+        6
+      ],
+      [
+        10,
+        18
+      ]
+    ]
+  },
+  {
+    "t": "Earlier problem returns much later",
+    "a": [
+      [
+        -3,
+        -2
+      ],
+      [
+        24,
+        29
+      ]
+    ],
+    "result": "Excluded: this alert type fired in the pre-upgrade baseline.",
+    "firing": []
+  },
+  {
+    "t": "Already firing before upgrade",
+    "a": [
+      [
+        -4,
+        18
+      ]
+    ],
+    "result": "Excluded: the alert was already firing before upgrade.",
+    "firing": []
+  },
+  {
+    "t": "Recent problem returns soon",
+    "a": [
+      [
+        -8,
+        -6
+      ],
+      [
+        3,
+        15
+      ]
+    ],
+    "result": "Excluded: the earlier firing is inside the pre-upgrade baseline.",
+    "firing": []
+  },
+  {
+    "t": "Earlier problem was quiet for over a day",
+    "a": [
+      [
+        -29,
+        -27
+      ],
+      [
+        3,
+        15
+      ]
+    ],
+    "result": "Detects: the earlier firing is outside the pre-upgrade baseline.",
+    "firing": [
+      [
+        3,
+        15
+      ]
+    ]
+  },
+  {
+    "t": "Fires during upgrade, clears before completion",
+    "a": [
+      [
+        0.5,
+        1.5
+      ]
+    ],
+    "result": "No detection: the actual alert cleared before upgrade completion.",
+    "firing": []
+  },
+  {
+    "t": "Only pending, never firing",
+    "p": [
+      [
+        1,
+        16
+      ]
+    ],
+    "a": [],
+    "result": "No detection: pending alone is not firing.",
+    "firing": []
+  },
+  {
+    "t": "Objects overlap after the upgrade",
+    "a": [
+      [
+        3,
+        9
+      ]
+    ],
+    "b": [
+      [
+        7,
+        18
+      ]
+    ],
+    "result": "Detection continues after A clears because B is still firing.",
+    "firing": [
+      [
+        3,
+        18
+      ]
+    ]
+  },
+  {
+    "t": "Existing object hides a new object",
+    "a": [
+      [
+        -4,
+        9
+      ]
+    ],
+    "b": [
+      [
+        7,
+        18
+      ]
+    ],
+    "result": "Excluded: the same alert type on A fired before upgrade. Objects are not distinguished.",
+    "firing": []
+  },
+  {
+    "t": "Alert stays firing past the deadline",
+    "a": [
+      [
+        4,
+        30
+      ]
+    ],
+    "result": "Stops at completion +24h, even though the actual alert still fires.",
+    "firing": [
+      [
+        4,
+        26
+      ]
+    ]
+  },
+  {
+    "t": "First firing is after the deadline",
+    "a": [
+      [
+        27,
+        30
+      ]
+    ],
+    "result": "No detection: the first firing is after the upgrade window expires.",
+    "firing": []
+  },
+  {
+    "t": "Upgrade has not completed",
+    "a": [
+      [
+        1,
+        18
+      ]
+    ],
+    "complete": false,
+    "result": "No detection until the upgrade completes.",
+    "firing": []
+  },
+  {
+    "t": "Activation timestamp is missing",
+    "a": [
+      [
+        3,
+        16
+      ]
+    ],
+    "result": "Excluded: activation time is unknown.",
+    "firing": []
+  },
+  {
+    "t": "Prior firing exactly at baseline edge",
+    "a": [
+      [
+        -24,
+        -23.98
+      ],
+      [
+        3,
+        16
+      ]
+    ],
+    "result": "Excluded: the baseline includes firing exactly 24h before upgrade start.",
+    "firing": []
+  },
+  {
+    "t": "Firing begins exactly at upgrade start",
+    "a": [
+      [
+        0,
+        16
+      ]
+    ],
+    "result": "Detects after completion. Activation at upgrade start is allowed; the baseline ends just before it.",
+    "firing": [
+      [
+        2,
+        16
+      ]
+    ]
+  },
+  {
+    "t": "A second upgrade while the alert persists",
+    "a": [
+      [
+        3,
+        22
+      ]
+    ],
+    "extra": 10,
+    "attempts": [
+      {
+        "name": "A · 4.22",
+        "bars": [
+          [
+            3,
+            22
+          ]
+        ]
+      },
+      {
+        "name": "B · 4.23",
+        "bars": []
+      }
+    ],
+    "result": "Only attempt A qualifies. The problem already existed when B started.",
+    "firing": [
+      [
+        3,
+        22
+      ]
+    ]
+  },
+  {
+    "t": "New problem after two upgrades at the same version",
+    "a": [
+      [
+        14,
+        40
+      ]
+    ],
+    "extra": 10,
+    "end": 42,
+    "attempts": [
+      {
+        "name": "A · 4.22",
+        "bars": [
+          [
+            14,
+            26
+          ]
+        ]
+      },
+      {
+        "name": "B · 4.22",
+        "bars": [
+          [
+            14,
+            36
+          ]
+        ]
+      }
+    ],
+    "result": "Two HCPUpgradeNewAlert instances, even at the same version: A expires at +26h and B at +36h.",
+    "firing": [
+      [
+        14,
+        36
+      ]
+    ]
+  },
+  {
+    "t": "Upgrade takes more than 24 hours",
+    "a": [
+      [
+        26,
+        40
+      ]
+    ],
+    "completion": 25,
+    "end": 54,
+    "result": "Excluded: the upgrade took more than 24h.",
+    "firing": []
+  },
+  {
+    "t": "Upgrade takes exactly 24 hours",
+    "a": [
+      [
+        25,
+        50
+      ]
+    ],
+    "completion": 24,
+    "end": 54,
+    "result": "Detects from +25h to +48h. Exactly 24h of upgrade duration is allowed.",
+    "firing": [
+      [
+        25,
+        48
+      ]
+    ]
+  },
+  {
+    "t": "Missing activation timestamp arrives later",
+    "a": [
+      [
+        3,
+        16
+      ]
+    ],
+    "result": "Detects from +6h, when the timestamp arrives and confirms activation at +3h.",
+    "firing": [
+      [
+        6,
+        16
+      ]
+    ]
+  }
+];
+
+const root = document.querySelector('#detail');
+let chartEnd = 30, markers = [0, 2, 26];
+const x = v => (v + 30) / (chartEnd + 30) * 100;
+const fmt = v => v === 0 ? '0' : (v > 0 ? '+' : '') + v;
+function lane(label, parts, cls = '') {
+  return `<div class="lane"><span>${label}</span><div class="track">${markers.map(v => `<i class="marker" style="left:${x(v)}%"></i>`).join('')}${parts.map(([s,e]) => `<span class="bar ${cls}" style="left:${x(s)}%;width:${Math.max((e-s)/(chartEnd+30)*100,.4)}%" title="${fmt(s)}h to ${fmt(e)}h"></span>`).join('')}</div></div>`;
+}
+function show(i) {
+  const s = scenarios[i], completion = s.completion ?? 2;
+  chartEnd = s.end || 30;
+  markers = s.complete === false ? [0] : [0, completion, completion + 24];
+  if (s.extra) markers.push(10, 12, 36);
+  const ticks = s.end ? [-24, 0, 24, s.end-6] : [-24, 0, 12, 26];
+  document.querySelectorAll('button[data-i]').forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.i) === i));
+  root.innerHTML = `<h2>${i+1}. ${s.t}</h2><p>${s.result}</p>
+    <div class="legend"><span><i class="swatch"></i>Actual alert firing</span><span><i class="swatch pending"></i>Pending alert</span><span><i class="swatch baseline"></i>Baseline</span><span><i class="swatch detect"></i>HCPUpgradeNewAlert firing</span></div>
+    <p class="caption">Hours from upgrade ${s.extra ? 'A ' : ''}start · ${s.complete === false ? 'not completed' : `completes +${completion}h · expires +${completion+24}h`}${s.extra ? ' · B starts +10h, completes +12h, expires +36h' : ''}</p>
+    <div class="timeline" role="img" aria-label="${s.t}. ${s.result}"><div class="axis"><span>Hours</span><div style="position:relative;height:25px">${ticks.map(v => `<span class="tick" style="left:${x(v)}%">${fmt(v)}</span>`).join('')}</div></div>
+    ${lane('Baseline'+(s.extra ? ' A' : ''), [[-24,0]], 'baseline')}${s.extra ? lane('Baseline B', [[-14,10]], 'baseline') : ''}
+    ${s.p ? lane('Pending alert', s.p, 'pending') : ''}${lane(s.b ? 'Object A' : 'Actual alert', s.a)}${s.b ? lane('Object B', s.b) : ''}
+    ${s.attempts ? s.attempts.map(a => lane('HCPUpgradeNewAlert '+a.name, a.bars, 'detect')).join('') : lane('HCPUpgradeNewAlert', s.firing, 'detect')}</div>`;
+}
+document.querySelector('#cases').innerHTML = scenarios.map((s,i) => `<button data-i="${i}" aria-pressed="false">${i+1}. ${s.t}</button>`).join('');
+document.querySelector('#cases').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) show(Number(b.dataset.i));
+});
+show(0);
+</script></body></html>

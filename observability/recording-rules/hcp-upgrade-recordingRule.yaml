@@ -1,0 +1,50 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-upgrade
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-upgrade
+    interval: 1m
+    rules:
+    # Records the start time (Unix seconds) of each eligible completed upgrade.
+    # Labels identify the HCP, target version and individual attempt.
+    # The expression applies three filters:
+    # 1. Exclude installation versions by requiring an earlier retained completion
+    #    for the HCP before this attempt started. This also excludes upgrades when
+    #    no earlier completion remains in the retained history.
+    # 2. Completion is newer than now minus 24h.
+    # 3. Time from start to completion is between 0 and 24h, inclusive.
+    # max by collapses collector duplicates; start and completion are matched
+    # by resource_id and attempt_started_at so same-version retries stay distinct.
+    # Comparisons and AND preserve the start timestamp from the first expression.
+    - record: hcp:upgrade_started_timestamp_seconds
+      expr: |
+        (
+          max by (resource_id, version, attempt_started_at) (
+            hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id!="", attempt_started_at!="", version!=""}
+          )
+          > on (resource_id) group_left ()
+          min by (resource_id) (
+            hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id!=""}
+          )
+        )
+        and on (resource_id, attempt_started_at)
+        (
+          max by (resource_id, attempt_started_at) (
+            hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id!="", attempt_started_at!=""}
+          ) > time() - 86400
+        )
+        and on (resource_id, attempt_started_at)
+        (
+          (
+            max by (resource_id, attempt_started_at) (
+              hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id!="", attempt_started_at!=""}
+            )
+            - on (resource_id, attempt_started_at)
+            max by (resource_id, attempt_started_at) (
+              hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id!="", attempt_started_at!=""}
+            )
+          ) >= 0 <= 86400
+        )
