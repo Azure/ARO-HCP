@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -56,6 +57,9 @@ import (
 func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 	createdAt := operationtesting.MustParseTime("2025-01-15T10:30:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
+	expectedEgress, err := coreapihelpers.EgressPublicIPResourceIDs(newClusterWithAPIURL("https://api.example.com", &createdAt))
+	require.NoError(t, err)
+	confirmedEgress := coreapi.AzureMultiReference{AzureResources: expectedEgress}
 
 	succeededDesire := func(t *testing.T) *kubeapplierapi.ReadDesire {
 		return operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -84,12 +88,14 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		existingOperation *coreapi.Operation
 		readDesireLister  kubeapplierlisters.ReadDesireLister
 		validations       []metav1.Condition
+		egressPublicIPs   coreapi.AzureMultiReference
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
 		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:              "cluster service error code is persisted",
+			egressPublicIPs:   confirmedEgress,
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
@@ -116,8 +122,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 
 		{
-			name:  "recent validation failure keeps create provisioning",
-			clock: clocktesting.NewFakePassiveClock(createdAt),
+			name:            "recent validation failure keeps create provisioning",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(createdAt),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
@@ -152,8 +159,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "old validation failure keeps a new create operation provisioning",
-			clock: clocktesting.NewFakePassiveClock(createdAt),
+			name:            "old validation failure keeps a new create operation provisioning",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(createdAt),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
@@ -188,8 +196,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline exceeded preserves pending validation error code",
-			clock: clocktesting.NewFakePassiveClock(createdAt),
+			name:            "deadline exceeded preserves pending validation error code",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(createdAt),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
@@ -230,8 +239,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 
 		{
-			name:  "persistent validation failure fails create",
-			clock: clocktesting.NewFakePassiveClock(createdAt),
+			name:            "persistent validation failure fails create",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(createdAt),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
@@ -269,6 +279,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:              "successful create updates operation to succeeded",
+			egressPublicIPs:   confirmedEgress,
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
@@ -289,7 +300,38 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name:            "unconfirmed egress past deadline fails operation",
+			egressPublicIPs: coreapi.AzureMultiReference{},
+			clock:           clocktesting.NewFakePassiveClock(createdAt.Add(2 * time.Hour)),
+			existingCluster: func() *coreapi.Cluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				deadline := metav1.NewTime(createdAt.Add(time.Hour))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return cluster
+			}(),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().State(arohcpv1alpha1.ClusterStateReady).Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "cluster creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "egressPublicIPs")
+				assert.Contains(t, op.Error.Message, "Expected 9 public IP address resources")
+				assert.Contains(t, op.Error.Message, "0 confirmed")
+			},
+		},
+		{
 			name:              "non-terminal cluster state updates to provisioning",
+			egressPublicIPs:   confirmedEgress,
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", nil),
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
@@ -311,6 +353,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:            "polls cluster service when operation InternalID is empty",
+			egressPublicIPs: confirmedEgress,
 			existingCluster: newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: func() *coreapi.Operation {
 				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
@@ -335,7 +378,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "reports Provisioning when cluster ClusterServiceID is unset",
+			name:            "reports Provisioning when cluster ClusterServiceID is unset",
+			egressPublicIPs: coreapi.AzureMultiReference{},
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
@@ -356,7 +400,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "returns early when cluster active operation id mismatches",
+			name:            "returns early when cluster active operation id mismatches",
+			egressPublicIPs: confirmedEgress,
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				cluster.ServiceProviderProperties.ActiveOperationID = "other-operation"
@@ -373,8 +418,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline exceeded marks operation as failed",
-			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
+			name:            "deadline exceeded marks operation as failed",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", nil)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
@@ -404,8 +450,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline exceeded with CS succeeded but cosmos provisioning marks as failed",
-			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
+			name:            "deadline exceeded with CS succeeded but cosmos provisioning marks as failed",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
@@ -434,8 +481,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:  "deadline not yet exceeded continues with provisioning",
-			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
+			name:            "deadline not yet exceeded continues with provisioning",
+			egressPublicIPs: confirmedEgress,
+			clock:           clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
 			existingCluster: func() *coreapi.Cluster {
 				cluster := newClusterWithAPIURL("https://api.example.com", nil)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
@@ -508,6 +556,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 								Validations:     tc.validations,
 								ServingCABundle: "fake-ca-data",
 								AzureResources: coreapi.AzureResources{
+									EgressPublicIPs:          tc.egressPublicIPs,
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
 									RoleAssignments: coreapi.AzureMultiReference{
@@ -812,6 +861,7 @@ func (l *errorReadDesireLister) ListForNodePool(_ context.Context, _, _, _, _ st
 func newClusterWithAPIURL(url string, createdAt *time.Time) *coreapi.Cluster {
 	fixture := operationtesting.NewClusterTestFixture()
 	cluster := fixture.NewCluster(createdAt)
+	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg"
 	cluster.ServiceProviderProperties.API = coreapi.ServiceProviderAPIProfile{URL: url}
 	return cluster
 }
@@ -1303,6 +1353,9 @@ func TestDetermineOperationState(t *testing.T) {
 			if tt.clusterOverride != nil {
 				clusterArg = tt.clusterOverride
 			}
+			expectedEgress, err := coreapihelpers.EgressPublicIPResourceIDs(clusterArg)
+			require.NoError(t, err)
+			controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0].Status.AzureResources.EgressPublicIPs.AzureResources = expectedEgress
 			result, err := controller.determineOperationState(ctx, operation, clusterArg)
 			if !tt.expectError && tt.expectedState == coreapi.ProvisioningStateSucceeded {
 				serviceProvider := controller.serviceProviderClusterLister.(*corelistertesting.SliceServiceProviderClusterLister).ServiceProviderClusters[0]
