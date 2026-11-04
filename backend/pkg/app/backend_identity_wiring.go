@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cosmos"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -63,6 +64,9 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 	}
 
 	clients := &azureclient.BackendIdentityAzureClients{
+		CosmosAccount: func(resourceID string) (*cosmos.Account, error) {
+			return cosmos.NewAccount(resourceID, defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
+		},
 		CertificatesClient: func(vaultURL string) (*azcertificates.Client, error) {
 			return azcertificates.NewClient(vaultURL, defaultAzureCredential, &azcertificates.ClientOptions{ClientOptions: *azureConfig.CloudEnvironment.AZCoreClientOptions()})
 		},

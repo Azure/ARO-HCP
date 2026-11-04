@@ -14,12 +14,18 @@
 
 package client
 
-import "github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+import (
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cosmos"
+)
 
 // BackendIdentityAzureClients is a type that contains the Azure clients that
 // are used to interact with the Azure platform as the backend identity. The
 // backend identity is used to interact with Red Hat side Azure infrastructure.
 type BackendIdentityAzureClients struct {
+	// CosmosAccount creates an ARM discovery client for a Cosmos account resource ID using the backend identity.
+	CosmosAccount func(resourceID string) (*cosmos.Account, error)
 	// CertificatesClient returns an Azure Key Vault certificates client for the Key
 	// Vault at the given vault URL. It is used to interact with the Key Vault that
 	// contains the TLS certificates for the ARO-HCP Clusters.
