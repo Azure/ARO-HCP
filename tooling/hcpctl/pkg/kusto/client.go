@@ -17,10 +17,13 @@ package kusto
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
@@ -34,9 +37,11 @@ type KustoClient interface {
 
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
-	ClusterName  string
-	QueryTimeout time.Duration
-	kustoClient  *azkustodata.Client
+	ClusterName   string
+	QueryTimeout  time.Duration
+	kustoClient   *azkustodata.Client
+	metadataReady atomic.Bool
+	metadataLoad  singleflight.Group
 }
 
 var _ KustoClient = &Client{}
@@ -88,7 +93,12 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	kcsb = kcsb.WithTokenCredential(cred)
 
 	// Create Kusto client with authentication
-	kustoClient, err := azkustodata.New(kcsb)
+	kustoClient, err := azkustodata.New(kcsb, azkustodata.WithHttpClient(&http.Client{
+		Timeout: queryTimeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -99,10 +109,87 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
+// Query materializes the complete response, including late table and dataset
+// failures. Callers supply query options and bound the operation with ctx.
+func (c *Client) Query(ctx context.Context, database string, statement azkustodata.Statement, options ...azkustodata.QueryOption) (azkquery.Dataset, error) {
+	if err := c.prepareMetadata(ctx); err != nil {
+		return nil, err
+	}
+	return c.kustoClient.Query(ctx, database, statement, options...)
+}
+
+// The SDK metadata probe drops the query context. Prime its cache using a
+// context-bound transport before entering Query/IterativeQuery. Single-flight
+// waiters can cancel independently rather than blocking on the SDK cache lock.
+func (c *Client) prepareMetadata(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if c.metadataReady.Load() {
+		return nil
+	}
+	result := c.metadataLoad.DoChan("metadata", func() (any, error) {
+		client := *c.kustoClient.HttpClient()
+		base := client.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		client.Transport = metadataTransport{ctx: ctx, base: base}
+		_, err := azkustodata.GetMetadata(c.kustoClient.Endpoint(), &client)
+		if err == nil {
+			c.metadataReady.Store(true)
+		}
+		return nil, err
+	})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case completed := <-result:
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return completed.Err
+	}
+}
+
+type metadataTransport struct {
+	ctx  context.Context
+	base http.RoundTripper
+}
+
+func (t metadataTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return t.base.RoundTrip(request.WithContext(t.ctx))
+}
+
+// DecodePrimary decodes exactly one primary result table from a materialized
+// dataset. Auxiliary tables are ignored; absent or ambiguous results are errors.
+func DecodePrimary[T any](dataset azkquery.Dataset) ([]T, error) {
+	if dataset == nil {
+		return nil, fmt.Errorf("kusto returned no dataset")
+	}
+	var primary azkquery.Table
+	for _, table := range dataset.Tables() {
+		if !table.IsPrimaryResult() {
+			continue
+		}
+		if primary != nil {
+			return nil, fmt.Errorf("expected exactly one primary result table")
+		}
+		primary = table
+	}
+	if primary == nil {
+		return nil, fmt.Errorf("kusto returned no primary result table")
+	}
+	return azkquery.ToStructs[T](primary)
+}
+
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
 func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
+	if err := c.prepareMetadata(queryCtx); err != nil {
+		return nil, fmt.Errorf("failed to load Kusto metadata: %w", err)
+	}
 
 	logger := logr.FromContextOrDiscard(ctx)
 
