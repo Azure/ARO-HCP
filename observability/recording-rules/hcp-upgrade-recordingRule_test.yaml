@@ -1,0 +1,98 @@
+rule_files:
+- hcp-upgrade-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+- name: Installation and in-progress attempts are excluded; completed upgrade expires at 24h
+  interval: 1m
+  input_series:
+  - &id001
+    series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x1500
+  - &id002
+    series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x1490
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x1480
+  promql_expr_test:
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 9m
+    exp_samples: []
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 19m
+    exp_samples: []
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 20m
+    exp_samples:
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+      value: 600
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 24h19m
+    exp_samples:
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+      value: 600
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 24h20m
+    exp_samples: []
+- name: Negative duration is excluded; future completion is trusted
+  interval: 1m
+  input_series:
+  - *id001
+  - *id002
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="negative",version="4.22"}
+    values: _x10 600+0x20
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="negative",version="4.22"}
+    values: _x10 540+0x20
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="future",version="4.22"}
+    values: _x10 600+0x20
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="future",version="4.22"}
+    values: _x10 1800+0x20
+  promql_expr_test:
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 20m
+    exp_samples:
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="future"}
+      value: 600
+- name: Exactly 24h duration is allowed and one minute longer is excluded
+  interval: 1m
+  input_series:
+  - *id001
+  - *id002
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="exact",version="4.22"}
+    values: _x10 600+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="exact",version="4.22"}
+    values: _x1450 87000+0x60
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="long",version="4.22"}
+    values: _x10 600+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="long",version="4.22"}
+    values: _x1451 87060+0x59
+  promql_expr_test:
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 24h11m
+    exp_samples:
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="exact"}
+      value: 600
+- name: Repeated versions are distinct attempts and collector duplicates collapse
+  interval: 1m
+  input_series:
+  - *id001
+  - *id002
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="a",version="4.22",instance="ksm-a"}
+    values: _x10 600+0x30
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="a",version="4.22",instance="ksm-b"}
+    values: _x10 600+0x30
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="a",version="4.22"}
+    values: _x15 900+0x25
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="b",version="4.22"}
+    values: _x20 1200+0x20
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="b",version="4.22"}
+    values: _x25 1500+0x15
+  promql_expr_test:
+  - expr: hcp:upgrade_started_timestamp_seconds
+    eval_time: 25m
+    exp_samples:
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="a"}
+      value: 600
+    - labels: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="b"}
+      value: 1200
