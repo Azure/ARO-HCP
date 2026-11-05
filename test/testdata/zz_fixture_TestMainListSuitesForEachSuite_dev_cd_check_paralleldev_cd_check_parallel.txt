@@ -109,7 +109,7 @@ Customer should be able to create a cluster with default autoscaling and a nodep
 Customer should be able to cordon, drain, and uncordon a node in an HCP cluster
 Customer should be able to delete a nodepool
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
-Nodepool IP Forwarding should create a nodepool with ipForwarding=AllowAllAddresses and have the Azure NIC configured accordingly
+Nodepool IP Forwarding should create a nodepool with ipForwarding=AllowAllAddresses, have the Azure NIC configured accordingly, and reject a PATCH that changes it
 Customer should be able to update node pool labels and taints
 Nodepool OS Disk Encryption should create a nodepool with customer-managed disk encryption via DES
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest

@@ -642,8 +642,8 @@ type NodePoolPlatformProfile struct {
 
 	// Whether the node pool's VM NICs allow forwarding traffic for addresses not
 	// assigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster
-	// network operator's ipForwarding setting. Immutable after creation; changing
-	// it replaces the node pool's VMs.
+	// network operator's ipForwarding setting. Immutable after creation; to change
+	// it, create a replacement node pool.
 	IPForwarding *IPForwarding
 
 	// The settings and configuration options for OSDisk

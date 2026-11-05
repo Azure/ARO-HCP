@@ -970,12 +970,12 @@ model NodePoolPlatformProfile {
 
   /** Whether the node pool's VM NICs allow forwarding traffic for addresses not
    * assigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster
-   * network operator's ipForwarding setting. Immutable after creation; changing
-   * it replaces the node pool's VMs.
+   * network operator's ipForwarding setting. Immutable after creation; to change
+   * it, create a replacement node pool.
    */
   @added(Versions.v2027_02_01)
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  ipForwarding?: IPForwarding;
+  ipForwarding?: IPForwarding = IPForwarding.InterfaceAddressesOnly;
 }
 
 /** The settings and configuration options for OSDisk */

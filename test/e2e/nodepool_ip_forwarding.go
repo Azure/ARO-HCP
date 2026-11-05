@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +25,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20270201 "github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -38,7 +41,7 @@ var _ = Describe("Nodepool IP Forwarding", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should create a nodepool with ipForwarding=AllowAllAddresses and have the Azure NIC configured accordingly",
+	It("should create a nodepool with ipForwarding=AllowAllAddresses, have the Azure NIC configured accordingly, and reject a PATCH that changes it",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -166,5 +169,31 @@ var _ = Describe("Nodepool IP Forwarding", func() {
 				Expect(nic.Properties.EnableIPForwarding).ToNot(BeNil(), "network interface for node %s has no EnableIPForwarding value", node.Name)
 				Expect(*nic.Properties.EnableIPForwarding).To(BeTrue(), "expected network interface for node %s to have IP forwarding enabled", node.Name)
 			}
+
+			nodePoolsClient := tc.Get20270201ClientFactoryOrDie(ctx).NewNodePoolsClient()
+
+			By("attempting to PATCH the node pool's ipForwarding from AllowAllAddresses to InterfaceAddressesOnly - should be rejected as immutable")
+			immutablePatch := hcpsdk20270201.NodePool{
+				Properties: &hcpsdk20270201.NodePoolProperties{
+					Platform: &hcpsdk20270201.NodePoolPlatformProfile{
+						IPForwarding: to.Ptr(hcpsdk20270201.IPForwardingInterfaceAddressesOnly),
+					},
+				},
+			}
+			poller, err := nodePoolsClient.BeginUpdate(ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, immutablePatch, nil)
+			if err == nil {
+				_, err = poller.PollUntilDone(ctx, nil)
+			}
+			Expect(err).To(HaveOccurred(), "expected PATCH changing ipForwarding to be rejected")
+			Expect(strings.ToLower(err.Error())).To(ContainSubstring("immutable"), "error should indicate ipForwarding is immutable")
+
+			By("verifying the node pool's ipForwarding remains AllowAllAddresses after the rejected PATCH")
+			afterRejectedPatch, err := framework.GetNodePool20270201(ctx, nodePoolsClient, *resourceGroup.Name, customerClusterName, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q after rejected PATCH", customerNodePoolName)
+			Expect(afterRejectedPatch.Properties).ToNot(BeNil(), "nodepool response Properties was nil")
+			Expect(afterRejectedPatch.Properties.Platform).ToNot(BeNil(), "nodepool response Properties.Platform was nil")
+			Expect(afterRejectedPatch.Properties.Platform.IPForwarding).ToNot(BeNil(), "nodepool response Properties.Platform.IPForwarding was nil")
+			Expect(*afterRejectedPatch.Properties.Platform.IPForwarding).To(Equal(hcpsdk20270201.IPForwardingAllowAllAddresses),
+				"expected nodepool %q ipForwarding to remain AllowAllAddresses after rejected PATCH", customerNodePoolName)
 		})
 })
