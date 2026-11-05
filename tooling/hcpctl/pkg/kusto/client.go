@@ -99,6 +99,34 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
+// Query materializes the complete response, including late table and dataset
+// failures. Callers supply query options and bound the operation with ctx.
+func (c *Client) Query(ctx context.Context, database string, statement azkustodata.Statement, options ...azkustodata.QueryOption) (azkquery.Dataset, error) {
+	return c.kustoClient.Query(ctx, database, statement, options...)
+}
+
+// DecodePrimary decodes exactly one primary result table from a materialized
+// dataset. Auxiliary tables are ignored; absent or ambiguous results are errors.
+func DecodePrimary[T any](dataset azkquery.Dataset) ([]T, error) {
+	if dataset == nil {
+		return nil, fmt.Errorf("kusto returned no dataset")
+	}
+	var primary azkquery.Table
+	for _, table := range dataset.Tables() {
+		if !table.IsPrimaryResult() {
+			continue
+		}
+		if primary != nil {
+			return nil, fmt.Errorf("expected exactly one primary result table")
+		}
+		primary = table
+	}
+	if primary == nil {
+		return nil, fmt.Errorf("kusto returned no primary result table")
+	}
+	return azkquery.ToStructs[T](primary)
+}
+
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
 func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)

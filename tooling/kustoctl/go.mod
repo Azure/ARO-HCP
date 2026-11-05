@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.3
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.4
 	github.com/spf13/cobra v1.10.2

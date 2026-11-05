@@ -4,9 +4,10 @@ go 1.26.0
 
 require (
 	cloud.google.com/go/storage v1.62.1
+	github.com/Azure/ARO-HCP/tooling/cifailurepatterns v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20261029184915-ae250b4c53dd
-	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
@@ -191,5 +192,7 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/tooling/cifailurepatterns => ../cifailurepatterns
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes
