@@ -3331,7 +3331,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"})) / count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100",
+          "expr": "(count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"})) or vector(0)) / count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100",
           "legendFormat": "Provisioned %",
           "range": true,
           "refId": "A"
@@ -3339,7 +3339,7 @@
       ],
       "title": "Provisioned Ratio Over Time",
       "type": "timeseries",
-      "description": "Fleet-wide ExternalAuth provisioned ratio over time."
+      "description": "Fleet-wide ExternalAuth provisioned ratio over time. 0% when ExternalAuths exist and none is Succeeded. No data when there are no ExternalAuths."
     },
     {
       "datasource": {
@@ -3447,7 +3447,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted\"}))",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted|updating|deleting\"}))",
           "legendFormat": "In Progress",
           "range": true,
           "refId": "C"
@@ -3466,7 +3466,7 @@
       ],
       "title": "Provisioning State Over Time",
       "type": "timeseries",
-      "description": "ExternalAuth count by provisioning state over time."
+      "description": "ExternalAuth count by provisioning state over time. In Progress includes accepted, provisioning, updating, and deleting. AwaitingSecret stays separate."
     },
     {
       "collapsed": false,
@@ -4890,6 +4890,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
+        "allValue": ".*",
         "definition": "label_values(backend_externalauth_provision_state, subscription_id)",
         "description": "Filter by Azure subscription ID",
         "hide": 0,
@@ -4918,6 +4919,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
+        "allValue": ".*",
         "definition": "label_values(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\"}, resource_id)",
         "description": "Filter by ExternalAuth ARM resource ID",
         "hide": 0,
