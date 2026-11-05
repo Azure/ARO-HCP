@@ -53,7 +53,7 @@ Live queries use your Azure credentials. The database defaults to `ServiceLogs`;
 - `--environment`: select `dev`, `int`, `stg`, `prod`, or `unknown`; defaults to all environments in the selected database.
 - `--source`: select `e2e`, `observability`, `rp-provision`, or `rp-upgrade`; defaults to all sources.
 - `--job-filter`: case-sensitive job-name substring, defaulting to `e2e-parallel`. Use `--job-filter ""` for all jobs.
-- `--timeout`: total collection timeout, including authentication metadata discovery, defaulting to two minutes.
+- `--timeout`: collection deadline, including active authentication-metadata requests, defaulting to two minutes. SDK-internal waits behind another metadata initialization may outlast an individual caller's deadline.
 
 Replay saved inputs offline to inspect evidence or compare extraction changes:
 
