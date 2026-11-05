@@ -23,7 +23,7 @@ import (
 )
 
 // VMFamilyPolicy contains ordered Azure ResourceSKU.Family identifiers. A nil
-// role is unconfigured; an explicitly empty role is invalid.
+// role uses selector defaults; an explicitly empty role is invalid.
 type VMFamilyPolicy struct {
 	WorkerFamilies []string `yaml:"worker_families,omitempty" json:"worker_families,omitempty"`
 	HelperFamilies []string `yaml:"helper_families,omitempty" json:"helper_families,omitempty"`
@@ -56,7 +56,7 @@ func (policy VMFamilyPolicy) Validate() error {
 }
 
 // ParseVMFamilyPolicy strictly parses one resolved JSON object. Omitted roles
-// preserve historical selection; null roles, unknown or duplicate keys, and
+// use selector defaults; null roles, unknown or duplicate keys, and
 // trailing documents are rejected rather than silently discarding policy.
 func ParseVMFamilyPolicy(data []byte) (VMFamilyPolicy, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
