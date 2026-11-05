@@ -1,0 +1,92 @@
+rule_files:
+- node-drain-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Machine actively draining — record equals elapsed drain seconds
+# ========================================
+# Drain started at t=100s. promtool's clock starts at epoch 0, so at eval_time
+# 10m (time() == 600) the record must be 600 - 100 = 500.
+- interval: 1m
+  input_series:
+  - series: 'capiMachine_node_drain_start_time_seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1", reason="DrainingNode"}'
+    values: "100+0x20"
+  promql_expr_test:
+  - expr: duration:capiMachine_node_drain_stuck:seconds
+    eval_time: 10m
+    exp_samples:
+    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1"}'
+      value: 500
+# ========================================
+# Test 2: REGRESSION — drain finished, infrastructure deletion is slow
+# ========================================
+# This is the false positive the second metric exists to kill. CAPI never clears
+# nodeDrainStartTime, so the drain timestamp is still present and 500s old, but
+# the Machine has moved on to WaitingForInfrastructureDeletion. The record must
+# be EMPTY: this node is not stuck draining, it is stuck deleting a VM.
+- interval: 1m
+  input_series:
+  - series: 'capiMachine_node_drain_start_time_seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-bbb", node="np-1-bbb", node_pool="np-1"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-bbb", node="np-1-bbb", node_pool="np-1", reason="WaitingForInfrastructureDeletion"}'
+    values: "100+0x20"
+  promql_expr_test:
+  - expr: duration:capiMachine_node_drain_stuck:seconds
+    eval_time: 10m
+    exp_samples: []
+# ========================================
+# Test 3: Healthy Machine — no drain series at all, record stays empty
+# ========================================
+# A steady-state worker carries only deleting_stage{reason="NotDeleting"};
+# capiMachine_node_drain_start_time_seconds does not exist for it.
+- interval: 1m
+  input_series:
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ccc", node="np-1-ccc", node_pool="np-1", reason="NotDeleting"}'
+    values: "100+0x20"
+  promql_expr_test:
+  - expr: duration:capiMachine_node_drain_stuck:seconds
+    eval_time: 10m
+    exp_samples: []
+# ========================================
+# Test 4: Both Prometheus agent replicas scrape KSM — record is deduplicated
+# ========================================
+# Each replica contributes an identical series differentiated only by
+# prometheus_replica. Without the max by (...) the join would produce duplicate
+# (or many-to-many) output; exactly one sample must come out.
+- interval: 1m
+  input_series:
+  - series: 'capiMachine_node_drain_start_time_seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1", prometheus_replica="prom-agent-prometheus-0"}'
+    values: "100+0x20"
+  - series: 'capiMachine_node_drain_start_time_seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1", prometheus_replica="prom-agent-prometheus-1"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1", reason="DrainingNode", prometheus_replica="prom-agent-prometheus-0"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1", reason="DrainingNode", prometheus_replica="prom-agent-prometheus-1"}'
+    values: "100+0x20"
+  promql_expr_test:
+  - expr: duration:capiMachine_node_drain_stuck:seconds
+    eval_time: 10m
+    exp_samples:
+    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1"}'
+      value: 500
+# ========================================
+# Test 5: Two nodes in the same pool, only one wedged in drain
+# ========================================
+# Guards the join's label matching: the healthy neighbour must not pick up the
+# wedged node's duration, and vice versa.
+- interval: 1m
+  input_series:
+  - series: 'capiMachine_node_drain_start_time_seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-eee", node="np-1-eee", node_pool="np-1"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-eee", node="np-1-eee", node_pool="np-1", reason="DrainingNode"}'
+    values: "100+0x20"
+  - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-fff", node="np-1-fff", node_pool="np-1", reason="NotDeleting"}'
+    values: "100+0x20"
+  promql_expr_test:
+  - expr: duration:capiMachine_node_drain_stuck:seconds
+    eval_time: 10m
+    exp_samples:
+    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-eee", node="np-1-eee", node_pool="np-1"}'
+      value: 500

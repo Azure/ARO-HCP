@@ -1,0 +1,76 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: node-drain-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Customer Worker Node Drain Recording Rules
+  # ========================================
+  # Metrics source: Managed_Prometheus_hcps-* (HCP AMW, hcps layer)
+  #
+  # Collapses the two raw kube-state-metrics custom-resource-state series for
+  # CAPI Machines (see observability/prometheus/values-mgmt.yaml) into a single
+  # series whose VALUE is "how many seconds has this worker node been draining".
+  # Consumers should only ever need this record:
+  #
+  #   duration:capiMachine_node_drain_stuck:seconds > 1800
+  #
+  # Why this cannot be a single raw metric
+  # --------------------------------------
+  # capiMachine_node_drain_start_time_seconds mirrors
+  # Machine.status.deletion.nodeDrainStartTime, which CAPI sets exactly once and
+  # NEVER clears -- there is a single assignment in the whole CAPI codebase
+  # (internal/controllers/machine/machine_controller.go, guarded by IsZero) and
+  # every other reference is a read. The field therefore survives the end of the
+  # drain and stays set while the Machine waits on volume detach and on Azure
+  # VM deletion, right up until the object is removed. Subtracting it from
+  # time() on its own would report a Machine that drained in 2 minutes but whose
+  # infrastructure deletion wedged for an hour as "draining for 60m".
+  #
+  # So the drain timestamp supplies the duration and the Deleting condition
+  # reason supplies the gate. CAPI's own delay diagnostics pair exactly these two
+  # signals (machine_controller_status.go: Reason == DrainingNode AND
+  # NodeDrainStartTime), which is a good sign the pairing is the intended read.
+  #
+  # Note the gate is NOT "nodeVolumeDetachStartTime is unset". That field is only
+  # written when isNodeVolumeDetachingAllowed() is true, and a Machine with no
+  # attached volumes skips the stage entirely -- observed on a live management
+  # cluster going straight from DrainingNode to WaitingForInfrastructureDeletion.
+  #
+  # Cardinality: capiMachine_node_drain_start_time_seconds only exists for
+  # Machines that are being deleted, and the join narrows that to the ones still
+  # in the drain stage, so this record is empty on a steady-state cluster.
+  #
+  # max by (...) deduplicates the two Prometheus agent replicas, which each scrape
+  # kube-state-metrics and would otherwise contribute an identical series. The
+  # `region` label is injected into every aggregation by the rule generator
+  # (tooling/prometheus-rules, --preserve-aggregation-labels), so it is
+  # deliberately absent here.
+  - name: arohcp_node_drain_recording_rules
+    interval: 1m
+    rules:
+    # Seconds the node behind this Machine has been in the CAPI drain stage.
+    # The series exists only while the drain is actually in progress; "stuck" is
+    # a threshold on the value, not a separate state.
+    - record: duration:capiMachine_node_drain_stuck:seconds
+      expr: |
+        (
+          time()
+          -
+          max by (cluster, namespace, name, node, node_pool) (
+            capiMachine_node_drain_start_time_seconds
+          )
+        )
+        and on (cluster, namespace, name)
+        (
+          max by (cluster, namespace, name) (
+            capiMachine_deleting_stage{reason="DrainingNode"}
+          )
+        )
