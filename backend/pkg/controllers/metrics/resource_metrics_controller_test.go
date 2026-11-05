@@ -25,10 +25,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
@@ -198,6 +200,75 @@ backend_externalauth_provision_state{phase="accepted",resource_id="%s",subscript
 backend_externalauth_created_time_seconds{resource_id="%s",subscription_id="%s"} %d
 `, resourceID, subscriptionID, now.Unix())
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_externalauth_created_time_seconds"))
+}
+
+func TestExternalAuthMetricsController_DegradedConditionLifecycle(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))
+	externalAuth := &coreapi.ExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		ProxyResource:  coreapi.ProxyResource{Resource: coreapi.Resource{ID: resourceID}},
+		Status: coreapi.ExternalAuthStatus{
+			// Internal controller degradation must not become user-facing degradation.
+			Conditions: []metav1.Condition{{Type: statusutils.DegradedConditionType, Status: metav1.ConditionTrue}},
+		},
+	}
+	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
+	controller := &Controller[*coreapi.ExternalAuth]{
+		name:    ExternalAuthMetricsControllerName,
+		indexer: indexer,
+		handler: NewExternalAuthMetricsHandler(reg),
+	}
+	key, err := resourceIDStoreKeyForObject(externalAuth)
+	require.NoError(t, err)
+
+	// Reuse the controller and registry to verify transitions remove old labels.
+	for _, tc := range []struct {
+		name      string
+		status    metav1.ConditionStatus
+		state     coreapi.ProvisioningState
+		condition string
+		value     int
+	}{
+		{name: "not reported", state: coreapi.ProvisioningStateAccepted},
+		{name: "true", status: metav1.ConditionTrue, state: coreapi.ProvisioningStateSucceeded, condition: "true", value: 1},
+		{name: "accepted clears previous series", status: metav1.ConditionTrue, state: coreapi.ProvisioningStateAccepted},
+		{name: "false", status: metav1.ConditionFalse, state: coreapi.ProvisioningStateSucceeded, condition: "false", value: 0},
+		{name: "provisioning clears previous series", status: metav1.ConditionFalse, state: coreapi.ProvisioningStateProvisioning},
+		{name: "unknown", status: metav1.ConditionUnknown, state: coreapi.ProvisioningStateSucceeded, condition: "unknown", value: 0},
+		{name: "true while updating", status: metav1.ConditionTrue, state: coreapi.ProvisioningStateUpdating, condition: "true", value: 1},
+		{name: "deleting clears previous series", status: metav1.ConditionTrue, state: coreapi.ProvisioningStateDeleting},
+		{name: "true again", status: metav1.ConditionTrue, state: coreapi.ProvisioningStateSucceeded, condition: "true", value: 1},
+		{name: "condition removed", state: coreapi.ProvisioningStateSucceeded},
+		{name: "unknown again", status: metav1.ConditionUnknown, state: coreapi.ProvisioningStateSucceeded, condition: "unknown", value: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			updated := externalAuth.DeepCopy()
+			updated.Properties.ProvisioningState = tc.state
+			updated.Status.UserFacingConditions = []metav1.Condition{{Type: "Unrelated", Status: metav1.ConditionTrue}}
+			if tc.status != "" {
+				updated.Status.UserFacingConditions = append(updated.Status.UserFacingConditions, metav1.Condition{
+					Type: statusutils.DegradedConditionType, Status: tc.status,
+				})
+			}
+			require.NoError(t, indexer.Update(updated))
+			require.NoError(t, controller.syncResource(context.Background(), key))
+
+			expected := ""
+			if tc.condition != "" {
+				expected = fmt.Sprintf(`# HELP external_auth_condition_degraded User-facing Degraded condition of the external auth: 1 for true, 0 for false or unknown.
+# TYPE external_auth_condition_degraded gauge
+external_auth_condition_degraded{condition="%s",resource_id="%s",subscription_id="%s"} %d
+`, tc.condition, strings.ToLower(resourceID.String()), strings.ToLower(resourceID.SubscriptionID), tc.value)
+			}
+			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "external_auth_condition_degraded"))
+		})
+	}
+
+	require.NoError(t, indexer.Delete(externalAuth))
+	require.NoError(t, controller.syncResource(context.Background(), key))
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""),
+		"external_auth_condition_degraded", "backend_externalauth_provision_state", "backend_externalauth_created_time_seconds"))
 }
 
 func TestResourceControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {

@@ -16,12 +16,17 @@ package metrics
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -214,21 +219,68 @@ func (o externalAuthMetricsObject) CreatedAt() *time.Time {
 
 type externalAuthMetricsHandler struct {
 	*resourceStateMetricsHandler[externalAuthMetricsObject]
+	degradedExternalAuth *prometheus.GaugeVec
 }
 
 // NewExternalAuthMetricsHandler creates a metrics handler for external auth metrics.
 func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*coreapi.ExternalAuth] {
-	return &externalAuthMetricsHandler{
-		newResourceStateMetricsHandler[externalAuthMetricsObject](
+	h := &externalAuthMetricsHandler{
+		resourceStateMetricsHandler: newResourceStateMetricsHandler[externalAuthMetricsObject](
 			r,
 			"backend_externalauth_provision_state",
 			"Current provisioning state of the external auth (value is always 1).",
 			"backend_externalauth_created_time_seconds",
 			"Unix timestamp when the external auth was created.",
 		),
+		degradedExternalAuth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "external_auth_condition_degraded",
+			Help: "User-facing Degraded condition of the external auth: 1 for true, 0 for false or unknown.",
+		}, []string{"resource_id", "subscription_id", "condition"}),
 	}
+	r.MustRegister(h.degradedExternalAuth)
+	return h
 }
 
 func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *coreapi.ExternalAuth) {
-	h.resourceStateMetricsHandler.Sync(ctx, externalAuthMetricsObject{externalAuth})
+	obj := externalAuthMetricsObject{externalAuth}
+	h.resourceStateMetricsHandler.Sync(ctx, obj)
+
+	resourceID := resourceIDMetricLabel(obj.ResourceID())
+	if len(resourceID) == 0 {
+		return
+	}
+
+	subscriptionID := subscriptionIDMetricLabel(externalAuth.ID)
+
+	// Mirror the persisted user-facing condition. Clear the previous status's
+	// series on every update, including when the condition has been removed.
+	h.degradedExternalAuth.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	condition := apimeta.FindStatusCondition(externalAuth.Status.UserFacingConditions, statusutils.DegradedConditionType)
+	if condition == nil {
+		return
+	}
+
+	// Omit the series while the ExternalAuth is still being provisioned, accepted or deleting.
+	if externalAuth.Properties.ProvisioningState == coreapi.ProvisioningStateProvisioning || externalAuth.Properties.ProvisioningState == coreapi.ProvisioningStateAccepted || externalAuth.Properties.ProvisioningState == coreapi.ProvisioningStateDeleting {
+		return
+	}
+
+	value := 0.0
+	switch condition.Status {
+	case metav1.ConditionTrue:
+		value = 1.0
+	case metav1.ConditionFalse, metav1.ConditionUnknown:
+		value = 0.0
+	default:
+		return
+	}
+	h.degradedExternalAuth.WithLabelValues(resourceID, subscriptionID, strings.ToLower(string(condition.Status))).Set(value)
+}
+
+func (h *externalAuthMetricsHandler) Delete(key string) {
+	h.resourceStateMetricsHandler.Delete(key)
+	if len(key) == 0 {
+		return
+	}
+	h.degradedExternalAuth.DeletePartialMatch(prometheus.Labels{"resource_id": key})
 }
