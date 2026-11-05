@@ -136,7 +136,7 @@ func (s *dataPlaneWorkloadIdentityOIDCFederationIntentSyncer) SyncOnce(ctx conte
 
 	desiredDataplaneOperators := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 	// When Cluster Service's Cluster is gone during the cluster deletion process, we mark all data-plane operator identities for deconfiguration.
-	if s.clusterServiceGone(existingCluster) {
+	if s.clusterServiceGone(existingCluster, existingServiceProviderCluster) {
 		// Treat deletion as an empty desired identity set so in-flight federation
 		// is marked for deconfigure and the DataPlaneOIDCFederation controller can deconfigure the data-plane operator identities.
 		desiredDataplaneOperators = nil
@@ -174,10 +174,11 @@ func (s *dataPlaneWorkloadIdentityOIDCFederationIntentSyncer) SyncOnce(ctx conte
 
 // clusterServiceGone reports whether Cluster Service's Cluster is no longer there as
 // part of the deletion process of this cluster.
-func (s *dataPlaneWorkloadIdentityOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreapi.Cluster) bool {
+func (s *dataPlaneWorkloadIdentityOIDCFederationIntentSyncer) clusterServiceGone(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID == nil
+		cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted &&
+		provider.ClusterServiceID == nil
 }
 
 // desiredDataPlaneOIDCFederationStatus computes the data plane oidc federation map that should

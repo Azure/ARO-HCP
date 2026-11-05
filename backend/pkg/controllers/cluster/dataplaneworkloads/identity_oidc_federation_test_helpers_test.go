@@ -314,6 +314,7 @@ func buildTestOIDCFederationServiceProviderCluster(
 	opts ...func(*coreapi.ServiceProviderCluster),
 ) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := buildTestServiceProviderClusterWithIdentities(testClusterName, nil, nil)
+	serviceProviderCluster.ClusterServiceID = buildTestClusterServiceID()
 	if federation != nil {
 		copied := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(federation))
 		for key, status := range federation {
@@ -327,8 +328,8 @@ func buildTestOIDCFederationServiceProviderCluster(
 	return serviceProviderCluster
 }
 
-func withTestNoClusterServiceID(cluster *coreapi.Cluster) {
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
+func withTestNoClusterServiceID(provider *coreapi.ServiceProviderCluster) {
+	provider.ClusterServiceID = nil
 }
 
 func withTestClusterDeletionTimestamp(ts *metav1.Time) func(*coreapi.Cluster) {
