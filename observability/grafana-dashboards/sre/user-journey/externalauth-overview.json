@@ -29,7 +29,7 @@
       "title": "Operations Overview",
       "tooltip": "Fleet-wide operations overview (all resource types)",
       "type": "link",
-      "url": "d/sre-cluster-health-operations-overview"
+      "url": "/d/sre-cluster-health-operations-overview/operations-overview-fleet-wide"
     },
     {
       "asDropdown": false,
@@ -41,7 +41,7 @@
       "title": "Resource State",
       "tooltip": "Fleet-wide cluster and nodepool state",
       "type": "link",
-      "url": "d/sre-cluster-health-resource-state"
+      "url": "/d/sre-cluster-health-resource-state/resource-state-fleet-wide"
     }
   ],
   "panels": [
@@ -89,8 +89,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -143,20 +143,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"})) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Total ExternalAuths",
       "type": "stat",
-      "description": "Total number of ExternalAuth resources across the fleet (or filtered by subscription/resource)."
+      "description": "Total number of ExternalAuth resources across the fleet (or filtered by subscription/resource).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -196,7 +215,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         },
         "tooltip": {
           "mode": "single",
@@ -211,20 +230,48 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"})",
+          "expr": "count by (phase)(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}))",
           "legendFormat": "{{ phase }}",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Provisioning State Distribution",
       "type": "piechart",
-      "description": "Distribution of ExternalAuth resources by provisioning state."
+      "description": "Distribution of ExternalAuth resources by provisioning state.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -281,20 +328,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning\"}) > 900) or vector(0)",
+          "expr": "count(max without(prometheus_replica) ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", operation_type=\"create\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning\"}) > 900)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Create >15m",
       "type": "stat",
-      "description": "Number of ExternalAuth create operations running longer than 15 minutes. Excludes AwaitingSecret (customer-blocked waiting for OIDC client secret)."
+      "description": "Number of ExternalAuth create operations running longer than 15 minutes. Excludes AwaitingSecret (customer-blocked waiting for OIDC client secret).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -351,20 +417,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|updating\"}) > 600) or vector(0)",
+          "expr": "count(max without(prometheus_replica) ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", operation_type=\"update\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|updating\"}) > 600)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Update >10m",
       "type": "stat",
-      "description": "Number of ExternalAuth update operations running longer than 10 minutes. Matches the BackendAsyncOperationExternalAuthUpdateStuck alert threshold (600s)."
+      "description": "Number of ExternalAuth update operations running longer than 10 minutes. Matches the BackendAsyncOperationExternalAuthUpdateStuck alert threshold (600s).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -421,20 +506,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"deleting\"}) > 900) or vector(0)",
+          "expr": "count(max without(prometheus_replica) ((time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", operation_type=\"delete\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"deleting\"}) > 900)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Delete >15m",
       "type": "stat",
-      "description": "Number of ExternalAuth delete operations running longer than 15 minutes. Only covers direct DELETE operations — ExternalAuths removed by parent cluster deletion do not create operations and are not tracked here."
+      "description": "Number of ExternalAuth delete operations running longer than 15 minutes. Only covers direct DELETE operations — ExternalAuths removed by parent cluster deletion do not create operations and are not tracked here.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -495,15 +599,34 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"}) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"})) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "AwaitingSecret",
       "type": "stat",
-      "description": "ExternalAuths waiting for the customer to create the OIDC client secret. These are customer-blocked and excluded from stuck/timeliness metrics."
+      "description": "ExternalAuths waiting for the customer to create the OIDC client secret. These are customer-blocked and excluded from stuck/timeliness metrics.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "collapsed": false,
@@ -520,8 +643,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -578,20 +701,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Degraded ExternalAuths",
       "type": "stat",
-      "description": "Number of ExternalAuth resources currently in Degraded state. Degraded means the ExternalAuth is provisioned but one or more OIDC clients are failing health checks."
+      "description": "Number of ExternalAuth resources currently in Degraded state. Degraded means the ExternalAuth is provisioned but one or more OIDC clients are failing health checks.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -644,20 +786,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 0) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 0)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Healthy ExternalAuths",
       "type": "stat",
-      "description": "Number of ExternalAuth resources NOT in Degraded state. All OIDC clients are passing health checks."
+      "description": "Number of ExternalAuth resources NOT in Degraded state. All OIDC clients are passing health checks.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -714,20 +875,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1)) or vector(0)",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Degraded OIDC Clients",
       "type": "stat",
-      "description": "Number of individual OIDC client components currently failing health checks across all ExternalAuth resources."
+      "description": "Number of individual OIDC client components currently failing health checks across all ExternalAuth resources.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -809,7 +989,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"}",
+          "expr": "max without(prometheus_replica) (backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -819,6 +999,10 @@
       "title": "OIDC Client Health Detail",
       "type": "table",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -853,8 +1037,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -966,7 +1150,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1))",
           "legendFormat": "Degraded",
           "range": true,
           "refId": "A"
@@ -977,7 +1161,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 0)",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 0))",
           "legendFormat": "Healthy",
           "range": true,
           "refId": "B"
@@ -989,8 +1173,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1071,7 +1255,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (component_name, component_namespace) (backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1)",
+          "expr": "count by (component_name, component_namespace)(max without(prometheus_replica) (backend_externalauth_oidc_client_degraded{subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\"} == 1))",
           "legendFormat": "{{ component_name }} ({{ component_namespace }})",
           "range": true,
           "refId": "A"
@@ -1096,8 +1280,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1178,7 +1362,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (method) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m]))",
+          "expr": "sum by (method) (max without(prometheus_replica) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m])))",
           "legendFormat": "{{ method }}",
           "range": true,
           "refId": "A"
@@ -1190,8 +1374,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1276,7 +1460,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (max without(prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m]))))",
           "legendFormat": "p50",
           "range": true,
           "refId": "A"
@@ -1287,7 +1471,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (max without(prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m]))))",
           "legendFormat": "p95",
           "range": true,
           "refId": "B"
@@ -1298,7 +1482,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (max without(prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route=~\".*externalauths.*\"}[5m]))))",
           "legendFormat": "p99",
           "range": true,
           "refId": "C"
@@ -1310,8 +1494,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1396,7 +1580,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (code) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"4..\"}[5m]))",
+          "expr": "sum by (code) (max without(prometheus_replica) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"4..\"}[5m])))",
           "legendFormat": "{{ code }}",
           "range": true,
           "refId": "A"
@@ -1407,7 +1591,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (code) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"5..\"}[5m]))",
+          "expr": "sum by (code) (max without(prometheus_replica) (rate(frontend_http_requests_total{route=~\".*externalauths.*\", code=~\"5..\"}[5m])))",
           "legendFormat": "{{ code }}",
           "range": true,
           "refId": "B"
@@ -1432,8 +1616,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1525,7 +1709,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}) * on(resource_id, subscription_id, resource_type, operation_type, phase) group_left() backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}",
+          "expr": "(max without(prometheus_replica) (time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"})) * on(resource_id, subscription_id, resource_type, operation_type, phase) group_left() (max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1535,6 +1719,10 @@
       "title": "Active Operations",
       "type": "table",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -1557,8 +1745,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1639,7 +1827,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
+          "expr": "max without(prometheus_replica) (time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
           "legendFormat": "{{ operation_type }}: {{ resource_id }}",
           "range": true,
           "refId": "A"
@@ -1664,8 +1852,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1726,20 +1914,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "expr": "quantile(0.5, (max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) - max without(prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"})))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Create Duration p50",
       "type": "stat",
-      "description": "Median duration of completed ExternalAuth create operations."
+      "description": "Median duration of completed ExternalAuth create operations.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1800,20 +2007,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "expr": "quantile(0.95, (max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) - max without(prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"})))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Create Duration p95",
       "type": "stat",
-      "description": "95th percentile duration of completed ExternalAuth create operations."
+      "description": "95th percentile duration of completed ExternalAuth create operations.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1874,20 +2100,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.99, (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}))",
+          "expr": "quantile(0.99, (max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) - max without(prometheus_replica) (backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"})))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Create Duration p99",
       "type": "stat",
-      "description": "99th percentile duration of completed ExternalAuth create operations."
+      "description": "99th percentile duration of completed ExternalAuth create operations.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -1948,20 +2193,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
+          "expr": "max(max without(prometheus_replica) (time() - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"}))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Longest In-Flight Op",
       "type": "stat",
-      "description": "Duration of the longest currently in-flight ExternalAuth operation. Excludes AwaitingSecret (customer-blocked)."
+      "description": "Duration of the longest currently in-flight ExternalAuth operation. Excludes AwaitingSecret (customer-blocked).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2014,20 +2278,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"})",
+          "expr": "count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Completed Ops (7d TTL)",
       "type": "stat",
-      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window. Note: update durations include both RP processing and HyperShift reconciliation time. Separating these requires hypershift_cluster_identity_providers from the HCPs workspace (not available in the services datasource)."
+      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window. Note: update durations include both RP processing and HyperShift reconciliation time. Separating these requires hypershift_cluster_identity_providers from the HCPs workspace (not available in the services datasource).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2088,20 +2371,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}))",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Success Rate",
       "type": "stat",
-      "description": "Percentage of completed ExternalAuth operations that succeeded."
+      "description": "Percentage of completed ExternalAuth operations that succeeded.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2186,7 +2537,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"})",
           "legendFormat": "create: {{ resource_id }}",
           "range": true,
           "refId": "A"
@@ -2197,7 +2548,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"}",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"update\", phase=~\"succeeded|failed|canceled\"})",
           "legendFormat": "update: {{ resource_id }}",
           "range": true,
           "refId": "B"
@@ -2208,7 +2559,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"}",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", resource_id=~\"$resource_id\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\"})",
           "legendFormat": "delete: {{ resource_id }}",
           "range": true,
           "refId": "C"
@@ -2233,8 +2584,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2295,20 +2646,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}))",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Provisioned Ratio",
       "type": "stat",
-      "description": "Percentage of ExternalAuth resources currently in Succeeded provisioning state. Note: this does NOT reflect runtime health — use the Degraded Health section for true availability."
+      "description": "Percentage of ExternalAuth resources currently in Succeeded provisioning state. Note: this does NOT reflect runtime health — use the Degraded Health section for true availability.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2369,20 +2788,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"} == 0) / count(backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"} == 0))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_degraded{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}))",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "True Availability (Non-Degraded)",
       "type": "stat",
-      "description": "Percentage of ExternalAuth resources that are NOT degraded. This is the true availability signal — an ExternalAuth can be Succeeded but degraded (OIDC clients failing)."
+      "description": "Percentage of ExternalAuth resources that are NOT degraded. This is the true availability signal — an ExternalAuth can be Succeeded but degraded (OIDC clients failing).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2443,20 +2930,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"}) < 900) or vector(0)) / count((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"})) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "((count(max without(prometheus_replica) ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"}) < 900)) or vector(0))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", operation_type=\"create\", phase=\"succeeded\"})))",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Timeliness SLO (Create <15m)",
       "type": "stat",
-      "description": "Percentage of successful ExternalAuth create operations that finished within 15 minutes. Failed/canceled operations are excluded — only successful creates count toward timeliness."
+      "description": "Percentage of successful ExternalAuth create operations that finished within 15 minutes. Failed/canceled operations are excluded — only successful creates count toward timeliness.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2517,20 +3072,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}) / count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"succeeded|failed|canceled\"}))",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Operation Error Rate",
       "type": "stat",
-      "description": "Percentage of completed ExternalAuth operations that ended in Failed state."
+      "description": "Percentage of completed ExternalAuth operations that ended in Failed state.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2591,20 +3214,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"})",
+          "expr": "count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"accepted|provisioning|updating|deleting\"}))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "In-Flight Operations",
       "type": "stat",
-      "description": "Number of ExternalAuth operations currently in non-terminal phases. Excludes AwaitingSecret (customer-blocked)."
+      "description": "Number of ExternalAuth operations currently in non-terminal phases. Excludes AwaitingSecret (customer-blocked).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2689,7 +3331,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}) / count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"}) * 100",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"})) / count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\"})) * 100",
           "legendFormat": "Provisioned %",
           "range": true,
           "refId": "A"
@@ -2701,8 +3343,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2783,7 +3425,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"})",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"succeeded\"}))",
           "legendFormat": "Succeeded",
           "range": true,
           "refId": "A"
@@ -2794,7 +3436,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))",
           "legendFormat": "Failed",
           "range": true,
           "refId": "B"
@@ -2805,7 +3447,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted\"})",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=~\"provisioning|accepted\"}))",
           "legendFormat": "In Progress",
           "range": true,
           "refId": "C"
@@ -2816,7 +3458,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"})",
+          "expr": "count(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"awaitingsecret\"}))",
           "legendFormat": "AwaitingSecret (Customer-Blocked)",
           "range": true,
           "refId": "D"
@@ -2841,8 +3483,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2882,7 +3524,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         },
         "tooltip": {
           "mode": "single",
@@ -2897,20 +3539,48 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_cluster_provision_state{subscription_id=~\"$subscription_id\"})",
+          "expr": "count by (phase)(max without(prometheus_replica) (backend_cluster_provision_state{subscription_id=~\"$subscription_id\"}))",
           "legendFormat": "{{ phase }}",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Parent Cluster State Distribution",
       "type": "piechart",
-      "description": "Provisioning state of all HCP clusters in the selected subscription(s). Note: shows ALL clusters in the subscription, not just parents of the selected ExternalAuths."
+      "description": "Provisioning state of all HCP clusters in the selected subscription(s). Note: shows ALL clusters in the subscription, not just parents of the selected ExternalAuths.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -2965,7 +3635,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_cluster_provision_state{subscription_id=~\"$subscription_id\", phase!=\"succeeded\"}",
+          "expr": "max without(prometheus_replica) (backend_cluster_provision_state{subscription_id=~\"$subscription_id\", phase!=\"succeeded\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -2975,6 +3645,10 @@
       "title": "Clusters Not in Succeeded State",
       "type": "table",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -3008,8 +3682,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3085,20 +3759,48 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (operation_type) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "expr": "count by (operation_type)(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))",
           "legendFormat": "{{ operation_type }}",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Failed Operations by Type",
       "type": "barchart",
-      "description": "Count of failed ExternalAuth operations grouped by operation type (create/update/delete)."
+      "description": "Count of failed ExternalAuth operations grouped by operation type (create/update/delete).",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3174,20 +3876,48 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (subscription_id) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "expr": "count by (subscription_id)(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))",
           "legendFormat": "{{ subscription_id }}",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Failed Operations by Subscription",
       "type": "barchart",
-      "description": "Count of failed ExternalAuth operations grouped by subscription."
+      "description": "Count of failed ExternalAuth operations grouped by subscription.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3263,20 +3993,48 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (subscription_id) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})",
+          "expr": "count by (subscription_id)(max without(prometheus_replica) (backend_externalauth_provision_state{subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))",
           "legendFormat": "{{ subscription_id }}",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Failed ExternalAuths by Subscription",
       "type": "barchart",
-      "description": "Count of ExternalAuth resources currently in Failed provisioning state, grouped by subscription."
+      "description": "Count of ExternalAuth resources currently in Failed provisioning state, grouped by subscription.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3368,7 +4126,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}",
+          "expr": "max without(prometheus_replica) (backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -3378,6 +4136,10 @@
       "title": "Failed Operations Detail",
       "type": "table",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -3413,8 +4175,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3498,7 +4260,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (method) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m]))",
+          "expr": "sum by (method) (max without(prometheus_replica) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m])))",
           "legendFormat": "{{ method }}",
           "range": true,
           "refId": "A"
@@ -3509,7 +4271,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m]))",
+          "expr": "sum(max without(prometheus_replica) (rate(frontend_http_requests_total{route=~\".*externalauths.*\"}[5m])))",
           "legendFormat": "Total",
           "range": true,
           "refId": "B"
@@ -3521,8 +4283,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3633,8 +4395,8 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3695,20 +4457,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"aro-hcp\", container=\"aro-hcp-backend\"}[5m])) / sum(kube_pod_container_resource_requests{namespace=\"aro-hcp\", container=\"aro-hcp-backend\", resource=\"cpu\"}) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(sum(rate(container_cpu_usage_seconds_total{namespace=\"aro-hcp\", container=\"aro-hcp-backend\"}[5m]))) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_pod_container_resource_requests{namespace=\"aro-hcp\", container=\"aro-hcp-backend\", resource=\"cpu\"})",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Saturation — CPU",
       "type": "stat",
-      "description": "Current backend CPU utilization as percentage of requests."
+      "description": "Current backend CPU utilization as percentage of requests.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3769,20 +4599,88 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"aro-hcp\", container=\"aro-hcp-backend\"}) / sum(kube_pod_container_resource_requests{namespace=\"aro-hcp\", container=\"aro-hcp-backend\", resource=\"memory\"}) * 100",
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "(sum(container_memory_working_set_bytes{namespace=\"aro-hcp\", container=\"aro-hcp-backend\"})) * 100",
+          "instant": true,
+          "legendFormat": "Numerator",
+          "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_pod_container_resource_requests{namespace=\"aro-hcp\", container=\"aro-hcp-backend\", resource=\"memory\"})",
+          "instant": true,
+          "legendFormat": "Denominator",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Saturation — Memory",
       "type": "stat",
-      "description": "Current backend memory utilization as percentage of requests."
+      "description": "Current backend memory utilization as percentage of requests.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Value",
+            "binary": {
+              "left": "Numerator",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Denominator"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3835,20 +4733,39 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(kube_pod_info{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend.*\"})",
+          "expr": "count(max without(prometheus_replica) (kube_pod_info{namespace=\"aro-hcp\", pod=~\"aro-hcp-backend.*\"}))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Backend Pods",
       "type": "stat",
-      "description": "Number of running backend pods."
+      "description": "Number of running backend pods.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "fieldConfig": {
         "defaults": {
@@ -3909,15 +4826,34 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(cosmos_request_units_total{namespace=\"aro-hcp\"}[5m]))",
+          "expr": "sum(max without(prometheus_replica) (rate(cosmos_request_units_total{namespace=\"aro-hcp\"}[5m])))",
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
+          "range": false,
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Cosmos RU/s",
       "type": "stat",
-      "description": "Current Cosmos DB request unit consumption rate per second."
+      "description": "Current Cosmos DB request unit consumption rate per second.",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ]
+          }
+        }
+      ]
     }
   ],
   "preload": false,
