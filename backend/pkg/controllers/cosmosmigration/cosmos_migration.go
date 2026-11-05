@@ -38,20 +38,62 @@ import (
 
 // cosmosMigrationController performs a read/write cycle on every document in the
 // Resources container to force Cosmos DB re-serialization. This is a subscription-
-// watching controller that processes each subscription exactly once per process
-// lifetime.
+// watching controller that processes each subscription at most once per process
+// lifetime and, thanks to a persistent completion gate, at most once after the
+// migration cutoff: every backend restart used to re-scan and re-write every
+// subscription's documents, dominating Cosmos RU during restarts (AROSLSRE-2383).
 type cosmosMigrationController struct {
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 
-	// completedSubscriptions tracks subscription IDs that have been fully
-	// migrated. Each subscription is processed at most once per process lifetime.
+	// completedSubscriptions is a process-local cache of subscription IDs that
+	// have been fully migrated or skipped by the persistent gate. The durable
+	// state is the subscription document's _ts: migrateSubscription rewrites
+	// that document last, after the rest of the subscription succeeds, and
+	// SyncOnce skips any subscription whose document was written at or after
+	// migrationCompletionCutoff.
 	completedSubscriptions sync.Map
 
 	cooldown controllerutil.CooldownChecker
 }
 
 const CosmosMigrationControllerName = "CosmosMigration"
+
+// migrationCompletionCutoff is a Unix timestamp in seconds (the granularity of
+// the Cosmos DB _ts field). SyncOnce skips a subscription outright when its
+// subscription document was last written at or after this time.
+//
+// Why: the completion set used to live only in process memory, so every
+// backend restart re-enqueued every subscription and re-read and re-wrote
+// every document in the Resources container. The controller now rewrites the
+// subscription document last, only after the rest of the subscription has
+// migrated successfully, so that document's _ts (exposed on reads as
+// Subscription.LastUpdated) is a persistent completion marker: one point
+// read per subscription replaces the restart scan.
+//
+// Narrowed guarantee: the gate makes the migration best-effort at-most-once
+// per subscription after the cutoff; it is NOT a coverage guarantee. Two
+// residual classes of legacy-envelope documents can outlive it:
+//
+//   - A frontend registration write at or after the cutoff closes the gate
+//     for a dormant subscription that was never passed.
+//   - During a mixed-version rollout, a replica still running old code can
+//     write legacy-envelope documents after a new replica already closed
+//     the gate for that subscription.
+//
+// Both residuals stay readable through the read path's partition-key and
+// instance-version fallbacks (see CosmosGenericToInternal) and are
+// re-serialized by their next organic write. Correctness never depends on
+// the migration completing; it only shrinks the fallback population and the
+// restart RU cost. If exhaustive one-pass coverage is ever required, replace
+// this gate with migration-specific durable state (for example a marker
+// document only this controller writes) rather than relying on _ts.
+//
+// To force a new re-serialization pass after a future envelope change, raise
+// this cutoff to a timestamp at or after which writers persist the new
+// format: subscriptions last written before it get exactly one more full
+// pass, whose marker write then re-closes the gate.
+const migrationCompletionCutoff = 1793836800 // 2026-11-05T00:00:00Z
 
 // NewCosmosMigrationController creates a subscription-watching controller that
 // iterates depth-first through every named document type in the Resources container
@@ -139,9 +181,30 @@ func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controller
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues("subscriptionID", key.SubscriptionID)
 	ctx = logr.NewContext(ctx, logger)
+
+	// Persistent completion gate. The subscription document is rewritten last,
+	// after the rest of the subscription migrates successfully, so its _ts
+	// doubles as the completion marker. Checking it here costs one point read
+	// instead of the full container scan that every backend restart used to
+	// pay for every subscription.
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, key.SubscriptionID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// The subscription is gone; there is nothing to migrate.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get subscription document for the migration gate: %w", err)
+	}
+	if subscription.LastUpdated >= migrationCompletionCutoff {
+		c.completedSubscriptions.Store(key.SubscriptionID, struct{}{})
+		logger.V(1).Info("skipping cosmos migration: subscription document was written at or after the completion cutoff",
+			"lastUpdated", subscription.LastUpdated)
+		return nil
+	}
+
 	logger.Info("starting cosmos migration for subscription")
 
-	err := c.migrateSubscription(ctx, logger, key.SubscriptionID)
+	err = c.migrateSubscription(ctx, logger, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "cosmos migration encountered errors for subscription")
 		return err
@@ -153,26 +216,29 @@ func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controller
 }
 
 // migrateSubscription performs a depth-first read/write migration of every document
-// type in the Resources container for the given subscription.
+// type in the Resources container for the given subscription. The subscription
+// document itself is rewritten last, and only when everything else succeeded, so
+// its _ts serves as the persistent completion marker checked by SyncOnce.
 func (c *cosmosMigrationController) migrateSubscription(ctx context.Context, logger logr.Logger, subscriptionID string) error {
 	var migrationErrors []error
 
-	// 1. Migrate the subscription document itself.
-	if err := c.migrateSubscriptionDoc(ctx, logger, subscriptionID); err != nil {
-		migrationErrors = append(migrationErrors, fmt.Errorf("subscription doc: %w", err))
-	}
-
-	// 2. Migrate operations under the subscription.
+	// 1. Migrate operations under the subscription.
 	if err := c.migrateOperations(ctx, logger, subscriptionID); err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("operations: %w", err))
 	}
 
-	// 3. Migrate clusters and all nested resources.
+	// 2. Migrate clusters and all nested resources.
 	if err := c.migrateClusters(ctx, logger, subscriptionID); err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("clusters: %w", err))
 	}
 
-	return errors.Join(migrationErrors...)
+	if err := errors.Join(migrationErrors...); err != nil {
+		return err
+	}
+
+	// 3. Migrate the subscription document itself, last and only on success:
+	// its updated _ts is the completion marker re-checked on the next start.
+	return c.migrateSubscriptionDoc(ctx, logger, subscriptionID)
 }
 
 // migrateSubscriptionDoc reads and writes back the subscription document.
