@@ -1,6 +1,19 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -8,9 +21,9 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
       "gridPos": {
         "h": 3,
@@ -28,8 +41,8 @@
         "content": "# HCP KAS Golden Signals\n\nKAS availability is measured via the KSM `hostedClusterAPI_kubeapiserver_available` signal. Alerts: `userJourneyKubeApiserverAvailability1h5m`, `userJourneyKubeApiserverAvailability6h30m`, `userJourneyKubeApiserverAvailability3d6h`.\n\n**Runbook**: See [HCP Metrics SRE Guide](https://github.com/Azure/ARO-HCP/blob/main/docs/sre/hcp-metrics.md) for burn rate thresholds and response procedures.",
         "mode": "markdown"
       },
-      "pluginVersion": "10.0.0",
-      "title": "Dashboard Overview",
+      "pluginVersion": "12.4.13",
+      "title": "Dashboard Overview [TITLE UPDATE]",
       "type": "text"
     },
     {
@@ -41,6 +54,7 @@
         "y": 3
       },
       "id": 800,
+      "panels": [],
       "title": "Burn Rates",
       "type": "row"
     },
@@ -58,13 +72,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "short"
         },
@@ -135,15 +186,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "SLA Budget Burn Rate (15m / 6h)",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -170,8 +222,7 @@
           },
           "expr": "14.4",
           "legendFormat": "Page Threshold (1h)",
-          "refId": "C",
-          "hide": false
+          "refId": "C"
         },
         {
           "datasource": {
@@ -180,10 +231,11 @@
           },
           "expr": "6",
           "legendFormat": "Page Threshold (6h)",
-          "refId": "D",
-          "hide": false
+          "refId": "D"
         }
-      ]
+      ],
+      "title": "SLA Budget Burn Rate (15m / 6h)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -198,13 +250,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "short"
         },
@@ -293,15 +382,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "Error Budget Burn Rate (1h / 6h)",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -328,8 +418,7 @@
           },
           "expr": "14.4",
           "legendFormat": "Page Threshold (1h)",
-          "refId": "C",
-          "hide": false
+          "refId": "C"
         },
         {
           "datasource": {
@@ -338,10 +427,11 @@
           },
           "expr": "6",
           "legendFormat": "Page Threshold (6h)",
-          "refId": "D",
-          "hide": false
+          "refId": "D"
         }
-      ]
+      ],
+      "title": "Error Budget Burn Rate (1h / 6h)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -349,9 +439,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 20
       },
       "id": 100,
+      "panels": [],
       "title": "Errors",
       "type": "row"
     },
@@ -368,13 +459,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "percentunit"
         },
@@ -414,7 +542,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 21
       },
       "id": 1,
       "options": {
@@ -424,15 +552,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "Error Rate (5xx / total)",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -450,10 +579,11 @@
           },
           "expr": "0.001",
           "legendFormat": "SLO Threshold (99.9%)",
-          "refId": "B",
-          "hide": false
+          "refId": "B"
         }
-      ]
+      ],
+      "title": "Error Rate (5xx / total)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -468,13 +598,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "ops"
         },
@@ -484,7 +651,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 21
       },
       "id": 4,
       "options": {
@@ -494,15 +661,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "Server Errors (5xx) by Code",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -513,13 +681,16 @@
           "legendFormat": "{{ namespace }} - {{ code }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Server Errors (5xx) by Code",
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
+      "description": "Requests terminated by the API server before completion (e.g. due to timeouts, priority/fairness enforcement, or server shutdown). No data is NORMAL — terminations are rare under healthy conditions. Spikes correlate with API server restarts, APF enforcement, or client timeout issues.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -528,13 +699,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "ops"
         },
@@ -544,7 +752,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 29
       },
       "id": 3,
       "options": {
@@ -554,18 +762,19 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "placement": "bottom",
+          "showLegend": true
         },
         "noData": {
           "message": "Normal: no request terminations"
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
         }
       },
-      "title": "Request Terminations",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -577,7 +786,8 @@
           "refId": "A"
         }
       ],
-      "description": "Requests terminated by the API server before completion (e.g. due to timeouts, priority/fairness enforcement, or server shutdown). No data is NORMAL — terminations are rare under healthy conditions. Spikes correlate with API server restarts, APF enforcement, or client timeout issues."
+      "title": "Request Terminations",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -592,13 +802,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "ops"
         },
@@ -608,7 +855,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 29
       },
       "id": 2,
       "options": {
@@ -618,15 +865,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "5xx Errors by Resource",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -637,7 +885,9 @@
           "legendFormat": "{{ namespace }} - {{ verb }} {{ resource }} ({{ client }})",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "5xx Errors by Resource",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -652,13 +902,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "ops"
         },
@@ -668,7 +955,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 37
       },
       "id": 20,
       "options": {
@@ -678,15 +965,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "Client Errors (4xx) by Code",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -697,7 +985,9 @@
           "legendFormat": "{{ namespace }} - {{ code }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Client Errors (4xx) by Code",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -705,9 +995,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 69
+        "y": 45
       },
       "id": 200,
+      "panels": [],
       "title": "Latency",
       "type": "row"
     },
@@ -724,13 +1015,50 @@
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "s"
         },
@@ -740,7 +1068,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 46
       },
       "id": 23,
       "options": {
@@ -750,15 +1078,16 @@
             "max"
           ],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "title": "Admission Controller Latency (p99)",
-      "type": "timeseries",
+      "pluginVersion": "12.4.13",
       "targets": [
         {
           "datasource": {
@@ -769,7 +1098,9 @@
           "legendFormat": "{{ namespace }} - {{ name }} ({{ operation }})",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Admission Controller Latency (p99)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -777,9 +1108,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 54
       },
       "id": 300,
+      "panels": [],
       "title": "Traffic",
       "type": "row"
     },
@@ -812,7 +1144,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 95
+        "y": 55
       },
       "id": 8,
       "options": {
@@ -829,8 +1161,6 @@
           "sort": "desc"
         }
       },
-      "title": "Request Rate by Verb",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -841,7 +1171,9 @@
           "legendFormat": "{{ namespace }} - {{ verb }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Request Rate by Verb",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -872,7 +1204,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 95
+        "y": 55
       },
       "id": 9,
       "options": {
@@ -889,8 +1221,6 @@
           "sort": "desc"
         }
       },
-      "title": "Request Rate by Resource (top 10)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -901,7 +1231,9 @@
           "legendFormat": "{{ namespace }} - {{ resource }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Request Rate by Resource (top 10)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -932,7 +1264,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 103
+        "y": 63
       },
       "id": 21,
       "options": {
@@ -949,8 +1281,6 @@
           "sort": "desc"
         }
       },
-      "title": "WATCH Request Rate by Resource",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -961,7 +1291,9 @@
           "legendFormat": "{{ namespace }} - {{ resource }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "WATCH Request Rate by Resource",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -992,7 +1324,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 103
+        "y": 63
       },
       "id": 22,
       "options": {
@@ -1009,8 +1341,6 @@
           "sort": "desc"
         }
       },
-      "title": "WATCH Error Rate by Resource",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -1021,7 +1351,9 @@
           "legendFormat": "{{ namespace }} - {{ resource }} ({{ code }})",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "WATCH Error Rate by Resource",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -1029,9 +1361,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 111
+        "y": 71
       },
       "id": 400,
+      "panels": [],
       "title": "Saturation",
       "type": "row"
     },
@@ -1064,7 +1397,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 112
+        "y": 72
       },
       "id": 10,
       "options": {
@@ -1081,8 +1414,6 @@
           "sort": "desc"
         }
       },
-      "title": "In-Flight Requests",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -1093,67 +1424,9 @@
           "legendFormat": "{{ namespace }} - {{ requestKind }}",
           "refId": "A"
         }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 120
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "title": "Long-Running Requests",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum by (namespace, verb) (\n  apiserver_longrunning_requests{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n)",
-          "legendFormat": "{{ namespace }} - {{ verb }}",
-          "refId": "A"
-        }
-      ]
+      ],
+      "title": "In-Flight Requests",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -1184,7 +1457,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 120
+        "y": 72
       },
       "id": 13,
       "options": {
@@ -1201,8 +1474,6 @@
           "sort": "desc"
         }
       },
-      "title": "Storage Objects",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -1213,7 +1484,69 @@
           "legendFormat": "{{ namespace }} - {{ resource }}",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Storage Objects",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (namespace, verb) (\n  apiserver_longrunning_requests{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n)",
+          "legendFormat": "{{ namespace }} - {{ verb }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Long-Running Requests",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -1221,9 +1554,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 128
+        "y": 88
       },
       "id": 500,
+      "panels": [],
       "title": "etcd Client",
       "type": "row"
     },
@@ -1232,6 +1566,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
+      "description": "Failed etcd requests from the KAS client perspective. No data is NORMAL under healthy conditions — etcd errors are rare. Non-zero values indicate etcd connectivity or performance issues. Any sustained errors should be investigated alongside etcd health.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1256,7 +1591,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 129
+        "y": 89
       },
       "id": 15,
       "options": {
@@ -1268,16 +1603,14 @@
           "displayMode": "table",
           "placement": "bottom"
         },
+        "noData": {
+          "message": "Normal: no etcd errors"
+        },
         "tooltip": {
           "mode": "multi",
           "sort": "desc"
-        },
-        "noData": {
-          "message": "Normal: no etcd errors"
         }
       },
-      "title": "etcd Request Errors",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -1289,11 +1622,13 @@
           "refId": "A"
         }
       ],
-      "description": "Failed etcd requests from the KAS client perspective. No data is NORMAL under healthy conditions — etcd errors are rare. Non-zero values indicate etcd connectivity or performance issues. Any sustained errors should be investigated alongside etcd health."
+      "title": "etcd Request Errors",
+      "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "30s",
-  "schemaVersion": 39,
+  "schemaVersion": 42,
   "tags": [
     "golden-signals",
     "kas",
@@ -1303,17 +1638,13 @@
     "list": [
       {
         "current": {},
-        "hide": 0,
         "includeAll": true,
         "label": "Data Source",
-        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
-        "queryValue": "",
         "refresh": 1,
         "regex": "^Managed_Prometheus_hcps-.*$",
-        "skipUrlSync": false,
         "type": "datasource"
       },
       {
@@ -1323,10 +1654,8 @@
           "uid": "${datasource}"
         },
         "definition": "label_values(apiserver_request_total,cluster)",
-        "hide": 0,
         "includeAll": false,
         "label": "Management Cluster",
-        "multi": false,
         "name": "cluster",
         "options": [],
         "query": {
@@ -1336,7 +1665,7 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
+        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       },
@@ -1347,7 +1676,6 @@
           "uid": "${datasource}"
         },
         "definition": "label_values(hostedClusterAPI_kubeapiserver_available{cluster=~\"$cluster\"},namespace)",
-        "hide": 0,
         "includeAll": false,
         "label": "HCP (namespace)",
         "multi": true,
@@ -1360,7 +1688,7 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
+        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       }
@@ -1373,5 +1701,7 @@
   "timepicker": {},
   "timezone": "utc",
   "title": "HCP KAS Golden Signals",
-  "uid": "hcp-kas-golden-signals"
+  "uid": "hcp-kas-golden-signals",
+  "version": 1,
+  "weekStart": ""
 }
