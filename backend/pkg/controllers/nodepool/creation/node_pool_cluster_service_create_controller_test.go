@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,7 @@ const (
 	testNodePoolName        = "test-nodepool"
 	testClusterServiceIDStr = "/api/aro_hcp/v1alpha1/clusters/abc123"
 	testNodePoolCSIDStr     = testClusterServiceIDStr + "/node_pools/" + testNodePoolName
+	testNodePoolVersionID   = "4.20.8"
 )
 
 func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
@@ -81,15 +83,24 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		assert.Equal(t, testNodePoolCSIDStr, stored.ServiceProviderProperties.ClusterServiceID.String())
 	}
 
+	// The adoption lookup runs before any create gating, so every case that reaches
+	// Cluster Service must answer it even when no POST is expected.
+	expectCSNodePoolNotFound := func(mock *ocm.MockClusterServiceClientSpec) {
+		mock.EXPECT().
+			GetNodePool(gomock.Any(), nodePoolCSInternalID).
+			Return(nil, fakeOCMNotFoundError())
+	}
+
 	testCases := []struct {
-		name              string
-		listerCluster     *coreapi.Cluster
-		existingNodePool  *coreapi.NodePool
-		listerNodePool    *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
-		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
-		wantErr           bool
-		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		name                          string
+		listerCluster                 *coreapi.Cluster
+		existingNodePool              *coreapi.NodePool
+		listerNodePool                *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
+		listerServiceProviderNodePool *coreapi.ServiceProviderNodePool
+		setupMockCSClient             func(mock *ocm.MockClusterServiceClientSpec)
+		wantErr                       bool
+		wantErrContain                string
+		verifyDB                      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
@@ -120,16 +131,82 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB:       verifyClusterServiceIDIsSet,
 		},
 		{
-			name:             "when cluster has no ClusterServiceID error is returned",
-			listerCluster:    newTestCluster(t, func(c *coreapi.Cluster) { c.ServiceProviderProperties.ClusterServiceID = nil }),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
-			wantErr:          true,
-			wantErrContain:   "cluster test-cluster has no ClusterServiceID",
+			name:                          "when cluster has no ClusterServiceID error is returned",
+			listerCluster:                 newTestCluster(t, func(c *coreapi.Cluster) { c.ServiceProviderProperties.ClusterServiceID = nil }),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
+			wantErr:                       true,
+			wantErrContain:                "cluster test-cluster has no ClusterServiceID",
 		},
 		{
-			name:             "when CS node pool does not exist POST is issued and ClusterServiceID is set",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when ServiceProviderNodePool is not found no-op is performed",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: nil, // Not found
+			setupMockCSClient:             expectCSNodePoolNotFound,
+			verifyDB:                      verifyClusterServiceIDIsNil,
+		},
+		{
+			name:                          "when DesiredVersion is nil waits for NodePoolVersion controller",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, ""), // Empty DesiredVersion
+			setupMockCSClient:             expectCSNodePoolNotFound,
+			verifyDB:                      verifyClusterServiceIDIsNil,
+		},
+		{
+			name:          "when DesiredVersion does not match customer version waits for validation",
+			listerCluster: newTestCluster(t, nil),
+			existingNodePool: func() *coreapi.NodePool {
+				np := newTestNodePoolForCreate(t, nil)
+				np.Properties.Version.ID = "4.20.9" // Customer requested 4.20.9
+				return np
+			}(),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, "4.20.8"), // But SPNP has stale version
+			setupMockCSClient:             expectCSNodePoolNotFound,
+			verifyDB:                      verifyClusterServiceIDIsNil,
+		},
+		{
+			name:          "when node pool is in Failed state skips CS creation",
+			listerCluster: newTestCluster(t, nil),
+			existingNodePool: func() *coreapi.NodePool {
+				np := newTestNodePoolForCreate(t, nil)
+				np.Properties.ProvisioningState = coreapi.ProvisioningStateFailed
+				return np
+			}(),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID), // Version later became available
+			setupMockCSClient:             expectCSNodePoolNotFound,
+			verifyDB:                      verifyClusterServiceIDIsNil,
+		},
+		{
+			// The Failed guard must gate new POSTs only. A CS node pool that was created
+			// before the operation failed has to be adopted so its ID stays recoverable for
+			// deletion; without it the delete dispatcher abandons cleanup and leaks the pool.
+			name:          "when node pool is in Failed state an existing CS node pool is still adopted",
+			listerCluster: newTestCluster(t, nil),
+			existingNodePool: func() *coreapi.NodePool {
+				np := newTestNodePoolForCreate(t, nil)
+				np.Properties.ProvisioningState = coreapi.ProvisioningStateFailed
+				return np
+			}(),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				existing, err := arohcpv1alpha1.NewNodePool().
+					ID(testNodePoolName).
+					HREF(testNodePoolCSIDStr).
+					Build()
+				require.NoError(t, err)
+				mock.EXPECT().
+					GetNodePool(gomock.Any(), nodePoolCSInternalID).
+					Return(existing, nil)
+			},
+			verifyDB: verifyClusterServiceIDIsSet,
+		},
+		{
+			name:                          "when CS node pool does not exist POST is issued and ClusterServiceID is set",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), nodePoolCSInternalID).
@@ -146,9 +223,10 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDIsSet,
 		},
 		{
-			name:             "when CS node pool already exists POST is skipped and ClusterServiceID is set",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when CS node pool already exists POST is skipped and ClusterServiceID is set",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				existing, err := arohcpv1alpha1.NewNodePool().
 					ID(testNodePoolName).
@@ -162,9 +240,10 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB: verifyClusterServiceIDIsSet,
 		},
 		{
-			name:             "when CS node pool lookup returns a non-404 error it is propagated",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when CS node pool lookup returns a non-404 error it is propagated",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), nodePoolCSInternalID).
@@ -174,9 +253,10 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			wantErrContain: "boom",
 		},
 		{
-			name:             "when CS node pool POST fails error is propagated",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when CS node pool POST fails error is propagated",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), nodePoolCSInternalID).
@@ -189,9 +269,10 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			wantErrContain: "post failed",
 		},
 		{
-			name:             "when PostNodePool returns 400 OCM error reconciler returns error",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when PostNodePool returns 400 OCM error reconciler returns error",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), nodePoolCSInternalID).
@@ -205,9 +286,10 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB:       verifyClusterServiceIDIsNil,
 		},
 		{
-			name:             "when PostNodePool returns 500 OCM error it is propagated for retry",
-			listerCluster:    newTestCluster(t, nil),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
+			name:                          "when PostNodePool returns 500 OCM error it is propagated for retry",
+			listerCluster:                 newTestCluster(t, nil),
+			existingNodePool:              newTestNodePoolForCreate(t, nil),
+			listerServiceProviderNodePool: newTestServiceProviderNodePool(t, testNodePoolVersionID),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), nodePoolCSInternalID).
@@ -253,11 +335,17 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, listerNodePool)
 			}
 
+			serviceProviderNodePoolsForLister := []*coreapi.ServiceProviderNodePool{}
+			if tc.listerServiceProviderNodePool != nil {
+				serviceProviderNodePoolsForLister = append(serviceProviderNodePoolsForLister, tc.listerServiceProviderNodePool)
+			}
+
 			syncer := &nodePoolClusterServiceCreateSyncer{
-				nodePoolLister:        &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
-				resourcesDBClient:     mockResourcesDBClient,
-				clustersServiceClient: mockCSClient,
+				nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				clusterLister:                 &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: serviceProviderNodePoolsForLister},
+				resourcesDBClient:             mockResourcesDBClient,
+				clustersServiceClient:         mockCSClient,
 			}
 
 			err = syncer.SyncOnce(ctx, testKey)
@@ -338,7 +426,7 @@ func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.NodePool)) *corea
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		Properties: coreapi.NodePoolProperties{
 			Version: coreapi.NodePoolVersionProfile{
-				ID:           "4.20.8",
+				ID:           testNodePoolVersionID,
 				ChannelGroup: "stable",
 			},
 			Replicas: 2,
@@ -359,4 +447,31 @@ func newTestNodePoolForCreate(t *testing.T, opts func(*coreapi.NodePool)) *corea
 		opts(np)
 	}
 	return np
+}
+
+// newTestServiceProviderNodePool creates a test ServiceProviderNodePool with the given DesiredVersion.
+// Pass an empty string to create a ServiceProviderNodePool with nil DesiredVersion.
+func newTestServiceProviderNodePool(t *testing.T, desiredVersion string) *coreapi.ServiceProviderNodePool {
+	t.Helper()
+	spnpResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName +
+			"/serviceProviderNodePools/default"))
+
+	spnp := &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   spnpResourceID,
+			PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
+		},
+		Spec: coreapi.ServiceProviderNodePoolSpec{},
+	}
+
+	if desiredVersion != "" {
+		parsedVersion := semver.MustParse(desiredVersion)
+		spnp.Spec.NodePoolVersion.DesiredVersion = &parsedVersion
+	}
+
+	return spnp
 }
