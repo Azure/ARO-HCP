@@ -187,8 +187,11 @@ func TestNormalizeContainerRegistry(t *testing.T) {
 			}
 
 			if tt.input != nil && tt.input.ManagedIdentity != nil && !tt.wantNil && tt.wantError == "" {
-				// valid resource ID case — parse error test skips out check
-				if len(errs) == 0 && out == nil {
+				// valid resource ID case
+				if len(errs) != 0 {
+					t.Fatalf("expected no errors for valid resource ID, got: %v", errs)
+				}
+				if out == nil {
 					t.Error("expected out to be set for valid resource ID, got nil")
 				}
 				return
