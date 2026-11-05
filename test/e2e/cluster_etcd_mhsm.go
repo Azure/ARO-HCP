@@ -61,7 +61,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20261001 API availability")
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers()
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 

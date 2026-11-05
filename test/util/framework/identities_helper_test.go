@@ -17,11 +17,9 @@ package framework
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -29,118 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/mipool"
 )
-
-func TestRelease(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		initialState       leaseState
-		initialLeasedBy    string
-		cleanups           []func() error
-		wantErr            bool
-		wantState          leaseState
-		wantLeasedBy       string
-		wantHistoryLen     int
-		wantCleanupsCalled int
-	}{
-		{
-			name:               "free entry is a no-op",
-			initialState:       leaseStateFree,
-			wantErr:            false,
-			wantState:          leaseStateFree,
-			wantLeasedBy:       "",
-			wantHistoryLen:     0,
-			wantCleanupsCalled: 0,
-		},
-		{
-			name:               "assigned entry skips cleanups",
-			initialState:       leaseStateAssigned,
-			initialLeasedBy:    "test-spec-1",
-			wantErr:            false,
-			wantState:          leaseStateFree,
-			wantLeasedBy:       "",
-			wantHistoryLen:     1,
-			wantCleanupsCalled: 0,
-		},
-		{
-			name:               "busy entry runs cleanups",
-			initialState:       leaseStateBusy,
-			initialLeasedBy:    "test-spec-1",
-			wantErr:            false,
-			wantState:          leaseStateFree,
-			wantLeasedBy:       "",
-			wantHistoryLen:     1,
-			wantCleanupsCalled: 2,
-		},
-		{
-			name:            "busy entry with failing cleanup returns error",
-			initialState:    leaseStateBusy,
-			initialLeasedBy: "test-spec-1",
-			cleanups: []func() error{
-				func() error { return nil },
-				func() error { return fmt.Errorf("cleanup failed") },
-			},
-			wantErr:            true,
-			wantState:          leaseStateFree,
-			wantLeasedBy:       "",
-			wantHistoryLen:     1,
-			wantCleanupsCalled: 2,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			cleanupsCalled := 0
-			entry := &leasedIdentityPoolEntry{
-				ResourceGroup: "rg-test",
-				Current: leaseEntry{
-					State:    tc.initialState,
-					LeasedBy: tc.initialLeasedBy,
-				},
-			}
-
-			cleanups := tc.cleanups
-			if cleanups == nil && tc.wantCleanupsCalled > 0 {
-				for range tc.wantCleanupsCalled {
-					cleanups = append(cleanups, func() error {
-						cleanupsCalled++
-						return nil
-					})
-				}
-			} else if cleanups != nil {
-				origCleanups := cleanups
-				cleanups = make([]func() error, len(origCleanups))
-				for i, fn := range origCleanups {
-					cleanups[i] = func() error {
-						cleanupsCalled++
-						return fn()
-					}
-				}
-			}
-
-			err := entry.release(cleanups...)
-
-			if (err != nil) != tc.wantErr {
-				t.Errorf("release() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if entry.Current.State != tc.wantState {
-				t.Errorf("release() state = %q, want %q", entry.Current.State, tc.wantState)
-			}
-			if entry.Current.LeasedBy != tc.wantLeasedBy {
-				t.Errorf("release() leasedBy = %q, want %q", entry.Current.LeasedBy, tc.wantLeasedBy)
-			}
-			if len(entry.History) != tc.wantHistoryLen {
-				t.Errorf("release() history length = %d, want %d", len(entry.History), tc.wantHistoryLen)
-			}
-			if cleanupsCalled != tc.wantCleanupsCalled {
-				t.Errorf("release() cleanups called = %d, want %d", cleanupsCalled, tc.wantCleanupsCalled)
-			}
-		})
-	}
-}
 
 func TestAssignFromEnv(t *testing.T) {
 
@@ -332,12 +218,23 @@ func TestAssignIdentityContainersRejectsUnleasedEnvName(t *testing.T) {
 	t.Setenv(leaseenv.MSIContainers, "rg-00")
 
 	tc := &perItOrDescribeTestContext{}
-	err := tc.AssignIdentityContainers(context.Background(), 1, time.Second)
+	err := tc.assignIdentityContainers(1)
 	if err == nil {
 		t.Fatal("expected AssignIdentityContainers to reject a name outside the lease")
 	}
 	if tc.miEnvAssigned {
 		t.Fatal("miEnvAssigned should stay false")
+	}
+}
+
+func TestMIContainersFromLabels(t *testing.T) {
+	if n, err := miContainersFromLabels([]string{"SLOW", "MIContainers:2"}); err != nil || n != 2 {
+		t.Fatalf("got (%d, %v), want (2, nil)", n, err)
+	}
+	for _, in := range [][]string{nil, {"MIContainers:1", "MIContainers:2"}, {"MIContainers:x"}} {
+		if _, err := miContainersFromLabels(in); err == nil {
+			t.Fatalf("expected error for %v", in)
+		}
 	}
 }
 
@@ -389,32 +286,21 @@ func (failTokenCredential) GetToken(context.Context, policy.TokenRequestOptions)
 	return azcore.AccessToken{}, fmt.Errorf("repro token denied")
 }
 
-func TestEnvAssignedContainersCleanedWithoutFilePool(t *testing.T) {
-	t.Setenv("ARTIFACT_DIR", t.TempDir())
+func TestEnvAssignedContainersAreCleanedOnRelease(t *testing.T) {
 	t.Setenv(leaseenv.MSIContainers, "rg-a")
 
-	inv := &perBinaryInvocationTestContext{
-		pooledIdentities: true,
-		azureCredentials: failTokenCredential{},
-	}
 	tc := &perItOrDescribeTestContext{
-		perBinaryInvocationTestContext: inv,
-		subscriptionID:                 "00000000-0000-0000-0000-000000000000",
+		perBinaryInvocationTestContext: &perBinaryInvocationTestContext{
+			pooledIdentities: true,
+			azureCredentials: failTokenCredential{},
+		},
+		subscriptionID: "00000000-0000-0000-0000-000000000000",
 	}
 	if err := tc.assignFromEnv([]string{"rg-a"}, 1); err != nil {
 		t.Fatalf("assignFromEnv: %v", err)
 	}
 	if _, err := tc.leaseFromEnv(); err != nil {
 		t.Fatalf("leaseFromEnv: %v", err)
-	}
-
-	state, err := inv.getLeasedIdentityPoolState()
-	if err != nil {
-		t.Fatalf("getLeasedIdentityPoolState: %v", err)
-	}
-	before, err := os.ReadFile(state.statePath)
-	if err != nil {
-		t.Fatalf("read pool file: %v", err)
 	}
 
 	visible, err := tc.leasedIdentityContainers()
@@ -432,19 +318,19 @@ func TestEnvAssignedContainersCleanedWithoutFilePool(t *testing.T) {
 	if !strings.Contains(releaseErr.Error(), "repro token denied") {
 		t.Fatalf("release error = %v, want the cleanup credential error", releaseErr)
 	}
+}
 
-	after, err := os.ReadFile(state.statePath)
-	if err != nil {
-		t.Fatalf("re-read pool file: %v", err)
+func TestAssignIdentityContainersFailsWithoutParentAssignment(t *testing.T) {
+	t.Setenv(mipool.AssignedMIContainersEnvvar, "")
+
+	tc := &perItOrDescribeTestContext{}
+	if err := tc.assignIdentityContainers(1); err == nil {
+		t.Fatal("expected error when the parent assigned no containers, got nil")
 	}
-	if string(before) != string(after) {
-		t.Fatalf("file pool changed across env release:\nbefore:\n%s\nafter:\n%s", before, after)
+	if tc.miEnvAssigned {
+		t.Fatal("miEnvAssigned should stay false")
 	}
-	fileLeases, err := state.getLeasedIdentityContainers(specID())
-	if err != nil {
-		t.Fatalf("getLeasedIdentityContainers: %v", err)
-	}
-	if len(fileLeases) != 0 {
-		t.Fatalf("file-pool leases = %v, want empty", fileLeases)
+	if _, err := tc.getLeasedIdentities(); err == nil || !strings.Contains(err.Error(), "AssignIdentityContainers") {
+		t.Fatalf("getLeasedIdentities error = %v, want hint to call AssignIdentityContainers", err)
 	}
 }

@@ -66,11 +66,10 @@ type perBinaryInvocationTestContext struct {
 	pooledIdentities         bool
 	compressTimingMetadata   bool
 
-	contextLock       sync.RWMutex
-	subscriptionID    string
-	azureCredentials  azcore.TokenCredential
-	identityPoolState *leasedIdentityPoolState
-	defaultTransport  *http.Transport
+	contextLock      sync.RWMutex
+	subscriptionID   string
+	azureCredentials azcore.TokenCredential
+	defaultTransport *http.Transport
 	// virtualMachineResourceSKUsByLocation memoizes the slow Resource SKUs API
 	// for the duration of the whole e2e suite run. All specs in one invocation
 	// target the same location, so a suite-wide cache avoids repeatedly burning
@@ -343,33 +342,6 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 
 func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
 	return tc.pooledIdentities
-}
-
-func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*leasedIdentityPoolState, error) {
-	tc.contextLock.RLock()
-	if tc.identityPoolState != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.identityPoolState, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	if tc.identityPoolState != nil {
-		return tc.identityPoolState, nil
-	}
-
-	state, err := newLeasedIdentityPoolState(msiPoolStateFilePath())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get managed identities pool state: %w", err)
-	}
-	tc.identityPoolState = state
-	return tc.identityPoolState, nil
-}
-
-func msiPoolStateFilePath() string {
-	return filepath.Join(artifactDir(), "identities-pool-state.yaml")
 }
 
 func skipCleanup() bool {

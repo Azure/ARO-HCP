@@ -25,6 +25,6 @@ import (
 var _ = Describe("Valid", func() {
 	It("zero demand", labels.MIContainers(0), func(ctx context.Context) {})
 	It("one demand", labels.MIContainers(1), func(ctx context.Context) {
-		tc.AssignIdentityContainers(ctx, 1)
+		tc.AssignIdentityContainers()
 	})
 })
