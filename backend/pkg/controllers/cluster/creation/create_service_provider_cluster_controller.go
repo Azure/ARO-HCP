@@ -17,6 +17,7 @@ package creation
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -72,14 +73,9 @@ func NewCreateServiceProviderClusterController(
 	return controller
 }
 
-// SyncOnce creates a ServiceProviderCluster for the given HCPCluster when one
-// does not already exist. The lister is consulted first so steady-state runs
-// avoid a Cosmos round-trip; if it is missing, GetOrCreate is called and any
-// 409 conflict is handled by the underlying helper.
-//
-// Once the parent cluster is marked for deletion the cluster deletion
-// pipeline removes the ServiceProviderCluster as a child resource; recreating
-// it here would prevent that pipeline from converging, so we short-circuit.
+// SyncOnce ensures provider state exists and mirrors both legacy cluster IDs.
+// Equal cached state avoids writes. Live source and destination ETags protect
+// backfill; missing provider state is not recreated after completed cleanup.
 func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -88,20 +84,21 @@ func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key c
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HCPCluster from lister: %w", err))
 	}
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
-	}
 
-	_, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err == nil {
+	provider, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	properties := existingCluster.ServiceProviderProperties
+	idsCanonical := (properties.PendingClusterServiceID == nil || len(properties.PendingClusterServiceID.String()) > 0) && (properties.ClusterServiceID == nil || len(properties.ClusterServiceID.String()) > 0)
+	deletionComplete := properties.DeletionTimestamp != nil && properties.ClusterServiceDeletionTimestamp != nil && properties.PendingClusterServiceID == nil && properties.ClusterServiceID == nil
+	markersSynced := properties.ServiceProviderClusterInitialized && (!deletionComplete || properties.ClusterServiceDeletionCompleted)
+	if err == nil && idsCanonical && markersSynced && reflect.DeepEqual(provider.PendingClusterServiceID, properties.PendingClusterServiceID) && reflect.DeepEqual(provider.ClusterServiceID, properties.ClusterServiceID) {
 		return nil
 	}
-	if !cosmosstorageutils.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from lister: %w", err))
 	}
 
-	if _, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create ServiceProviderCluster: %w", err))
+	if err := corecosmosstorage.SyncClusterServiceIDs(ctx, c.resourcesDBClient, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to synchronize ServiceProviderCluster: %w", err))
 	}
 
 	return nil

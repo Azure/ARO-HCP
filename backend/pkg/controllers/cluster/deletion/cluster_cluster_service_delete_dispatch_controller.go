@@ -161,7 +161,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	// recover its persisted target here instead of timing out and abandoning CS.
 	if replacement := recoverPendingDeletionTarget(cluster); replacement != nil {
 		logger.Info("Recovering pending CS creation as deletion target", "clusterServiceID", replacement.ServiceProviderProperties.ClusterServiceID.String())
-		_, err := clusterCRUD.Replace(ctx, replacement, nil)
+		err := corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, replacement)
 		return err
 	}
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
