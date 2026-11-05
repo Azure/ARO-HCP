@@ -139,6 +139,17 @@ region.what-if:
 	make -C .. pipeline/Region DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region.what-if
 
+# Grants access to the Cosmos DB account, which lives in the regional
+# resource group. See also svc.dev-role-assignments.
+region.dev-role-assignments: configurations/dev-role-assignments-region.bicepparam
+	az deployment group create \
+		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
+		--resource-group "${REGIONAL_RESOURCEGROUP}" \
+		--template-file templates/dev-roleassignments-region.bicep \
+		--parameters configurations/dev-role-assignments-region.bicepparam \
+		--parameters principalID=${PRINCIPAL_ID}
+.PHONY: region.dev-role-assignments
+
 #
 # Service Cluster
 #
@@ -200,14 +211,20 @@ svc.what-if:
 	make -C .. pipeline/Service.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc.what-if
 
-svc.dev-role-assignments: configurations/dev-role-assignments.bicepparam
+# Grants access to the AKS cluster, which lives in the service cluster
+# resource group, and to the shared service key vault. See also
+# region.dev-role-assignments.
+svc.dev-role-assignments: configurations/dev-role-assignments-svc.bicepparam
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
-		--resource-group "${REGIONAL_RESOURCEGROUP}" \
-		--template-file templates/dev-roleassignments.bicep \
-		--parameters configurations/dev-role-assignments.bicepparam \
+		--resource-group "${SVC_RESOURCEGROUP}" \
+		--template-file templates/dev-roleassignments-svc.bicep \
+		--parameters configurations/dev-role-assignments-svc.bicepparam \
 		--parameters principalID=${PRINCIPAL_ID}
 .PHONY: svc.dev-role-assignments
+
+dev-role-assignments: svc.dev-role-assignments region.dev-role-assignments
+.PHONY: dev-role-assignments
 
 svc.clean-nsp-associations:
 	./scripts/delete-nsp.sh $(SVC_RESOURCEGROUP)

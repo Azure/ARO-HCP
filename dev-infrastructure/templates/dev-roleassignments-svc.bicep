@@ -1,8 +1,11 @@
 // This is used to grant CI the ability to deploy resources into
 // dev AKS clusters. It should not be used in higher environments.
+//
+// This template is deployed to the service cluster resource group,
+// which is where the AKS cluster lives. Cosmos DB role assignments
+// live in the regional resource group, see
+// dev-roleassignments-region.bicep.
 param aksClusterName string
-param grantCosmosAccess bool = false
-param cosmosDBName string = 'replaceme'
 param sharedKvNames array = []
 param sharedKvResourceGroup string = 'global'
 param location string = resourceGroup().location
@@ -16,18 +19,10 @@ var aksClusterRbacClusterAdminRoleId = subscriptionResourceId(
   'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b'
 )
 
-// Grants Github Actions access to Cosmos data
-param cosmosRoleDefinitionId string = '00000000-0000-0000-0000-000000000002'
-var cosmosRoleAssignmentId = guid(cosmosRoleDefinitionId, principalID, cosmosDbAccount.id)
-
-// C O S M O S
+// A K S
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
   name: aksClusterName
-}
-
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = if (grantCosmosAccess) {
-  name: cosmosDBName
 }
 
 // az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
@@ -37,16 +32,6 @@ resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@202
   properties: {
     roleDefinitionId: aksClusterRbacClusterAdminRoleId
     principalId: principalID
-  }
-}
-
-resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = if (grantCosmosAccess) {
-  name: cosmosRoleAssignmentId
-  parent: cosmosDbAccount
-  properties: {
-    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosRoleDefinitionId}'
-    principalId: principalID
-    scope: cosmosDbAccount.id
   }
 }
 
