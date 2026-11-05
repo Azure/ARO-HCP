@@ -220,7 +220,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 				NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-				func(ctrl *coreapi.Controller) {
+				func(ctx context.Context, ctrl *coreapi.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
 						Type:    coreapi.ControllerConditionTypeIntentFailed,
 						Status:  metav1.ConditionTrue,
@@ -252,7 +252,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 	if err = controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-		func(ctrl *coreapi.Controller) {
+		func(ctx context.Context, ctrl *coreapi.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
 				Type:    coreapi.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionFalse,
