@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -127,6 +128,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			hcpClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			activeVersionsClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			By(fmt.Sprintf("y-stream upgrading the control plane from %s to %s", installVersionId, yStreamVersionId))
 			// Encode the upgrade target through the control-plane pin tag. On nightly runs,
@@ -148,7 +150,19 @@ var _ = Describe("ARO-HCP", func() {
 
 			By(fmt.Sprintf("verifying the control plane advanced to the y-stream version %s", yStreamVersionId))
 			Eventually(func(ctx context.Context) error {
-				return verifiers.VerifyHostedControlPlaneYStreamUpgrade(installMinorLine, cpMinor).Verify(ctx, adminRESTConfig)
+				// The guest-side check confirms the data plane observed the new minor; the
+				// activeVersions check confirms the control plane itself finished rolling onto
+				// it, which a Partial guest CVO would otherwise mask. Both must pass.
+				return errors.Join(
+					verifiers.VerifyHostedControlPlaneYStreamUpgrade(installMinorLine, cpMinor).Verify(ctx, adminRESTConfig),
+					verifiers.VerifyClusterActiveVersionsSettledAtMinor(
+						ctx,
+						activeVersionsClient,
+						*resourceGroup.Name,
+						customerClusterName,
+						cpMinor,
+					),
+				)
 			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).
 				Should(Succeed(), "control plane did not y-stream upgrade from minor %s to %s on cluster %s", installMinorLine, cpMinor, customerClusterName)
 
