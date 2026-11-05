@@ -17,12 +17,11 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/blang/semver/v4"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -33,33 +32,22 @@ import (
 )
 
 var _ = Describe("ARO-HCP", func() {
-	It("should z-stream upgrade a cluster control plane that was previously y-stream upgraded",
-		labels.RequireNothing,
-		labels.High,
-		labels.Positive,
-		labels.AroRpApiCompatible,
-		labels.Slow,
+	// The matrix is a small, deliberate slice of the supported minors (4.20 through 5.0),
+	// not the full product of every minor pair. Each entry installs at installMinorLine.latest,
+	// y-stream upgrades to cpMinor.latest-1, then z-stream upgrades to cpMinor.latest.
+	//
+	// Entries whose minors are outside the current support window resolve no version and
+	// self-skip via the guards below, so the table documents intended coverage (including the
+	// cross-major 4.22 -> 5.0 hop) without failing on versions that are not yet published.
+	DescribeTable("should z-stream upgrade a cluster control plane that was previously y-stream upgraded",
 		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				customerClusterName = "cp-yz-upgrade-hcp"
-				channelGroup        = "candidate"
-			)
+		func(ctx context.Context, installMinorLine, cpMinor string) {
+			const channelGroup = "candidate"
 
-			cpVersion, err := semver.ParseTolerant(framework.DefaultOpenshiftControlPlaneVersionId())
-			if err != nil {
-				Skip(fmt.Sprintf("failed to parse control plane version: %v", err))
-			}
-			if cpVersion.Minor == 0 {
-				Skip("cannot compute previous minor from major.0; skipping y-stream upgrade test")
-			}
+			versionLabel := strings.ReplaceAll(cpMinor, ".", "-")
+			customerClusterName := "cp-yz-upgrade-" + versionLabel
 
-			// cpMinor is the y-stream upgrade target (e.g. "4.22").
-			cpMinor := fmt.Sprintf("%d.%d", cpVersion.Major, cpVersion.Minor)
-			// installMinorLine is the minor one below cpMinor (e.g. "4.21").
-			installMinorLine := fmt.Sprintf("%d.%d", cpVersion.Major, cpVersion.Minor-1)
-
-			// Install at <minor>-1.latest (candidate channel, offset=0 is the latest z-stream).
+			// Install at <installMinor>.latest (candidate channel, offset=0 is the latest z-stream).
 			installVersionId, err := resolveNodePoolTestVersion(ctx, channelGroup, installMinorLine, 0)
 			if err != nil {
 				Skip(fmt.Sprintf("failed to resolve install version (%s.latest) for %s-%s: %v", installMinorLine, channelGroup, installMinorLine, err))
@@ -68,7 +56,7 @@ var _ = Describe("ARO-HCP", func() {
 				Skip(fmt.Sprintf("no install version (%s.latest) resolved for %s-%s", installMinorLine, channelGroup, installMinorLine))
 			}
 
-			// Y-stream upgrade target: <minor>.latest-1 (offset=1 is the second-latest z-stream on cpMinor).
+			// Y-stream upgrade target: <cpMinor>.latest-1 (offset=1 is the second-latest z-stream on cpMinor).
 			yStreamVersionId, err := resolveNodePoolTestVersion(ctx, channelGroup, cpMinor, 1)
 			if err != nil {
 				Skip(fmt.Sprintf("failed to resolve y-stream upgrade version (%s.latest-1) for %s-%s: %v", cpMinor, channelGroup, cpMinor, err))
@@ -77,7 +65,7 @@ var _ = Describe("ARO-HCP", func() {
 				Skip(fmt.Sprintf("no y-stream upgrade version (%s.latest-1) resolved for %s-%s", cpMinor, channelGroup, cpMinor))
 			}
 
-			// Z-stream upgrade target: <minor>.latest (offset=0 is the latest z-stream on cpMinor).
+			// Z-stream upgrade target: <cpMinor>.latest (offset=0 is the latest z-stream on cpMinor).
 			zStreamVersionId, err := resolveNodePoolTestVersion(ctx, channelGroup, cpMinor, 0)
 			if err != nil {
 				Skip(fmt.Sprintf("failed to resolve z-stream upgrade version (%s.latest) for %s-%s: %v", cpMinor, channelGroup, cpMinor, err))
@@ -97,8 +85,8 @@ var _ = Describe("ARO-HCP", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "cp-yz-upgrade", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group cp-yz-upgrade")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "cp-yz-upgrade-"+versionLabel, tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group cp-yz-upgrade-%s", versionLabel)
 
 			By(fmt.Sprintf("creating cluster parameters at install version %s", installVersionId))
 			clusterParams := framework.NewDefaultClusterParams20260901()
@@ -184,5 +172,14 @@ var _ = Describe("ARO-HCP", func() {
 				return verifiers.VerifyHostedControlPlaneReachedVersion(zStreamVersionId).Verify(ctx, adminRESTConfig)
 			}).WithContext(ctx).WithTimeout(framework.HCPClusterVersionUpgradeTimeout).WithPolling(2*time.Minute).
 				Should(Succeed(), "control plane did not reach z-stream version %s on cluster %s", zStreamVersionId, customerClusterName)
-		})
+		},
+		// Covered today (4.20 through 5.0 are in the support window):
+		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.20", "4.21"),
+		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21", "4.22"),
+		Entry("from 4.22 minor to 5.0 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22", "5.0"),
+		// Documented but currently self-skipping (target minor not yet published):
+		Entry("from 4.22 minor to 4.23 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22", "4.23"),
+		Entry("from 4.23 minor to 5.1 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.23", "5.1"),
+		Entry("from 5.0 minor to 5.1 minor", labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.0", "5.1"),
+	)
 })
