@@ -328,17 +328,18 @@ var (
 	csOperationIDRegex = regexp.MustCompile(`(?i)operation identifier is '[^']*'`)
 )
 
-// redactDynamicSyncErrorMessageFields strips values that change on every retry but don't reflect a
+// RedactDynamicSyncErrorMessageFields strips values that change on every retry but don't reflect a
 // different underlying failure (Azure AD Security Token Service (AADSTS) timestamp/trace
 // ID/correlation ID, Azure Resource Manager (ARM) throttling retry-after durations, OCM
 // Cluster Service timestamp/operation identifier) from an error message, both inline text and
 // raw JSON fields. This keeps an otherwise identical failure from producing a different
-// condition Message on every sync. Without it, each write of this Degraded condition to Cosmos
-// gets aggregated into the Degraded condition of the owning Cluster/NodePool/ExternalAuth
-// payload, which triggers the controllers watching that resource to sync, fail again for the
-// same underlying cause but with a new message, and write again, repeating the cycle in a write
-// amplification feedback loop that never settles.
-func redactDynamicSyncErrorMessageFields(message string) string {
+// persisted message on every retry. Left unredacted, repeatedly writing a changing message to a
+// Cosmos document (e.g. a controller's Degraded condition, or a field like
+// ServiceProviderCluster's per-identity RetrievalError) can itself trigger other controllers
+// watching that document to sync, fail again for the same underlying cause but with a new
+// message, and write again, repeating the cycle in a write amplification feedback loop that
+// never settles.
+func RedactDynamicSyncErrorMessageFields(message string) string {
 	message = aadstsInlineTimestampRegex.ReplaceAllString(message, "Timestamp: <removed>")
 	message = aadstsInlineTraceIDRegex.ReplaceAllString(message, "Trace ID: <removed>")
 	message = aadstsInlineCorrelationIDRegex.ReplaceAllString(message, "Correlation ID: <removed>")
@@ -370,7 +371,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 		logger.Error(syncErr, "had an error while syncing")
 
 		syncErrorMessage := syncErr.Error()
-		syncErrorMessage = redactDynamicSyncErrorMessageFields(syncErrorMessage)
+		syncErrorMessage = RedactDynamicSyncErrorMessageFields(syncErrorMessage)
 
 		meta.SetStatusCondition(&controller.Status.Conditions, metav1.Condition{
 			Type:    "Degraded",

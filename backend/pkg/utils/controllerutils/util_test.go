@@ -280,7 +280,7 @@ POST https://example.com/YYYYYYY/oauth2/v2.0/token
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, redactDynamicSyncErrorMessageFields(tt.input))
+			require.Equal(t, tt.want, RedactDynamicSyncErrorMessageFields(tt.input))
 		})
 	}
 }
@@ -315,7 +315,7 @@ func TestRedactDynamicErrorFieldsNormalizesRepeatedFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, redactDynamicSyncErrorMessageFields(tt.a), redactDynamicSyncErrorMessageFields(tt.b))
+			require.Equal(t, RedactDynamicSyncErrorMessageFields(tt.a), RedactDynamicSyncErrorMessageFields(tt.b))
 		})
 	}
 }
