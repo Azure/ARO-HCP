@@ -42,7 +42,6 @@ const (
 	nodePoolReadDesireTestSubscriptionID    = "00000000-0000-0000-0000-000000000000"
 	nodePoolReadDesireTestResourceGroupName = "test-rg"
 	nodePoolReadDesireTestClusterName       = "test-cluster"
-	nodePoolReadDesireTestEnvIdentifier     = "int"
 	nodePoolReadDesireTestDomainPrefix      = "cluster1"
 	nodePoolReadDesireTestClusterServiceID  = "/api/clusters_mgmt/v1/clusters/abc123"
 )
@@ -107,6 +106,7 @@ func newTestNodePoolSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreap
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
+			HostedClusterNamespace:      "assigned-hosted-cluster",
 		},
 	}
 	for _, opt := range opts {
@@ -153,9 +153,10 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		nodePoolName   string
-		wantTargetName string
+		name             string
+		nodePoolName     string
+		wantTargetName   string
+		missingNamespace bool
 	}{
 		{
 			name:           "already-lowercase node pool name",
@@ -175,6 +176,7 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			nodePoolName:   "Test-NodePool",
 			wantTargetName: nodePoolReadDesireTestDomainPrefix + "-test-nodepool",
 		},
+		{name: "waits for assigned namespace", nodePoolName: "test-nodepool", missingNamespace: true},
 	}
 
 	for _, tt := range tests {
@@ -194,7 +196,11 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			mockKubeApplierDBClients.Register(nodePoolReadDesireTestManagementClusterResourceID, mockKubeApplierClient)
 
 			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{
-				ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newTestNodePoolSPC(nodePoolReadDesireTestManagementClusterResourceID)},
+				ServiceProviderClusters: []*coreapi.ServiceProviderCluster{newTestNodePoolSPC(nodePoolReadDesireTestManagementClusterResourceID, func(spc *coreapi.ServiceProviderCluster) {
+					if tt.missingNamespace {
+						spc.Status.HostedClusterNamespace = ""
+					}
+				})},
 			}
 
 			mcLister := &fleetlistertesting.SliceManagementClusterLister{
@@ -202,11 +208,10 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &createNodePoolScopedReadDesiresSyncer{
-				resourcesDBClient:                   mockResourcesDBClient,
-				kubeApplierDBClients:                mockKubeApplierDBClients,
-				serviceProviderClusterLister:        serviceProviderClusterListerStub,
-				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
-				hostedClusterNamespaceEnvIdentifier: nodePoolReadDesireTestEnvIdentifier,
+				resourcesDBClient:            mockResourcesDBClient,
+				kubeApplierDBClients:         mockKubeApplierDBClients,
+				serviceProviderClusterLister: serviceProviderClusterListerStub,
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 			}
 
 			err = syncer.SyncOnce(ctx, nodePoolReadDesireTestKey(tt.nodePoolName))
@@ -216,7 +221,12 @@ func TestCreateNodePoolScopedReadDesires_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			readDesire, err := crud.Get(ctx, readDesireNameReadonlyNodePool)
+			if tt.missingNamespace {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
+			assert.Equal(t, "assigned-hosted-cluster", readDesire.Spec.TargetItem.Namespace)
 			assert.Equal(t, tt.wantTargetName, readDesire.Spec.TargetItem.Name, "ReadDesire target name must match the (lowercased) name Cluster Service gives the Hypershift NodePool object")
 		})
 	}

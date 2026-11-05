@@ -288,7 +288,7 @@ type ServiceProviderClusterStatus struct {
 	//  - User-provided secrets — pull secret, SSH key, cloud credentials, encryption secrets, etcd encryption key, audit webhook config, additional trust bundles, service account signing key
 	//  - Generated kubeconfig secrets — admin-kubeconfig (copied back from HCP namespace), kubeadmin-password
 	//  - EtcdBackup CRs (if used)
-	// Written by: ServiceProviderClusterPropertiesSync
+	// Written by: ClusterPendingClusterServiceIDAssign
 	HostedClusterNamespace string `json:"hostedClusterNamespace,omitempty"`
 
 	// ControlPlaneNamespace is the namespace containing the pods that manage and run the HostedCluster.  It contains things like
@@ -298,7 +298,7 @@ type ServiceProviderClusterStatus struct {
 	//  - control-plane-pki-operator
 	// it is derived as <hostedClusterNamespace>-<hostedClusterName> with dots replaced by dashes.
 	// Hypershift uses the HostedControlPlaneNamespace function.
-	// Written by: ServiceProviderClusterPropertiesSync
+	// Written by: ClusterPendingClusterServiceIDAssign
 	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
 
 	// ServingCABundle is the PEM-encoded serving CA bundle for the cluster's

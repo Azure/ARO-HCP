@@ -53,8 +53,6 @@ type createNodePoolScopedReadDesiresSyncer struct {
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
-
-	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(nil)
@@ -71,15 +69,13 @@ func NewCreateNodePoolScopedReadDesiresController(
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createNodePoolScopedReadDesiresSyncer{
-		activeOperationLister:               activeOperationLister,
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		readDesireLister:                    readDesireLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		activeOperationLister:        activeOperationLister,
+		resourcesDBClient:            resourcesDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -130,7 +126,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
-	if mcResourceID == nil {
+	if mcResourceID == nil || len(serviceProviderCluster.Status.HostedClusterNamespace) == 0 {
 		return nil
 	}
 
@@ -149,12 +145,11 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if len(csClusterDomainPrefix) == 0 {
 		return nil
 	}
-	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
 	// CS lowercases the ARM node pool name for both its internal node pool ID and the
 	// AzureNodePool.ResourceName it derives the Hypershift NodePool object's name from
 	// (see internal/ocm/convert.go's BuildCSNodePool), so the target name here must match.
-	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
+	target := nodePoolTarget(serviceProviderCluster.Status.HostedClusterNamespace, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
 
 	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if err != nil {
@@ -212,18 +207,13 @@ func buildNodePoolReadDesire(
 // document path stays stable.
 const readDesireNameReadonlyNodePool = kubeapplierapi.ReadDesireNameReadonlyNodePool
 
-// nodePoolTarget builds the ResourceReference that points at the
-// nodepool's NodePool object in the management cluster. The naming rules
-// (namespace = "ocm-<env>-<csClusterID>", name =
-// "<csClusterDomainPrefix>-<csNodePoolID>") match what CS itself uses;
-// see createNodePoolScopedMaestroReadonlyBundlesSyncer for the original
-// derivation.
-func nodePoolTarget(envIdentifier, csClusterID, csClusterDomainPrefix, csNodePoolID string) kubeapplierapi.ResourceReference {
+// nodePoolTarget observes the NodePool in its assigned namespace.
+func nodePoolTarget(namespace, csClusterDomainPrefix, csNodePoolID string) kubeapplierapi.ResourceReference {
 	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "nodepools",
-		Namespace: controllerutils.HostedClusterNamespace(envIdentifier, csClusterID),
+		Namespace: namespace,
 		Name:      fmt.Sprintf("%s-%s", csClusterDomainPrefix, csNodePoolID),
 	}
 }

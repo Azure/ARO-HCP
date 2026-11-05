@@ -47,10 +47,9 @@ const (
 	readDesireTestSubscriptionID    = "00000000-0000-0000-0000-000000000000"
 	readDesireTestResourceGroupName = "test-rg"
 	readDesireTestClusterName       = "test-cluster"
-	readDesireTestEnvIdentifier     = "int"
 	readDesireTestDomainPrefix      = "cluster1"
 	readDesireTestClusterServiceID  = "/api/clusters_mgmt/v1/clusters/abc123"
-	readDesireTestControlPlaneNS    = "ocm-int-abc123-cluster1"
+	readDesireTestControlPlaneNS    = "assigned-control-plane"
 )
 
 var readDesireTestManagementClusterResourceID = metadataapi.Must(azcorearm.ParseResourceID(
@@ -115,6 +114,8 @@ func newTestSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreapi.Servic
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
+			HostedClusterNamespace:      "assigned-hosted-cluster",
+			ControlPlaneNamespace:       readDesireTestControlPlaneNS,
 		},
 	}
 	for _, opt := range opts {
@@ -162,14 +163,14 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 
 				hostedClusterRD, err := crud.Get(ctx, readDesireNameReadonlyHostedCluster)
 				require.NoError(t, err)
-				assert.Equal(t, hostedClusterTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), hostedClusterRD.Spec.TargetItem)
+				assert.Equal(t, hostedClusterTarget("assigned-hosted-cluster", readDesireTestDomainPrefix), hostedClusterRD.Spec.TargetItem)
 
 				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
-				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
+				assert.Equal(t, clusterAutoscalerTarget(readDesireTestControlPlaneNS), autoscalerRD.Spec.TargetItem)
 				assert.Equal(t, "controlplanecomponents", autoscalerRD.Spec.TargetItem.Resource)
 				assert.Equal(t, "cluster-autoscaler", autoscalerRD.Spec.TargetItem.Name)
-				assert.Equal(t, controllerutils.HostedControlPlaneNamespace(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem.Namespace)
+				assert.Equal(t, readDesireTestControlPlaneNS, autoscalerRD.Spec.TargetItem.Namespace)
 				assert.Equal(t, hsv1beta1.SchemeGroupVersion.Group, autoscalerRD.Spec.TargetItem.Group)
 				assert.Equal(t, hsv1beta1.SchemeGroupVersion.Version, autoscalerRD.Spec.TargetItem.Version)
 			},
@@ -222,7 +223,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 
 				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
-				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
+				assert.Equal(t, clusterAutoscalerTarget(readDesireTestControlPlaneNS), autoscalerRD.Spec.TargetItem)
 			},
 		},
 		{
@@ -230,7 +231,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			resources: []any{
 				newTestCluster(), // no ControlPlaneNamespace on SPC
 			},
-			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
+			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *coreapi.ServiceProviderCluster) { spc.Status.ControlPlaneNamespace = "" }),
 			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
@@ -238,8 +239,24 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 
 				_, err = crud.Get(ctx, kubeapplierhelpers.ReadDesireNameServingCA)
 				require.Error(t, err)
+				_, err = crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+				require.Error(t, err)
+				_, err = crud.Get(ctx, readDesireNameReadonlyHostedCluster)
+				require.NoError(t, err)
 			},
 		},
+		{
+			name:                         "skips when HostedClusterNamespace is not assigned",
+			resources:                    []any{newTestCluster()},
+			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *coreapi.ServiceProviderCluster) { spc.Status.HostedClusterNamespace = "" }),
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
+				require.NoError(t, err)
+				_, err = crud.Get(ctx, readDesireNameReadonlyHostedCluster)
+				require.Error(t, err)
+			},
+		},
+
 		{
 			name: "skips when domain prefix is not yet synced",
 			resources: []any{
@@ -280,7 +297,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 					kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
 						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 					readDesireTestManagementClusterResourceID,
-					clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", "old-prefix"),
+					clusterAutoscalerTarget("ocm-int-abc123-old-prefix"),
 				),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -289,7 +306,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
-				assert.Equal(t, controllerutils.HostedControlPlaneNamespace(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem.Namespace)
+				assert.Equal(t, readDesireTestControlPlaneNS, autoscalerRD.Spec.TargetItem.Namespace)
 			},
 		},
 	}
@@ -317,11 +334,10 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &createClusterScopedReadDesiresSyncer{
-				resourcesDBClient:                   mockResourcesDBClient,
-				kubeApplierDBClients:                mockKubeApplierDBClients,
-				serviceProviderClusterLister:        serviceProviderClusterListerStub,
-				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
-				hostedClusterNamespaceEnvIdentifier: readDesireTestEnvIdentifier,
+				resourcesDBClient:            mockResourcesDBClient,
+				kubeApplierDBClients:         mockKubeApplierDBClients,
+				serviceProviderClusterLister: serviceProviderClusterListerStub,
+				readDesireLister:             &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 			}
 
 			err = syncer.SyncOnce(ctx, readDesireTestKey())

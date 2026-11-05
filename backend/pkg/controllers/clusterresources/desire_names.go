@@ -25,8 +25,9 @@ import (
 // assigns them when building ApplyDesires from Cluster Service resources, and
 // the removal steps claim them when tearing down a cluster.
 //
-// Kube-apiserver certificate names are recognized only for handoff to their
-// dedicated controller; ClusterResources neither creates nor removes them.
+// Control plane namespace and kube-apiserver certificate names are retained for
+// existing desires awaiting adoption by their dedicated controllers.
+// ClusterResources neither creates nor removes them.
 //
 // This enumeration is closed: a new resource type cannot reach Cosmos without
 // being added to classifyClusterResource first, and adding it there without
@@ -38,8 +39,8 @@ const (
 
 	DesireNameManagedCluster = "ManagedCluster"
 
-	DesireNameHostedClusterNamespace = "HostedClusterNamespace"
-	DesireNameControlPlaneNamespace  = "ControlPlaneNamespace"
+	DesireNameHostedClusterNamespace = k8sresources.HostedClusterNamespaceDesireName
+	DesireNameControlPlaneNamespace  = k8sresources.ControlPlaneNamespaceDesireName
 
 	DesireNameDefaultIngressConfigMap  = "DefaultIngressConfigMap"
 	DesireNameExternalAuthCAConfigMap  = "ExternalAuthCAConfigMap"
@@ -57,9 +58,11 @@ const (
 	DesireNameKubeAPIServerServingCertSecretProviderClass      = k8sresources.KubeAPIServerServingCertSecretProviderClassDesireName
 )
 
-// managedByKubeAPIServerServingCertificate also recognizes desires that still
+// managedByDedicatedK8sResourcesDesire also recognizes desires that still
 // carry the old ClusterResources owner tag, before the new controller adopts them.
-func managedByKubeAPIServerServingCertificate(name string) bool {
-	return strings.EqualFold(name, DesireNameKubeAPIServerServingCertSecretSync) ||
+func managedByDedicatedK8sResourcesDesire(name string) bool {
+	return strings.EqualFold(name, DesireNameHostedClusterNamespace) ||
+		strings.EqualFold(name, DesireNameControlPlaneNamespace) ||
+		strings.EqualFold(name, DesireNameKubeAPIServerServingCertSecretSync) ||
 		strings.EqualFold(name, DesireNameKubeAPIServerServingCertSecretProviderClass)
 }

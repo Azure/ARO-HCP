@@ -14,7 +14,10 @@
 
 package controllerutils
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // HostedClusterNamespace returns the management-cluster namespace that
 // hosts a given HCP's HostedCluster / NodePool objects. Cluster Service
@@ -24,9 +27,9 @@ func HostedClusterNamespace(envIdentifier, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID)
 }
 
-// HostedControlPlaneNamespace returns the management-cluster namespace that hosts a
+// ControlPlaneNamespace returns the management-cluster namespace that hosts a
 // given HCP's control plane workloads (including ControlPlaneComponent CRs).
 // Hypershift names it "ocm-<envIdentifier>-<csClusterID>-<csClusterDomainPrefix>".
-func HostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix string) string {
-	return fmt.Sprintf("ocm-%s-%s-%s", envIdentifier, csClusterID, csClusterDomainPrefix)
+func ControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix string) string {
+	return fmt.Sprintf("ocm-%s-%s-%s", envIdentifier, csClusterID, strings.ReplaceAll(csClusterDomainPrefix, ".", "-"))
 }
