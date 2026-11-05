@@ -542,3 +542,162 @@ spec:
         summary: "no successful Velero server metrics scrape for 15m on {{ $labels.cluster }}"
         description: "Management cluster {{ $labels.cluster }} is in the underlay-cluster inventory but has had no successful Velero server metrics scrape for 15m. Check Velero, its PodMonitor, and the management-cluster metrics pipeline. A healthy empty cluster with up=1 is not a failure merely because it has no backup attempts."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
+  - name: arohcp_backup_slo_overload_alerts
+    labels:
+      component: slo
+    rules:
+    # System Overload (ARO-29950): early-warning signals that backups (and
+    # backup deletions) are piling up faster than Velero can execute them,
+    # so SRE can intervene before a true outage. Modeled on the "Queue &
+    # Accumulation" alerting pattern used by other OADP/Velero consumers at
+    # Red Hat - same 300/300/100 thresholds and 30m/30m/1h windows, adapted
+    # to our kube-state-metrics setup.
+    #
+    # Velero leaves status.phase unset on both Backup and DeleteBackupRequest
+    # CRs until its controller actually starts processing them (confirmed
+    # against vmware-tanzu/velero pkg/controller/schedule_controller.go and
+    # backup_deletion_controller.go - "New" is never explicitly assigned to
+    # either kind). kube-state-metrics' StateSet metric type emits no rows at
+    # all when the underlying path is nil, so the existing phase-only
+    # veleroBackup_phase/veleroDeleteBackupRequest_phase StateSet metrics are
+    # structurally blind to this enqueued pool. We solve it with a separate
+    # always-present Info-type "*_info" metric (observability/prometheus/
+    # values-mgmt.yaml) that emits exactly one row per existing CR regardless
+    # of status.phase, so "has _info but no _phase row" identifies the
+    # enqueued backlog via PromQL `unless` set subtraction.
+    #
+    # The subtraction excludes only phases that mean "Velero has started
+    # working on this" (i.e. not New/Queued/ReadyToStart). Those three
+    # phase values ARE valid StateSet rows (unlike the never-assigned bare
+    # "New" case above, Velero's Backup API type reserves them for an
+    # explicit still-queued state on some code paths/versions), so a plain
+    # "has any phase row at all" exclusion would wrongly treat those CRs as
+    # already-processed and make them invisible to every overload alert.
+    # Filtering the excluded set down to non-queued phases keeps them
+    # correctly counted as backlog whether they ended up with no phase row
+    # at all or an explicit queued phase row.
+    #
+    # Critical: a StateSet metric with N `list` entries emits ALL N rows
+    # for any CR that has status.phase resolved at all - the active phase
+    # gets value 1, every other listed phase gets value 0 (confirmed
+    # against kube-state-metrics' compiledStateSet.values(), which writes
+    # one row per list item per CR). So `{phase!~"New|Queued|ReadyToStart"}`
+    # alone (label-only, no value check) matches a CR's zero-valued
+    # "Failed"/"Completed"/etc. sibling rows even when its ACTUAL phase is
+    # "New" - a label match without `== 1` would wrongly treat every
+    # phase-bearing CR as non-queued regardless of its real phase, making
+    # this exclusion (and therefore the whole alert) always-empty. The
+    # trailing `== 1` restricts the right-hand set to each CR's single
+    # genuinely-active phase row. Caught by review on PR #7764 before this
+    # ever shipped.
+    #
+    # One alert per management cluster (fleet-aggregated), same scope as the
+    # rest of this file - a queue backlog is an MC-level Velero/OADP capacity
+    # problem, not specific to one HostedCluster.
+    - alert: userJourneyBackupQueueBacklog
+      expr: |
+        count by (cluster) (
+          group by (cluster, name, namespace) (veleroBackup_info)
+          unless on (cluster, name, namespace)
+          group by (cluster, name, namespace) (veleroBackup_phase{phase!~"New|Queued|ReadyToStart"} == 1)
+        ) > 300
+      for: 30m
+      labels:
+        # Sev 4 (ticket, not page) and no slo label, per ADR-79: this is an
+        # early-warning saturation signal, not an SLO breach - it should
+        # not land on the RP paging queue alongside the real backup
+        # error/latency SLO alerts above.
+        severity: "4"
+      annotations:
+        summary: "more than 300 Backup CRs are enqueued (not yet started) on {{ $labels.cluster }}"
+        description: "Management cluster {{ $labels.cluster }} has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupQueueBacklog/{{ $labels.cluster }}"
+    # DeleteBackupRequest's phase enum only reserves "New" (no "Queued"/
+    # "ReadyToStart" equivalent), and unlike Backup it's genuinely never
+    # assigned by backup_deletion_controller.go - but excluding it from the
+    # subtraction here too costs nothing and keeps this alert symmetric
+    # with the Backup one above if that ever changes upstream.
+    - alert: userJourneyBackupDeletionQueueBacklog
+      expr: |
+        count by (cluster) (
+          group by (cluster, name, namespace) (veleroDeleteBackupRequest_info)
+          unless on (cluster, name, namespace)
+          group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)
+        ) > 300
+      for: 30m
+      labels:
+        # Sev 4 / no slo label - see userJourneyBackupQueueBacklog above.
+        severity: "4"
+      annotations:
+        summary: "more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on {{ $labels.cluster }}"
+        description: "Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupDeletionQueueBacklog/{{ $labels.cluster }}"
+    # Non-terminal accumulation: distinct from the queue-backlog alert above -
+    # this counts Backup CRs that are genuinely stuck mid-processing, i.e.
+    # neither still queued (New/Queued/ReadyToStart, covered by
+    # userJourneyBackupQueueBacklog above) nor actively progressing/done
+    # (InProgress/Completed) NOR already terminally failed
+    # (Failed/PartiallyFailed/FailedValidation).
+    #
+    # Failed/PartiallyFailed/FailedValidation are deliberately excluded
+    # here even though they're "non-terminal" in the loose sense of "not
+    # Completed": Velero's TTL defaulting (30-90 days, see
+    # backup_controller.go) means a CR that failed once just sits in one
+    # of these phases until garbage collection, with no further Velero
+    # activity. Counting them would make this alert fire continuously for
+    # weeks off a single incident, and mostly duplicate
+    # userJourneyBackupErrors above, which already caught the failure rate
+    # spike at the time it happened. What remains after excluding those -
+    # WaitingForPluginOperations(PartiallyFailed), Finalizing
+    # (PartiallyFailed), Deleting, and any future/unrecognized phase value
+    # - is expressed by exclusion (CRs with a phase set, minus CRs whose
+    # phase is one of the benign/terminal ones) rather than an explicit
+    # allow-list, so an unrecognized future phase string (which the
+    # StateSet metric emits as an all-zero row, not a label) is still
+    # counted instead of silently dropped.
+    #
+    # The exclusion is a set (`unless`) subtraction on CR identity, not a
+    # per-phase arithmetic subtraction: `group by (cluster, name,
+    # namespace) (veleroBackup_phase{phase=~"Completed|InProgress|..."}
+    # == 1)` collapses every series matching any of those phases AT value
+    # 1 - including duplicate HA Prometheus replicas, AND a single CR
+    # whose two replicas momentarily disagree (one still reporting
+    # InProgress, the other already Completed, mid-transition) - into
+    # exactly one row per CR. `unless` then removes that CR from the
+    # left-hand set exactly once, regardless of how many benign-phase
+    # series it produced. An earlier version of this formula summed
+    # per-phase counts and subtracted each separately, which double-removed
+    # a replica-disagreeing CR (once under "Completed", once under
+    # "InProgress") and could silently undercount a genuine breach by
+    # exactly that many CRs - caught by review on PR #7764 before this
+    # ever shipped.
+    #
+    # The trailing `== 1` on the right-hand (excluded) side is required for
+    # the same StateSet-fan-out reason as the queue-backlog alerts above: a
+    # `Failed` CR still emits zero-valued "Completed"/"InProgress"/etc.
+    # sibling rows, and a label-only match (no value filter) would wrongly
+    # treat any phase-bearing CR - including genuinely-stuck ones - as
+    # excluded. The LEFT-hand presence set deliberately stays unfiltered by
+    # value (no `== 1`) - it only needs to prove a phase was resolved at
+    # all (vs. absent/unset), which an all-zero row set already does,
+    # preserving detection of an unrecognized future phase string that
+    # isn't 1 under any of this StateSet's known `list` entries. Also
+    # caught by review on PR #7764 before this ever shipped.
+    - alert: userJourneyBackupNonTerminalBacklog
+      expr: |
+        count by (cluster) (
+          group by (cluster, name, namespace) (veleroBackup_phase)
+          unless on (cluster, name, namespace)
+          group by (cluster, name, namespace) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)
+        ) > 100
+      for: 1h
+      labels:
+        # Sev 4 / no slo label - see userJourneyBackupQueueBacklog above.
+        severity: "4"
+      annotations:
+        summary: "more than 100 Backup CRs are stuck mid-processing on {{ $labels.cluster }}"
+        description: "Management cluster {{ $labels.cluster }} has more than 100 Backup CRs stuck in a non-terminal, non-queued, non-failed phase - e.g. Finalizing, WaitingForPluginOperations, or Deleting - sustained for 1h. Terminal phases (Failed/PartiallyFailed/FailedValidation) are excluded here since they just await TTL cleanup and are already covered by userJourneyBackupErrors at the time of failure; this alert indicates a systemic issue requiring manual CR triage/purge rather than a transient blip - check `kubectl get backups -A` phase distribution on the management cluster."
+        runbook_url: "https://aka.ms/arohcp-runbook-backup"
+        correlationId: "userJourneyBackupNonTerminalBacklog/{{ $labels.cluster }}"
