@@ -622,47 +622,50 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
   properties: {
-    securityRules: concat([
-      {
-        name: 'rp-in-arm'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 120
-          protocol: 'Tcp'
-          sourceAddressPrefix: 'AzureResourceManager'
-          sourcePortRange: '*'
+    securityRules: concat(
+      [
+        {
+          name: 'rp-in-arm'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 120
+            protocol: 'Tcp'
+            sourceAddressPrefix: 'AzureResourceManager'
+            sourcePortRange: '*'
+          }
         }
-      }
-      {
-        name: 'admin-in-geneva'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 130
-          protocol: 'Tcp'
-          sourceAddressPrefix: genevaActionsServiceTag
-          sourcePortRange: '*'
+        {
+          name: 'admin-in-geneva'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 130
+            protocol: 'Tcp'
+            sourceAddressPrefix: genevaActionsServiceTag
+            sourcePortRange: '*'
+          }
         }
-      }
-      {
-        name: 'sre-in-ops'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 140
-          protocol: 'Tcp'
-          sourceAddressPrefix: sreServiceTag
-          sourcePortRange: '*'
+        {
+          name: 'sre-in-ops'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 140
+            protocol: 'Tcp'
+            sourceAddressPrefix: sreServiceTag
+            sourcePortRange: '*'
+          }
         }
-      }
-    ], additionalIngressSecurityRules)
+      ],
+      additionalIngressSecurityRules
+    )
   }
 }
 

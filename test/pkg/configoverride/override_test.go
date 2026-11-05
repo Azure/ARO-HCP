@@ -203,7 +203,7 @@ func TestCIRPAllowedSource(t *testing.T) {
 }
 
 func TestInvalidCIRPAllowedSource(t *testing.T) {
-	for _, source := range []string{"not-an-ip", "192.0.2.1/32", "192.0.2.1 192.0.2.2", " 192.0.2.1", "256.0.0.1", "2001:db8::1", "::ffff:192.0.2.1"} {
+	for _, source := range []string{"not-an-ip", "192.0.2.1/32", "192.0.2.1 192.0.2.2", " 192.0.2.1", "192.0.2.1\n", "192.000.2.1", "256.0.0.1", "2001:db8::1", "::ffff:192.0.2.1"} {
 		t.Run(source, func(t *testing.T) {
 			input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "CI_RP_ALLOWED_SOURCE=" + source})
 			if err != nil {

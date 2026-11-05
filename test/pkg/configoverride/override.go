@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,6 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	"github.com/Azure/ARO-HCP/test/pkg/publicip"
 )
 
 // RunCostTagKey tags per-run infrastructure with the Prow job that created it.
@@ -186,9 +186,8 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		return Result{}, fmt.Errorf("%s must contain at most two lease names, got %d", leaseenv.ARMHelperSP, len(input.ARMHelperLeases))
 	}
 	if input.CIRPAllowedSource != "" {
-		address, err := netip.ParseAddr(input.CIRPAllowedSource)
-		if err != nil || !address.Is4() {
-			return Result{}, fmt.Errorf("CI_RP_ALLOWED_SOURCE must be a single IPv4 address, got %q", input.CIRPAllowedSource)
+		if _, err := publicip.ParseIPv4(input.CIRPAllowedSource); err != nil {
+			return Result{}, fmt.Errorf("CI_RP_ALLOWED_SOURCE must be a single IPv4 address, got %q: %w", input.CIRPAllowedSource, err)
 		}
 	}
 
