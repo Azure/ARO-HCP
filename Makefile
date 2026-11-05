@@ -469,7 +469,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services: $(TEMPLATIZE)
-	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-swift-recorder build-kube-applier build-fleet build-aro-hcp-exporter
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-swift-recorder build-kube-applier build-fleet build-aro-hcp-exporter build-toolbox
 .PHONY: build-services
 
 build-frontend:
@@ -508,6 +508,10 @@ build-aro-hcp-exporter:
 	$(MAKE) -C tooling/aro-hcp-exporter build-and-push
 .PHONY: build-aro-hcp-exporter
 
+build-toolbox:
+	$(MAKE) -C toolbox build-and-push
+.PHONY: build-toolbox
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
@@ -518,6 +522,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(MAKE) -C tooling/aro-hcp-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
+	$(MAKE) -C toolbox record-override OVERRIDE_CONFIG_FILE=/tmp/_toolbox-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
@@ -528,6 +533,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
+	  /tmp/_toolbox-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 
@@ -544,6 +550,7 @@ latest-services-override: $(YQ)
 	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
 	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
 	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml &
+	$(MAKE) -C toolbox record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_toolbox-override.yaml &
 	wait
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
@@ -555,6 +562,7 @@ latest-services-override: $(YQ)
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
+	  /tmp/_toolbox-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: latest-services-override
 

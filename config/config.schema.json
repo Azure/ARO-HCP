@@ -3043,6 +3043,18 @@
         "image"
       ]
     },
+    "toolbox": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImageOptionalDigest"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "secretSyncController": {
       "type": "object",
       "properties": {
