@@ -92,12 +92,20 @@ type ServiceProviderClusterSpec struct {
 	// }
 	ControlPlaneVersion ServiceProviderClusterSpecVersion `json:"control_plane_version,omitempty"`
 
-	// DesiredHostedCluster is the HostedCluster that we want to exist on the management cluster.
-	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
-	// Once this contains the critical values, we will create it on management clusters.
-	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
-	// Written by: IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources
+	// DesiredHostedCluster stores partial intent from controllers that own
+	// disjoint HostedCluster leaves. It is not a complete manifest: serialization
+	// can store unrelated empty fields. Writers must DeepCopy this document and
+	// change only their owned leaves with an ETag-conditional Replace.
+	// ClusterResources currently reads only the three data-plane ClientIDs.
+	// Written by: HostedClusterDataPlaneIdentities and IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
+
+	// HostedClusterDataPlaneIdentitiesOwnedByRP is set in the same conditional
+	// write that seeds all three data-plane ClientIDs from the observed
+	// HostedCluster. Once true, ClusterResources must never fall back to the
+	// Cluster Service values, even if the identity controller is disabled.
+	// Written by: HostedClusterDataPlaneIdentities
+	HostedClusterDataPlaneIdentitiesOwnedByRP bool `json:"hostedClusterDataPlaneIdentitiesOwnedByRP,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
 	// sizing tier (one of "Small", "Medium", "Large", "Xlarge", "XXlarge") to
@@ -684,6 +692,10 @@ type DenyAssignmentReference struct {
 	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
 	// Written by: ClusterDenyAssignment
 	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
+	// ExcludedPrincipalIDs is the principal set confirmed on the Azure deny
+	// assignment during the last successful reconciliation.
+	// Written by: ClusterDenyAssignment
+	ExcludedPrincipalIDs []string `json:"excludedPrincipalIDs,omitempty"`
 }
 
 // TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
