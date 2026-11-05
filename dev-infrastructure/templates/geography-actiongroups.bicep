@@ -91,7 +91,10 @@ param kustoRegion string = ''
 @description('Region of this deployment')
 param regionLocation string
 
-module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled && kustoRegion == regionLocation) {
+// The eastus2euap rollout hosts its Kusto cluster in eastus2.
+var isKustoOwnerRegion = kustoRegion == regionLocation || (regionLocation == 'eastus2euap' && kustoRegion == 'eastus2')
+
+module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled && isKustoOwnerRegion) {
   name: 'eventHubActionGroup'
   params: {
     alertingEnabled: alertsEnabled
@@ -136,6 +139,6 @@ output actionGroupSRE string = manageConnection ? actionGroups!.outputs.actionGr
 output actionGroupRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
 output actionGroupMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
 output actionGroupDEV string = manageConnection ? actionGroups!.outputs.actionGroupsDEV : ''
-output actionGroupAlertEH string = eventHubAlertingEnabled && kustoRegion == regionLocation
+output actionGroupAlertEH string = eventHubAlertingEnabled && isKustoOwnerRegion
   ? eventHubActionGroup!.outputs.actionGroupId
   : ''
