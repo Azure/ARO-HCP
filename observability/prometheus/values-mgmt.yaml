@@ -95,6 +95,9 @@ kube-prometheus-stack:
       - apiGroups: ["velero.io"]
         resources: ["backups"]
         verbs: ["list", "watch"]
+      - apiGroups: ["velero.io"]
+        resources: ["deletebackuprequests"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -173,6 +176,47 @@ kube-prometheus-stack:
                   path: [status, phase]
                   labelName: phase
                   list: ["New", "Queued", "ReadyToStart", "FailedValidation", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
+            # Velero leaves status.phase unset until processing starts, so the
+            # StateSet above emits no rows for enqueued Backups. This Info
+            # metric emits one row per CR for presence/backlog detection.
+            # KSM Info metrics only emit when the metric itself declares
+            # labelsFromPath (GVK-level labels alone are not enough).
+            - name: "info"
+              help: "Backup CR presence indicator, independent of status.phase - one row per existing CR"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [metadata, name]
+                    namespace: [metadata, namespace]
+          - groupVersionKind:
+              group: velero.io
+              kind: "DeleteBackupRequest"
+              version: "v1"
+            metricNamePrefix: veleroDeleteBackupRequest
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              backupName: [spec, backupName]
+            metrics:
+            - name: "phase"
+              help: "DeleteBackupRequest phase"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, phase]
+                  labelName: phase
+                  list: ["New", "InProgress", "Processed"]
+            # Same as Backup info: status.phase is unset while enqueued, so
+            # an always-present Info metric is required for backlog detection.
+            - name: "info"
+              help: "DeleteBackupRequest CR presence indicator, independent of status.phase - one row per existing CR"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [metadata, name]
+                    namespace: [metadata, namespace]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
