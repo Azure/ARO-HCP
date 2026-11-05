@@ -35,6 +35,8 @@ import (
 // watchedGroupSuffixes is the hardcoded list of API group domain suffixes
 // whose resources will be discovered and watched.
 var watchedGroupSuffixes = []string{
+	// Remove after the ACM uninstall controller has been merged and deployed
+	// to all production management clusters; also remove that controller.
 	"open-cluster-management.io",
 	"cluster.x-k8s.io",
 	"hypershift.openshift.io",
