@@ -81,8 +81,7 @@ selectors in the [rule file](../backend/alerts/backend-prometheusRule.yaml) and 
 If your alert relies on a metric that *does not yet exist in production*, land
 the metric in its own PR first, separately from the alert rule.
 
-**Why:**  INT and Staging environments often lack sufficient data volume or
-realistic traffic patterns to validate alert thresholds. The
+**Why:**  INT and Staging environments often lack sufficient data volume to validate alert thresholds. The
 [Alert Verification Guide](./alert-verification.md) and [alert-tester](https://github.com/mmazur/alert-tester) let you tune an alert against real PROD data — but only if the metric is already
 emitting there.
 
