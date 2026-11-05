@@ -87,8 +87,7 @@ emitting there.
 
 **Workflow:**
 
-1. **Metric PR** — Introduce the new metric (recording rule, code
-   instrumentation, etc.) and merge it. Wait for it to deploy to PROD and
+1. **Metric PR** — Introduce the new metric and merge it. Wait for it to deploy to PROD and
    accumulate data (typically a day or more, depending on the signal).
 2. **Alert PR** — Once the metric is present in PROD, author your alert rule,
    verify it with [alert-tester](https://github.com/mmazur/alert-tester), and open a
