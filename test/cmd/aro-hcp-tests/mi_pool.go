@@ -91,8 +91,8 @@ func wireMIPool(specs et.ExtensionTestSpecs, pool *mipool.Pool, cleanup func(res
 			return
 		}
 		if _, err := pool.Allocate(name, demand); err != nil {
-			// The child falls back to file-based leasing until that path is removed.
-			fmt.Fprintf(os.Stderr, "WARNING: failed to allocate %d MI containers for test %q, child will lease them itself: %v\n", demand, name, err)
+			// Without ASSIGNED_MI_CONTAINERS the child fails in AssignIdentityContainers.
+			fmt.Fprintf(os.Stderr, "WARNING: failed to allocate %d MI containers for test %q, it will fail to assign identity containers: %v\n", demand, name, err)
 			return
 		}
 		if options.Env == nil {

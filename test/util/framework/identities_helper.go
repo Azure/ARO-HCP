@@ -18,19 +18,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
-
-	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -39,7 +36,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/test/pkg/filelock"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/mipool"
 )
@@ -48,10 +44,6 @@ const (
 	UsePooledIdentitiesEnvvar = "POOLED_IDENTITIES"
 	E2ECustomRolePrefix       = "E2E-Test-CustomRole-"
 )
-
-// ErrNotEnoughFreeIdentityContainers is returned when a reservation request
-// asks for more identity containers than are currently free in the pool.
-var ErrNotEnoughFreeIdentityContainers = errors.New("not enough free identity containers")
 
 // well-known MSI role names
 const (
@@ -256,24 +248,46 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	return deploymentResult, nil
 }
 
-// AssignIdentityContainers attempts to assign n free identity containers to
-// the caller. When ASSIGNED_MI_CONTAINERS is set, those names are consumed
-// directly, provided each one is listed in LEASED_MSI_CONTAINERS. Release and
-// debug collection then use that in-memory list and do not consult the
-// file-based pool. When the env var is absent, the method uses the file-based
-// pool state machine.
-func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
+// AssignIdentityContainers assigns the identity containers declared by the
+// running spec's labels.MIContainers(N) label. The containers are allocated by
+// the parent process and handed to this test through ASSIGNED_MI_CONTAINERS;
+// each name must be listed in LEASED_MSI_CONTAINERS. The call never waits: if
+// the parent did not assign enough containers, it fails.
+func (tc *perItOrDescribeTestContext) AssignIdentityContainers() error {
+	count, err := miContainersFromLabels(ginkgo.CurrentSpecReport().Labels())
+	if err != nil {
+		return err
+	}
+	return tc.assignIdentityContainers(count)
+}
+
+// miContainersFromLabels returns N from the single MIContainers:N label.
+func miContainersFromLabels(specLabels []string) (uint8, error) {
+	const prefix = "MIContainers:"
+	var found []string
+	for _, l := range specLabels {
+		if strings.HasPrefix(l, prefix) {
+			found = append(found, l)
+		}
+	}
+	if len(found) != 1 {
+		return 0, fmt.Errorf("spec must have exactly one MIContainers label, found %v", found)
+	}
+	n, err := strconv.ParseUint(strings.TrimPrefix(found[0], prefix), 10, 8)
+	if err != nil {
+		return 0, fmt.Errorf("invalid label %q: %w", found[0], err)
+	}
+	return uint8(n), nil
+}
+
+func (tc *perItOrDescribeTestContext) assignIdentityContainers(count uint8) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
 		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
 	}()
 
-	if containers := strings.Fields(os.Getenv(mipool.AssignedMIContainersEnvvar)); len(containers) > 0 {
-		return tc.assignFromEnv(containers, int(count))
-	}
-
-	return tc.assignFromFileState(ctx, count, waitBetweenRetries, startTime)
+	return tc.assignFromEnv(strings.Fields(os.Getenv(mipool.AssignedMIContainersEnvvar)), int(count))
 }
 
 func (tc *perItOrDescribeTestContext) assignFromEnv(containers []string, count int) error {
@@ -323,50 +337,8 @@ func validateAgainstLeasedContainers(assigned []string) error {
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) assignFromFileState(ctx context.Context, count uint8, waitBetweenRetries time.Duration, startTime time.Time) error {
-	ginkgo.GinkgoLogr.Info("Starting identity container acquisition", "count", count, "specID", specID())
-
-	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
-	if err != nil {
-		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
-	}
-
-	attempt := 0
-	var lastErrMsg string
-	for {
-		attempt++
-		err := state.assignNTo(specID(), count)
-		if err == nil {
-			ginkgo.GinkgoLogr.Info("Successfully assigned identity containers",
-				"count", count, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
-			return nil
-		}
-		if !errors.Is(err, ErrNotEnoughFreeIdentityContainers) {
-			ginkgo.GinkgoLogr.Info("Identity container assignment failed with unexpected error",
-				"error", err, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
-			return fmt.Errorf("failed to assign identity containers: %w", err)
-		}
-
-		if errMsg := err.Error(); errMsg != lastErrMsg {
-			ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
-				"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
-			lastErrMsg = errMsg
-		}
-
-		select {
-		case <-ctx.Done():
-			ginkgo.GinkgoLogr.Info("Context cancelled while waiting for identity containers",
-				"attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
-			return fmt.Errorf("failed to assign identity containers: %w", ctx.Err())
-		case <-time.After(waitBetweenRetries):
-		}
-	}
-}
-
 // getLeasedIdentities returns the leased identities and container resource group by using one
-// of the leases assigned to the calling test spec. When containers were pre-assigned via
-// the ASSIGNED_MI_CONTAINERS env var, the next container is returned from that list
-// without touching the file-based state.
+// of the containers assigned to the calling test through ASSIGNED_MI_CONTAINERS.
 func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool, error) {
 	startTime := time.Now()
 	defer func() {
@@ -375,13 +347,13 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 	}()
 
 	tc.contextLock.RLock()
-	envAssigned := tc.miEnvAssigned
+	assigned := tc.miEnvAssigned
 	tc.contextLock.RUnlock()
-	if envAssigned {
-		return tc.leaseFromEnv()
+	if !assigned {
+		return LeasedIdentityPool{}, fmt.Errorf("no identity containers assigned to this test: call AssignIdentityContainers first (the parent must provide %s)", mipool.AssignedMIContainersEnvvar)
 	}
 
-	return tc.leaseFromFileState()
+	return tc.leaseFromEnv()
 }
 
 func (tc *perItOrDescribeTestContext) leaseFromEnv() (LeasedIdentityPool, error) {
@@ -401,23 +373,6 @@ func (tc *perItOrDescribeTestContext) leaseFromEnv() (LeasedIdentityPool, error)
 		"resourceGroup", rg, "index", idx, "total", total)
 	return LeasedIdentityPool{
 		ResourceGroupName: rg,
-		Identities:        NewDefaultIdentities(),
-	}, nil
-}
-
-func (tc *perItOrDescribeTestContext) leaseFromFileState() (LeasedIdentityPool, error) {
-	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
-	if err != nil {
-		return LeasedIdentityPool{}, fmt.Errorf("failed to open managed identities pool state file: %w", err)
-	}
-
-	leasedRG, err := state.useNextAssigned(specID())
-	if err != nil {
-		return LeasedIdentityPool{}, fmt.Errorf("failed to lease next managed identities resource group: %w", err)
-	}
-
-	return LeasedIdentityPool{
-		ResourceGroupName: leasedRG,
 		Identities:        NewDefaultIdentities(),
 	}, nil
 }
@@ -488,27 +443,10 @@ func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.C
 }
 
 // leasedIdentityContainers returns the list of resource groups that are currently leased
-// to the calling test spec. Env-assigned containers are returned from memory so debug
-// collection does not depend on the file-based pool.
+// to the calling test spec.
 func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, error) {
-	if leased, envAssigned := tc.copyEnvLeasedContainers(); envAssigned {
-		return leased, nil
-	}
-
-	if !tc.UsePooledIdentities() {
-		return nil, nil
-	}
-
-	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open managed identities pool state file: %w", err)
-	}
-
-	leasedContainers, err := state.getLeasedIdentityContainers(specID())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get leased identity containers: %w", err)
-	}
-	return leasedContainers, nil
+	leased, _ := tc.copyEnvLeasedContainers()
+	return leased, nil
 }
 
 // releaseLeasedIdentities releases all the identity containers leased to the calling test spec.
@@ -527,75 +465,14 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		return tc.releaseEnvAssignedIdentities(ctx)
 	}
 
-	if !tc.UsePooledIdentities() {
-		// For non-pooled mode, still clean up role assignments and custom role definitions
-		subscriptionID, err := tc.SubscriptionID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get subscription ID: %w", err)
-		}
-
-		// Clean up role assignments (role definitions are reusable across e2e tests)
-		if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-			return fmt.Errorf("failed to cleanup role assignments: %w", err)
-		}
-		return nil
-	}
-
-	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
-	if err != nil {
-		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
-	}
-
-	leasedContainers, err := state.getLeasedIdentityContainers(specID())
-	if err != nil {
-		return fmt.Errorf("failed to get leased identity containers: %w", err)
-	}
-
-	if len(leasedContainers) == 0 {
-		return nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return err
-	}
+	// No containers were assigned (non-pooled mode): still clean up role
+	// assignments (role definitions are reusable across e2e tests).
 	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
-	client, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
-	if err != nil {
-		return err
-	}
-
-	msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
-	if err != nil {
-		return err
-	}
-	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
-
-	var errs []error
-	for _, resourceGroup := range leasedContainers {
-		err := state.releaseByContainerName(resourceGroup,
-			func() error {
-				return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
-			},
-			func() error {
-				return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup)
-			},
-		)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
-		}
-	}
-
-	// Clean up role assignments (role definitions are reusable across e2e tests)
 	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
+		return fmt.Errorf("failed to cleanup role assignments: %w", err)
 	}
 	return nil
 }
@@ -614,9 +491,10 @@ func (tc *perItOrDescribeTestContext) copyEnvLeasedContainers() ([]string, bool)
 }
 
 // releaseEnvAssignedIdentities deletes federated credentials and role
-// assignments for containers leased from ASSIGNED_MI_CONTAINERS. It does not
-// open the file-based pool: those containers were never marked busy there, and
-// opening the file would publish them as free for other specs.
+// assignments for containers leased from ASSIGNED_MI_CONTAINERS. The parent
+// also sweeps failed tests' containers, so this is defense-in-depth on failure
+// and the only cleanup on the passing path, where the parent releases without
+// cleaning.
 func (tc *perItOrDescribeTestContext) releaseEnvAssignedIdentities(ctx context.Context) error {
 	containers, _ := tc.copyEnvLeasedContainers()
 
@@ -987,386 +865,8 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignme
 	return nil
 }
 
-type leaseState string
-
-const (
-	leaseStateFree     leaseState = "free"
-	leaseStateAssigned leaseState = "assigned"
-	leaseStateBusy     leaseState = "busy"
-)
-
-type leaseEntry struct {
-	State          leaseState `json:"state"`
-	LeasedBy       string     `json:"leasedBy,omitempty"`
-	TransitionedAt string     `json:"transitionedAt,omitempty"`
-}
-
-type leasedIdentityPoolEntry struct {
-	ResourceGroup string       `json:"resourceGroup"`
-	Current       leaseEntry   `json:"current"`
-	History       []leaseEntry `json:"history,omitempty"`
-}
-
-func (e *leasedIdentityPoolEntry) isFree() bool {
-	return e.Current.State == leaseStateFree
-}
-
-func (e *leasedIdentityPoolEntry) isAssignedTo(me string) bool {
-	return e.Current.State == leaseStateAssigned && e.Current.LeasedBy == me
-}
-
-func (e *leasedIdentityPoolEntry) isBusy() bool {
-	return e.Current.State == leaseStateBusy
-}
-
-func (e *leasedIdentityPoolEntry) assignTo(me string) error {
-	if !e.isFree() {
-		return errors.New("not free")
-	}
-	e.History = append(e.History, e.Current)
-	e.Current.State = leaseStateAssigned
-	e.Current.LeasedBy = me
-	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
-
-	return nil
-}
-
-func (e *leasedIdentityPoolEntry) use(me string) error {
-	if !e.isAssignedTo(me) || e.isBusy() {
-		return errors.New("not assigned to me or already busy")
-	}
-	e.History = append(e.History, e.Current)
-	e.Current.State = leaseStateBusy
-	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
-
-	return nil
-}
-
-// release transitions the entry back to free. Cleanup functions are only
-// executed when the entry was busy; assigned-only entries have not created
-// resources (FICs, role assignments) that need cleanup.
-func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
-	if e.Current.State == leaseStateFree {
-		return nil
-	}
-	assignedOnly := e.Current.State == leaseStateAssigned
-
-	e.History = append(e.History, e.Current)
-	e.Current.State = leaseStateFree
-	e.Current.LeasedBy = ""
-	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
-
-	if assignedOnly {
-		return nil
-	}
-
-	errs := []error{}
-	for _, cleanup := range cleanups {
-		if err := cleanup(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
-		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
-	}
-	return nil
-}
-
-type leasedIdentityPoolState struct {
-	// lockFile ensures single process access to the state file.
-	lockFile *os.File
-	// mu ensures single thread access to the state file to avoid
-	// intra-test parallelism issues.
-	mu sync.Mutex
-	// statePath is the path to the state file.
-	statePath string
-	// entries is the list of leased identity pool entries.
-	entries []leasedIdentityPoolEntry
-}
-
-// newLeasedIdentityPoolState creates a new leased identity pool state.
-func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
-
-	lockFilePath := filepath.Join(os.TempDir(), "identities-pool-state.lock")
-
-	lf, err := os.OpenFile(lockFilePath, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return &leasedIdentityPoolState{}, fmt.Errorf("failed to open managed identities pool state lock file: %w", err)
-	}
-
-	state := leasedIdentityPoolState{statePath: path, lockFile: lf}
-
-	if err := state.lock(); err != nil {
-		return &leasedIdentityPoolState{}, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
-		}
-	}()
-
-	if err := state.readUnlocked(); err != nil {
-		return &leasedIdentityPoolState{}, fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	if state.isInitialized() {
-		return &state, nil
-	}
-
-	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(leaseenv.MSIContainers)))
-	if len(leasedRGs) == 0 {
-		return &leasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", leaseenv.MSIContainers)
-	}
-
-	if err := state.initializeUnlocked(leasedRGs); err != nil {
-		return &leasedIdentityPoolState{}, fmt.Errorf("failed to initialize managed identities pool state: %w", err)
-	}
-	ginkgo.GinkgoLogr.Info("initialized managed identities pool state", "entries", len(state.entries))
-
-	return &state, nil
-}
-
-// useNextAssigned uses the next "assigned" identity container for the caller.
-func (state *leasedIdentityPoolState) useNextAssigned(me string) (string, error) {
-	if err := state.lock(); err != nil {
-		return "", fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
-		}
-	}()
-
-	err := state.readUnlocked()
-	if err != nil {
-		return "", fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	var leasedRG string
-	for i := range state.entries {
-
-		if err := state.entries[i].use(me); err != nil {
-			continue
-		}
-
-		leasedRG = state.entries[i].ResourceGroup
-		break
-	}
-
-	if leasedRG == "" {
-		return "", fmt.Errorf("no assigned identity containers available for %s", me)
-	}
-
-	if err = state.writeUnlocked(); err != nil {
-		return "", fmt.Errorf("failed to write managed identities pool state file: %w", err)
-	}
-
-	return leasedRG, nil
-}
-
-// assignNTo attempts to assign n free identity containers to the caller by marking
-// them as "assigned". It does not perform any waiting or retries: if there are
-// fewer than n free entries, it returns an error and leaves the state
-// unchanged.
-func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
-	if err := state.lock(); err != nil {
-		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
-		}
-	}()
-
-	if err := state.readUnlocked(); err != nil {
-		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	count := 0
-	for i := range state.entries {
-		if err := state.entries[i].assignTo(me); err != nil {
-			continue
-		}
-		count++
-		if count == int(n) {
-			break
-		}
-	}
-
-	if count < int(n) {
-		// return and don't persist the partial in-memory state to file
-		return fmt.Errorf("%w: requested %d identity containers but only %d are assigned", ErrNotEnoughFreeIdentityContainers, n, count)
-	}
-
-	if err := state.writeUnlocked(); err != nil {
-		return fmt.Errorf("failed to write managed identities pool state file: %w", err)
-	}
-
-	return nil
-}
-
-// releaseByContainerName releases the identity container by the given name.
-func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn ...func() error) error {
-	if err := state.lock(); err != nil {
-		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
-		}
-	}()
-
-	err := state.readUnlocked()
-	if err != nil {
-		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-	for i := range state.entries {
-		if state.entries[i].ResourceGroup == resourceGroup {
-			if err := state.entries[i].release(cleanupFn...); err != nil {
-				// cleanup is best effort, just log errors and continue
-				ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities resource group", "resourceGroup", resourceGroup, "error", err)
-			}
-			if err := state.writeUnlocked(); err != nil {
-				return fmt.Errorf("failed to write managed identities pool state file: %w", err)
-			}
-			break
-		}
-	}
-
-	return nil
-}
-
-// getLeasedIdentityContainers returns the list of resource groups that are currently leased
-// to the caller.
-func (state *leasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]string, error) {
-	if err := state.lock(); err != nil {
-		return nil, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
-		}
-	}()
-
-	if err := state.readUnlocked(); err != nil {
-		return nil, fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	resourceGroups := make([]string, 0, len(state.entries))
-	for _, entry := range state.entries {
-		if entry.Current.LeasedBy == me {
-			resourceGroups = append(resourceGroups, entry.ResourceGroup)
-		}
-	}
-	return resourceGroups, nil
-}
-
-func (state *leasedIdentityPoolState) readUnlocked() error {
-
-	f, err := os.OpenFile(state.statePath, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return fmt.Errorf("failed to open managed identities pool state file %s: %w", state.statePath, err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			ginkgo.GinkgoLogr.Info("WARN: failed to close managed identities pool state file after read", "error", err)
-		}
-	}()
-
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek to start of managed identities pool state file: %w", err)
-	}
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	var entries []leasedIdentityPoolEntry
-	if err := yaml.Unmarshal(data, &entries); err != nil {
-		return fmt.Errorf("failed to unmarshal managed identities pool state file: %w", err)
-	}
-	state.entries = entries
-
-	return nil
-}
-
-func (state *leasedIdentityPoolState) writeUnlocked() error {
-	updated, err := yaml.Marshal(state.entries)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated managed identities pool state: %w", err)
-	}
-
-	dir := filepath.Dir(state.statePath)
-	tmp, err := os.CreateTemp(dir, "identities-pool-state-*.tmp")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary managed identities pool state file: %w", err)
-	}
-
-	cleanupTemp := func() {
-		if err := os.Remove(tmp.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
-			ginkgo.GinkgoLogr.Info("WARN: failed to remove temporary managed identities pool state file", "error", err)
-		}
-	}
-
-	if _, err := tmp.Write(updated); err != nil {
-		tmp.Close()
-		cleanupTemp()
-		return fmt.Errorf("failed to write temporary managed identities pool state file: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		cleanupTemp()
-		return fmt.Errorf("failed to sync temporary managed identities pool state file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		cleanupTemp()
-		return fmt.Errorf("failed to close temporary managed identities pool state file: %w", err)
-	}
-
-	if err := os.Rename(tmp.Name(), state.statePath); err != nil {
-		cleanupTemp()
-		return fmt.Errorf("failed to replace managed identities pool state file: %w", err)
-	}
-
-	return nil
-}
-
-func (state *leasedIdentityPoolState) isInitialized() bool {
-	return len(state.entries) > 0
-}
-
-func (state *leasedIdentityPoolState) initializeUnlocked(leasedRGs []string) error {
-	entries := make([]leasedIdentityPoolEntry, 0, len(leasedRGs))
-	for _, rg := range leasedRGs {
-		entries = append(entries, leasedIdentityPoolEntry{
-			ResourceGroup: rg,
-			Current: leaseEntry{
-				State:          leaseStateFree,
-				TransitionedAt: time.Now().UTC().Format(time.RFC3339),
-			},
-		})
-	}
-	state.entries = entries
-	if err := state.writeUnlocked(); err != nil {
-		return fmt.Errorf("failed to write managed identities pool state file: %w", err)
-	}
-
-	return nil
-}
-
 func specID() string {
 	return fmt.Sprintf("%s|pid:%d", strings.Join(strings.Fields(ginkgo.CurrentSpecReport().FullText()), "-"), os.Getpid())
-}
-
-func (state *leasedIdentityPoolState) lock() error {
-	state.mu.Lock()
-	return filelock.Lock(state.lockFile.Fd())
-}
-
-func (state *leasedIdentityPoolState) unlock() error {
-	err := filelock.Unlock(state.lockFile.Fd())
-	state.mu.Unlock()
-	return err
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity built-in role

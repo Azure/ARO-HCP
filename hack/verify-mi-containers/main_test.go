@@ -48,12 +48,6 @@ func TestCheckFile(t *testing.T) {
 			wantSubstring:  "N must be >= 0",
 		},
 		{
-			name:           "mismatched count is flagged",
-			file:           "testdata/mismatch_count.go",
-			wantViolations: 1,
-			wantSubstring:  "MIContainers(2) but calls AssignIdentityContainers with count=1",
-		},
-		{
 			name:           "zero with AssignIdentityContainers call is flagged",
 			file:           "testdata/zero_but_calls.go",
 			wantViolations: 1,
@@ -109,10 +103,10 @@ func TestCheckDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("checkDir(testdata) returned error: %v", err)
 	}
-	// testdata has 6 files with violations (missing, negative, mismatch, zero_but_calls, nonzero_no_call, duplicate_label)
+	// testdata has 5 files with violations (missing, negative, zero_but_calls, nonzero_no_call, duplicate_label)
 	// and 1 valid file
-	if len(violations) != 6 {
-		t.Errorf("checkDir(testdata) returned %d violations, want 6:\n%s",
+	if len(violations) != 5 {
+		t.Errorf("checkDir(testdata) returned %d violations, want 5:\n%s",
 			len(violations), strings.Join(violations, "\n"))
 	}
 }
