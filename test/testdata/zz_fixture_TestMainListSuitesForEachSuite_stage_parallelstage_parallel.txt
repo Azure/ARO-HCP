@@ -115,3 +115,4 @@ Customer should be able to list available HCP Operator Identity Role Sets and va
 Customer should be able to get a specific HCP Operator Identity Role Set by version
 Customer should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings
 Customer should not be able to perform various invalid operations on cluster resources
+ARO-HCP should install a cluster from the stable-5.0 channel

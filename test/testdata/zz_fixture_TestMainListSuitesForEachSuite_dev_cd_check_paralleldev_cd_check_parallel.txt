@@ -120,3 +120,4 @@ Customer should downgrade a nodepool to a lower minor version from 4.22.zLatest 
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should be able to list available HCP Operator Identity Role Sets and validate response content
 Customer should be able to get a specific HCP Operator Identity Role Set by version
+ARO-HCP should install a cluster from the stable-5.0 channel

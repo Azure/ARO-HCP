@@ -49,8 +49,13 @@ func SelectControlPlaneVersion(ctx context.Context, roundTripper RoundTrip, upda
 	if len(releases) == 0 {
 		return nil, fmt.Errorf("no releases found in %s", updateService)
 	}
+	// TODO: Remove the exception for stable-5.0 once we have more releases in the stable-5.0 channel. This is
+	// a temporary fix to allow installing stable-5.0 releases to address incident ITN-2026-00349
 	if int(offset) >= len(releases) {
-		return nil, fmt.Errorf("%d releases found in %s, which is not enough for the requested %d offset", len(releases), updateService, offset)
+		if channel != "stable-5.0" {
+			return nil, fmt.Errorf("%d releases found in %s, which is not enough for the requested %d offset", len(releases), updateService, offset)
+		}
+		offset = 0
 	}
 	return &releases[offset], nil
 }

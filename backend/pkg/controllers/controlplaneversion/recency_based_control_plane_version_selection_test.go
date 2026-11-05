@@ -135,3 +135,77 @@ func TestSelectControlPlaneVersionInstall(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectControlPlaneVersionStable50OffsetException(t *testing.T) {
+	singleRelease := graph{Nodes: []node{makeNode("5.0.0")}}
+	twoReleases := graph{Nodes: []node{makeNode("5.0.0"), makeNode("5.0.1")}}
+
+	tests := []struct {
+		name            string
+		channel         string
+		graph           graph
+		offset          uint
+		expectedVersion string
+		expectedError   string
+	}{
+		{
+			name:            "stable-5.0 with one release selects the newest release",
+			channel:         "stable-5.0",
+			graph:           singleRelease,
+			offset:          1,
+			expectedVersion: "5.0.0",
+		},
+		{
+			name:            "stable-5.0 with an offset past the end selects the newest release",
+			channel:         "stable-5.0",
+			graph:           twoReleases,
+			offset:          2,
+			expectedVersion: "5.0.1",
+		},
+		{
+			name:            "stable-5.0 with enough releases keeps the requested offset",
+			channel:         "stable-5.0",
+			graph:           twoReleases,
+			offset:          1,
+			expectedVersion: "5.0.0",
+		},
+		{
+			name:          "other channels still fail when the offset is past the end",
+			channel:       "stable-5.1",
+			graph:         graph{Nodes: []node{makeNode("5.1.0")}},
+			offset:        1,
+			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=stable-5.1, which is not enough for the requested 1 offset",
+		},
+		{
+			name:          "stable-5.0 with no releases in the minor still fails",
+			channel:       "stable-5.0",
+			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=stable-5.0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			roundTripper := func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       jsonBody(tt.graph),
+				}, nil
+			}
+
+			version, err := SelectControlPlaneVersion(context.Background(), roundTripper, nil, tt.channel, tt.offset)
+			if len(tt.expectedError) == 0 && err != nil {
+				t.Error(err)
+			} else if len(tt.expectedError) > 0 && err == nil {
+				t.Errorf("expected error %q, but got %v", tt.expectedError, err)
+			} else if err != nil && err.Error() != tt.expectedError {
+				t.Errorf("expected error %q, but got %q", tt.expectedError, err)
+			}
+			if len(tt.expectedVersion) == 0 && version != nil {
+				t.Errorf("expected nil version, got %v", version)
+			} else if len(tt.expectedVersion) > 0 && version == nil {
+				t.Errorf("expected version %q, but got %v", tt.expectedVersion, version)
+			} else if version != nil && version.Version != tt.expectedVersion {
+				t.Errorf("expected version %q, but got %v", tt.expectedVersion, version)
+			}
+		})
+	}
+}

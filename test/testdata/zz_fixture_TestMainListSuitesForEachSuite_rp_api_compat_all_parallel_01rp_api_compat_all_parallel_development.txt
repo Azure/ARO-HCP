@@ -126,3 +126,4 @@ Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should be able to list available HCP Operator Identity Role Sets and validate response content
 Customer should be able to get a specific HCP Operator Identity Role Set by version
 Customer should not be able to perform various invalid operations on cluster resources
+ARO-HCP should install a cluster from the stable-5.0 channel
