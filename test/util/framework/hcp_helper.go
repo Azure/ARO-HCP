@@ -144,13 +144,25 @@ func isTransientUpdateError(err error) bool {
 
 // IsAPINotDeployedError returns true if the error indicates the API version
 // has not been rolled out to this region yet.
+// It matches HTTP 404 (generic not-found), the ARM "NoRegisteredProviderFound"
+// error code, and the frontend's HTTP 400 "InvalidResourceType" response for
+// unrecognized API versions.
 func IsAPINotDeployedError(err error) bool {
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
 		return false
 	}
-	return respErr.StatusCode == http.StatusNotFound ||
-		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
+	if respErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+	if strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound") {
+		return true
+	}
+	if respErr.StatusCode == http.StatusBadRequest &&
+		respErr.ErrorCode == coreapi.CloudErrorCodeInvalidResourceType {
+		return true
+	}
+	return false
 }
 
 type NonConformingClustersError struct {

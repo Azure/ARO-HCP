@@ -45,6 +45,11 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
+			By("probing v20270201 API availability before creating any Azure resources")
+			probePager := tc.Get20270201ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(nil)
+			_, probeErr := probePager.NextPage(ctx)
+			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe v20270201 API availability")
+
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
