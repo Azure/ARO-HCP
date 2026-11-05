@@ -240,7 +240,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "prefers controlPlaneVersion history over version history when both set",
+			name: "uses only controlPlaneVersion history when both histories set",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
@@ -289,18 +289,21 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "falls back to version history when control plane history empty",
+			name: "ignores version history but preserves desired channels when control plane history empty",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
 				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t,
-					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
-						{Version: "4.19.17", State: configv1.PartialUpdate},
-						{Version: "4.19.16", State: configv1.PartialUpdate},
-						{Version: "4.19.15", State: configv1.CompletedUpdate},
-					}},
+					&hsv1beta1.ClusterVersionStatus{
+						Desired: configv1.Release{Channels: []string{"stable-4.20"}},
+						History: []configv1.UpdateHistory{
+							{Version: "4.19.17", State: configv1.PartialUpdate},
+							{Version: "4.19.16", State: configv1.PartialUpdate},
+							{Version: "4.19.15", State: configv1.CompletedUpdate},
+						},
+					},
 					hsv1beta1.ControlPlaneVersionStatus{},
 				)}
 			},
@@ -309,11 +312,11 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
-					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate},
-					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
-					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
-				}, spc.Status.ControlPlaneVersion.ActiveVersions)
+				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
+				assert.Equal(t, []string{"stable-4.20"}, spc.Status.DesiredVersionChannels)
+				cluster, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.Empty(t, cluster.Status.ActiveVersions)
 			},
 		},
 	}
