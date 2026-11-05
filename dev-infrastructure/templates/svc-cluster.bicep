@@ -347,6 +347,9 @@ param genevaActionsServiceTag string
 @description('The service tag for SRE access')
 param sreServiceTag string
 
+@description('Additional Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort')
+param additionalIngressRules string = ''
+
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
@@ -593,11 +596,33 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
   }
 }
 
+var additionalIngressRuleEntries = [
+  for rule in csvToArray(additionalIngressRules): {
+    name: split(rule, '=')[0]
+    fields: split(split(rule, '=')[1], ':')
+  }
+]
+var additionalIngressSecurityRules = [
+  for rule in additionalIngressRuleEntries: {
+    name: rule.name
+    properties: {
+      access: 'Allow'
+      direction: 'Inbound'
+      priority: int(rule.fields[0])
+      protocol: rule.fields[1]
+      sourceAddressPrefix: rule.fields[2]
+      sourcePortRange: '*'
+      destinationAddressPrefix: rule.fields[3]
+      destinationPortRange: rule.fields[4]
+    }
+  }
+]
+
 resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
   properties: {
-    securityRules: [
+    securityRules: concat([
       {
         name: 'rp-in-arm'
         properties: {
@@ -637,7 +662,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           sourcePortRange: '*'
         }
       }
-    ]
+    ], additionalIngressSecurityRules)
   }
 }
 

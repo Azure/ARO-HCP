@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,7 @@ type Inputs struct {
 	DeployEnvironment            string
 	BuildID                      string
 	RunCostTagValue              string
+	CIRPAllowedSource            string
 	Images                       map[string]string
 	OCLoginRegistries            string
 	MSIMockLease                 string
@@ -106,6 +108,8 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.BuildID = value
 		case "RUN_COST_TAG_VALUE":
 			input.RunCostTagValue = value
+		case "CI_RP_ALLOWED_SOURCE":
+			input.CIRPAllowedSource = value
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -181,8 +185,18 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	if len(input.ARMHelperLeases) > 2 {
 		return Result{}, fmt.Errorf("%s must contain at most two lease names, got %d", leaseenv.ARMHelperSP, len(input.ARMHelperLeases))
 	}
+	if input.CIRPAllowedSource != "" {
+		address, err := netip.ParseAddr(input.CIRPAllowedSource)
+		if err != nil || !address.Is4() {
+			return Result{}, fmt.Errorf("CI_RP_ALLOWED_SOURCE must be a single IPv4 address, got %q", input.CIRPAllowedSource)
+		}
+	}
 
 	defaults := map[string]interface{}{}
+	if input.CIRPAllowedSource != "" {
+		rule := "allow-istio-ingress=1000:Tcp:" + input.CIRPAllowedSource + ":*:443"
+		setDefault(defaults, rule, "svc", "aks", "additionalIngressRules")
+	}
 	registries, err := applyImageOverrides(defaults, input.Images, input.OCLoginRegistries)
 	if err != nil {
 		return Result{}, err

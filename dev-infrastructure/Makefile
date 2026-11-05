@@ -105,7 +105,11 @@ populate-arm-helper-pool:
 .PHONY: populate-arm-helper-pool
 
 frontend-grant-ingress:
-	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
+	@source_ip="${CI_RP_ALLOWED_SOURCE}"; \
+	if [ -z "$$source_ip" ]; then \
+		source_ip=$$(../hack/ci/discover-public-ip.sh) || exit $$?; \
+	fi; \
+	../hack/ci/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}" "$$source_ip"
 .PHONY: frontend-grant-ingress
 
 #

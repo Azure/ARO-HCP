@@ -1,21 +1,13 @@
 #!/bin/bash
 
-RESOURCE_GROUP=$1
-
-NSG_NAME="svc-cluster-node-nsg"
-for url in "ifconfig.me" "icanhazip.com" "ifconfig.co"; do
-    IP_ADDRESS=$(curl -sf -4 "$url")
-    
-    if [ -n "$IP_ADDRESS" ]; then
-        break
-    fi
-done
-
-if [ -z "$IP_ADDRESS" ]; then
-    echo "ERROR: Could not determine public IP from any provider."
+if [ "$#" -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: $0 RESOURCE_GROUP IP_ADDRESS" >&2
     exit 1
 fi
 
+RESOURCE_GROUP=$1
+IP_ADDRESS=$2
+NSG_NAME="svc-cluster-node-nsg"
 
 az network nsg rule create \
     --resource-group "${RESOURCE_GROUP}" \
