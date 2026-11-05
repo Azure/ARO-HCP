@@ -15,6 +15,11 @@
 package metadataapi
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/Masterminds/semver/v3"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -60,3 +65,12 @@ var AllowedChannelGroups = sets.New(ChannelGroupStable, ChannelGroupFast)
 
 // AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
 var AllowedChannelGroupsWithExperimentalFlag = sets.New(ChannelGroupStable, ChannelGroupFast, ChannelGroupCandidate, ChannelGroupNightly)
+
+// GetMinorOpenShiftVersion extracts the minor version (x.y) from a full OpenShift version string.
+func GetMinorOpenShiftVersion(v string) (string, error) {
+	version, err := semver.NewVersion(strings.Replace(v, OpenShiftVersionPrefix, "", 1))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d.%d", version.Major(), version.Minor()), nil
+}

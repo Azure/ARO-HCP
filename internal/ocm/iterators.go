@@ -118,6 +118,13 @@ func NewSimpleNodePoolUpgradePolicyListIterator(objs []*arohcpv1alpha1.NodePoolU
 	}
 }
 
+func NewSimpleVersionsListIterator(objs []*arohcpv1alpha1.Version, err error) *VersionsListIterator {
+	return &VersionsListIterator{
+		objs: objs,
+		err:  err,
+	}
+}
+
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
 func (iter *simpleListIterator[T]) Items(ctx context.Context) iter.Seq[*T] {
@@ -144,6 +151,7 @@ type clusterListIterator struct {
 
 type VersionsListIterator struct {
 	request *arohcpv1alpha1.VersionsListRequest
+	objs    []*arohcpv1alpha1.Version // for test mocking
 	err     error
 }
 
@@ -375,6 +383,16 @@ func (iter breakGlassCredentialListIterator) GetError() error {
 // If an error occurs during paging, iteration stops and the error is recorded.
 func (iter *VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Version] {
 	return func(yield func(*arohcpv1alpha1.Version) bool) {
+		// Check if this is a simple test iterator
+		if iter.objs != nil {
+			for _, version := range iter.objs {
+				if !yield(version) {
+					return
+				}
+			}
+			return
+		}
+
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
 			var page = 0
