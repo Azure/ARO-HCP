@@ -255,16 +255,23 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 }
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "provider state is unavailable"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	// The Cluster Service resource is created asynchronously; until its ID is
 	// populated there is nothing to query, so report the operation as still
 	// provisioning rather than dereferencing a nil ClusterServiceID.
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "cluster service has not been successfully created"), nil
 	}
 
-	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+	clusterServiceID := *provider.ClusterServiceID
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()

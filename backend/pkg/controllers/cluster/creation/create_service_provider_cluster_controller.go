@@ -74,12 +74,11 @@ func NewCreateServiceProviderClusterController(
 
 // SyncOnce creates a ServiceProviderCluster for the given HCPCluster when one
 // does not already exist. The lister is consulted first so steady-state runs
-// avoid a Cosmos round-trip; if it is missing, GetOrCreate is called and any
-// 409 conflict is handled by the underlying helper.
+// avoid a Cosmos round-trip; if it is missing, GetOrCreate atomically initializes
+// provider state and the parent marker. Conflicts return for reconciliation.
 //
-// Once the parent cluster is marked for deletion the cluster deletion
-// pipeline removes the ServiceProviderCluster as a child resource; recreating
-// it here would prevent that pipeline from converging, so we short-circuit.
+// Initialization may finish during deletion before Cluster Service dispatch.
+// After dispatch, cleanup owns provider removal and must not recreate it.
 func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
@@ -88,7 +87,7 @@ func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key c
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HCPCluster from lister: %w", err))
 	}
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && existingCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil {
 		return nil
 	}
 

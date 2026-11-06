@@ -104,6 +104,9 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 	_, err = testInfo.ResourcesDBClient().HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
+	_, err = testInfo.ResourcesDBClient().ServiceProviderClusters(subscriptionID, resourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderIDsForCluster(cluster), nil)
+	require.NoError(t, err)
+
 	// Generate a CSR.
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)

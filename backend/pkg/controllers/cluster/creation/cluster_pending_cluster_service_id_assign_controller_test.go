@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -45,7 +46,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 	}{
 		{
 			// Behavior: PendingClusterServiceID assignment is NOT gated on placement.
-			// No ServiceProviderCluster is involved at all; assignment happens as soon
+			// Provider state is written atomically; assignment happens as soon
 			// as the cluster exists and has neither a pending nor a resolved CS ID.
 			name:        "assigns PendingClusterServiceID when both IDs nil (not gated on placement)",
 			listCluster: newTestCluster(),
@@ -57,6 +58,9 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 				require.NotNil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
 				assert.True(t, strings.HasPrefix(cluster.ServiceProviderProperties.PendingClusterServiceID.String(), "/api/aro_hcp/v1alpha1/clusters/"))
 				assert.Len(t, cluster.ServiceProviderProperties.PendingClusterServiceID.ID(), 32)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, cluster.ServiceProviderProperties.PendingClusterServiceID, provider.PendingClusterServiceID)
 			},
 		},
 		{
@@ -76,10 +80,8 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "skip when ClusterServiceID already set",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
-			}),
+			name:        "stale cache cannot reassign an already created cluster",
+			listCluster: newTestCluster(),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
@@ -91,11 +93,8 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "skip when cluster is being deleted",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				now := metav1.Now()
-				c.ServiceProviderProperties.DeletionTimestamp = &now
-			}),
+			name:        "stale cache cannot assign during deletion",
+			listCluster: newTestCluster(),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
@@ -127,6 +126,14 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newTestSubscription(), tt.dbCluster})
 			require.NoError(t, err)
+			if tt.dbCluster != nil {
+				provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, tt.dbCluster.ID)
+				require.NoError(t, err)
+				provider.PendingClusterServiceID = tt.dbCluster.ServiceProviderProperties.PendingClusterServiceID.DeepCopy()
+				provider.ClusterServiceID = tt.dbCluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				_, err = mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Replace(ctx, provider, nil)
+				require.NoError(t, err)
+			}
 
 			var listerClusters []*coreapi.Cluster
 			if tt.listCluster != nil {

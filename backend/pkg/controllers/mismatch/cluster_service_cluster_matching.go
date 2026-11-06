@@ -16,6 +16,7 @@ package mismatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -75,9 +76,9 @@ func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, r
 	return c
 }
 
-func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*coreapi.Cluster, []*coreapi.Cluster, error) {
+func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*coreapi.Cluster, []error, error) {
 	clusterServiceIDToCluster := map[string]*coreapi.Cluster{}
-	ret := []*coreapi.Cluster{}
+	var scanErrors []error
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
@@ -91,17 +92,29 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 		}
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
-			ret = append(ret, cluster)
+			provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+			if cosmosstorageutils.IsNotFoundError(err) {
+				properties := cluster.ServiceProviderProperties
+				cleanupCompleted := properties.DeletionTimestamp != nil &&
+					properties.ClusterServiceDeletionTimestamp != nil && properties.ClusterServiceDeletionCompleted
+				if !cleanupCompleted && (properties.ServiceProviderClusterInitialized || properties.ClusterServiceDeletionTimestamp != nil) {
+					scanErrors = append(scanErrors, fmt.Errorf("provider state missing for initialized or deleting cluster %s: %w", cluster.ID, err))
+				}
+				continue
+			}
+			if err != nil {
+				return nil, nil, utils.TrackError(err)
+			}
 			// we skip items without a ClusterServiceID or PendingClusterServiceID because they may be about to get them and shouldn't be deleted.
-			if cluster.ServiceProviderProperties.ClusterServiceID == nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil {
+			if provider.ClusterServiceID == nil && provider.PendingClusterServiceID == nil {
 				continue
 			}
 
 			var clusterServiceID string
-			if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-				clusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.String()
+			if provider.ClusterServiceID != nil {
+				clusterServiceID = provider.ClusterServiceID.String()
 			} else {
-				clusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.String()
+				clusterServiceID = provider.PendingClusterServiceID.String()
 			}
 
 			existingCluster, exists := clusterServiceIDToCluster[clusterServiceID]
@@ -115,7 +128,7 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 		}
 	}
 
-	return clusterServiceIDToCluster, ret, nil
+	return clusterServiceIDToCluster, scanErrors, nil
 }
 
 func (c *clusterServiceClusterMatching) getAllClusterServiceObjs(ctx context.Context) (map[string]*arohcpv1alpha1.Cluster, []*arohcpv1alpha1.Cluster, error) {
@@ -144,7 +157,7 @@ func (c *clusterServiceClusterMatching) getAllClusterServiceObjs(ctx context.Con
 func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterServiceIDToCosmosCluster, _, err := c.getAllCosmosObjs(ctx)
+	clusterServiceIDToCosmosCluster, scanErrors, err := c.getAllCosmosObjs(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -159,10 +172,10 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 			// we get back
 			//    expected response content type 'application/json' but received 'text/plain' and content 'no healthy upstream'
 			logger.Error(err, "failed to get cluster-service clusters, probably because cluster-service is down")
-			return nil
+			return errors.Join(scanErrors...)
 		}
 
-		return utils.TrackError(err)
+		return errors.Join(append(scanErrors, utils.TrackError(err))...)
 	}
 
 	for _, clusterServiceCluster := range allClusterServiceClusters {
@@ -222,7 +235,7 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 		clusterLogger.Info("cluster service cluster without matching cosmos cluster deleted from cluster service")
 	}
 
-	return nil
+	return errors.Join(scanErrors...)
 }
 
 func (c *clusterServiceClusterMatching) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {

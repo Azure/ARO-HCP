@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -44,7 +43,9 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 
 // GetOrCreateServiceProviderCluster gets the singleton ServiceProviderCluster
 // instance named `default` for the given cluster resource ID.
-// If it doesn't exist, it creates a new one.
+// Missing state is initialized atomically with the parent initialization marker,
+// only before initialization or Cluster Service deletion dispatch. Unexpected
+// provider loss and transaction conflicts return errors for reconciliation.
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
 	secondAttempt ...bool,
@@ -69,37 +70,25 @@ func GetOrCreateServiceProviderCluster(
 		return nil, utils.TrackError(err)
 	}
 
+	clusterCRUD := dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName)
+	cluster, err := clusterCRUD.Get(ctx, clusterResourceID.Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if cluster.ServiceProviderProperties.ServiceProviderClusterInitialized || cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil {
+		return nil, utils.TrackError(fmt.Errorf("provider state missing for initialized or deleting cluster %s", clusterResourceID))
+	}
 	initialServiceProviderCluster := newInitialServiceProviderCluster(clusterResourceID)
-	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Create(ctx, initialServiceProviderCluster, nil)
-	switch {
-	case err == nil:
-		return existingServiceProviderCluster, nil
-	case cosmosstorageutils.IsConflictError(err):
-		// fall through
-	default:
-		return nil, utils.TrackError(err)
+	cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = true
+	transaction := dbClient.NewTransaction(cluster.GetPartitionKey())
+	if _, err := clusterCRUD.AddReplaceToTransaction(ctx, transaction, cluster, nil); err != nil {
+		return nil, err
 	}
-
-	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	switch {
-	case err == nil:
-		return existingServiceProviderCluster, nil
-	case cosmosstorageutils.IsNotFoundError(err):
-		if len(secondAttempt) >= 1 && secondAttempt[0] {
-			return nil, utils.TrackError(fmt.Errorf("second NotFound, Conflict, NotFound error: %w", err))
-		}
-		timer := time.NewTimer((cosmosstorageutils.SoftDeleteTTLSeconds + 1) * time.Second)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return nil, utils.TrackError(ctx.Err())
-		case <-timer.C:
-			// This can happen when the soft-delete marks an item, the GET will return 404, the create will 409, the second get will 404.
-			// By waiting longer than the cosmos TTL, we can re-enter the loop and try again later.  This is a rare case and will
-			// only happen when the parent item exists and the controller was deleted.
-			return GetOrCreateServiceProviderCluster(ctx, dbClient, clusterResourceID, true)
-		}
-	default:
-		return nil, utils.TrackError(err)
+	if _, err := serviceProviderClustersDBClient.AddCreateToTransaction(ctx, transaction, initialServiceProviderCluster, nil); err != nil {
+		return nil, err
 	}
+	if _, err := transaction.Execute(ctx, nil); err != nil {
+		return nil, err
+	}
+	return serviceProviderClustersDBClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 }

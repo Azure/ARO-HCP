@@ -113,10 +113,14 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil || len(provider.ClusterServiceID.String()) == 0 {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
 	}
-	clusterCSInternalID := *cluster.ServiceProviderProperties.ClusterServiceID
+	clusterCSInternalID := *provider.ClusterServiceID
 
 	// GET must target the same href POST would use: {clusterHref}/external_auth_config/external_auths/{id} where id is
 	// lowercased ARM name (see ocm.BuildCSExternalAuth). We reconstruct it here:

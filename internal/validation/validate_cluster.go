@@ -480,9 +480,6 @@ var (
 	toServiceProviderDNS = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
-	toServiceProviderClusterServiceID = func(oldObj *coreapi.ClusterServiceProviderProperties) *metadataapi.InternalID {
-		return oldObj.ClusterServiceID
-	}
 	toServiceProviderConsole = func(oldObj *coreapi.ClusterServiceProviderProperties) *coreapi.ServiceProviderConsoleProfile {
 		return &oldObj.Console
 	}
@@ -514,9 +511,6 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 
 	// ProvisioningState       coreapi.ProvisioningState       `json:"provisioningState,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterServiceProviderPropertiesProvisioningState))...)
-
-	//ClusterServiceID  *InternalID                    `json:"clusterServiceID,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateServiceProviderDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toServiceProviderDNS))...)

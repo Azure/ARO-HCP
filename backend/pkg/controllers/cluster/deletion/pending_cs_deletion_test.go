@@ -43,10 +43,11 @@ func TestRecoverPendingDeletionTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			input := &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, ServiceProviderProperties: tt.input}
 			before := input.DeepCopy()
-			got := recoverPendingDeletionTarget(input)
-			var want *coreapi.Cluster
+			provider := &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, PendingClusterServiceID: tt.input.PendingClusterServiceID, ClusterServiceID: tt.input.ClusterServiceID}
+			got := recoverPendingDeletionTarget(input, provider)
+			var want *coreapi.ServiceProviderCluster
 			if tt.want != nil {
-				want = &coreapi.Cluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, ServiceProviderProperties: *tt.want}
+				want = &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{CosmosETag: "observed-etag", InstanceVersion: 4}, PendingClusterServiceID: tt.want.PendingClusterServiceID, ClusterServiceID: tt.want.ClusterServiceID}
 			}
 			if diff := cmp.Diff(want, got, opts); diff != "" {
 				t.Fatal(diff)
@@ -54,7 +55,7 @@ func TestRecoverPendingDeletionTarget(t *testing.T) {
 			if diff := cmp.Diff(before, input, opts); diff != "" {
 				t.Fatalf("mutated observation: %s", diff)
 			}
-			if got != nil && recoverPendingDeletionTarget(got) != nil {
+			if got != nil && recoverPendingDeletionTarget(input, got) != nil {
 				t.Fatal("recovery should not repeat once target is persisted")
 			}
 		})

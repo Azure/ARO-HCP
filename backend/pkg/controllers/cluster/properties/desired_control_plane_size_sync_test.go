@@ -241,7 +241,11 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				)
 				// Use the Created return so the lister seed carries the ETag
 				// the mock CRUD assigned; the syncer's Replace requires it.
-				created, err := serviceProviderClusterCRUD.Create(ctx, newTestServiceProviderCluster(testClusterName, tc.specSize, tc.statusSize), nil)
+				provider := newTestServiceProviderCluster(testClusterName, tc.specSize, tc.statusSize)
+				if tc.cluster != nil {
+					provider.ClusterServiceID = tc.cluster.ServiceProviderProperties.ClusterServiceID.DeepCopy()
+				}
+				created, err := serviceProviderClusterCRUD.Create(ctx, provider, nil)
 				require.NoError(t, err)
 				seededServiceProviderCluster = created
 			}

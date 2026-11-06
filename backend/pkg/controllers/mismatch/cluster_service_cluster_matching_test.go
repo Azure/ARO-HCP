@@ -16,6 +16,9 @@ package mismatch
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -24,13 +27,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -107,7 +116,8 @@ func TestSynchronizeAllClusters(t *testing.T) {
 			subscription := testSubscription()
 			cosmosResources := []any{subscription}
 			if testCase.cosmosClusterBuilder != nil {
-				cosmosResources = append(cosmosResources, testCase.cosmosClusterBuilder(t))
+				cluster := testCase.cosmosClusterBuilder(t)
+				cosmosResources = append(cosmosResources, cluster, coreapitesting.ServiceProviderIDsForCluster(cluster))
 			}
 
 			resourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, cosmosResources)
@@ -139,6 +149,124 @@ func TestSynchronizeAllClusters(t *testing.T) {
 			require.NoError(t, controller.synchronizeAllClusters(ctx))
 		})
 	}
+}
+
+func TestSynchronizeAllClustersMissingProvider(t *testing.T) {
+	fixedNow := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	for _, phase := range []string{"before initialization", "unexpected provider loss", "deletion dispatched", "dispatch without initialization marker", "completion without dispatch", "after child cleanup"} {
+		t.Run(phase, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			ctrl := gomock.NewController(t)
+			subscription := testSubscription()
+			cluster := testCosmosCluster(t)
+			cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = phase != "before initialization" && phase != "dispatch without initialization marker"
+			if phase == "after child cleanup" || phase == "deletion dispatched" || phase == "dispatch without initialization marker" {
+				deletedAt := metav1.NewTime(fixedNow.Add(-time.Hour))
+				cluster.ServiceProviderProperties.DeletionTimestamp = &deletedAt
+				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &deletedAt
+			}
+			cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted = phase == "after child cleanup" || phase == "completion without dispatch"
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, cluster})
+			require.NoError(t, err)
+			before := db.GetAllDocuments()
+			parentCluster := testClusterServiceCluster(t, fixedNow.Add(-2*time.Hour))
+			orphanID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/orphan"))
+			orphan, err := arohcpv1alpha1.NewCluster().
+				CreationTimestamp(fixedNow.Add(-2 * time.Hour)).
+				ID("orphan").HREF(orphanID.String()).
+				Azure(arohcpv1alpha1.NewAzure().
+					SubscriptionID(testSubscriptionID).
+					ResourceGroupName(testCSMatchingResourceGroup).
+					ResourceName("orphan")).Build()
+			require.NoError(t, err)
+			csClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			csClient.EXPECT().ListClusters("").Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{parentCluster, orphan}, nil))
+			csClient.EXPECT().DeleteCluster(gomock.Any(), orphanID).Return(nil)
+			controller := &clusterServiceClusterMatching{
+				clock:                clocktesting.NewFakePassiveClock(fixedNow),
+				subscriptionLister:   &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				resourcesDBClient:    db,
+				clusterServiceClient: csClient,
+			}
+			err = controller.SyncOnce(ctx, nil)
+			if phase == "before initialization" || phase == "after child cleanup" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "provider state missing for initialized or deleting cluster")
+				require.ErrorContains(t, err, cluster.ID.String())
+			}
+			require.Equal(t, before, db.GetAllDocuments())
+		})
+	}
+}
+
+func TestSynchronizeAllClustersMissingProviderWithClusterServiceError(t *testing.T) {
+	for _, initialized := range []bool{false, true} {
+		for _, message := range []string{"no healthy upstream", "cluster service list failed"} {
+			t.Run(fmt.Sprintf("initialized=%t/%s", initialized, message), func(t *testing.T) {
+				ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+				subscription := testSubscription()
+				cluster := testCosmosCluster(t)
+				cluster.ServiceProviderProperties.ServiceProviderClusterInitialized = initialized
+				db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, cluster})
+				require.NoError(t, err)
+				listErr := errors.New(message)
+				csClient := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
+				csClient.EXPECT().ListClusters("").Return(ocm.NewSimpleClusterListIterator(nil, listErr))
+				controller := &clusterServiceClusterMatching{
+					subscriptionLister:   &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+					resourcesDBClient:    db,
+					clusterServiceClient: csClient,
+				}
+				err = controller.SyncOnce(ctx, nil)
+				if initialized {
+					require.ErrorContains(t, err, "provider state missing for initialized or deleting cluster")
+					require.ErrorContains(t, err, cluster.ID.String())
+				} else if message == "no healthy upstream" {
+					require.NoError(t, err)
+				}
+				if message != "no healthy upstream" {
+					require.ErrorIs(t, err, listErr)
+				}
+			})
+		}
+	}
+}
+
+func TestSynchronizeAllClustersProviderReadError(t *testing.T) {
+	for _, statusCode := range []int{http.StatusForbidden, http.StatusTooManyRequests, http.StatusInternalServerError} {
+		t.Run(fmt.Sprint(statusCode), func(t *testing.T) {
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+			subscription := testSubscription()
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, testCosmosCluster(t)})
+			require.NoError(t, err)
+			readErr := &azcore.ResponseError{StatusCode: statusCode}
+			controller := &clusterServiceClusterMatching{
+				subscriptionLister:   &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				resourcesDBClient:    &providerReadErrorDB{ResourcesDBClient: db, err: readErr},
+				clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+			}
+			require.ErrorIs(t, controller.synchronizeAllClusters(ctx), readErr)
+		})
+	}
+}
+
+type providerReadErrorDB struct {
+	corecosmosstorage.ResourcesDBClient
+	err error
+}
+
+func (db *providerReadErrorDB) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	return &providerReadErrorCRUD{err: db.err}
+}
+
+type providerReadErrorCRUD struct {
+	cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
+	err error
+}
+
+func (crud *providerReadErrorCRUD) Get(ctx context.Context, resourceName string) (*coreapi.ServiceProviderCluster, error) {
+	return nil, crud.err
 }
 
 func testSubscription() *coreapi.Subscription {
