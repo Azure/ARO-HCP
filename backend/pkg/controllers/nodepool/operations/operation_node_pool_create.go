@@ -38,14 +38,15 @@ import (
 )
 
 type operationNodePoolCreate struct {
-	statusCalculators      operationbase.OperationStatusCalculators[struct{}]
-	clock                  utilsclock.PassiveClock
-	resourcesDBClient      corecosmosstorage.ResourcesDBClient
-	activeOperationsLister corelisters.ActiveOperationLister
-	nodePoolLister         corelisters.NodePoolLister
-	readDesireLister       kubeapplierlisters.ReadDesireLister
-	clusterServiceClient   ocm.ClusterServiceClientSpec
-	notificationClient     *http.Client
+	statusCalculators             operationbase.OperationStatusCalculators[struct{}]
+	clock                         utilsclock.PassiveClock
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	activeOperationsLister        corelisters.ActiveOperationLister
+	nodePoolLister                corelisters.NodePoolLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	notificationClient            *http.Client
 }
 
 const OperationNodePoolCreateControllerName = "OperationNodePoolCreate"
@@ -74,16 +75,18 @@ func NewOperationNodePoolCreateController(
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
+	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
 	syncer := &operationNodePoolCreate{
-		clock:                  clock,
-		resourcesDBClient:      resourcesDBClient,
-		nodePoolLister:         nodePoolLister,
-		readDesireLister:       readDesireLister,
-		activeOperationsLister: activeOperationsLister,
-		clusterServiceClient:   clusterServiceClient,
-		notificationClient:     notificationClient,
+		clock:                         clock,
+		resourcesDBClient:             resourcesDBClient,
+		nodePoolLister:                nodePoolLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		readDesireLister:              readDesireLister,
+		activeOperationsLister:        activeOperationsLister,
+		clusterServiceClient:          clusterServiceClient,
+		notificationClient:            notificationClient,
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
@@ -108,6 +111,11 @@ func (c *operationNodePoolCreate) newStatusCalculators() (operationbase.Operatio
 	return operationbase.NewOperationStatusCalculators[struct{}](
 		&nodePoolCreateClusterServiceCheck{nodePoolLister: c.nodePoolLister, clusterServiceClient: c.clusterServiceClient},
 		&nodePoolCreateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+		&nodePoolCreateDesiredVersionResolutionCheck{
+			nodePoolLister:                c.nodePoolLister,
+			serviceProviderNodePoolLister: c.serviceProviderNodePoolLister,
+			resourcesDBClient:             c.resourcesDBClient,
+		},
 	)
 }
 
