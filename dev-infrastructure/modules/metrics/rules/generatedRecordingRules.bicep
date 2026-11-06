@@ -651,12 +651,16 @@ resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManageme
         expression: '(count without (resource_id, subscription_id, deletion_confirmed) (backend_cluster_upgrade_inventory_info and (timestamp(backend_cluster_upgrade_inventory_info) == ignoring (resource_id, subscription_id, deletion_confirmed) group_left () timestamp(backend_cluster_upgrade_inventory_size))) or 0 * backend_cluster_upgrade_inventory_size) == bool backend_cluster_upgrade_inventory_size'
       }
       {
+        record: 'hosted_control_plane_upgrade:target_snapshots_complete:bool'
+        expression: '(((count without (version) (backend_cluster_upgrade_target_info == 1 and (timestamp(backend_cluster_upgrade_target_info) == ignoring (version) group_left () timestamp(backend_cluster_upgrade_target_count))) or 0 * backend_cluster_upgrade_target_count) == bool backend_cluster_upgrade_target_count) * (backend_cluster_upgrade_target_count > bool 0) * (timestamp(backend_cluster_upgrade_target_count) == bool ignoring (backend_process) group_left () max without (version, state) (timestamp(backend_cluster_version_info)))) or 0 * backend_cluster_upgrade_target_count or 0 * count without (version) (backend_cluster_upgrade_target_info == 1)'
+      }
+      {
         record: 'hosted_control_plane_upgrade:current_targets:count'
         expression: 'count by (cluster, resource_id, subscription_id, region) (max by (cluster, resource_id, subscription_id, cluster_uuid, version, region) (backend_cluster_upgrade_target_info == 1))'
       }
       {
         record: 'hosted_control_plane_upgrade:target_observations_complete:bool'
-        expression: '(count by (cluster, resource_id, subscription_id, region) (max by (cluster, resource_id, subscription_id, cluster_uuid, version, region) (backend_cluster_version_info{state=~"desired|partial|completed"} == 1) and on (cluster, resource_id, subscription_id, cluster_uuid, version) backend_cluster_upgrade_target_info == 1) or on (cluster, resource_id, subscription_id) 0 * hosted_control_plane_upgrade:current_targets:count) == bool on (cluster, resource_id, subscription_id) hosted_control_plane_upgrade:current_targets:count'
+        expression: '((count by (cluster, resource_id, subscription_id, region) (max by (cluster, resource_id, subscription_id, cluster_uuid, version, region) (backend_cluster_version_info{state=~"desired|partial|completed"} == 1) and on (cluster, resource_id, subscription_id, cluster_uuid, version) backend_cluster_upgrade_target_info == 1) or on (cluster, resource_id, subscription_id) 0 * hosted_control_plane_upgrade:current_targets:count) == bool on (cluster, resource_id, subscription_id) hosted_control_plane_upgrade:current_targets:count) * on (cluster, resource_id, subscription_id) min by (cluster, resource_id, subscription_id, region) (hosted_control_plane_upgrade:target_snapshots_complete:bool)'
       }
       {
         record: 'hosted_control_plane_upgrade:lifecycle_excluded:info'

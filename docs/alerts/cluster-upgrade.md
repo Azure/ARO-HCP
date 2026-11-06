@@ -68,6 +68,19 @@ that initial window to be satisfied again. Recomputing a healthy value requires
 known state for every member of the current-target set, not just one completed
 member. Missing one target therefore cannot silently resolve a firing condition.
 
+The target list is also subject to loss. `backend_cluster_upgrade_target_count`
+exports its expected size independently of the received target rows. The
+backend collects count, target rows, version states and lifecycle from one
+immutable snapshot, even if reconciliation updates the cluster during a scrape.
+Target metrics carry `backend_process` to distinguish exporter restarts; this
+label is not part of alert identity.
+
+Before a healthy zero is allowed, every observed source must have all expected
+target rows with the same scrape timestamp as its count. The count must also
+match the latest version-state scrape timestamp. Missing counts, lost rows,
+mixed scrape generations or an incomplete replica are unknown, not completion.
+A count of zero does not establish a completed upgrade.
+
 | Completion edge case | Required treatment |
 | --- | --- |
 | Current target is Completed but stale Partial samples for the same version remain | Completed takes precedence; stale Partial samples must not retain the alert |
@@ -130,7 +143,7 @@ default is `legacy`; this PR does not automatically enable new paging.
 
 | Step | Required evidence before promotion |
 | --- | --- |
-| Deploy backend | Current targets and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
+| Deploy backend | Current targets, their expected counts and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
 | Deploy recording rules, then select `shadow` | New inputs are available before evaluating the new detector; old alerting remains enabled |
 | Validate shadow behavior | Known stuck clusters produce 1; completion or confirmed deleting/uninstalling produces 0; missing observations do not mitigate; phase/version/UUID changes do not duplicate the cluster condition |
 | Prepare cutover | Review old active incidents, routing, silences, old SLO labels and version-specific correlation IDs; agree how to dispose of old incidents; separately review any dashboard/UI changes with required screenshots |
@@ -162,3 +175,26 @@ targets, rollback, initial-install exclusion, selective telemetry loss,
 evaluation gaps, coalesced SPC deletion and scrape outages/exporter restart.
 This PR does not modify the Grafana dashboard; its text/layout changes require
 a separate screenshot-backed review.
+
+### Local failure-injection tests
+
+These tests evaluate the deployment's actual recording/alert YAML with synthetic
+Prometheus samples. They do not contact a cluster, change an Action Group or
+raise an IcM.
+
+| Injection | Expected local result |
+| --- | --- |
+| A is Completed, B is Desired, then only B's target row disappears | Monitor stays `1` and the existing alert remains firing at 46m and 55m |
+| B's target row is older than its expected count | Snapshot coverage is `0`; no false recovery |
+| Both target families are older than the version observations | Snapshot coverage is `0`, even when the old counts match |
+| Expected target count is missing | No healthy zero; an already firing condition is retained |
+| One replica is complete but another loses B's row | The complete replica cannot hide the incomplete snapshot |
+| B actually completes with a coherent target snapshot | Monitor becomes `0` and the alert clears at 70m |
+| Reconcile changes targets halfway through collection | The current scrape keeps the old count/rows/states; the next scrape has the new snapshot |
+
+The rule cases live in
+[`userJourneyClusterUpgradeMonitor-prometheusRule_test.yaml`](../../observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule_test.yaml)
+and run through the generator's `run-rp-upgrade` target. Backend snapshot tests
+run from the backend module with `go test ./pkg/controllers/metrics -count=1`.
+Local rule tests do not prove Azure receiver delivery or IcM auto-mitigation;
+those remain shadow/cutover validation gates.
