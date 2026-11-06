@@ -311,6 +311,18 @@ resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     interval: 'PT1M'
     rules: [
       {
+        record: 'hypershift:cpo:replicas_unavailable:ratio'
+        expression: '1 - clamp_max(max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) / (max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0), 1)'
+      }
+      {
+        record: 'hypershift:cpo:reconcile:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_errors:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*",result="error"}[5m])))'
+      }
+      {
         record: 'hypershift:cpo:availability:ratio1m'
         expression: 'clamp_max(min by (cluster, namespace, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) / (max by (cluster, namespace, region) (avg_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m])) > 0), 1)'
       }

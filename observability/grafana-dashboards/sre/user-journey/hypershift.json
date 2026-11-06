@@ -566,7 +566,7 @@
           "refId": "B"
         }
       ],
-      "title": "Availability Budget Remaining (30d)",
+      "title": "Availability Budget Remaining (30d, Provisional Target)",
       "type": "stat"
     },
     {
@@ -1634,7 +1634,7 @@
           "refId": "B"
         }
       ],
-      "title": "Worst Component Availability (30d, SLO 99.95%)",
+      "title": "Worst Component Availability (30d, Provisional Target 99.95%)",
       "type": "stat"
     },
     {
@@ -1737,7 +1737,7 @@
           "refId": "B"
         }
       ],
-      "title": "Successful Reconciliations (30d)",
+      "title": "Successful Reconciliations (30d, Provisional Target 99.9%)",
       "type": "stat"
     },
     {
@@ -1840,7 +1840,7 @@
           "refId": "B"
         }
       ],
-      "title": "Reconciliations Within 10s (30d)",
+      "title": "Reconciliations Within 10s (30d, Provisional Target 99%)",
       "type": "stat"
     },
     {
@@ -2041,7 +2041,7 @@
           "refId": "B"
         }
       ],
-      "title": "Reconciliation Error Budget Remaining (30d)",
+      "title": "Reconciliation Error Budget Remaining (30d, Provisional Target)",
       "type": "stat"
     },
     {
@@ -2147,7 +2147,7 @@
           "refId": "B"
         }
       ],
-      "title": "Reconciliation Latency Budget Remaining (30d)",
+      "title": "Reconciliation Latency Budget Remaining (30d, Provisional Target)",
       "type": "stat"
     },
     {
@@ -2238,7 +2238,7 @@
           "refId": "B"
         }
       ],
-      "title": "Current Availability (SLO 99.95%)",
+      "title": "Current Availability (Provisional Target 99.95%)",
       "type": "timeseries"
     },
     {
@@ -2325,7 +2325,7 @@
           "refId": "B"
         }
       ],
-      "title": "Reconciliation Error Rate (SLO <=0.1%)",
+      "title": "Reconciliation Error Rate (Provisional Target <=0.1%)",
       "type": "timeseries"
     },
     {
@@ -2412,7 +2412,7 @@
           "refId": "B"
         }
       ],
-      "title": "Reconciliations Within 10s (SLO 99%)",
+      "title": "Reconciliations Within 10s (Provisional Target 99%)",
       "type": "timeseries"
     },
     {
@@ -3601,7 +3601,7 @@
       },
       "id": 33,
       "options": {
-        "content": "### Interpretation and acceptance\n\n- **No data is not green.** Missing deployment telemetry removes availability observations. No completed operations or reconciliations leaves outcome ratios undefined. Zero wait counts require reporting HostedCluster inventory; zero KAS counts require reporting KAS availability. Missing inventory is unknown, not healthy.\n- **Telemetry coverage** is the number of recorded eligible one-minute availability observations / 43,200 expected minutes in 30d, shown for the least-covered current deployment. New deployments, intentional scale-to-zero, missed scrapes, and recording-rule rollout reduce coverage. A 100% availability reading with partial coverage is not evidence of full-window compliance.\n- **Budgets** use 100 * (1 - observed bad fraction / allowed bad fraction). Negative values mean the budget is overspent; they are not clamped to zero. Component availability uses the worst current deployment, while reconciliation error/latency budgets are fleet event-weighted. Provisioning budgets use completed outcomes over 3d.\n- **Scope:** component replicas measure operator health, not end-to-end API reachability. Existing KAS availability is shown separately. Wait duration disappears on first availability and cannot establish a successful create. Completed-operation panels avoid that proxy.\n- **Delivery without live telemetry:** validate expressions and recording rules with synthetic fixtures and review clearly labeled synthetic healthy, breached, idle/no-traffic, and missing-data screenshots. Synthetic results demonstrate dashboard behavior, not real SLO compliance. Live data is not required for this delivery.\n- **Future operational follow-up:** once telemetry exists, verify collection and labels in matching regional workspaces, baseline historical behavior, and revisit the proposed component targets with owners. These are deferred follow-ups, not current ticket closure gates.\n- The existing pod-unavailable, operator-idle, and CPO-down paging policy is unchanged. Additional baseline panels do not create new paging alerts. Historical/log correlation via Kusto and burn-rate visualization remain optional.",
+        "content": "### Interpretation and acceptance\n\n- **No data is not green.** Missing deployment telemetry removes availability observations. No completed operations or reconciliations leaves outcome ratios undefined. Zero wait counts require reporting HostedCluster inventory; zero KAS counts require reporting KAS availability. Missing inventory is unknown, not healthy.\n- **Telemetry coverage** is the number of recorded eligible one-minute availability observations / 43,200 expected minutes in 30d, shown for the least-covered current deployment. New deployments, intentional scale-to-zero, missed scrapes, and recording-rule rollout reduce coverage. A 100% availability reading with partial coverage is not evidence of full-window compliance.\n- **Budgets** use 100 * (1 - observed bad fraction / allowed bad fraction). Negative values mean the budget is overspent; they are not clamped to zero. Component availability uses the worst current deployment, while reconciliation error/latency budgets are fleet event-weighted. Provisioning budgets use completed outcomes over 3d.\n- **Scope:** component replicas measure operator health, not end-to-end API reachability. Existing KAS availability is shown separately. Wait duration disappears on first availability and cannot establish a successful create. Completed-operation panels avoid that proxy.\n- **Dashboard versus burn-rate accounting:** dashboard availability, coverage, and budgets use `hypershift:operator:availability:ratio1m` and `hypershift:cpo:availability:ratio1m` (one-minute good fractions). Component burn-rate alerts in [Azure/ARO-HCP#7989](https://github.com/Azure/ARO-HCP/pull/7989) use the corresponding `replicas_unavailable:ratio` recordings (point-in-time bad fractions). Sampling and HA aggregation differ, so dashboard budgets do not exactly reproduce alert budget consumption. Its `hypershift:hostedclusters:unhealthy:ratio` is a separate HostedCluster condition-health signal, not component replica availability.\n- **Delivery without live telemetry:** synthetic expression tests do not validate Grafana rendering or real SLO compliance. Before/after screenshots and clearly labeled synthetic healthy, breached, idle/no-traffic, and missing-data renders are still required for visual review. Live data is not required for this delivery.\n- **Future operational follow-up:** once telemetry exists, verify collection and labels in matching regional workspaces, baseline historical behavior, and revisit the proposed component targets with owners. These are deferred follow-ups, not current ticket closure gates.\n- The existing pod-unavailable, operator-idle, and CPO-down paging policy is unchanged. Additional baseline panels do not create new paging alerts. Historical/log correlation via Kusto and burn-rate visualization remain optional.",
         "mode": "markdown"
       },
       "title": "Gaps and Open Questions",

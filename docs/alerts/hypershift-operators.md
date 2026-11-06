@@ -19,6 +19,42 @@ not create tickets.
 The dashboard extensions in ARO-27788 reuse the ARO-27787 dashboard and alerts.
 They do not change the paging policy.
 
+Dashboard accounting and the burn-rate alerts proposed in
+[Azure/ARO-HCP#7989](https://github.com/Azure/ARO-HCP/pull/7989) intentionally use
+different recordings:
+
+| Consumer | Operator recording | CPO recording | Accounting |
+|---|---|---|---|
+| Dashboard availability, coverage, and budgets | `hypershift:operator:availability:ratio1m` | `hypershift:cpo:availability:ratio1m` | Good fraction from one-minute raw scrape windows, with conservative HA aggregation |
+| Component availability burn-rate alerts | `hypershift:operator:replicas_unavailable:ratio` | `hypershift:cpo:replicas_unavailable:ratio` | Point-in-time bad fraction: `1 - min(available / desired, 1)`, using maximum available replicas across HA scrapes |
+
+The dashboard preserves short outages between evaluations; burn-rate recordings
+sample the current replica state. Different sampling and HA aggregation mean
+`1 - availability:ratio1m` is not an exact replacement for
+`replicas_unavailable:ratio`. Dashboard budgets describe dashboard observations,
+not the exact budget consumed by the burn-rate alerts. Both exclude zero-desired
+replicas and missing deployment inputs; dashboard summaries additionally require
+complete current inventory and expose observation coverage.
+
+The alerting PR's `hypershift:hostedclusters:unhealthy:ratio` measures
+HostedCluster failure conditions, not operator/CPO replica availability. Keep
+that journey-health signal separate from component availability.
+
+Both operator recordings and the alerting reconciliation inputs share
+`hypershiftUserJourney-recordingRule.yaml` and its
+`hypershift-operator-recording-rules` group. HostedCluster condition health has
+its own group in that same source. Both CPO availability recordings and the
+alerting reconciliation inputs share
+`hypershiftControlPlaneOperator-recordingRule.yaml` and its
+`hypershift-cpo-recording-rules` group. The HCP configuration includes that source
+once; there is no second dashboard-only CPO source or duplicate Bicep resource.
+
+The consolidated recordings include the inputs proposed in the alerting PR,
+without adding its alerts or changing paging policy. When integrating that PR,
+retain these combined sources, regenerate the services/HCP Bicep outputs rather
+than concatenating generated resources, and merge its alert runbooks into this
+document while preserving the accounting distinction above.
+
 - Component objectives remain proposed: 99.95% replica availability, 99.9%
   successful reconciliations, and 99% of reconciliations within 10 seconds,
   measured over 30 days. Revisit these proposals with owners after historical
@@ -79,9 +115,11 @@ Validate changes with the recording-rule generators and
 `cd tooling/prometheus-rules && go test ./...`. `TestHyperShiftDashboardQueries`
 parses the actual dashboard expressions and evaluates completed provisioning,
 budget overspending, idle traffic, and missing-telemetry cases with Promtool.
-Current delivery evidence uses clearly labeled synthetic healthy, breached,
-idle/no-traffic, and missing-data screenshots; it does not establish real SLO
-compliance. Live telemetry is unavailable and is not required for this delivery.
+These expression tests do not validate Grafana rendering or establish real SLO
+compliance. Before/after screenshots and clearly labeled synthetic healthy,
+breached, idle/no-traffic, and missing-data renders are still required for visual
+review; none are attached as delivery evidence. Live telemetry is unavailable
+and is not required for this delivery.
 Once telemetry exists, verify collection, query labels, and regional datasource
 pairing, then baseline historical behavior and review proposed targets with
 owners.

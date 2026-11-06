@@ -719,8 +719,34 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[5m])))'
       }
       {
+        record: 'hypershift:operator:reconcile_errors:rate5m'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[5m])))'
+      }
+      {
+        record: 'hypershift:operator:replicas_unavailable:ratio'
+        expression: '1 - clamp_max(max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) / (max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) > 0), 1)'
+      }
+      {
         record: 'hypershift:operator:availability:ratio1m'
         expression: 'clamp_max(min by (cluster, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}[1m]) / (avg_over_time(kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}[1m]) > 0)), 1)'
+      }
+    ]
+  }
+}
+
+resource hypershiftHostedclusterRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hypershift-hostedcluster-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hypershift:hostedclusters:unhealthy:ratio'
+        expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
       }
     ]
   }
