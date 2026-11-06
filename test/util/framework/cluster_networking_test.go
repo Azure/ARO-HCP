@@ -113,6 +113,15 @@ func TestBuildHCPClusterNetworking(t *testing.T) {
 			params.APIVisibility, params.KeyVaultVisibility, params.IngressType = visibility, visibility, visibility
 			return BuildHCPClusterFromParams20261001(params, "test-location", nil)
 		},
+		"20270201": func(disableSwift bool, tags map[string]*string, subnet, visibility string) (any, error) {
+			params := NewDefaultClusterParams20270201()
+			if !params.DisableSwift {
+				t.Fatal("20270201 default must disable SWIFT")
+			}
+			params.DisableSwift, params.Tags, params.VnetIntegrationSubnetID = disableSwift, tags, subnet
+			params.APIVisibility, params.KeyVaultVisibility, params.IngressType = visibility, visibility, visibility
+			return BuildHCPClusterFromParams20270201(params, "test-location", nil)
+		},
 	}
 	for version, build := range builders {
 		t.Run(version, func(t *testing.T) {
