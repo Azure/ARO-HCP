@@ -330,9 +330,9 @@ tests:
   name: "Test 9: Deletion suppression - deleting cluster does NOT trigger burn-rate alerts"
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="zombie-cluster", namespace="clusters", _id="zombie-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/zombie-cluster"}'
-    values: "0+0x900"
+    values: "0+0x8220" # 8221 samples at 30s interval, t=0 to t=4110m, complete failure
   - series: 'hostedClusterAPI_deletion_timestamp_seconds{name="zombie-cluster", namespace="clusters", _id="zombie-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/zombie-cluster"}'
-    values: "1783672602+0x900" # unix for 2026-07-10T08:36:42Z; only > 0 matters to the rule
+    values: "1783672602+0x8220" # unix for 2026-07-10T08:36:42Z; only > 0 matters to the rule
   alert_rule_test:
   # At 80m, a non-deleting cluster would have triggered the fast-burn alert (see Test 2).
   # With deletion suppression, no SLI data is produced, so no alert fires.
@@ -342,17 +342,16 @@ tests:
   - eval_time: 80m
     alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
-  - eval_time: 80m
-    alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: []
   # At 420m (7 hours), a non-deleting cluster would have both fast and medium burn
-  # alerts firing (see Test 3). With deletion, none fire.
+  # alerts firing (see Test 3). With deletion, neither fires.
   - eval_time: 420m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: []
   - eval_time: 420m
     alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
-  - eval_time: 420m
+  # At 4110m, a non-deleting cluster would have the slow-burn alert firing
+  # (see Test 8). With deletion, it does not fire.
+  - eval_time: 4110m
     alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: []
