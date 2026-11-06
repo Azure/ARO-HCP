@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
@@ -346,12 +348,27 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	deletingCluster := clusterInCache()
+	deletingCluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.NewTime(now))
+	previouslyObservedSPC := spcInCache("4.19.15", "4.19.22")
+	previouslyObservedSPC.Status.Conditions = []metav1.Condition{{
+		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionTrue,
+		Reason: "Active", Message: "Cluster is not deleting or uninstalling.",
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+	}}
 
 	tests := []struct {
-		name      string
-		clusters  []*coreapi.Cluster
-		spcs      []*coreapi.ServiceProviderCluster
-		mockSetup func(*ocm.MockClusterServiceClientSpec)
+		name         string
+		clusters     []*coreapi.Cluster
+		spcs         []*coreapi.ServiceProviderCluster
+		mockSetup    func(*ocm.MockClusterServiceClientSpec)
+		csState      arohcpv1alpha1.ClusterState
+		csError      error
+		wantError    string
+		disabled     bool
+		missingState bool
+		unobserved   bool
+		repeat       bool
 	}{
 		{
 			name:      "cluster absent from cache returns nil",
@@ -362,6 +379,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			clusters:  []*coreapi.Cluster{clusterInCache()},
 			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.15")},
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {},
+			repeat:    true,
 		},
 		{
 			name:     "desired version differs from active version triggers upgrade policy from cached cluster read",
@@ -377,6 +395,55 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 		},
+		{
+			name:      "RP deletion disables monitoring without calling CS",
+			clusters:  []*coreapi.Cluster{deletingCluster},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:      "CS uninstalling blocks dispatch without an RP deletion timestamp",
+			clusters:  []*coreapi.Cluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			csState:   arohcpv1alpha1.ClusterStateUninstalling,
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:      "CS uninstalling disables monitoring even when already at desired version",
+			clusters:  []*coreapi.Cluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.22", "4.19.22")},
+			csState:   arohcpv1alpha1.ClusterStateUninstalling,
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
+			name:      "CS lookup failure blocks dispatch and preserves the previous observation",
+			clusters:  []*coreapi.Cluster{clusterInCache()},
+			spcs:      []*coreapi.ServiceProviderCluster{previouslyObservedSPC},
+			csError:   errors.New("CS unavailable"),
+			wantError: "failed to observe cluster lifecycle before upgrade",
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:       "CS lookup failure before observation does not publish recovery",
+			clusters:   []*coreapi.Cluster{clusterInCache()},
+			spcs:       []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			csError:    errors.New("CS unavailable"),
+			wantError:  "failed to observe cluster lifecycle before upgrade",
+			unobserved: true,
+			mockSetup:  func(*ocm.MockClusterServiceClientSpec) {},
+		},
+		{
+			name:         "missing CS lifecycle state blocks dispatch",
+			clusters:     []*coreapi.Cluster{clusterInCache()},
+			spcs:         []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			missingState: true,
+			wantError:    "cluster service returned no cluster lifecycle state",
+			unobserved:   true,
+			mockSetup:    func(*ocm.MockClusterServiceClientSpec) {},
+		},
 	}
 
 	for _, tt := range tests {
@@ -388,21 +455,91 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
+			if len(tt.clusters) > 0 && len(tt.spcs) > 0 && tt.clusters[0].ServiceProviderProperties.DeletionTimestamp == nil {
+				if tt.csError != nil {
+					mockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), testClusterServiceID).Return(nil, tt.csError)
+				} else {
+					state := tt.csState
+					if state == "" {
+						state = arohcpv1alpha1.ClusterStateReady
+					}
+					builder := arohcpv1alpha1.NewCluster()
+					if !tt.missingState {
+						builder.Status(arohcpv1alpha1.NewClusterStatus().State(state))
+					}
+					csCluster := metadataapi.Must(builder.Build())
+					calls := 1
+					if tt.repeat {
+						calls = 2
+					}
+					readContext := gomock.Cond[context.Context](func(ctx context.Context) bool {
+						deadline, ok := ctx.Deadline()
+						remaining := time.Until(deadline)
+						return ok && remaining > controllerutils.CSReadTimeout-time.Second && remaining <= controllerutils.CSReadTimeout
+					})
+					mockClusterServiceClient.EXPECT().GetCluster(readContext, testClusterServiceID).Return(csCluster, nil).Times(calls)
+				}
+			}
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			for i, spc := range tt.spcs {
+				spc.PartitionKey = testSubscriptionID
+				created, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
+				require.NoError(t, err)
+				tt.spcs[i] = created
+			}
 
+			spcLister := &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs}
+			clock := clocktesting.NewFakeClock(now)
 			syncer := &triggerControlPlaneUpgradeSyncer{
-				clock:                        clocktesting.NewFakePassiveClock(now),
+				clock:                        clock,
+				resourcesDBClient:            db,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: tt.clusters},
 				clusterServiceClient:         mockClusterServiceClient,
 				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
-				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tt.spcs},
+				serviceProviderClusterLister: spcLister,
 			}
 
-			err := syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+			key := controllerutils.HCPClusterKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
-			})
-			assertSyncResult(t, err, false, "")
+			}
+			err := syncer.SyncOnce(ctx, key)
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			if len(tt.spcs) > 0 {
+				stored, getErr := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, getErr)
+				condition := apimeta.FindStatusCondition(stored.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled)
+				if tt.unobserved {
+					require.Nil(t, condition, "an unsuccessful first observation must not enable or disable monitoring")
+					return
+				}
+				require.NotNil(t, condition)
+				wantStatus := metav1.ConditionTrue
+				if tt.disabled {
+					wantStatus = metav1.ConditionFalse
+				}
+				require.Equal(t, wantStatus, condition.Status)
+				if tt.csError != nil {
+					previous := previouslyObservedSPC.Status.Conditions[0]
+					require.Equal(t, previous.Reason, condition.Reason)
+					require.Equal(t, previous.Message, condition.Message)
+					require.True(t, previous.LastTransitionTime.Equal(&condition.LastTransitionTime), "failed lifecycle reads must preserve the observation timestamp")
+				}
+				if tt.repeat {
+					firstETag := stored.CosmosETag
+					spcLister.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{stored}
+					clock.Step(time.Minute)
+					require.NoError(t, syncer.SyncOnce(ctx, key))
+					again, getErr := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+					require.NoError(t, getErr)
+					require.Equal(t, firstETag, again.CosmosETag, "unchanged lifecycle observations must not rewrite Cosmos")
+				}
+			}
 		})
 	}
 }

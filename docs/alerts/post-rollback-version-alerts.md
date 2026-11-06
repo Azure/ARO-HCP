@@ -7,11 +7,11 @@ rollback that fails to start or complete should still page.
 
 | Alert | Signal | Pinned older version after completion | Rollback still running |
 | --- | --- | --- | --- |
-| `userJourneyClusterUpgradeStuckInDesired` | Target has remained `desired` without becoming `partial` for about 25 minutes | Quiet: the target is already `completed` | Fires if the target never becomes active |
-| `userJourneyClusterUpgradeStuckInProgress` | Target has remained `desired` or `partial` without becoming `completed` for about 35 minutes | Quiet: a completed target is excluded | Fires if the target does not complete |
+| `userJourneyClusterUpgradeStuck` | Cluster-level condition: target exceeds 20m in `desired` or 30m in progress, plus 5m pending | Quiet: the target is already `completed` | Fires if the target does not start or complete |
 | `HCPClusterVersionFailing` | The CVO reports `Failing` for one hour with no other unavailable or degraded operator explaining it | Quiet when CVO is healthy | Fires if CVO reports an independent failure during rollback or afterward |
 
-The two journey alerts read `backend_cluster_version_info`. They require two
+The journey monitor reads `backend_cluster_version_info` and explicit current
+targets from `backend_cluster_upgrade_target_info`. Upgrade durations require two
 distinct observed version labels and a completed version, so an initial install
 is excluded. Their rules do not compare the target with the fleet's best
 version or compare z-stream numbers. `PinnedVersion` is not a label on this
@@ -29,9 +29,9 @@ that CVO reports `Failing` solely because the completed version is below the
 fleet's best version; the current rules and synthetic tests cannot establish
 that CVO behavior. Check live CVO conditions if that case is observed.
 
-The two journey alerts keep their existing `alertname`, `correlationId`,
-recording-rule names, and SLO labels. Their descriptions now say explicitly
-that they cover rollback. Renaming them would be clearer, but requires checking
-alert routing, silences, dashboards, and queries maintained outside this
-repository first. Promtool tests exercise a blocked rollback, a completed
-rollback, and the stable completed state.
+The single journey alert replaces the two version-specific journey alerts.
+Its identity is stable across version and phase changes. See
+[Cluster upgrade stuck monitor](cluster-upgrade.md) for lifecycle resolution,
+missing-observation handling, deployment order, and the required external
+routing/silence migration checks. Promtool tests exercise blocked rollback
+targets without selecting the numerically highest version.

@@ -35,7 +35,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Upgrade SLOs\n\nPer-upgrade observability from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules.\n\n| SLO | Target | Alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuckInDesired` (>20m in `desired`, `for: 5m` \u2192 pages after ~25m) |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuckInProgress` (>30m in progress, `for: 5m` \u2192 pages after ~35m) |\n\n**Upgrade SLOs** \u2014 in-progress and stuck upgrade health against the 20m / 30m thresholds (alerts add a 5-minute pending window before paging).\n\n**Upgrade and Version Visualization Across the Fleet** \u2014 share of clusters with an upgrade in progress, clusters by latest active z-stream, success rate, stuck rate by z-stream (threshold via Stuck Minutes), and latest z-stream per minor (ControlPlaneDesiredVersion gateway selection).\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
+        "content": "### Cluster Upgrade SLOs\n\nPer-version diagnostics from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules. Historical Partial versions remain available for investigation.\n\n| SLO | Target | Cluster-level alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuck` after ~25m |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuck` after ~35m |\n\nThe single alert reads `hosted_control_plane_upgrade:stuck:bool`. Its identity excludes version and phase. A firing condition persists across target changes until the current targets complete, or deletion/uninstallation is confirmed. Missing telemetry is not recovery.\n\n**Upgrade and Version Visualization Across the Fleet** \u2014 per-version diagnostics, including historical attempts; these panels are not the cluster-level alert state.\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
         "mode": "markdown"
       },
       "pluginVersion": "12.4.3",
@@ -118,7 +118,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Upgrades stuck in desired for over 20 minutes without reaching partial (SLO threshold). Alert userJourneyClusterUpgradeStuckInDesired adds for: 5m and pages after ~25m.",
+      "description": "Per-version diagnostic: Desired for over 20 minutes without reaching Partial. The cluster-level userJourneyClusterUpgradeStuck monitor filters current targets, adds 5m pending, and excludes confirmed deletion/uninstallation.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -180,7 +180,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Upgrades stuck in desired or partial for over 30 minutes without reaching completed (SLO threshold). Alert userJourneyClusterUpgradeStuckInProgress adds for: 5m and pages after ~35m.",
+      "description": "Per-version diagnostic: Desired or Partial for over 30 minutes without reaching Completed. Historical attempts can appear here; userJourneyClusterUpgradeStuck reports one current cluster-level condition with 5m pending.",
       "fieldConfig": {
         "defaults": {
           "color": {

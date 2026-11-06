@@ -20,6 +20,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
@@ -30,6 +33,8 @@ import (
 
 type clusterVersionMetricsHandler struct {
 	clusterVersionInfo *prometheus.GaugeVec
+	upgradeTargetInfo  *prometheus.GaugeVec
+	monitoringEnabled  *prometheus.GaugeVec
 	readDesireLister   kubeapplierlisters.ReadDesireLister
 }
 
@@ -44,8 +49,16 @@ func NewClusterVersionMetricsHandler(
 			Name: "backend_cluster_version_info",
 			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, but version hasn't reflected in the cluster active versions), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics.",
 		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version", "state"}),
+		upgradeTargetInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_cluster_upgrade_target_info",
+			Help: "Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.",
+		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version"}),
+		monitoringEnabled: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_cluster_upgrade_monitoring_enabled",
+			Help: "Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.",
+		}, []string{"resource_id", "subscription_id", "cluster_uuid"}),
 	}
-	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo)
+	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo, metricsHandler.upgradeTargetInfo, metricsHandler.monitoringEnabled)
 	return metricsHandler
 }
 
@@ -55,6 +68,33 @@ func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, se
 	clusterUUID := metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent)
 
 	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	metricsHandler.upgradeTargetInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	metricsHandler.monitoringEnabled.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+
+	labels := prometheus.Labels{
+		"resource_id": resourceID, "subscription_id": subscriptionID, "cluster_uuid": clusterUUID,
+	}
+	if condition := apimeta.FindStatusCondition(serviceProviderCluster.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled); condition != nil {
+		switch condition.Status {
+		case metav1.ConditionTrue:
+			metricsHandler.monitoringEnabled.With(labels).Set(1)
+		case metav1.ConditionFalse:
+			metricsHandler.monitoringEnabled.With(labels).Set(0)
+		}
+	}
+	targets := map[string]struct{}{}
+	active := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+	if len(active) > 0 {
+		targets[active[0].Version.String()] = struct{}{}
+	}
+	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
+		targets[desired.String()] = struct{}{}
+	}
+	for version := range targets {
+		metricsHandler.upgradeTargetInfo.With(prometheus.Labels{
+			"resource_id": resourceID, "subscription_id": subscriptionID, "cluster_uuid": clusterUUID, "version": version,
+		}).Set(1)
+	}
 
 	for version, state := range metricsHandler.versionStatesFromServiceProviderCluster(serviceProviderCluster) {
 		metricsHandler.clusterVersionInfo.With(prometheus.Labels{
@@ -76,9 +116,12 @@ func (metricsHandler *clusterVersionMetricsHandler) Delete(serviceProviderCluste
 		return
 	}
 
-	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{
+	labels := prometheus.Labels{
 		"resource_id": resourceIDMetricLabel(serviceProviderClusterResourceID.Parent),
-	})
+	}
+	metricsHandler.clusterVersionInfo.DeletePartialMatch(labels)
+	metricsHandler.upgradeTargetInfo.DeletePartialMatch(labels)
+	metricsHandler.monitoringEnabled.DeletePartialMatch(labels)
 }
 
 func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(

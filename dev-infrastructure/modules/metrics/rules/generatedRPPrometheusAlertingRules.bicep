@@ -449,59 +449,26 @@ resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/pro
             }
           }
         ]
-        alert: 'userJourneyClusterUpgradeStuckInDesired'
+        alert: 'userJourneyClusterUpgradeStuck'
         enabled: true
         labels: {
           component: 'slo'
           severity: '4'
-          slo: 'cluster-upgrade-reach-partial'
+          slo: 'cluster-upgrade'
         }
         annotations: {
-          correlationId: 'userJourneyClusterUpgradeStuckInDesired/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}'
-          description: '''Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          correlationId: 'userJourneyClusterUpgradeStuck/{{ $labels.cluster }}{{ $labels.resource_id }}'
+          description: '''The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
 Service Cluster: {{ $labels.cluster }}
 '''
-          info: '''Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          info: '''The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
 Service Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
-          title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
+          summary: '{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck'
+          title: '{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck'
         }
-        expression: '(hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeStuckInProgress'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'cluster-upgrade-complete'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeStuckInProgress/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}'
-          description: '''Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
-Service Cluster: {{ $labels.cluster }}
-'''
-          info: '''Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
-Service Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
-          title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
-        }
-        expression: '(hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
+        expression: 'hosted_control_plane_upgrade:stuck:bool == 1'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
