@@ -258,8 +258,8 @@ func hasSkippedResourceTypePrefix(resourceID *azcorearm.ResourceID, skipSubtreeT
 
 // extraDeleteGateShouldDeleteServiceProviderCluster returns false while the
 // ServiceProviderCluster still has a managed resource group, remaining
-// data-plane OIDC federation credentials, Maestro readonly bundles, or
-// cluster-scoped kube-applier *Desire documents.
+// data-plane OIDC federation credentials, or cluster-scoped kube-applier
+// *Desire documents.
 func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderCluster(ctx context.Context, serviceProviderClusterResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -331,13 +331,6 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	// controller therefore does nothing on delete and never clears these references. Gating here
 	// would block cleanup forever. (Per Manyanda Chitimbo's note on
 	// https://github.com/Azure/ARO-HCP/pull/6269#discussion_r3656341978.)
-
-	// Check if there are any Maestro readonly bundles remaining.
-	if len(spc.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"serviceProviderClusterResourceID", spc.ResourceID.String(), "remainingBundles", len(spc.Status.MaestroReadonlyBundles))
-		return false, nil
-	}
 
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {

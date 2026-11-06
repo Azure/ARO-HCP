@@ -88,17 +88,9 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:         verifyNodePoolDeleted,
 		},
 		{
-			name:             "all conditions met, SPNP has remaining bundles -- backs off",
+			name:             "all conditions met, SPNP still present -- backs off until SPNP removed",
 			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
-			childResources: []any{newTestSPNP(t, coreapi.MaestroBundleReferenceList{
-				{Name: "readonly-bundle-1"},
-			})},
-			verifyDB: verifyNodePoolStillExists,
-		},
-		{
-			name:             "all conditions met, SPNP with no bundles -- backs off until SPNP removed",
-			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
-			childResources:   []any{newTestSPNP(t, nil)},
+			childResources:   []any{newTestSPNP(t)},
 			verifyDB:         verifyNodePoolStillExists,
 		},
 		{

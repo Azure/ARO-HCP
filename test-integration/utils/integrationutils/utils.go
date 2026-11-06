@@ -211,9 +211,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		return nil, err
 	}
 
-	hcReadDesireName := strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	hcRDResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
-		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster", hcReadDesireName,
+		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster",
+		kubeapplierapi.ReadDesireNameReadonlyHostedCluster,
 	)
 	hcRDResourceID, err := azcorearm.ParseResourceID(hcRDResourceIDStr)
 	if err != nil {
