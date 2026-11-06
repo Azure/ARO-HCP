@@ -409,7 +409,7 @@ AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret
 
 The application and secret names come from `opstool.tenantQuota.tenants.<tenant>.applicationName` and `keyVaultSecretName` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml). The caller needs the permissions described in [`tooling/entra-app-credentials`](../entra-app-credentials/README.md).
 
-`ensure-secret` authenticates to Key Vault and Microsoft Graph with the same Azure credential, so it only covers tenants whose Entra application is reconciled by the privileged pipeline (that is, with an `applicationName`). The TestTestARO service principal lives in a different Entra tenant and has no `applicationName`; it is not covered.
+`ensure-secret` authenticates to Key Vault and Microsoft Graph with the same Azure credential, so it only covers tenants whose Entra application is reconciled by the privileged pipeline (that is, with an `applicationName`). The TestTestARO service principal lives in a different Entra tenant and has no `applicationName`; it is not covered. To renew its secret, use the script's two-phase flow: `./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault` with a target-tenant identity (it mints a new client secret with `az ad sp credential reset`, which replaces the application's existing client secrets, and writes it to a local file), then switch to an identity that can write to the Key Vault and run `./scripts/manage-service-principals.sh --keyvault-only --secret-name <name> --secret-file <printed-path>`.
 
 After rotating, confirm the collector recovered:
 
