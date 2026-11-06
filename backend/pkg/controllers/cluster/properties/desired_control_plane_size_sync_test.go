@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -62,7 +63,8 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
+		noClusterServiceID bool
+		name               string
 		setup
 	}{
 		{
@@ -96,12 +98,12 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "cluster has no ClusterServiceID - skip",
+			noClusterServiceID: true,
+			name:               "cluster has no ClusterServiceID - skip",
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &largeStr,
 				cluster: newTestCluster(testClusterName, func(c *coreapi.Cluster) {
-					c.ServiceProviderProperties.ClusterServiceID = nil
 				}),
 			},
 		},
@@ -241,7 +243,14 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				)
 				// Use the Created return so the lister seed carries the ETag
 				// the mock CRUD assigned; the syncer's Replace requires it.
-				created, err := serviceProviderClusterCRUD.Create(ctx, newTestServiceProviderCluster(testClusterName, tc.specSize, tc.statusSize), nil)
+				provider := newTestServiceProviderCluster(testClusterName, tc.specSize, tc.statusSize)
+				if tc.cluster != nil {
+					provider.ClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+					if tc.noClusterServiceID {
+						provider.ClusterServiceID = nil
+					}
+				}
+				created, err := serviceProviderClusterCRUD.Create(ctx, provider, nil)
 				require.NoError(t, err)
 				seededServiceProviderCluster = created
 			}

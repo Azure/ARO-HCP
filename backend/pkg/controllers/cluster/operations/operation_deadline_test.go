@@ -28,9 +28,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -127,12 +130,17 @@ func TestClusterOperationDeadlines(t *testing.T) {
 					fixture := operationtesting.NewClusterTestFixture()
 					cluster := fixture.NewCluster(nil)
 					cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
-					cluster.ServiceProviderProperties.ClusterServiceID = nil
+					provider := &coreapi.ServiceProviderCluster{
+						CosmosMetadata: coreapi.CosmosMetadata{
+							ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName)),
+							PartitionKey: cluster.GetPartitionKey(),
+						},
+					}
 					if tc.owner != nil {
 						cluster.ServiceProviderProperties.ActiveOperationID = *tc.owner
 					}
 					if tc.withCSID {
-						cluster.ServiceProviderProperties.ClusterServiceID = &fixture.ClusterInternalID
+						provider.ClusterServiceID = &fixture.ClusterInternalID
 					}
 					cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = tc.deadline
 					cluster.ServiceProviderProperties.UpdateOperationCompletionDeadline = tc.deadline
@@ -143,7 +151,7 @@ func TestClusterOperationDeadlines(t *testing.T) {
 					}
 					resources := []any{operation}
 					if !tc.clusterAbsent {
-						resources = append(resources, cluster)
+						resources = append(resources, cluster, provider)
 					}
 					db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 					require.NoError(t, err)
@@ -171,7 +179,7 @@ func TestClusterOperationDeadlines(t *testing.T) {
 						require.NoError(t, err)
 					}
 					cs := ocm.NewMockClusterServiceClientSpec(gomock.NewController(t))
-					if cluster.ServiceProviderProperties.ClusterServiceID != nil && request != cosmosstorageutils.OperationRequestDelete {
+					if provider.ClusterServiceID != nil && request != cosmosstorageutils.OperationRequestDelete {
 						if request == cosmosstorageutils.OperationRequestCreate {
 							cs.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(nil, errors.New("CS unavailable"))
 						} else {
@@ -183,7 +191,7 @@ func TestClusterOperationDeadlines(t *testing.T) {
 						reads = failingDeadlineReadDesireLister{}
 					}
 					// Delete also collects best-effort remote diagnostics on expiry.
-					if request == cosmosstorageutils.OperationRequestDelete && cluster.ServiceProviderProperties.ClusterServiceID != nil {
+					if request == cosmosstorageutils.OperationRequestDelete && provider.ClusterServiceID != nil {
 						cs.EXPECT().GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).Return(nil, errors.New("CS unavailable"))
 					}
 					clock := clocktesting.NewFakePassiveClock(now)

@@ -108,17 +108,13 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Get the cluster from cache to check if it has a CS ID to query
-	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err = c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("Cluster not found in cache, skipping")
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
-	}
-	if cachedCluster.ServiceProviderProperties.ClusterServiceID == nil || len(cachedCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		logger.V(1).Info("Cluster has no ClusterServiceID, skipping")
-		return nil
 	}
 
 	// Get the ServiceProviderCluster from Cosmos (live read)
@@ -131,6 +127,10 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
+	if existingSPC.ClusterServiceID == nil || len(existingSPC.ClusterServiceID.String()) == 0 {
+		logger.V(1).Info("Cluster has no ClusterServiceID, skipping")
+		return nil
+	}
 	// check if we need to do work again. Sometimes the live data is more fresh than the cache
 	if !c.needsWork(existingSPC) {
 		logger.V(1).Info("ServiceProviderCluster already has ManagementClusterResourceID (live read), skipping")
@@ -141,7 +141,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(csCtx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
+	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(csCtx, *existingSPC.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service: %w", err))
 	}

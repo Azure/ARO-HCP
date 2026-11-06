@@ -611,7 +611,6 @@ func newClusterFixture(resourceID *azcorearm.ResourceID) *coreapi.Cluster {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateAccepted,
-			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/changefeed-test"))),
 		},
 	}
 }

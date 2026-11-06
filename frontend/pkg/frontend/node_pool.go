@@ -296,10 +296,6 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
-	}
-
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
@@ -307,6 +303,9 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+	if admissionContext.ServiceProviderCluster.ClusterServiceID == nil {
+		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil); len(mutationErrs) > 0 {
 		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))

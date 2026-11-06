@@ -325,9 +325,6 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			TrackedResource: coreapi.TrackedResource{
 				Resource: coreapi.Resource{ID: clusterResourceID, Name: testClusterName, Type: coreapi.ClusterResourceType.String()},
 			},
-			ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-				ClusterServiceID: ptr.To(testClusterServiceID),
-			},
 		}
 	}
 	spcInCache := func(activeVersion, desiredVersion string) *coreapi.ServiceProviderCluster {
@@ -335,7 +332,8 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 		active := semver.MustParse(activeVersion)
 		desired := semver.MustParse(desiredVersion)
 		return &coreapi.ServiceProviderCluster{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+			ClusterServiceID: ptr.To(testClusterServiceID),
+			CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: spcResourceID},
 			Spec: coreapi.ServiceProviderClusterSpec{
 				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: &desired},
 			},

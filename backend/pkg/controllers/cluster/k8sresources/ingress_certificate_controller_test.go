@@ -66,12 +66,12 @@ func newCertificateFixture(test *testing.T) *certificateFixture {
 	managementClusterID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/test/managementClusters/default"))
 	csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
 	cluster := &coreapi.Cluster{
-		CosmosMetadata:            coreapi.CosmosMetadata{ResourceID: clusterID, PartitionKey: key.SubscriptionID},
-		TrackedResource:           coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterID}},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{ClusterServiceID: &csID},
+		CosmosMetadata:  coreapi.CosmosMetadata{ResourceID: clusterID, PartitionKey: key.SubscriptionID},
+		TrackedResource: coreapi.TrackedResource{Resource: coreapi.Resource{ID: clusterID}},
 	}
 	serviceProvider := &coreapi.ServiceProviderCluster{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderID, PartitionKey: key.SubscriptionID},
+		ClusterServiceID: &csID,
+		CosmosMetadata:   coreapi.CosmosMetadata{ResourceID: serviceProviderID, PartitionKey: key.SubscriptionID},
 		Status: coreapi.ServiceProviderClusterStatus{
 			AzureResources:              coreapi.AzureResources{IngressCertificate: &coreapi.TLSCertificate{AzureReference: ingressTestReference()}},
 			ManagementClusterResourceID: managementClusterID,
@@ -226,7 +226,7 @@ func TestIngressCertificateTeardown(test *testing.T) {
 	require.NoError(test, err)
 	now := metav1.Now()
 	fixture.cluster.ServiceProviderProperties.DeletionTimestamp = &now
-	fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil
+	fixture.serviceProvider.ClusterServiceID = nil
 	fixture.serviceProvider.Status.AzureResources.IngressCertificate = &coreapi.TLSCertificate{PendingReference: ingressTestReference()}
 	fixture.serviceProvider.Status.HostedClusterNamespace = ""
 	fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}
@@ -264,7 +264,7 @@ func TestIngressCertificatePrerequisites(test *testing.T) {
 		"client absent": func(fixture *certificateFixture) {
 			fixture.syncer.kubeApplierDBClients = kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 		},
-		"cluster service ID absent": func(fixture *certificateFixture) { fixture.cluster.ServiceProviderProperties.ClusterServiceID = nil },
+		"cluster service ID absent": func(fixture *certificateFixture) { fixture.serviceProvider.ClusterServiceID = nil },
 		"namespace absent":          func(fixture *certificateFixture) { fixture.serviceProvider.Status.HostedClusterNamespace = "" },
 		"management cluster absent": func(fixture *certificateFixture) {
 			fixture.syncer.managementClusterLister = &fleetlistertesting.SliceManagementClusterLister{}

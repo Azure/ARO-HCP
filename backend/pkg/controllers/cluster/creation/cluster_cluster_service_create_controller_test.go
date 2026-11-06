@@ -103,8 +103,6 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 	cluster.ID = rid
 	cluster.Name = testClusterName
 	cluster.Type = rid.ResourceType.String()
-	cluster.ServiceProviderProperties.ClusterServiceID = nil
-	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	cluster.ServiceProviderProperties.ClusterUID = testClusterUID
 	for _, opt := range opts {
 		opt(cluster)
@@ -186,6 +184,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
 	tests := []struct {
+		pendingID, finalID             *metadataapi.InternalID
 		name                           string
 		listCluster                    *coreapi.Cluster                // cluster seeded into the lister (nil = not found)
 		dbCluster                      *coreapi.Cluster                // cluster stored in the DB
@@ -197,12 +196,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name: "successful sync dispatches using persisted DNS names",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "successful sync dispatches using persisted DNS names",
+			listCluster: newTestCluster(),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -239,27 +236,26 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "successful create persists ID in the same reconcile")
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.NotNil(t, provider.ClusterServiceID, "successful create persists ID in the same reconcile")
 				assert.Equal(t, "abcde.example.com", cluster.ServiceProviderProperties.DNS.BaseDomain)
 			},
 		},
 		{
-			name: "skip when cluster already has ClusterServiceID",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
-			}),
+			finalID:     &clusterInternalID,
+			name:        "skip when cluster already has ClusterServiceID",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
-				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+				require.NotNil(t, provider.ClusterServiceID)
+				assert.Equal(t, testClusterServiceIDStr, provider.ClusterServiceID.String())
 			},
 		},
 		{
@@ -271,19 +267,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
+				assert.Nil(t, provider.ClusterServiceID)
 			},
 		},
 		{
-			name: "desired version not set waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "desired version not set waits without dispatching",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// Placement is resolved so the needsWork placement gate passes; the desired
 				// version is intentionally left nil so this case isolates the desired-version
@@ -295,19 +288,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
+				assert.Nil(t, provider.ClusterServiceID)
 			},
 		},
 		{
-			name: "deny assignments still pending waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "deny assignments still pending waits without dispatching",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// The desired version is resolved (that precondition passes)...
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
@@ -320,19 +310,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
+				assert.Nil(t, provider.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
 			},
 		},
 		{
-			name: "data-plane OIDC federation still pending waits without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "data-plane OIDC federation still pending waits without dispatching",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				// Deny assignments are already created so the (independent) deny-assignment gate
@@ -346,18 +333,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while data-plane OIDC federation is pending")
+				assert.Nil(t, provider.ClusterServiceID, "cluster creation must not dispatch while data-plane OIDC federation is pending")
 			},
 		},
 		{
-			name: "deny assignments disabled (no real FPA) dispatches without waiting on them",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "deny assignments disabled (no real FPA) dispatches without waiting on them",
+			listCluster: newTestCluster(),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
@@ -390,19 +375,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "successful create persists ID in the same reconcile")
+				require.NotNil(t, provider.ClusterServiceID, "successful create persists ID in the same reconcile")
 			},
 		},
 		{
-			name: "confirmed deny assignments without a completed reconcile wait without dispatching",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "confirmed deny assignments without a completed reconcile wait without dispatching",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				setDenyAssignmentsCreated(spc)
@@ -413,19 +395,16 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch before deny-assignment reconciliation completes")
+				assert.Nil(t, provider.ClusterServiceID, "cluster creation must not dispatch before deny-assignment reconciliation completes")
 			},
 		},
 		{
-			name: "defer creation when placement intent (Spec.ManagementClusterResourceID) is not resolved",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "defer creation when placement intent (Spec.ManagementClusterResourceID) is not resolved",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				// Deny assignments are already created so the (independent) deny-assignment gate
@@ -442,22 +421,19 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				// No CS cluster created: ClusterServiceID stays nil and the pending
 				// ID is preserved for the next attempt once placement lands.
-				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
-				assert.NotNil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+				assert.Nil(t, provider.ClusterServiceID)
+				assert.NotNil(t, provider.PendingClusterServiceID)
 			},
 		},
 		{
-			name: "adopts existing Cluster Service cluster for Azure resource",
-			listCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
-			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-			}),
+			pendingID:   &pendingClusterServiceID,
+			name:        "adopts existing Cluster Service cluster for Azure resource",
+			listCluster: newTestCluster(),
+			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
@@ -487,10 +463,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
-				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				provider, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
-				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+				require.NotNil(t, provider.ClusterServiceID)
+				assert.Equal(t, testClusterServiceIDStr, provider.ClusterServiceID.String())
 			},
 		},
 	}
@@ -505,7 +481,12 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, tt.dbCluster})
 			require.NoError(t, err)
 
+			if tt.existingServiceProviderCluster == nil && tt.dbCluster != nil {
+				tt.existingServiceProviderCluster = newTestSPC()
+			}
 			if tt.existingServiceProviderCluster != nil {
+				tt.existingServiceProviderCluster.PendingClusterServiceID = tt.pendingID.DeepCopy()
+				tt.existingServiceProviderCluster.ClusterServiceID = tt.finalID.DeepCopy()
 				_, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, tt.existingServiceProviderCluster, nil)
 				require.NoError(t, err)
 			}

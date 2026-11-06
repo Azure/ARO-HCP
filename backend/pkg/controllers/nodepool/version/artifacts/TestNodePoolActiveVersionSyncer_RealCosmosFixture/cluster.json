@@ -318,7 +318,6 @@
             "url": "https://api.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud:443"
           },
           "billingDocumentCosmosID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
-          "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591",
           "clusterUID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
           "console": {
             "url": "https://console-openshift-console.apps.aro.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud"
@@ -359,7 +358,6 @@
         "url": "https://api.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud:443"
       },
       "billingDocumentCosmosID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
-      "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591",
       "clusterUID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
       "console": {
         "url": "https://console-openshift-console.apps.aro.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud"

@@ -76,9 +76,11 @@ func TestAllocationSyncOnce(t *testing.T) {
 	deleting := testCluster("", "")
 	deleting.ServiceProviderProperties.DeletionTimestamp = &stamp
 	created := testCluster("", "")
-	created.ServiceProviderProperties.ClusterServiceID = created.ServiceProviderProperties.PendingClusterServiceID
+	createdProvider := testProvider("")
+	createdProvider.ClusterServiceID = createdProvider.PendingClusterServiceID
 	noPending := testCluster("", "")
-	noPending.ServiceProviderProperties.PendingClusterServiceID = nil
+	noPendingProvider := testProvider("")
+	noPendingProvider.PendingClusterServiceID = nil
 	unplaced := testProvider("")
 	unplaced.Spec.ManagementClusterResourceID = nil
 	failure := errors.New("injected read failure")
@@ -121,8 +123,8 @@ func TestAllocationSyncOnce(t *testing.T) {
 		{name: "CS lookup fails", cluster: testCluster("", "cluster"), provider: testProvider(domain), csErr: failure, wantErr: failure.Error()},
 		{name: "missing cluster", skipCS: true},
 		{name: "deleting", cluster: deleting, skipCS: true},
-		{name: "created", cluster: created, skipCS: true},
-		{name: "no pending CS ID", cluster: noPending, skipCS: true},
+		{name: "created", cluster: created, provider: createdProvider, skipCS: true},
+		{name: "no pending CS ID", cluster: noPending, provider: noPendingProvider, skipCS: true},
 		{name: "unplaced", cluster: testCluster("", ""), provider: unplaced, skipCS: true},
 		{name: "missing provider", cluster: testCluster("", ""), skipCS: true, wantErr: "404"},
 		{name: "adopt existing CS before naming", cluster: testCluster("", ""), provider: testProvider(""), csClusters: []*arohcpv1alpha1.Cluster{existingCS}},
@@ -136,6 +138,13 @@ func TestAllocationSyncOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resources := newRecordingResources()
+			if tt.provider != nil && tt.cluster != nil {
+
+				if tt.wantProvider != nil {
+					tt.wantProvider.PendingClusterServiceID = tt.provider.PendingClusterServiceID.DeepCopy()
+					tt.wantProvider.ClusterServiceID = tt.provider.ClusterServiceID.DeepCopy()
+				}
+			}
 			resources.clusters.writeErr = tt.writeErr
 			resources.providers.writeErr = tt.writeErr
 			fleet := &recordingFleet{}

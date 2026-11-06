@@ -167,6 +167,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			buildSyncer: func(t *testing.T, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
 				deletingCluster := newCreatorTestCluster(t)
 				deletingCluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
+				deletingCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = ptr.To(metav1.Now())
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
@@ -216,12 +217,16 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
+			syncer := tc.buildSyncer(t, mockDB)
+			if cluster, err := syncer.clusterLister.Get(ctx, creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName); err == nil {
+				cluster.SetPartitionKey(creatorTestSubscriptionID)
+				_, err = mockDB.HCPClusters(creatorTestSubscriptionID, creatorTestResourceGroup).Create(ctx, cluster, nil)
+				require.NoError(t, err)
+			}
+
 			if tc.seedDB != nil {
 				tc.seedDB(t, ctx, mockDB)
 			}
-
-			syncer := tc.buildSyncer(t, mockDB)
-
 			err := syncer.SyncOnce(ctx, newCreatorTestClusterKey())
 			if tc.wantErrSubstring != "" {
 				require.Error(t, err)

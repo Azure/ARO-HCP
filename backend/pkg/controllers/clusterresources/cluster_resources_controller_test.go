@@ -92,9 +92,6 @@ func newCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
-		},
 	}
 	for _, opt := range opts {
 		opt(cluster)
@@ -110,6 +107,7 @@ func newSPC(mcResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster 
 			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
 	))
 	return &coreapi.ServiceProviderCluster{
+		ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceID))),
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
@@ -134,10 +132,11 @@ func TestNeedsWork(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		cluster           *coreapi.Cluster
-		managementCluster *azcorearm.ResourceID
-		want              bool
+		noClusterServiceID bool
+		name               string
+		cluster            *coreapi.Cluster
+		managementCluster  *azcorearm.ResourceID
+		want               bool
 	}{
 		{
 			name:              "returns true for cluster with ClusterServiceID and management cluster",
@@ -155,9 +154,9 @@ func TestNeedsWork(t *testing.T) {
 			want:              true,
 		},
 		{
-			name: "returns false for cluster without ClusterServiceID",
+			noClusterServiceID: true,
+			name:               "returns false for cluster without ClusterServiceID",
 			cluster: newCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			managementCluster: testManagementClusterResourceID,
 			want:              false,
@@ -174,7 +173,13 @@ func TestNeedsWork(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			c := &clusterResourcesController{}
-			got := c.NeedsWork(tt.cluster, tt.managementCluster)
+			got := c.NeedsWork(tt.cluster, tt.managementCluster, func() *coreapi.ServiceProviderCluster {
+				provider := newSPC(tt.managementCluster)
+				if tt.noClusterServiceID {
+					provider.ClusterServiceID = nil
+				}
+				return provider
+			}())
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -260,10 +265,13 @@ func TestSyncOnce(t *testing.T) {
 		{
 			name: "skips cluster without ClusterServiceID",
 			cluster: newCluster(func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			dbResources: []any{
-				newSPC(testManagementClusterResourceID),
+				func() *coreapi.ServiceProviderCluster {
+					provider := newSPC(testManagementClusterResourceID)
+					provider.ClusterServiceID = nil
+					return provider
+				}(),
 			},
 			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)

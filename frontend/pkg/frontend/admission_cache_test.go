@@ -254,7 +254,7 @@ func TestAdmissionProviderCacheHandlers(t *testing.T) {
 				cluster := coreapitesting.MinimumValidClusterTestCase()
 				cluster.SetResourceID(cluster.ID)
 				cluster.SetPartitionKey(cluster.ID.SubscriptionID)
-				cluster.ServiceProviderProperties.ClusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID
+				clusterID := metadataapi.Must(metadataapi.NewInternalID(coreapitesting.TestPendingClusterServiceIDPath))
 				_, err := db.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Create(t.Context(), cluster, nil)
 				require.NoError(t, err)
 				_, err = db.Subscriptions().Create(t.Context(), newTestSubscription(cluster.ID.SubscriptionID, coreapi.SubscriptionStateRegistered, nil), nil)
@@ -266,7 +266,11 @@ func TestAdmissionProviderCacheHandlers(t *testing.T) {
 				require.NoError(t, poolInformer.GetStore().Add(pool.DeepCopy()))
 				if missing != "cluster" {
 					informer, _ := f.informers.ServiceProviderClusters()
-					require.NoError(t, informer.GetStore().Add(newTestServiceProviderCluster(cluster.ID)))
+					require.NoError(t, informer.GetStore().Add(func() *coreapi.ServiceProviderCluster {
+						provider := newTestServiceProviderCluster(cluster.ID)
+						provider.ClusterServiceID = &clusterID
+						return provider
+					}()))
 				}
 				if missing != "node pool" {
 					informer, _ := f.informers.ServiceProviderNodePools()

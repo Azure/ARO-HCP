@@ -183,8 +183,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			c.FillNoCustom(j)
 			j.ActiveOperationID = ""
 			j.RevokeCredentialsOperationID = ""
-			j.PendingClusterServiceID = nil
-			j.ClusterServiceID = nil
+			j.ClusterServiceDeletionCompleted = false
+			j.ServiceProviderClusterInitialized = false
 			j.ExperimentalFeatures = coreapi.ExperimentalFeatures{}
 			j.ManagedIdentitiesDataPlaneIdentityURL = ""
 			j.ClusterUID = ""
@@ -269,14 +269,6 @@ func CommonDeepCopyFuzzFuncs() []interface{} {
 			if j.EncryptionSetID != nil {
 				j.EncryptionSetID = FuzzArmResourceID("Microsoft.Compute/diskEncryptionSets", GenName(c))
 			}
-		},
-		func(j *coreapi.ClusterServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j == nil {
-				return
-			}
-			j.ClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
-			j.PendingClusterServiceID = metadataapihelpers.Ptr(FuzzInternalID(GenName(c)))
 		},
 		func(j *coreapi.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

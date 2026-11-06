@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azure"
 )
@@ -221,6 +222,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				coreapitesting.TestTenantID,
 				coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL,
 				csVersionID,
+				coreapitesting.ServiceProviderForCluster(cluster, metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(coreapitesting.TestPendingClusterServiceIDPath))), nil),
 			)
 			require.NoError(t, err)
 			result, err := builder.Azure(azureBuilder).Build()
@@ -1540,6 +1542,9 @@ func TestBuildCSCluster(t *testing.T) {
 			}
 
 			// Build actual CS cluster
+			if serviceProviderCluster != nil {
+				serviceProviderCluster.PendingClusterServiceID = metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(coreapitesting.TestPendingClusterServiceIDPath)))
+			}
 			actualClusterBuilder, err := BuildCSCluster(resourceID, coreapitesting.TestTenantID, cluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
 
 			if tc.expectedError != "" {

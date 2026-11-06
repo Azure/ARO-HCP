@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -27,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -598,9 +600,9 @@ func createClusterAndComplete(
 	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
 	require.NoError(t, testInfo.WaitForFrontendCaches(ctx))
 
-	// Deliberately not stamping a ClusterServiceID on the cluster here (unlike
+	// Deliberately not stamping a ClusterServiceID on the provider here (unlike
 	// createNodePoolAndComplete): cluster updates still synchronously call out to
-	// Cluster Service (GetCluster/UpdateCluster) when ServiceProviderProperties.ClusterServiceID
+	// Cluster Service (GetCluster/UpdateCluster) when ServiceProviderCluster.ClusterServiceID
 	// is set, and most callers of this helper immediately PUT/PATCH the cluster afterward via
 	// a different API version. Child resource helpers stamp the parent cluster's CS ID explicitly
 	// before creating node pools or external auths.
@@ -619,43 +621,13 @@ func createServiceProviderClusterForTesting(
 	t.Helper()
 
 	parsedID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
-	subscriptionID := parsedID.SubscriptionID
-	resourceGroupName := parsedID.ResourceGroupName
-
-	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
-		subscriptionID, resourceGroupName, clusterName)
-
-	cosmosID, err := coreapi.ResourceIDStringToCosmosID(spcResourceID)
+	provider, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, testInfo.ResourcesDBClient(), parsedID)
 	require.NoError(t, err)
-
-	spcDoc := map[string]interface{}{
-		"id":           cosmosID,
-		"partitionKey": subscriptionID,
-		"resourceID":   spcResourceID,
-		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
-		"properties": map[string]interface{}{
-			"resourceId": spcResourceID,
-			"spec": map[string]interface{}{
-				"control_plane_version": map[string]interface{}{
-					"desired_version": controlPlaneVersion,
-				},
-			},
-			"status": map[string]interface{}{
-				"control_plane_version": map[string]interface{}{
-					"active_versions": []interface{}{
-						map[string]interface{}{
-							"version": controlPlaneVersion,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	spcBytes, err := json.Marshal(spcDoc)
+	version := metadataapi.Must(semver.Parse(controlPlaneVersion))
+	provider.Spec.ControlPlaneVersion.DesiredVersion = &version
+	provider.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{{Version: &version}}
+	_, err = testInfo.ResourcesDBClient().ServiceProviderClusters(parsedID.SubscriptionID, parsedID.ResourceGroupName, parsedID.Name).Replace(ctx, provider, nil)
 	require.NoError(t, err)
-
-	require.NoError(t, testInfo.LoadContent(ctx, spcBytes))
 }
 
 // runClusterCrossVersionPUT creates a cluster via createVersion, then performs a

@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -81,6 +82,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
+		noClusterServiceID   bool
 		name                 string
 		listerCluster        *coreapi.Cluster
 		existingExternalAuth *coreapi.ExternalAuth
@@ -119,8 +121,9 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB:           verifyClusterServiceIDIsSet,
 		},
 		{
+			noClusterServiceID:   true,
 			name:                 "when cluster has no ClusterServiceID error is returned",
-			listerCluster:        newTestCluster(t, func(c *coreapi.Cluster) { c.ServiceProviderProperties.ClusterServiceID = nil }),
+			listerCluster:        newTestCluster(t, nil),
 			existingExternalAuth: newTestExternalAuthForCreate(t, nil),
 			wantErr:              true,
 			wantErrContain:       "cluster test-cluster has no ClusterServiceID",
@@ -243,6 +246,15 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			resources := []any{}
+			if tc.listerCluster != nil {
+				resources = append(resources, func() *coreapi.ServiceProviderCluster {
+					provider := coreapitesting.ServiceProviderForCluster(tc.listerCluster, nil, &clusterCSInternalID)
+					if tc.noClusterServiceID {
+						provider.ClusterServiceID = nil
+					}
+					return provider
+				}())
+			}
 			if tc.existingExternalAuth != nil {
 				resources = append(resources, tc.existingExternalAuth)
 			}
@@ -313,7 +325,6 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
 	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -324,9 +335,6 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 			Location: "eastus",
 		},
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: clusterInternalID,
-		},
 	}
 	if opts != nil {
 		opts(cluster)

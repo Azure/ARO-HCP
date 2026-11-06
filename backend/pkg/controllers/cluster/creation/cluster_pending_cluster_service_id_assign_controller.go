@@ -59,17 +59,17 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 	return controller
 }
 
-func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.Cluster) bool {
+func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.PendingClusterServiceID == nil &&
-		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
-			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0)
+		provider.PendingClusterServiceID == nil &&
+		(provider.ClusterServiceID == nil ||
+			len(provider.ClusterServiceID.String()) == 0)
 }
 
 func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
@@ -77,16 +77,23 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
-	if !c.needsWork(cluster) {
-		return nil
-	}
-
-	cluster, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.needsWork(cluster, provider) {
+		return nil
 	}
 
 	uid := ocm.NewCSClusterUID()
@@ -96,8 +103,8 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	}
 
 	logger.Info("Assigning PendingClusterServiceID", "pendingClusterServiceID", pendingID.String())
-	cluster.ServiceProviderProperties.PendingClusterServiceID = &pendingID
-	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
+	provider.PendingClusterServiceID = &pendingID
+	err = corecosmosstorage.ReplaceClusterWithServiceProviderIDs(ctx, c.resourcesDBClient, cluster, provider)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}

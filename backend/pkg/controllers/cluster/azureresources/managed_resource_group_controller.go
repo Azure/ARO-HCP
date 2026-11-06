@@ -395,7 +395,8 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		// should delete it.
 		if cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 			cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-			(cluster.ServiceProviderProperties.ClusterServiceID == nil || cluster.ServiceProviderProperties.ClusterServiceID.String() == "") &&
+			cluster.ServiceProviderProperties.ClusterServiceDeletionCompleted &&
+			(existingServiceProviderCluster.ClusterServiceID == nil || existingServiceProviderCluster.ClusterServiceID.String() == "") &&
 			provisioningState != string(armresources.ProvisioningStateDeleting) {
 			logger.Info("deleting orphaned managed resource group", "managedResourceGroup", managedResourceGroupID.Name,
 				"managedBy", getResponse.ManagedBy, "provisioningState", provisioningState)

@@ -183,7 +183,14 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
-	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !c.shouldReconcileOperationAndResourceStatus(cluster, provider) {
 		return nil
 	}
 	err = c.reconcileOperationAndResourceStatus(ctx, operation, cluster)
@@ -194,16 +201,26 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
+func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+		provider.ClusterServiceID != nil
 }
 
 func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clusterCSID := provider.ClusterServiceID
+	if clusterCSID == nil {
+		return nil
+	}
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
@@ -244,8 +261,13 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 
 	errs := []error{}
 	states := []*operationbase.OperationState{}
+	provider, providerErr := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if providerErr != nil {
+		errs = append(errs, providerErr)
+		provider = &coreapi.ServiceProviderCluster{}
+	}
 
-	if currState, err := clusterServiceDeletionStatus(cluster); err != nil {
+	if currState, err := clusterServiceDeletionStatus(cluster, provider); err != nil {
 		errs = append(errs, err)
 	} else {
 		states = append(states, currState.WithSource("clusterServiceDeletion"))
@@ -297,28 +319,32 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func clusterServiceDeletionStatus(cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+func clusterServiceDeletionStatus(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
+	if provider.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "ClusterService deletion not yet dispatched"), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService cluster %s still exists (deletion dispatched at %s)",
-		cluster.ServiceProviderProperties.ClusterServiceID,
+		provider.ClusterServiceID,
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Format(time.RFC3339))), nil
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
 func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+	provider, err := corecosmosstorage.ReadClusterServiceProvider(ctx, c.resourcesDBClient, cluster.ID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if provider.ClusterServiceID == nil {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 
-	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *cluster.ServiceProviderProperties.ClusterServiceID)
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(csCtx, *provider.ClusterServiceID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {

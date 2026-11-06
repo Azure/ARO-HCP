@@ -52,7 +52,6 @@ func newTestCluster() *coreapi.Cluster {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
 	return &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
@@ -66,7 +65,6 @@ func newTestCluster() *coreapi.Cluster {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &csID,
 		},
 	}
 }
@@ -139,7 +137,6 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 			name: "cluster without ClusterServiceID is no-op",
 			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster := newTestCluster()
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Create(context.Background(), cluster, nil)
 				require.NoError(t, err)
 				createTestCredentialRequest(t, db, testCredentialName)
@@ -285,6 +282,12 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tt.setupDB(db)
+			for _, provider := range tt.spcLister.ServiceProviderClusters {
+				csID := metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
+				provider.ClusterServiceID = &csID
+				_, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, provider, nil)
+				require.NoError(t, err)
+			}
 
 			kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 			if tt.registerKubeApplierClient {

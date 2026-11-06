@@ -484,8 +484,6 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
-	require.NoError(t, err)
 
 	cluster := &coreapi.Cluster{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -502,10 +500,9 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &clusterInternalID,
 		},
 	}
-	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
+	_, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
 	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, clusterResourceID)

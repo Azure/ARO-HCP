@@ -139,12 +139,12 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if cachedCluster.ServiceProviderProperties.ClusterServiceID == nil || len(cachedCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if cachedServiceProviderCluster.ClusterServiceID == nil || len(cachedServiceProviderCluster.ClusterServiceID.String()) == 0 {
 		logger.V(1).Info("Cluster has no ClusterServiceID, skipping")
 		return nil
 	}
 
-	clusterServiceID := *cachedCluster.ServiceProviderProperties.ClusterServiceID
+	clusterServiceID := *cachedServiceProviderCluster.ClusterServiceID
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()
 

@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -226,10 +227,11 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			syncer := &csStateDump{
-				clusterLister:   &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				nodePoolLister:  &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				csClient:        mockCSClient,
-				nextDumpChecker: &alwaysSyncCooldownChecker{},
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:               &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				csClient:                     mockCSClient,
+				nextDumpChecker:              &alwaysSyncCooldownChecker{},
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -250,13 +252,12 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 					TrackedResource: coreapi.TrackedResource{
 						Resource: coreapi.Resource{ID: clusterResourceID},
 					},
-					ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-						ClusterServiceID: &csID,
-					},
 				}
 
 				clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 				_, err := clustersCRUD.Create(ctx, cluster, nil)
+				require.NoError(t, err)
+				_, err = mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &csID), nil)
 				require.NoError(t, err)
 			}
 
@@ -325,10 +326,11 @@ func TestCSStateDump_SyncOnce_DumpsListedNodePoolVersion(t *testing.T) {
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 	syncer := &csStateDump{
-		clusterLister:   &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		nodePoolLister:  &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		csClient:        mockCSClient,
-		nextDumpChecker: &alwaysSyncCooldownChecker{},
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:               &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		csClient:                     mockCSClient,
+		nextDumpChecker:              &alwaysSyncCooldownChecker{},
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -348,11 +350,10 @@ func TestCSStateDump_SyncOnce_DumpsListedNodePoolVersion(t *testing.T) {
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{ID: clusterResourceID},
 		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: &csID,
-		},
 	}, nil)
 	require.NoError(t, err, "failed to create test cluster")
+	_, err = mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Create(ctx, &coreapi.ServiceProviderCluster{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default")), PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID)}, ClusterServiceID: &csID}, nil)
+	require.NoError(t, err)
 
 	nodePool := newTestNodePool("test-np-1", npCSID)
 	_, err = mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Create(ctx, nodePool, nil)

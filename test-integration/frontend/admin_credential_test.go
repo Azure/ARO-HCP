@@ -97,11 +97,13 @@ func testRequestAdminCredentialStoresCSR(t *testing.T, withMock bool) {
 		},
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: coreapi.ProvisioningStateSucceeded,
-			ClusterServiceID:  &clusterInternalID,
 		},
 	}
 	cluster.Location = "eastus"
 	_, err = testInfo.ResourcesDBClient().HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+
+	_, err = testInfo.ResourcesDBClient().ServiceProviderClusters(subscriptionID, resourceGroupName, clusterResourceID.Name).Create(ctx, coreapitesting.ServiceProviderForCluster(cluster, nil, &clusterInternalID), nil)
 	require.NoError(t, err)
 
 	// Generate a CSR.

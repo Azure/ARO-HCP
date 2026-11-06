@@ -33,7 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -105,7 +104,6 @@ func newTestCluster(t *testing.T, clusterUID string, provisioningState coreapi.P
 		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
 			ClusterUID:        clusterUID,
-			ClusterServiceID:  metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
 		CustomerProperties: coreapi.ClusterCustomerProperties{
 			Platform: coreapi.CustomerPlatformProfile{ManagedResourceGroup: "managed-rg"},

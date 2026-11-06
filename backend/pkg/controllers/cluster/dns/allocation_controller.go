@@ -96,13 +96,17 @@ func (c *dnsAllocationController) SyncOnce(ctx context.Context, key controllerut
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if !c.needsWork(cluster) {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil || len(cluster.ServiceProviderProperties.DNS.BaseDomain) != 0 {
 		return nil
 	}
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	provider, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if !c.needsWork(cluster, provider) {
+		return nil
+	}
+	serviceProviderCluster := provider
 	if serviceProviderCluster.Spec.ManagementClusterResourceID == nil {
 		return nil
 	}
@@ -137,10 +141,10 @@ func (c *dnsAllocationController) SyncOnce(ctx context.Context, key controllerut
 	return utils.TrackError(err)
 }
 
-func (c *dnsAllocationController) needsWork(cluster *coreapi.Cluster) bool {
+func (c *dnsAllocationController) needsWork(cluster *coreapi.Cluster, provider *coreapi.ServiceProviderCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID == nil &&
-		cluster.ServiceProviderProperties.PendingClusterServiceID != nil &&
+		provider.ClusterServiceID == nil &&
+		provider.PendingClusterServiceID != nil &&
 		len(cluster.ServiceProviderProperties.DNS.BaseDomain) == 0
 }
 

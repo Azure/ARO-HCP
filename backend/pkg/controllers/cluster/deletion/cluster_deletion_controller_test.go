@@ -52,7 +52,8 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		return newTestCluster(t, func(c *coreapi.Cluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
-			c.ServiceProviderProperties.ClusterServiceID = nil
+
+			c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 		})
 	}
 
@@ -69,11 +70,12 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		existingCluster *coreapi.Cluster
-		extraResources  []any
-		wantErr         bool
-		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		noClusterServiceID bool
+		name               string
+		existingCluster    *coreapi.Cluster
+		extraResources     []any
+		wantErr            bool
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:            "all preconditions met, no children -- cluster is deleted",
@@ -193,6 +195,9 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+			if tc.existingCluster != nil && !tc.noClusterServiceID && !tc.existingCluster.ServiceProviderProperties.ClusterServiceDeletionCompleted {
+				seedProviderIDs(t, ctx, mockResourcesDBClient, tc.existingCluster, !tc.noClusterServiceID)
+			}
 
 			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
@@ -234,9 +239,10 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 	fixedClockTime := time.Now().UTC().Truncate(time.Second)
 
 	testCases := []struct {
-		name    string
-		cluster *coreapi.Cluster
-		want    bool
+		noClusterServiceID bool
+		name               string
+		cluster            *coreapi.Cluster
+		want               bool
 	}{
 		{
 			name:    "no DeletionTimestamp",
@@ -259,11 +265,13 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "all conditions met",
+			noClusterServiceID: true,
+			name:               "all conditions met",
 			cluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
-				c.ServiceProviderProperties.ClusterServiceID = nil
+
+				c.ServiceProviderProperties.ClusterServiceDeletionCompleted = true
 			}),
 			want: true,
 		},
@@ -272,7 +280,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			controller := &clusterDeletionController{}
-			assert.Equal(t, tc.want, controller.NeedsWork(tc.cluster))
+			assert.Equal(t, tc.want, controller.NeedsWork(tc.cluster, providerForCluster(tc.cluster, !tc.noClusterServiceID)))
 		})
 	}
 }

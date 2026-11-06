@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -82,14 +83,15 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		listerCluster     *coreapi.Cluster
-		existingNodePool  *coreapi.NodePool
-		listerNodePool    *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
-		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
-		wantErr           bool
-		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		noClusterServiceID bool
+		name               string
+		listerCluster      *coreapi.Cluster
+		existingNodePool   *coreapi.NodePool
+		listerNodePool     *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
+		setupMockCSClient  func(mock *ocm.MockClusterServiceClientSpec)
+		wantErr            bool
+		wantErrContain     string
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
@@ -120,11 +122,12 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			verifyDB:       verifyClusterServiceIDIsSet,
 		},
 		{
-			name:             "when cluster has no ClusterServiceID error is returned",
-			listerCluster:    newTestCluster(t, func(c *coreapi.Cluster) { c.ServiceProviderProperties.ClusterServiceID = nil }),
-			existingNodePool: newTestNodePoolForCreate(t, nil),
-			wantErr:          true,
-			wantErrContain:   "cluster test-cluster has no ClusterServiceID",
+			noClusterServiceID: true,
+			name:               "when cluster has no ClusterServiceID error is returned",
+			listerCluster:      newTestCluster(t, nil),
+			existingNodePool:   newTestNodePoolForCreate(t, nil),
+			wantErr:            true,
+			wantErrContain:     "cluster test-cluster has no ClusterServiceID",
 		},
 		{
 			name:             "when CS node pool does not exist POST is issued and ClusterServiceID is set",
@@ -228,6 +231,15 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			resources := []any{}
+			if tc.listerCluster != nil {
+				resources = append(resources, func() *coreapi.ServiceProviderCluster {
+					provider := coreapitesting.ServiceProviderForCluster(tc.listerCluster, nil, &clusterCSInternalID)
+					if tc.noClusterServiceID {
+						provider.ClusterServiceID = nil
+					}
+					return provider
+				}())
+			}
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
@@ -298,7 +310,6 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
 	cluster := &coreapi.Cluster{
 		TrackedResource: coreapi.TrackedResource{
 			Resource: coreapi.Resource{
@@ -309,9 +320,6 @@ func newTestCluster(t *testing.T, opts func(*coreapi.Cluster)) *coreapi.Cluster 
 			Location: "eastus",
 		},
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: clusterInternalID,
-		},
 	}
 	if opts != nil {
 		opts(cluster)

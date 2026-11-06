@@ -83,9 +83,6 @@ func newTestCluster(opts ...func(*coreapi.Cluster)) *coreapi.Cluster {
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: coreapi.ClusterServiceProviderProperties{
-			ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
-		},
 		CustomerProperties: coreapi.ClusterCustomerProperties{
 			DNS: coreapi.CustomerDNSProfile{
 				BaseDomainPrefix: readDesireTestDomainPrefix,
@@ -109,6 +106,7 @@ func newTestSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreapi.Servic
 			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
 	))
 	spc := &coreapi.ServiceProviderCluster{
+		ClusterServiceID: metadataapihelpers.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
@@ -299,7 +297,11 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.resources)
+			resources := append([]any{}, tt.resources...)
+			if tt.cachedServiceProviderCluster != nil {
+				resources = append(resources, tt.cachedServiceProviderCluster)
+			}
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()

@@ -83,6 +83,24 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 	if err != nil {
 		return nil, nil, utils.TrackError(err)
 	}
+	providers, err := cosmosstorageutils.ListAll(ctx, 100, c.resourcesDBClient.ResourcesGlobalListers().ServiceProviderClusters().List)
+	if err != nil {
+		return nil, nil, utils.TrackError(err)
+	}
+	providersByParent := make(map[string]*coreapi.ServiceProviderCluster, len(providers))
+	for _, provider := range providers {
+		if provider.ResourceID == nil || provider.ResourceID.Parent == nil || !metadataapi.ResourceTypeEqual(provider.ResourceID.Parent.ResourceType, coreapi.ClusterResourceType) {
+			return nil, nil, utils.TrackError(fmt.Errorf("service provider cluster without a valid cluster parent"))
+		}
+		if !strings.EqualFold(provider.ResourceID.Name, coreapi.ServiceProviderClusterResourceName) {
+			continue
+		}
+		parentID := strings.ToLower(provider.ResourceID.Parent.String())
+		if _, exists := providersByParent[parentID]; exists {
+			return nil, nil, utils.TrackError(fmt.Errorf("duplicate service provider cluster for %s", parentID))
+		}
+		providersByParent[parentID] = provider
+	}
 	for _, subscription := range allSubscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
@@ -92,16 +110,20 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
 			ret = append(ret, cluster)
+			provider, exists := providersByParent[strings.ToLower(cluster.ID.String())]
+			if !exists {
+				continue
+			}
 			// we skip items without a ClusterServiceID or PendingClusterServiceID because they may be about to get them and shouldn't be deleted.
-			if cluster.ServiceProviderProperties.ClusterServiceID == nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil {
+			if provider.ClusterServiceID == nil && provider.PendingClusterServiceID == nil {
 				continue
 			}
 
 			var clusterServiceID string
-			if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-				clusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.String()
+			if provider.ClusterServiceID != nil {
+				clusterServiceID = provider.ClusterServiceID.String()
 			} else {
-				clusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.String()
+				clusterServiceID = provider.PendingClusterServiceID.String()
 			}
 
 			existingCluster, exists := clusterServiceIDToCluster[clusterServiceID]
