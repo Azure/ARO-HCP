@@ -60,14 +60,21 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 		missing = append(missing, i)
 		keys = append(keys, i.key)
 	}
+	build := inputs[0].observation.BuildID
 	if len(missing) == 0 {
 		c.metrics.visible.Inc()
+		if polls := c.pendingPolls(build); polls > 0 {
+			c.logger.Debug("Build computations visible", "buildId", build, "inputs", len(inputs), "visibilityPolls", polls)
+		} else {
+			c.logger.Debug("Build already complete", "buildId", build, "inputs", len(inputs))
+		}
 		return 0, nil
 	}
 	sort.Strings(keys)
 	cacheKey := strings.Join(keys, "\n")
 	if c.batches.contains(cacheKey, c.now()) {
 		c.metrics.cacheHits.Inc()
+		c.logger.Debug("Awaiting visibility of submitted computations", "buildId", build, "missing", len(missing))
 		return c.retryDelay, nil
 	}
 	computed := make([]resultRow, 0, len(missing))
@@ -96,6 +103,7 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 		c.metrics.accepted.Inc()
 	}
 	c.batches.add(cacheKey, c.now())
+	c.logger.Debug("Submitted computations", "buildId", build, "inputs", len(inputs), "missing", len(missing), "batches", len(batches))
 	return c.retryDelay, nil
 }
 

@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
+	buildversion "github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 )
 
@@ -122,6 +123,11 @@ func (c *Controller) Start(ctx context.Context) {
 		c.logger.Error("Cannot start normal reconciliation", "error", err)
 		return
 	}
+	version := compiledFailurePatternVersion()
+	c.logger.Info("Normal reconciliation admitted",
+		"extractorVersion", version.extractorVersion, "resultSchemaVersion", version.resultSchemaVersion,
+		"table", c.config.CIFailurePatterns.Results.Table, "workers", c.config.CIFailurePatterns.GetWorkers(),
+		"interval", c.config.CIFailurePatterns.GetInterval(), "producerCommit", buildversion.CommitSHA)
 	var workers sync.WaitGroup
 	for range c.config.CIFailurePatterns.GetWorkers() {
 		workers.Add(1)
@@ -287,6 +293,7 @@ func (c *Controller) scanHead(ctx context.Context) error {
 		return err
 	}
 	c.metrics.scans.WithLabelValues("head").Inc()
+	c.logger.Info("Newest-build scan", "builds", len(builds), "queueLength", c.queue.Len())
 	return nil
 }
 
@@ -314,6 +321,7 @@ func (c *Controller) sweepStep(ctx context.Context) error {
 		return err
 	}
 	c.sweepBuilds += len(builds)
+	sweepBuilds := c.sweepBuilds
 	if len(builds) == discoveryPageSize {
 		c.sweepBefore = builds[len(builds)-1]
 	} else {
@@ -321,6 +329,7 @@ func (c *Controller) sweepStep(ctx context.Context) error {
 		c.sweepBefore, c.sweepBuilds, c.sweepRestUntil = "", 0, c.now().Add(sweepRest)
 	}
 	c.metrics.scans.WithLabelValues("sweep").Inc()
+	c.logger.Info("History sweep page", "builds", len(builds), "sweepBuilds", sweepBuilds, "queueLength", c.queue.Len())
 	return nil
 }
 
@@ -369,6 +378,12 @@ func (c *Controller) outstandingBuilds() int {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 	return c.queue.Len() + len(c.pendingAttempts)
+}
+
+func (c *Controller) pendingPolls(build string) int {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	return c.pendingAttempts[build]
 }
 
 func (c *Controller) forgetPending(build string) {
