@@ -127,7 +127,6 @@ var _ = Describe("ARO-HCP", func() {
 		labels.RequiresConfig,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
-		labels.Slow,
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			By("reading the runtime image reference from the service config")
