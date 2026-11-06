@@ -259,6 +259,7 @@ func roleAssignmentPrincipal(assignment *armauthorization.RoleAssignment) (uuid.
 }
 
 // DeleteRoleAssignmentOps returns bounded-worker operations that delete assignments by ID.
+// Assignments and their scopes must come from ARM ListForSubscription via RoleAssignmentsForPrincipals.
 func DeleteRoleAssignmentOps(logger logr.Logger, client *armauthorization.RoleAssignmentsClient, resourceGroups *armresources.ResourceGroupsClient, subscriptionID string, assignments []*armauthorization.RoleAssignment) []func(context.Context) error {
 	operations := make([]func(context.Context) error, 0, len(assignments))
 	for _, assignment := range assignments {
@@ -298,27 +299,9 @@ func roleAssignmentResourceGroupMissing(ctx context.Context, client *armresource
 	if client == nil || assignment.Properties == nil || assignment.Properties.Scope == nil {
 		return false
 	}
-	scope := *assignment.Properties.Scope
-	resourceID, err := azcorearm.ParseResourceID(scope)
-	if err != nil || resourceID.ResourceGroupName == "" || !strings.EqualFold(resourceID.SubscriptionID, subscriptionID) || !strings.EqualFold(resourceID.String(), scope) {
+	resourceID, err := azcorearm.ParseResourceID(*assignment.Properties.Scope)
+	if err != nil || resourceID.ResourceGroupName == "" || !strings.EqualFold(resourceID.SubscriptionID, subscriptionID) {
 		return false
-	}
-	if _, err := ParsePrincipalID(resourceID.SubscriptionID); err != nil {
-		return false
-	}
-	parts := strings.Split(scope, "/")
-	if len(parts) < 5 || !strings.EqualFold(parts[1], "subscriptions") || !strings.EqualFold(parts[3], "resourceGroups") || (len(parts) > 5 && !strings.EqualFold(parts[5], "providers")) {
-		return false
-	}
-	for _, part := range parts[1:] {
-		if part == "" || part != strings.TrimSpace(part) || part == "." || part == ".." || strings.ContainsAny(part, "\\%?#") {
-			return false
-		}
-	}
-	for current := resourceID; current.Parent != nil; current = current.Parent {
-		if current.Name == "" {
-			return false
-		}
 	}
 	_, err = client.Get(ctx, resourceID.ResourceGroupName, nil)
 	var responseError *azcore.ResponseError

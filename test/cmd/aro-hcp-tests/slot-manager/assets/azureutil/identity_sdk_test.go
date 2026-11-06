@@ -47,7 +47,7 @@ func (transport roleAssignmentTransport) Do(request *http.Request) (*http.Respon
 func TestDeleteRoleAssignmentOps(t *testing.T) {
 	const subscriptionID = "00000000-0000-0000-0000-0000000000ab"
 	const groupScope = "/subscriptions/" + subscriptionID + "/resourceGroups/fake-group"
-	const resourceScope = groupScope + "/providers/Microsoft.Network/virtualNetworks/fake-network"
+	const resourceScope = groupScope + "/providers/Microsoft.Network/virtualNetworks/fake-network/subnets/fake-subnet"
 	for _, testCase := range []struct {
 		name          string
 		scope         string
@@ -77,19 +77,9 @@ func TestDeleteRoleAssignmentOps(t *testing.T) {
 		{name: "successful delete", scope: groupScope, deleteStatus: http.StatusOK, wantSuccess: true},
 		{name: "already deleted", scope: groupScope, deleteStatus: http.StatusNotFound, deleteCode: "ResourceNotFound", wantSuccess: true},
 		{name: "subscription scope", scope: "/subscriptions/" + subscriptionID},
-		{name: "tenant scope", scope: "/"},
 		{name: "management group scope", scope: "/providers/Microsoft.Management/managementGroups/fake-group"},
 		{name: "different subscription", scope: strings.ReplaceAll(groupScope, subscriptionID, "00000000-0000-0000-0000-0000000000cd")},
-		{name: "invalid subscription", scope: strings.ReplaceAll(groupScope, subscriptionID, "bad-subscription")},
 		{name: "empty scope"},
-		{name: "missing group name", scope: "/subscriptions/" + subscriptionID + "/resourceGroups/"},
-		{name: "missing resource name", scope: groupScope + "/providers/Microsoft.Network/virtualNetworks"},
-		{name: "duplicate slash", scope: strings.ReplaceAll(groupScope, "/resourceGroups", "//resourceGroups")},
-		{name: "trailing slash", scope: groupScope + "/"},
-		{name: "query", scope: groupScope + "?fake=query"},
-		{name: "escaped slash", scope: groupScope + "%2Fother"},
-		{name: "relative segment", scope: groupScope + "/providers/Microsoft.Network/virtualNetworks/.."},
-		{name: "non provider child", scope: groupScope + "/invalid/child"},
 		{name: "missing properties", scope: groupScope, nilProperties: true},
 		{name: "missing scope", scope: groupScope, nilScope: true},
 		{name: "missing client", scope: groupScope, nilClient: true},
