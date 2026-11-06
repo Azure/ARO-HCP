@@ -43,31 +43,32 @@ func NewGraphDirectory(credential azcore.TokenCredential) (Directory, error) {
 
 func (g *graphDirectory) GroupMembers(ctx context.Context, groupID string) ([]Member, error) {
 	builder := g.client.Groups().ByGroupId(groupID).TransitiveMembers()
-	var members []Member
-	for {
-		response, err := builder.Get(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, object := range response.GetValue() {
-			// Nested groups are expanded by transitiveMembers; only their
-			// leaves can own applications, and devices and contacts cannot.
-			switch object.(type) {
-			case graphmodels.Userable, graphmodels.ServicePrincipalable:
-			default:
-				continue
-			}
-			if object.GetId() == nil {
-				continue
-			}
-			members = append(members, Member{ID: *object.GetId(), DisplayName: displayName(object)})
-		}
-		next := response.GetOdataNextLink()
-		if next == nil || *next == "" {
-			return members, nil
-		}
-		builder = builder.WithUrl(*next)
+	response, err := builder.Get(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
+	objects, err := graph.CollectPages(ctx, response, func(ctx context.Context, link string) (graphmodels.DirectoryObjectCollectionResponseable, error) {
+		return builder.WithUrl(link).Get(ctx, nil)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var members []Member
+	for _, object := range objects {
+		// Nested groups are expanded by transitiveMembers; only their leaves
+		// can own applications, and devices and contacts cannot.
+		switch object.(type) {
+		case graphmodels.Userable, graphmodels.ServicePrincipalable:
+		default:
+			continue
+		}
+		if object.GetId() == nil {
+			continue
+		}
+		members = append(members, Member{ID: *object.GetId(), DisplayName: displayName(object)})
+	}
+	return members, nil
 }
 
 func (g *graphDirectory) Lookup(ctx context.Context, id string) (*Object, error) {
