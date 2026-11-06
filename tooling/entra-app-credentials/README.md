@@ -108,3 +108,23 @@ without `--dry-run` replaces the certificate, so no expiry check applies.
 The caller needs secret read/write access on the Key Vault and permission to
 read and add credentials to the applications and, with `--grant-consent`, to grant
 admin consent in the tenant.
+
+## Owner drift check
+
+`check-owners` compares a configured, comma-separated list of owner object IDs
+with the members of an Entra group (nested groups included) and fails when they
+differ. It exists because the Entra owner lists are applied with `replace`
+semantics: an ID that no longer exists (for example a deleted account) makes
+Microsoft Graph reject the whole owner update with an opaque `BadRequest`, and a
+group member missing from the list is silently removed as an owner. The failure
+lists the IDs to remove, with the reason (deleted account, not in the group,
+unknown), and the group members to add.
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials check-owners \
+  --group-id <group-object-id> \
+  --owner-ids <id>,<id>
+```
+
+The caller needs permission to read the group's members and to look up directory
+objects, which every member user has by default.
