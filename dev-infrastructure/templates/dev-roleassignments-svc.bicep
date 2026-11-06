@@ -11,6 +11,16 @@ param sharedKvResourceGroup string = 'global'
 param location string = resourceGroup().location
 param principalID string
 
+// Defaults to User because the make goal derives principalID from the
+// signed-in human (az ad signed-in-user). CI runs as a service principal
+// and must pass ServicePrincipal.
+@allowed([
+  'User'
+  'Group'
+  'ServicePrincipal'
+])
+param principalType string = 'User'
+
 // https://learn.microsoft.com/en-us/azure/aks/manage-azure-rbac#create-role-assignments-for-users-to-access-the-cluster
 // Azure Kubernetes Service RBAC Cluster Admin
 // Allows super-user access to perform any action on any resource. It gives full control over every resource in the cluster and in all namespaces.
@@ -32,6 +42,7 @@ resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@202
   properties: {
     roleDefinitionId: aksClusterRbacClusterAdminRoleId
     principalId: principalID
+    principalType: principalType
   }
 }
 
@@ -45,6 +56,7 @@ module keyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
       keyVaultName: name
       roleName: 'Key Vault Secrets User'
       managedIdentityPrincipalIds: [principalID]
+      principalType: principalType
     }
   }
 ]

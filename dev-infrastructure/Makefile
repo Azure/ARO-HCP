@@ -2,6 +2,9 @@ SHELL = /bin/bash
 DEPLOY_ENV ?= pers
 CLOUD ?= dev
 PRINCIPAL_ID ?= $(shell az ad signed-in-user show -o json | jq -r '.id')
+# Azure RBAC role assignments reject a principalType that disagrees with the
+# principal, so derive it rather than assuming a human is running make.
+PRINCIPAL_TYPE ?= $(shell az account show -o json | jq -r 'if .user.type == "servicePrincipal" then "ServicePrincipal" else "User" end')
 
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
@@ -220,7 +223,8 @@ svc.dev-role-assignments: configurations/dev-role-assignments-svc.bicepparam
 		--resource-group "${SVC_RESOURCEGROUP}" \
 		--template-file templates/dev-roleassignments-svc.bicep \
 		--parameters configurations/dev-role-assignments-svc.bicepparam \
-		--parameters principalID=${PRINCIPAL_ID}
+		--parameters principalID=${PRINCIPAL_ID} \
+		--parameters principalType=${PRINCIPAL_TYPE}
 .PHONY: svc.dev-role-assignments
 
 dev-role-assignments: svc.dev-role-assignments region.dev-role-assignments
