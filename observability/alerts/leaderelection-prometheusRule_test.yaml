@@ -53,6 +53,17 @@ tests:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
+# Test: LeaderElectionLeaseStale does not fire for klusterlet addon leases (excluded by klusterlet-* namespace)
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="klusterlet-2qvkr3r0qqaeqmblu92io1n4tmnfn6u3", lease="work-manager", cluster="prod-mgmt-1"}'
+    values: "0x39" # stale, but klusterlet namespace excluded
+  - series: 'kube_lease_renew_time{namespace="klusterlet-2qvkr3r0qqaeqmblu92io1n4tmnfn6u3", lease="config-policy-controller", cluster="prod-mgmt-1"}'
+    values: "0x39" # stale, but klusterlet namespace excluded
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
 # Test: LeaderElectionLeaseStale does not fire for kube-applier namespace (covered by LeaderElectionLeaseStaleCritical)
 - interval: 1m
   input_series:
@@ -62,7 +73,8 @@ tests:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
-# Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
+# Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:)
+# for a lease in an included namespace
 # Note: expr uses strict >, so condition first becomes true at t=4m (240s > 180s); with for:3m, alert fires at t=7m
 - interval: 1m
   input_series:
@@ -86,7 +98,8 @@ tests:
         runbook_url: 'TBD'
         summary: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
         title: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
-# Test: LeaderElectionLeaseStaleCritical does not fire when lease is renewed every minute for a lease in an included namespace
+# Test: LeaderElectionLeaseStaleCritical does not fire when lease is renewed every minute for a lease in an
+# included namespace
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
@@ -95,7 +108,8 @@ tests:
   - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
     exp_alerts: []
-# Test: LeaderElectionLeaseStaleCritical does not fire for a lease in a namespace that is not explicitly included in the rule
+# Test: LeaderElectionLeaseStaleCritical does not fire for a lease in a namespace that is not explicitly
+# included in the rule
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
