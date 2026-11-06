@@ -202,7 +202,7 @@ resourceGroups:
       errorContainsAny:
       - "does not exist or one of its queried"
       - "UnknownFailure"
-      maximumRetryCount: 3
+      maximumRetryCount: 10
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents
@@ -272,7 +272,7 @@ resourceGroups:
       errorContainsAny:
       - "does not exist or one of its queried"
       - "UnknownFailure"
-      maximumRetryCount: 3
+      maximumRetryCount: 10
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents

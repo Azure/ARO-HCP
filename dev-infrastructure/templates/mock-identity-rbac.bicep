@@ -69,6 +69,11 @@ module msiMockLookup './entra-app-lookup.bicep' = {
   }
 }
 
+// Each lookup is its own nested deployment doing two Graph reads at validation
+// time. Fanning ~150 of them out at once makes Graph answer some with an opaque
+// UnknownFailure, so bound the concurrency. Lookups are idempotent and read-only;
+// the pipeline step retries (up to the schema cap) if a batch still fails.
+@batchSize(10)
 module poolLookups './entra-app-lookup.bicep' = [
   for i in range(0, poolSize): {
     name: 'lookup-pool-${i}'
@@ -80,6 +85,7 @@ module poolLookups './entra-app-lookup.bicep' = [
   }
 ]
 
+@batchSize(10)
 module armHelperPoolLookups './entra-app-lookup.bicep' = [
   for i in range(0, armHelperPoolSize): {
     name: 'lookup-arm-helper-pool-${i}'
