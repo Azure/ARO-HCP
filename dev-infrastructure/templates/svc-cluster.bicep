@@ -347,6 +347,9 @@ param genevaActionsServiceTag string
 @description('The service tag for SRE access')
 param sreServiceTag string
 
+@description('Additional Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort')
+param additionalIngressRules string = ''
+
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
@@ -593,51 +596,76 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
   }
 }
 
+var additionalIngressRuleEntries = [
+  for rule in csvToArray(additionalIngressRules): {
+    name: split(rule, '=')[0]
+    fields: split(split(rule, '=')[1], ':')
+  }
+]
+var additionalIngressSecurityRules = [
+  for rule in additionalIngressRuleEntries: {
+    name: rule.name
+    properties: {
+      access: 'Allow'
+      direction: 'Inbound'
+      priority: int(rule.fields[0])
+      protocol: rule.fields[1]
+      sourceAddressPrefix: rule.fields[2]
+      sourcePortRange: '*'
+      destinationAddressPrefix: rule.fields[3]
+      destinationPortRange: rule.fields[4]
+    }
+  }
+]
+
 resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
   properties: {
-    securityRules: [
-      {
-        name: 'rp-in-arm'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 120
-          protocol: 'Tcp'
-          sourceAddressPrefix: 'AzureResourceManager'
-          sourcePortRange: '*'
+    securityRules: concat(
+      [
+        {
+          name: 'rp-in-arm'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 120
+            protocol: 'Tcp'
+            sourceAddressPrefix: 'AzureResourceManager'
+            sourcePortRange: '*'
+          }
         }
-      }
-      {
-        name: 'admin-in-geneva'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 130
-          protocol: 'Tcp'
-          sourceAddressPrefix: genevaActionsServiceTag
-          sourcePortRange: '*'
+        {
+          name: 'admin-in-geneva'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 130
+            protocol: 'Tcp'
+            sourceAddressPrefix: genevaActionsServiceTag
+            sourcePortRange: '*'
+          }
         }
-      }
-      {
-        name: 'sre-in-ops'
-        properties: {
-          access: 'Allow'
-          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
-          destinationPortRange: '443'
-          direction: 'Inbound'
-          priority: 140
-          protocol: 'Tcp'
-          sourceAddressPrefix: sreServiceTag
-          sourcePortRange: '*'
+        {
+          name: 'sre-in-ops'
+          properties: {
+            access: 'Allow'
+            destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+            destinationPortRange: '443'
+            direction: 'Inbound'
+            priority: 140
+            protocol: 'Tcp'
+            sourceAddressPrefix: sreServiceTag
+            sourcePortRange: '*'
+          }
         }
-      }
-    ]
+      ],
+      additionalIngressSecurityRules
+    )
   }
 }
 

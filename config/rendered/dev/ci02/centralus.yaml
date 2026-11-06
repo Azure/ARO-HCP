@@ -1048,6 +1048,7 @@ stgGlobalV2:
   svcParentZoneName: empty-sentinel
 svc:
   aks:
+    additionalIngressRules: ""
     clusterOutboundIPAddressIPTags: ""
     etcd:
       name: ah-ci02-se-j7654321-1

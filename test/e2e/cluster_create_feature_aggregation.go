@@ -42,6 +42,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
+	"github.com/Azure/ARO-HCP/test/pkg/publicip"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -168,9 +169,9 @@ var _ = Describe("Customer", func() {
 			Expect(vmPublicIP).NotTo(BeEmpty(), "VM public IP should not be empty in deployment outputs")
 			vmCIDR := fmt.Sprintf("%s/32", vmPublicIP)
 
-			testRunnerPublicIP, err := framework.GetTestRunnerPublicIP(ctx)
+			testRunnerPublicIP, err := publicip.DiscoverIPv4(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve test runner public IP")
-			testRunnerCIDR := fmt.Sprintf("%s/32", testRunnerPublicIP)
+			testRunnerCIDR := testRunnerPublicIP.String() + "/32"
 
 			// Authorize only the VM's IP for now. The test runner's IP is deliberately excluded
 			// so that we can verify below (via a direct connection attempt from the test runner)

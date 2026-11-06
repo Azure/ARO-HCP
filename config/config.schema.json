@@ -606,6 +606,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "additionalIngressRules": {
+          "type": "string",
+          "description": "Additional service-cluster Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort. Supports IPv4/CIDR, service tags and wildcard prefixes; excludes free-text descriptions.",
+          "pattern": "^$|^[A-Za-z0-9_.-]+=[0-9]+:[A-Za-z*]+:[A-Za-z0-9_./*-]+:[A-Za-z0-9_./*-]+:[0-9*-]+(,[A-Za-z0-9_.-]+=[0-9]+:[A-Za-z*]+:[A-Za-z0-9_./*-]+:[A-Za-z0-9_./*-]+:[0-9*-]+)*$"
+        },
         "systemPoolOnly": {
           "type": "boolean",
           "description": "CI and personal DEV service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."

@@ -149,6 +149,7 @@ param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
+param additionalIngressRules = '{{ .svc.aks.additionalIngressRules }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
