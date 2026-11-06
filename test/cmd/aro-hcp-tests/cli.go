@@ -216,6 +216,10 @@ func setupCli() (*cobra.Command, error) {
 
 		registerEV2RetryCatcher(specs)
 
+		if err := registerMIPool(context.Background(), specs, pooledIdentitiesEnabled); err != nil {
+			return err
+		}
+
 		ext.AddSpecs(specs)
 		registry.Register(ext)
 

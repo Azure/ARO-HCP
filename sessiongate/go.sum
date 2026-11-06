@@ -90,8 +90,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed h1:EYvTzjeF3kGW0YS67V/dUHs3H8B/yJZ8Rdx6ftHr890=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20261026111431-8782e72e5a1f h1:qq6hbSndVQExcx08aUjVYBf5DAQFTzRCEvLfm83mKhg=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20261026111431-8782e72e5a1f/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
 github.com/openshift/api v0.0.0-20260930220732-5588d747a72b h1:GBKpMg/gdxTOXyemaxtn4IoO+MeJJdRij2xP/d0kXmg=
 github.com/openshift/api v0.0.0-20260930220732-5588d747a72b/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
 github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c h1:lxDsIEVEmwWtea1TRcJuZ1hrZsd6FcAaC88ipZ+G46U=
