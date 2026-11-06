@@ -10,37 +10,37 @@ Runbook: <https://aka.ms/arohcp-runbook-hypershift>
 Rules: [`observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml`](../../observability/alerts/hypershiftOperatorUserJourney-prometheusRule.yaml) (HyperShift Operator) and [`observability/alerts/hypershiftUserJourney-prometheusRule.yaml`](../../observability/alerts/hypershiftUserJourney-prometheusRule.yaml) (CPO).
 Dashboard: **HyperShift User Journey SLO** (`observability/grafana-dashboards/sre/user-journey/hypershift.json`).
 
-The proposed HyperShift SLOs (30-day window, pending historical analysis and
-stakeholder agreement) also have multi-window multi-burn-rate alerts; see
-[SLO burn-rate alerts](#slo-burn-rate-alerts). Reconcile latency (Reconciliations
-Within 10s) is dashboard-only per the SLO definition, and no Traffic or
-Saturation SLO targets are approved, so those signals remain dashboard-only
-triage context apart from `userJourneyHypershiftOperatorTrafficIdle`.
+This rollout aligns the existing threshold alerts with the alerting ADR.
+Burn-rate alerts against the proposed HyperShift targets are excluded; see
+[Burn-rate rollout prerequisites](#burn-rate-rollout-prerequisites).
+Reconcile latency, errors, and HostedCluster condition health remain dashboard
+diagnostics. Traffic and saturation remain triage context apart from
+`userJourneyHypershiftOperatorTrafficIdle`.
 
 ## Dashboard SLI accounting
 
 The dashboard extensions in ARO-27788 reuse the ARO-27787 dashboard and alerts.
 The dashboard changes themselves do not change paging policy; the threshold
-alert renames and proposed-SLO burn-rate alerts are described below.
+alert renames are described below. Burn-rate alerts are deferred to a separate
+follow-up after production recording rollout and validation.
 
-Dashboard accounting and the burn-rate alerts proposed in
-[Azure/ARO-HCP#7989](https://github.com/Azure/ARO-HCP/pull/7989) intentionally use
-different recordings:
+Dashboard accounting and prospective component burn-rate alerts intentionally
+use different recordings:
 
 | Consumer | Operator recording | CPO recording | Accounting |
 |---|---|---|---|
 | Dashboard availability, coverage, and budgets | `hypershift:operator:availability:ratio1m` | `hypershift:cpo:availability:ratio1m` | Good fraction from one-minute raw scrape windows, with conservative HA aggregation |
-| Component availability burn-rate alerts | `hypershift:operator:replicas_unavailable:ratio` | `hypershift:cpo:replicas_unavailable:ratio` | Point-in-time bad fraction: `1 - min(available / desired, 1)`, using maximum available replicas across HA scrapes |
+| Future component availability burn-rate alerts | `hypershift:operator:replicas_unavailable:ratio` | `hypershift:cpo:replicas_unavailable:ratio` | Point-in-time bad fraction: `1 - min(available / desired, 1)`, using maximum available replicas across HA scrapes |
 
 The dashboard preserves short outages between evaluations; burn-rate recordings
 sample the current replica state. Different sampling and HA aggregation mean
 `1 - availability:ratio1m` is not an exact replacement for
 `replicas_unavailable:ratio`. Dashboard budgets describe dashboard observations,
-not the exact budget consumed by the burn-rate alerts. Both exclude zero-desired
-replicas and missing deployment inputs; dashboard summaries additionally require
-complete current inventory and expose observation coverage.
+not the exact budget that future burn-rate alerts would consume. Both exclude
+zero-desired replicas and missing deployment inputs; dashboard summaries
+additionally require complete current inventory and expose observation coverage.
 
-The alerting PR's `hypershift:hostedclusters:unhealthy:ratio` measures
+The shared `hypershift:hostedclusters:unhealthy:ratio` recording measures
 HostedCluster failure conditions, not operator/CPO replica availability. Keep
 that journey-health signal separate from component availability.
 
@@ -53,10 +53,10 @@ alerting reconciliation inputs share
 `hypershift-cpo-recording-rules` group. The HCP configuration includes that source
 once; there is no second dashboard-only CPO source or duplicate Bicep resource.
 
-The consolidated recordings feed both dashboard accounting and the burn-rate
-alerts below. Regenerate the services/HCP Bicep outputs from these shared sources
-rather than concatenating generated resources; the dashboard and alert runbooks
-retain the accounting distinction above.
+The consolidated recordings support dashboard accounting and future burn-rate
+alerts. Regenerate the services/HCP Bicep outputs from these shared sources
+rather than concatenating generated resources, and preserve the accounting
+distinction above when adding alerts.
 
 - Component objectives remain proposed: 99.95% replica availability, 99.9%
   successful reconciliations, and 99% of reconciliations within 10 seconds,
@@ -198,68 +198,21 @@ deleting) does not fire `userJourneyControlPlaneOperatorAvailabilityDown`.
 4. Otherwise, collect pod logs and events and file a bug with the HyperShift
    team.
 
-## SLO burn-rate alerts
+## Burn-rate rollout prerequisites
 
-Each SLI has three tiers: fast (`1h5m`, 1h and 5m windows, 14.4x burn, Sev 3),
-medium (`6h30m`, 6h and 30m windows, 6x burn, Sev 3) and slow (`3d6h`, 3d and 6h
-windows, 1x burn, Sev 4). An alert fires only when both windows exceed the
-threshold. Missing telemetry produces no SLI sample, so it never counts as
-healthy and never fires these alerts; the pod and idle alerts above cover a
-missing operator.
+Recording rules and dashboard text ship first in ARO-27788. This alerting rollout
+retains only the existing pod-unavailable, operator-idle, and CPO-down threshold
+alerts, with ADR-aligned names and PodsDown reduced from Sev 2 to Sev 3. KAS
+alerting is unchanged.
 
-| Alert prefix | SLI (proposed SLO) | Scope | Workspace |
-|---|---|---|---|
-| `userJourneyHypershiftAvailability*` | Healthy Cluster Samples: `min(failure-condition count / HostedCluster count, 1)` (99.9%) | Management cluster | Services |
-| `userJourneyHypershiftLatency*` | Initial Availability Wait <= 30m: share of HostedClusters observed waiting whose maximum wait exceeded 1800s (99%) | Management cluster | Services |
-| `userJourneyHypershiftOperatorAvailability*` | HyperShift Operator available / desired replicas (99.95%) | Management cluster | Services |
-| `userJourneyHypershiftOperatorErrors*` | HyperShift Operator successful reconciliations (99.9%) | Management cluster | Services |
-| `userJourneyControlPlaneOperatorAvailability*` | CPO available / desired replicas (99.95%) | Hosted control plane namespace | HCP |
-| `userJourneyControlPlaneOperatorErrors*` | CPO successful reconciliations (99.9%) | Hosted control plane namespace | HCP |
+Add burn-rate alerts in a separate follow-up only after:
 
-The fast and medium `userJourneyHypershiftLatency*` tiers also require at least
-three HostedClusters over 30 minutes in the long window, so a single slow create
-does not page. `userJourneyClusterProvisionStuckOperation` covers a single
-wedged create.
+1. The shared recordings are live in production and their collection, labels,
+   workspace routing, and historical coverage have been verified.
+2. Stakeholders have approved the objectives, scope, and missing-data semantics.
+3. An alert-tester report validates the candidate alerts against production
+   telemetry, including expected firing behavior and noise.
 
-Healthy Cluster Samples counts a HostedCluster once per failure condition, so it
-overstates the number of failed clusters.
-
-### SOP: `userJourneyHypershiftAvailability*`
-
-1. On the dashboard, check **HostedCluster Failure-Condition Health (Diagnostic Proxy)** for the
-   management cluster in the alert, and identify which `condition` values of
-   `hypershift_hostedclusters_failure_conditions` are non-zero.
-2. If many HostedClusters share the same condition, treat it as a management
-   cluster, HyperShift rollout or Azure dependency problem. Check the
-   HyperShift Operator logs and recent rollouts.
-3. If one or a few HostedClusters are failing, inspect their HostedCluster
-   conditions and check the backend operation alerts for the affected
-   customers.
-
-### SOP: `userJourneyHypershiftLatency*`
-
-1. On the dashboard, check **Initial Availability Wait by HostedCluster** to
-   find the HostedClusters (`exported_namespace`, `name`) waiting over 30m.
-2. Inspect those HostedClusters' conditions and the control plane namespace for
-   pods that are not ready, and follow the cluster creation flow in
-   [HCP Cluster Creation Flow](../ops/hcp-cluster-creation-flow.md).
-3. If many creations are slow, check the HyperShift Operator (workqueue depth,
-   reconcile errors) and recent rollouts.
-
-### SOP: `userJourneyHypershiftOperatorAvailability*` / `userJourneyControlPlaneOperatorAvailability*`
-
-Follow the `userJourneyHypershiftOperatorAvailabilityPodsUnavailable` or `userJourneyControlPlaneOperatorAvailabilityDown` SOP
-above. These burn-rate alerts also catch repeated short outages, such as
-crash loops and frequent rescheduling, that never hold long enough to fire the
-threshold alerts. Look for restart counts and recent pod evictions.
-
-### SOP: `userJourneyHypershiftOperatorErrors*` / `userJourneyControlPlaneOperatorErrors*`
-
-1. On the dashboard, check **Successful Reconciliations** and identify which
-   `controller` labels on `controller_runtime_reconcile_total{result="error"}`
-   are failing.
-2. Check the operator logs (the `hypershift` namespace, or the CPO in the
-   alert's namespace) for the reconcile errors.
-3. If errors started with a HyperShift rollout, roll it back through the
-   deployment pipeline. Otherwise, collect logs and file a bug with the
-   HyperShift team.
+Promtool unit tests do not substitute for production rollout, target sign-off,
+or an alert-tester report. Until those prerequisites are met, no HyperShift
+budget burn-rate alert groups are included in the generated deployment rules.
