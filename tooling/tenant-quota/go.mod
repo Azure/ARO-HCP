@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-20260410130855-a983e955fbe8
 	github.com/Azure/ARO-HCP/tooling/azutils v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/tooling/cifailurepatterns v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/metricscache v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0

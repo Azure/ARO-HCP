@@ -34,5 +34,13 @@ ciJobOutcomes:
   discoveryWorkers: 2
   cacheSize: 20000
   cacheTTL: "15m"
+ciFailurePatterns:
+  results:
+    table: "ciFailurePatterns"
+    ingestionMapping: "ciFailurePatternsMapping"
+  interval: "15m"
+  workers: 2
+  cacheSize: 20000
+  cacheTTL: "15m"
 tenants: {}
 ci: {}

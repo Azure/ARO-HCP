@@ -276,6 +276,7 @@
                 "image": { "$ref": "#/$defs/Image" },
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
                 "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
+                "ciFailurePatterns": { "$ref": "#/$defs/CIFailurePatternsConfig" },
                 "tenants": {
                   "type": "object",
                   "description": "Azure AD tenants to monitor for directory and subscription quota, keyed by tenant key (redHat0 is rendered by the tenant-quota chart from ci.<env>; testTestAro lists its own subscription)",
@@ -564,6 +565,19 @@
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "CIFailurePatternsConfig": {
+      "type": "object",
+      "description": "Derived CI failure pattern results computed from the raw CI test results",
+      "additionalProperties": false,
+      "properties": {
+        "results": { "$ref": "#/$defs/KustoTableConfig" },
+        "interval": { "type": "string" },
+        "workers": { "type": "integer", "minimum": 1 },
+        "cacheSize": { "type": "integer", "minimum": 1 },
+        "cacheTTL": { "type": "string" }
+      },
+      "required": ["results", "interval", "workers", "cacheSize", "cacheTTL"]
     },
     "CIJobOutcomesConfig": {
       "type": "object",

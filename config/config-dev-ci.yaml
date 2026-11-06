@@ -206,6 +206,14 @@ clouds:
             # Bounds recent-submission caches.
             cacheSize: 20000
             cacheTTL: "15m"
+          ciFailurePatterns:
+            results:
+              table: "ciFailurePatterns"
+              ingestionMapping: "ciFailurePatternsMapping"
+            interval: "15m"
+            workers: 2
+            cacheSize: 20000
+            cacheTTL: "15m"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"

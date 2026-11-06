@@ -14,6 +14,8 @@ Use the implementation and deployment sources rather than maintaining a copied i
 - [`pkg/`](pkg/) contains collector, metric, configuration, and credential behavior.
 - [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml), under `opstool.tenantQuota`, is the source of truth for deployed configuration.
 
+The raw collector lives in [`pkg/cijoboutcomes`](pkg/cijoboutcomes/) and the failure-pattern controller in [`pkg/cipatterns`](pkg/cipatterns/). Both use [`pkg/kusto`](pkg/kusto/) for owner-lifetime HTTP cancellation, JSON mapping parsing and column matching, and JSON-lines ingestion. Client creation, cleanup, queries, mapping policy, and batch bounds remain with each controller.
+
 ## Runtime Model
 
 At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
@@ -169,6 +171,43 @@ Deploy the `ciTestResults` schema documentation and mapping (with the additive
 `source` column) before this collector; ingestion startup checks the mapping.
 **There is no backfill**: processed builds are skipped, and an existing batch tag
 prevents rewriting. Historical `ciTestResults` rows have an empty `source`.
+
+## Derived CI Failure Patterns
+
+`ci-failure-patterns` uses the shared [`cifailurepatterns`](../cifailurepatterns/) Go extractor and persists complete per-input findings in `ciFailurePatterns`. Raw `ciTestResults` rows remain authoritative. It covers all retained failed inputs across sources and job families, independently of Prow discovery, `ciProcessedJobs`, and dashboard time filters. Historical empty sources stay unspecified.
+
+**Normal reconciliation can run before PR3.** `ciFailurePatterns.enabled` remains opt-in (false by default) and is enabled in DEV-CI configuration. After successful Kusto/schema/mapping initialization, the controller admits its compiled extractor version and result-schema version and begins discovery. Until PR3 provides upgrade coordination, keep both extractor behavior/version and the result-schema contract fixed across deployments; unrelated image changes may continue. This restriction is operational, not enforced by a durable activation record. There is no control table, verified active release, or automatic upgrade yet.
+
+Deploy the results schema/mapping through infrastructure before any separately authorized writer rollout. No stored Kusto functions are required: the controller reads raw inputs and result rows, resolves enrichment, and validates result envelopes and retry copies in code. The workload only queries and queues ingestion with its existing Viewer/Ingestor identity; it never creates schemas or functions. The chart keeps one replica and uses `Recreate` to prevent overlapping collector pods. This introduces an ordinary raw-collection rollout gap.
+
+Connection and raw-table settings are reused from `ciJobOutcomes`; raw discovery need not be enabled. `ciFailurePatterns` owns its results table/mapping, scan interval, workers, and bounded recent-submission cache. Each scan reads just one page of at most 128 distinct nonempty build IDs from retained failed raw results, ordered strictly after an in-memory build-ID cursor. The first scan runs at startup; subsequent pages wait for the configured scan interval rather than draining a whole sweep in one poll. Discovery reads no evidence, test-name enrichment, or derived results, and enqueues every discovered build, including builds whose current results are already complete.
+
+A full page advances the cursor; a short or empty page resets it for the next sweep. Failed or cancelled scans leave the cursor unchanged. Builds inserted ahead of the cursor can appear later in the current sweep; IDs inserted behind it remain eligible in the next sweep. Restart starts a new sweep. There is no time cutoff, `ciProcessedJobs` gate, or permanent completion marker, so late raw inputs and changed names remain discoverable while retained. Closed normal admission does not query discovery. Errors retry; cancellation joins workers before closing clients.
+
+Workers still load and validate evidence and visible results one build at a time, reusing complete current-context computations instead of resubmitting them. Paging bounds discovery, not an individual build's evidence: the existing per-build row, byte, response, and envelope limits still fail oversized work rather than truncate it. A large aggregate retained population can therefore be discovered without loading all evidence at once, but a single oversized build is not made processable by paging.
+
+Results contain exact raw identity columns/message, resolved test name, raw fingerprint, version-qualified computation key, and complete ordered findings. Duplicate test-name rows do not multiply inputs: one distinct name is usable, missing/conflicting names use empty context with explicit coverage metadata. A changed name creates a new computation. Identical raw occurrences reuse one computation; multiplicity always comes from the current raw population, never a stored mutable result count.
+
+The input KQL groups identical raw rows and returns their multiplicity. Go preserves each returned input and its multiplicity without another grouping, summing, or sorting pass; repeated fixed inputs are likewise retained individually.
+
+Queued-ingestion acceptance and cache hits are **not completion**. Reconciliation verifies every expected result with complete, strong-consistency, result-cache-disabled reads. Failed/incomplete responses cannot authorize reuse. Accepted but invisible batches remain pending, and cache expiry permits resubmission of only missing computations. Retry copies are collapsed; conflicting complete findings for one computation are an integrity error, not a latest-row choice. Oversized populations, responses, or envelopes fail rather than truncate evidence. After restart, database facts reconstruct pending work.
+
+The narrow ADX active-version helper is deferred to PR3 with the activation coordinator. Until then, queries must explicitly select the fixed extractor/schema version and tolerate pending coverage during initial backfill and later sweeps. Do not select the newest result row or aggregate across versions. Plain KQL can inspect physical copies for a manually selected version/schema:
+
+```kusto
+let selectedOrigin = "https://kusto.example.com/ServiceLogs"; // Replace with the cluster URI and database, without a trailing slash.
+let selectedExtractorVersion = "fp-1"; // Replace with the version being inspected.
+let selectedSchemaVersion = 1;
+ciFailurePatterns
+| where origin == selectedOrigin
+    and extractorVersion == selectedExtractorVersion
+    and resultSchemaVersion == selectedSchemaVersion
+| summarize physicalCopies = count() by resultKey
+```
+
+This is a storage diagnostic, not a coverage report: stored keys can include obsolete enrichment or orphan computations, and a physical copy is not proof of a valid result. The controller derives the current failed-input census and multiplicity from raw rows and validates each expected computation before reuse. Use the configured cluster URI without a trailing slash plus `/` and database as the stable origin. Select the actual package version/schema explicitly; this is not a production activation override. Preserve pending/conflicting coverage instead of presenting missing computations as zero failures. No automatic root-cause certainty follows from a pattern match.
+
+For frozen rule-development evidence, use hcpctl's private raw-bundle export and offline replay. Controller results are a reusable derived projection, not an immutable replay bundle. Extraction behavior version belongs to the package; image/commit metadata is diagnostic provenance.
 
 ## One-Shot CLI
 

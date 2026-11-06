@@ -23,9 +23,9 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
-// QueryClient uses the SDK's fully materialized result API. Query consumes the
-// entire response and returns late table/dataset failures, unlike a consumer
-// that reads only the first primary table from IterativeQuery.
+// QueryClient must return only complete datasets, including late failures.
+// kusto.Client implements this contract; bare SDK v1.2.3 clients require a
+// kusto.CompleteTransport because materialized SDK Query alone is insufficient.
 type QueryClient interface {
 	Query(context.Context, string, azkustodata.Statement, ...azkustodata.QueryOption) (query.Dataset, error)
 }
@@ -38,7 +38,8 @@ const schemaQuery = `union
 | project TableName, ColumnName, ColumnType`
 
 // Parameter declarations are supplied by the SDK QueryParameters option.
-const runsQuery = `ciJobOutcomes
+const runsQuery = `let jobFilter = tostring(filters.job_filter);
+ciJobOutcomes
 | summarize arg_max(finishedAt, jobName, prowUrl, failed) by buildId
 | where finishedAt >= windowFrom and finishedAt < windowTo
 | where isempty(jobFilter) or jobName contains_cs jobFilter
@@ -47,12 +48,13 @@ const runsQuery = `ciJobOutcomes
 
 // Use the captured run IDs rather than independently selecting runs again.
 // The failed-test population is never summarized or deduplicated.
-const observationsQuery = `let names = ciTestNames
+const observationsQuery = `let sourceFilter = tostring(filters.source);
+let names = ciTestNames
     | summarize name=take_any(name), nameVariants=count_distinct(name) by testId
     | extend name=iff(nameVariants == 1, name, "");
 ciTestResults
 | where failed
-| where buildId in (todynamic(buildIDs))
+| where buildId in (buildIDs)
 | where isempty(sourceFilter) or source == sourceFilter
 | join kind=leftouter names on testId
 | project buildId, source, testId, testName=coalesce(name, ""), nameVariants=coalesce(nameVariants, 0),
@@ -124,7 +126,13 @@ func Collect(ctx context.Context, client QueryClient, database string, metadata 
 	if err := validateSchema(columns); err != nil {
 		return Bundle{}, err
 	}
-	parameters := kql.NewParameters().AddDateTime("windowFrom", metadata.Window.From.UTC()).AddDateTime("windowTo", metadata.Window.To.UTC()).AddString("jobFilter", metadata.Filters.JobFilter)
+	// SDK v1.2.3 AddString emits invalid KQL escapes for non-BMP text.
+	// Serialized dynamic JSON preserves arbitrary filter strings.
+	filters, err := json.Marshal(metadata.Filters)
+	if err != nil {
+		return Bundle{}, fmt.Errorf("encode CI query filters: %w", err)
+	}
+	parameters := kql.NewParameters().AddDateTime("windowFrom", metadata.Window.From.UTC()).AddDateTime("windowTo", metadata.Window.To.UTC()).AddSerializedDynamic("filters", filters)
 	dataset, err = client.Query(ctx, database, kql.New(runsQuery), append(options, azkustodata.QueryParameters(parameters))...)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("collect CI runs (partial results are not usable): %w", err)
@@ -142,7 +150,7 @@ func Collect(ctx context.Context, client QueryClient, database string, metadata 
 	if err != nil {
 		return Bundle{}, fmt.Errorf("encode selected CI run IDs: %w", err)
 	}
-	parameters = kql.NewParameters().AddString("buildIDs", string(ids)).AddString("sourceFilter", metadata.Filters.Source)
+	parameters = kql.NewParameters().AddSerializedDynamic("buildIDs", ids).AddSerializedDynamic("filters", filters)
 	dataset, err = client.Query(ctx, database, kql.New(observationsQuery), append(options, azkustodata.QueryParameters(parameters))...)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("collect CI observations (partial results are not usable): %w", err)
