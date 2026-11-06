@@ -37,6 +37,7 @@ type clusterVersionMetricsHandler struct {
 	clusterVersionInfo *prometheus.Desc
 	upgradeTargetInfo  *prometheus.Desc
 	upgradeTargetCount *prometheus.Desc
+	upgradeConverged   *prometheus.Desc
 	monitoringEnabled  *prometheus.Desc
 	readDesireLister   kubeapplierlisters.ReadDesireLister
 	processID          string
@@ -49,6 +50,7 @@ type clusterVersionMetricSnapshot struct {
 	targets                                 map[string]struct{}
 	versionStates                           map[string]string
 	lifecycle                               metav1.ConditionStatus
+	converged                               bool
 }
 
 // NewClusterVersionMetricsHandler creates a metrics handler for cluster version metrics.
@@ -72,6 +74,10 @@ func NewClusterVersionMetricsHandler(
 			"backend_cluster_upgrade_target_count",
 			"Expected current target rows in the same coherent cluster version snapshot.",
 			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process"}, nil),
+		upgradeConverged: prometheus.NewDesc(
+			"backend_cluster_upgrade_converged",
+			"Whether resolved desired equals the newest observed current version and that entry is completed.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process"}, nil),
 		monitoringEnabled: prometheus.NewDesc(
 			"backend_cluster_upgrade_monitoring_enabled",
 			"Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.",
@@ -85,6 +91,7 @@ func (metricsHandler *clusterVersionMetricsHandler) Describe(ch chan<- *promethe
 	ch <- metricsHandler.clusterVersionInfo
 	ch <- metricsHandler.upgradeTargetInfo
 	ch <- metricsHandler.upgradeTargetCount
+	ch <- metricsHandler.upgradeConverged
 	ch <- metricsHandler.monitoringEnabled
 }
 
@@ -99,6 +106,12 @@ func (metricsHandler *clusterVersionMetricsHandler) Collect(ch chan<- prometheus
 
 	for _, snapshot := range snapshots {
 		ch <- prometheus.MustNewConstMetric(metricsHandler.upgradeTargetCount, prometheus.GaugeValue, float64(len(snapshot.targets)),
+			snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID)
+		converged := float64(0)
+		if snapshot.converged {
+			converged = 1
+		}
+		ch <- prometheus.MustNewConstMetric(metricsHandler.upgradeConverged, prometheus.GaugeValue, converged,
 			snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID)
 		for version := range snapshot.targets {
 			ch <- prometheus.MustNewConstMetric(metricsHandler.upgradeTargetInfo, prometheus.GaugeValue, 1,
@@ -136,6 +149,8 @@ func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, se
 	}
 	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
 		snapshot.targets[desired.String()] = struct{}{}
+		snapshot.converged = len(active) > 0 && desired.EQ(*active[0].Version) &&
+			snapshot.versionStates[active[0].Version.String()] == "completed"
 	}
 
 	metricsHandler.mu.Lock()
