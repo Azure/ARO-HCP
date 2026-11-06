@@ -80,11 +80,21 @@ prometheusRules:
   # Default evaluation interval for rule groups (e.g., "1m")
   defaultEvaluationInterval: "1m"
 
+  # Optional: emit an alertRulesEnabled bool parameter (default true) and use
+  # it for every alert in this module. Recording-rule modules reject this option.
+  parameterizeAlertRulesEnabled: true
+
   # Expression replacements (for platform-specific adjustments)
   outputReplacements:
     - from: 'original_expression'
       to: 'replaced_expression'
 ```
+
+For staged cluster-upgrade rollout, the RP wrapper deploys separate legacy,
+shadow, and production modules. The opt-in `alertRulesEnabled` parameter controls
+evaluation, independently of `actionGroups`, which controls delivery. Shadow
+always receives an empty Action Group array. Other generated modules retain
+their existing literal `enabled: true` behavior.
 
 ## Rule Testing
 

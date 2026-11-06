@@ -10,48 +10,20 @@ metadata:
   namespace: monitoring
 spec:
   groups:
-  # Stuck alerts for cluster version changes (upgrades and rollbacks). Sev 4.
-  # At current version-change volumes, alert directly on duration instead of fleet burn-rate.
-  #
-  # The ControlPlaneActiveVersion controller derives upgrade Partial/Completed state from
-  # HostedCluster version history (preferring status.controlPlaneVersion.history, else
-  # status.version.history), which feeds backend_cluster_version_info and these alerts.
-  # Control plane version history reports for versions >= 4.20, so completeness tracks the
-  # control plane independently of the data plane. While 4.19 is still around, those
-  # clusters fall back to status.version.history, where upgrade completeness depends on
-  # data plane state — e.g. no worker nodes means the upgrade will not reach completed;
-  # missing console component in external auth prevents CVO from marking the upgrade
-  # complete. The complete alert may therefore fire for 4.19 clusters due to missing
-  # data plane configuration rather than control plane failure.
-  - name: rp-user-journey-cluster-upgrade-monitor-rules
+  - name: rp-user-journey-cluster-upgrade-monitor-rules-v2
     rules:
-    - alert: userJourneyClusterUpgradeStuckInDesired
+    - alert: userJourneyClusterUpgradeStuck
       expr: |
-        hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+        hosted_control_plane_upgrade:stuck:bool == 1
       for: 5m
       labels:
         severity: "4"
-        slo: cluster-upgrade-reach-partial
+        slo: cluster-upgrade
         component: slo
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing"
+        summary: "{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck"
         description: |
-          Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until three valid observations confirm that resolved desired equals the newest current version and is completed, or confirm deletion/uninstallation. Missing observations hold the monitor and pause confirmation. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
           Service Cluster: {{ $labels.cluster }}
         runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
-        correlationId: "userJourneyClusterUpgradeStuckInDesired/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}"
-    - alert: userJourneyClusterUpgradeStuckInProgress
-      expr: |
-        hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
-      for: 5m
-      labels:
-        severity: "4"
-        slo: cluster-upgrade-complete
-        component: slo
-      annotations:
-        summary: "{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck"
-        description: |
-          Cluster version change (upgrade or rollback) to {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
-          Service Cluster: {{ $labels.cluster }}
-        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
-        correlationId: "userJourneyClusterUpgradeStuckInProgress/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}"
+        correlationId: "userJourneyClusterUpgradeStuck/{{ $labels.cluster }}{{ $labels.resource_id }}"

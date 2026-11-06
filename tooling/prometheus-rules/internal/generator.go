@@ -64,16 +64,17 @@ type GroupAlerts struct {
 }
 
 type Options struct {
-	promtoolPath            string
-	outputBicep             string
-	includedAlerts          map[string][]string
-	namespaceFilters        map[string][]string
-	internalSubFilter       InternalSubscriptionFilterConfig
-	labelsToExtract         []string
-	ruleFiles               []alertingRuleFile
-	outputReplacements      []Replacements
-	regexOutputReplacements []RegexReplacements
-	groupNamePrefix         string
+	promtoolPath                  string
+	outputBicep                   string
+	includedAlerts                map[string][]string
+	namespaceFilters              map[string][]string
+	internalSubFilter             InternalSubscriptionFilterConfig
+	labelsToExtract               []string
+	ruleFiles                     []alertingRuleFile
+	outputReplacements            []Replacements
+	regexOutputReplacements       []RegexReplacements
+	groupNamePrefix               string
+	parameterizeAlertRulesEnabled bool
 	// preserveAggregationLabels are labels that must survive every aggregation
 	// in a rule's PromQL. Each aggregation is rewritten so these labels are
 	// present on the output vector (see preserveLabelInAggregations).
@@ -102,16 +103,17 @@ func (o *Options) applyLabelPreservation(expr string) (string, error) {
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders              []string       `json:"rulesFolders"`
-	UntestedRules             []string       `json:"untestedRules,omitempty"`
-	TestDependencies          []string       `json:"testDependencies,omitempty"`
-	OutputBicep               string         `json:"outputBicep"`
-	IncludedAlertsByGroup     []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
-	LabelsToExtract           []string       `json:"labelsToExtract,omitempty"`
-	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
-	RegexOutputReplacements   []Replacements `json:"regexOutputReplacements,omitempty"`
-	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
-	GroupNamePrefix           string         `json:"groupNamePrefix,omitempty"`
+	RulesFolders                  []string       `json:"rulesFolders"`
+	UntestedRules                 []string       `json:"untestedRules,omitempty"`
+	TestDependencies              []string       `json:"testDependencies,omitempty"`
+	OutputBicep                   string         `json:"outputBicep"`
+	IncludedAlertsByGroup         []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
+	LabelsToExtract               []string       `json:"labelsToExtract,omitempty"`
+	OutputReplacements            []Replacements `json:"outputReplacements,omitempty"`
+	RegexOutputReplacements       []Replacements `json:"regexOutputReplacements,omitempty"`
+	DefaultEvaluationInterval     string         `json:"defaultEvaluationInterval,omitempty"`
+	GroupNamePrefix               string         `json:"groupNamePrefix,omitempty"`
+	ParameterizeAlertRulesEnabled bool           `json:"parameterizeAlertRulesEnabled,omitempty"`
 }
 
 // InternalSubscriptionFilterConfig configures post-expression filtering of
@@ -197,6 +199,7 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
 	o.groupNamePrefix = config.PrometheusRules.GroupNamePrefix
+	o.parameterizeAlertRulesEnabled = config.PrometheusRules.ParameterizeAlertRulesEnabled
 	o.labelsToExtract = append([]string{}, config.PrometheusRules.LabelsToExtract...)
 
 	o.internalSubFilter = config.InternalSubscriptionFilter
@@ -436,6 +439,9 @@ func (o *Options) Generate() error {
 	if isRecordingRulesFile == isAlertingRulesFile {
 		return fmt.Errorf("output filename must contain exactly one of 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
 	}
+	if o.parameterizeAlertRulesEnabled && !isAlertingRulesFile {
+		return fmt.Errorf("parameterizeAlertRulesEnabled is only supported for alerting-rule modules")
+	}
 
 	generatedRules := &bytes.Buffer{}
 	replacementWriter := NewReplacementWriter(generatedRules, o.outputReplacements, o.regexOutputReplacements)
@@ -667,7 +673,7 @@ func (o *Options) Generate() error {
 						return err
 					}
 				} else if isAlertingRulesFile {
-					if err := writeAlertGroups(armGroup, replacementWriter); err != nil {
+					if err := writeAlertGroups(armGroup, replacementWriter, o.parameterizeAlertRulesEnabled); err != nil {
 						return err
 					}
 				}
@@ -700,6 +706,18 @@ param location string = resourceGroup().location
 `, severityCeilingSuppression); err != nil {
 			return err
 		}
+		if o.parameterizeAlertRulesEnabled {
+			suppression := ""
+			if !hasGeneratedRules {
+				suppression = "#disable-next-line no-unused-params\n"
+			}
+			if _, err := fmt.Fprintf(output, `
+@description('Whether alert rules in this generated module are evaluated.')
+%sparam alertRulesEnabled bool = true
+`, suppression); err != nil {
+				return err
+			}
+		}
 	} else {
 		if _, err := output.Write([]byte(`
 param azureMonitoring string
@@ -720,7 +738,7 @@ param location string = resourceGroup().location
 // 2. the best reference for which IcM fields exist and how to set them: https://dev.azure.com/msazure/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/metrics/Prometheus/PromIcMConnectorsetup.md&_a=preview&version=GBmaster
 // 3. the official top-level document: https://eng.ms/docs/products/icm/developers/connectors/icmaction#edit-an-azure-monitor-icm-connector-definition-icm-action
 
-func writeAlertGroups(groups armprometheusrulegroups.PrometheusRuleGroupResource, into io.Writer) error {
+func writeAlertGroups(groups armprometheusrulegroups.PrometheusRuleGroupResource, into io.Writer, parameterizeEnabled bool) error {
 	tmpl, err := template.New("prometheusRuleGroup").Funcs(
 		map[string]any{"contains": strings.Contains},
 	).Parse(`
@@ -740,7 +758,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
           }
         }]
         alert: '{{.Alert}}'
-        enabled: {{.Enabled}}
+        enabled: {{if $.parameterizeEnabled}}alertRulesEnabled{{else}}{{.Enabled}}{{end}}
 {{- if .Labels}}
         labels: {
 {{- range $key, $value := .Labels}}
@@ -778,8 +796,9 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 	}
 
 	return tmpl.Execute(into, map[string]any{
-		"name":   bicepName(groups.Name),
-		"groups": groups,
+		"name":                bicepName(groups.Name),
+		"groups":              groups,
+		"parameterizeEnabled": parameterizeEnabled,
 	})
 }
 

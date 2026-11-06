@@ -2,7 +2,6 @@ prometheusRules:
   rulesFolders:
   - alerts/access-cluster-slo-prometheusRule.yaml
   - alerts/cluster-provision-slo-prometheusRule.yaml
-  - alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   - alerts/nodepool-slo-prometheusRule.yaml
   - alerts/frontend-slo-prometheusRule.yaml
   - alerts/cluster-deletion-slo-prometheusRule.yaml

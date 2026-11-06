@@ -17,6 +17,8 @@ package metrics
 import (
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/uuid"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 )
 
@@ -41,6 +43,9 @@ func registerClusterMetricsController() controllerconfig.ControllerRegistration 
 
 func instantiateClusterMetricsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	clusterInformer, _ := controllerContext.BackendInformers.Clusters()
+	controllerContext.MetricsRegisterer.MustRegister(newClusterUpgradeInventoryCollector(
+		clusterInformer.GetStore(), clusterInformer.HasSynced, string(uuid.NewUUID()),
+	))
 	return NewController(
 		ClusterMetricsControllerName, clusterInformer, NewClusterMetricsHandler(controllerContext.MetricsRegisterer)), nil
 }

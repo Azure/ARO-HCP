@@ -46,6 +46,14 @@ param icmEnabledSL bool = true
 @description('Whether the RP IcM action group is wired to RP alert rules. When false, RP rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledRP bool = true
 
+@allowed([
+  'legacy'
+  'shadow'
+  'active'
+])
+@description('Cluster-upgrade detector rollout mode. Default legacy retains version-specific paging.')
+param clusterUpgradeMonitorMode string = 'legacy'
+
 @description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledMSFT bool = true
 
@@ -138,6 +146,7 @@ module rpAlerts '../modules/metrics/rp-rules.bicep' = {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: rpActionGroups
     severityCeiling: alertSeverityCeiling
+    clusterUpgradeMonitorMode: clusterUpgradeMonitorMode
   }
 }
 

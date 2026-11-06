@@ -21,6 +21,8 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -28,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -46,6 +49,7 @@ const clusterCreateGracePeriod = 2 * time.Hour
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        corelisters.ActiveOperationLister
@@ -75,6 +79,7 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
+		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
@@ -112,14 +117,6 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
-	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// if we have no clusterService cluster, we have nothing to trigger.
-		return nil
-	}
-
 	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
@@ -127,6 +124,66 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	condition := metav1.Condition{
+		Type:               coreapi.ControlPlaneUpgradeMonitoringEnabled,
+		Status:             metav1.ConditionTrue,
+		Reason:             "Active",
+		Message:            "Cluster is not deleting or uninstalling.",
+		LastTransitionTime: metav1.NewTime(c.clock.Now()),
+	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = "Deleting"
+		condition.Message = "Cluster deletion has been requested."
+	} else if existingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = "Uninstalling"
+		condition.Message = "Cluster Service is uninstalling the cluster."
+	} else {
+		if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
+			return nil
+		}
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		csStatus, csErr := c.clusterServiceClient.GetClusterStatus(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+		cancel()
+		if csErr != nil {
+			// Preserve the last observation on failure; unknown is not recovery.
+			return utils.TrackError(fmt.Errorf("failed to observe cluster lifecycle before upgrade: %w", csErr))
+		}
+		if csStatus == nil || csStatus.State() == "" {
+			return utils.TrackError(fmt.Errorf("cluster service returned no cluster lifecycle state"))
+		}
+		if csStatus.State() == arohcpv1alpha1.ClusterStateUninstalling {
+			clusterReplacement := existingCluster.DeepCopy()
+			clusterReplacement.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
+			_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
+			if cosmosstorageutils.IsPreconditionFailedError(err) {
+				return nil
+			}
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to retain cluster uninstallation observation: %w", err))
+			}
+			condition.Status = metav1.ConditionFalse
+			condition.Reason = "Uninstalling"
+			condition.Message = "Cluster Service is uninstalling the cluster."
+		}
+	}
+	replacement := existingServiceProviderCluster.DeepCopy()
+	apimeta.SetStatusCondition(&replacement.Status.Conditions, condition)
+	if controllerutil.NeedsUpdate(existingServiceProviderCluster.Status.Conditions, replacement.Status.Conditions) {
+		_, err = c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to update upgrade monitoring lifecycle: %w", err))
+		}
+	}
+	if condition.Status == metav1.ConditionFalse {
+		logger.Info("Skipping control plane upgrade for cluster lifecycle", "reason", condition.Reason)
+		return nil
 	}
 
 	// here we check to see if we should be triggering an upgrade. We do this by

@@ -871,6 +871,7 @@ monitoring:
   alertsEnabled: true
   amwScaling:
     pollInterval: 30s
+  clusterUpgradeMonitorMode: legacy
   crossTenantSecurityGroup: ""
   eventHubAlerting:
     enabled: true
