@@ -27,12 +27,13 @@ import (
 //go:embed known-issues/knownIssues.yaml
 var defaultKnownIssuesData []byte
 
-// knownIssue holds a compiled known issue pattern and its optional UTC expiry date.
+// knownIssue holds a compiled known issue pattern, optional UTC expiry date, and duration bound.
 type knownIssue struct {
 	pattern      *regexp.Regexp
 	labels       map[string]*regexp.Regexp
 	reason       string
 	expiresAfter time.Time
+	maxDuration  time.Duration
 }
 
 // parseKnownIssues parses known issues YAML data, validates required fields,
@@ -45,6 +46,7 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 			Reason       string            `yaml:"reason"`
 			Labels       map[string]string `yaml:"labels,omitempty"`
 			ExpiresAfter string            `yaml:"expiresAfter,omitempty"`
+			MaxDuration  string            `yaml:"maxDuration,omitempty"`
 		} `yaml:"knownIssues"`
 	}
 	if err := yaml.UnmarshalStrict(data, &cfg); err != nil {
@@ -66,6 +68,17 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 				return nil, fmt.Errorf("knownIssue %d (%s): invalid expiresAfter date %q (expected YYYY-MM-DD): %w", i, ki.Name, ki.ExpiresAfter, err)
 			}
 		}
+		var maxDuration time.Duration
+		if ki.MaxDuration != "" {
+			var err error
+			maxDuration, err = time.ParseDuration(ki.MaxDuration)
+			if err != nil {
+				return nil, fmt.Errorf("knownIssue %d (%s): invalid maxDuration %q: %w", i, ki.Name, ki.MaxDuration, err)
+			}
+			if maxDuration < 0 {
+				return nil, fmt.Errorf("knownIssue %d (%s): invalid maxDuration %q: must not be negative", i, ki.Name, ki.MaxDuration)
+			}
+		}
 		re, err := regexp.Compile("^(?:" + ki.Name + ")$")
 		if err != nil {
 			return nil, fmt.Errorf("knownIssue %d (%s): invalid name regex: %w", i, ki.Name, err)
@@ -81,7 +94,7 @@ func parseKnownIssues(data []byte) ([]knownIssue, error) {
 				labelPatterns[k] = lre
 			}
 		}
-		result[i] = knownIssue{pattern: re, labels: labelPatterns, reason: ki.Reason, expiresAfter: expiresAfter}
+		result[i] = knownIssue{pattern: re, labels: labelPatterns, reason: ki.Reason, expiresAfter: expiresAfter, maxDuration: maxDuration}
 	}
 	return result, nil
 }
@@ -97,6 +110,8 @@ func classifyAlerts(alerts []alert, issues []knownIssue) []alert {
 // classifyAlertsAt applies known-issue patterns at the given time. An entry
 // without expiresAfter remains active. A dated exception remains active through
 // its expiresAfter date in UTC and stops suppressing failures the following day.
+// A non-zero maxDuration requires a resolved firing with both timestamps and a
+// non-negative duration no greater than the bound; zero leaves duration unbounded.
 func classifyAlertsAt(alerts []alert, issues []knownIssue, now time.Time) []alert {
 	result := make([]alert, len(alerts))
 	copy(result, alerts)
@@ -110,6 +125,16 @@ func classifyAlertsAt(alerts []alert, issues []knownIssue, now time.Time) []aler
 			}
 			if !matchLabels(result[i].Alert.Labels, ki.labels) {
 				continue
+			}
+			if ki.maxDuration != 0 {
+				firing := result[i].Alert
+				if firing.StartsAt == nil || firing.EndsAt == nil {
+					continue
+				}
+				duration := firing.EndsAt.Sub(*firing.StartsAt)
+				if duration < 0 || duration > ki.maxDuration {
+					continue
+				}
 			}
 			result[i].Metadata.KnownIssue = true
 			result[i].Metadata.KnownIssueReason = ki.reason

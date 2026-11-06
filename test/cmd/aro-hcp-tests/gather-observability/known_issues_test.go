@@ -15,6 +15,7 @@
 package gatherobservability
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -26,10 +27,12 @@ import (
 func TestParseKnownIssues(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		content string
-		wantErr bool
-		wantLen int
+		name            string
+		content         string
+		wantErr         bool
+		wantErrText     string
+		wantLen         int
+		wantMaxDuration time.Duration
 	}{
 		{
 			name: "valid config",
@@ -60,6 +63,29 @@ func TestParseKnownIssues(t *testing.T) {
 		{
 			name:    "optional expiry",
 			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n",
+			wantLen: 1,
+		},
+		{
+			name:            "valid max duration",
+			content:         "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  maxDuration: \"10m\"\n",
+			wantLen:         1,
+			wantMaxDuration: 10 * time.Minute,
+		},
+		{
+			name:        "invalid max duration",
+			content:     "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  maxDuration: \"ten minutes\"\n",
+			wantErr:     true,
+			wantErrText: `knownIssue 0 (SomeAlert): invalid maxDuration "ten minutes"`,
+		},
+		{
+			name:        "negative max duration",
+			content:     "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  maxDuration: \"-10m\"\n",
+			wantErr:     true,
+			wantErrText: `knownIssue 0 (SomeAlert): invalid maxDuration "-10m": must not be negative`,
+		},
+		{
+			name:    "zero max duration",
+			content: "knownIssues:\n- name: \"SomeAlert\"\n  reason: \"tracked\"\n  maxDuration: \"0s\"\n",
 			wantLen: 1,
 		},
 		{
@@ -127,6 +153,9 @@ func TestParseKnownIssues(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+				if tt.wantErrText != "" && !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Errorf("error=%q, want it to contain %q", err, tt.wantErrText)
+				}
 				return
 			}
 			if err != nil {
@@ -134,6 +163,9 @@ func TestParseKnownIssues(t *testing.T) {
 			}
 			if len(result) != tt.wantLen {
 				t.Errorf("got %d known issues, want %d", len(result), tt.wantLen)
+			}
+			if len(result) > 0 && result[0].maxDuration != tt.wantMaxDuration {
+				t.Errorf("maxDuration=%v, want %v", result[0].maxDuration, tt.wantMaxDuration)
 			}
 		})
 	}
@@ -155,6 +187,81 @@ func TestUndatedKnownIssueDoesNotExpire(t *testing.T) {
 	got := classifyAlertsAt([]alert{{Alert: alertData{Name: "SomeAlert"}}}, issues, time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC))
 	if !got[0].Metadata.KnownIssue || got[0].Metadata.KnownIssueReason != "existing exception" {
 		t.Errorf("undated exception should still classify the firing as known: %+v", got[0].Metadata)
+	}
+}
+
+func TestClassifyAlertsMaxDuration(t *testing.T) {
+	t.Parallel()
+	started := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)
+	withinBound := started.Add(5 * time.Minute)
+	atBound := started.Add(10 * time.Minute)
+	overBound := atBound.Add(time.Nanosecond)
+	beforeStart := started.Add(-time.Minute)
+	now := started.Add(time.Hour)
+	for _, tt := range []struct {
+		name      string
+		condition string
+		startsAt  *time.Time
+		endsAt    *time.Time
+		unbounded bool
+		known     bool
+	}{
+		{name: "resolved within bound", condition: "Resolved", startsAt: &started, endsAt: &withinBound, known: true},
+		{name: "resolved at bound", condition: "Resolved", startsAt: &started, endsAt: &atBound, known: true},
+		{name: "resolved over bound", condition: "Resolved", startsAt: &started, endsAt: &overBound},
+		{name: "still firing", condition: "Fired", startsAt: &started},
+		{name: "resolved timestamp without resolved condition", condition: "Fired", startsAt: &started, endsAt: &withinBound, known: true},
+		{name: "resolved without end timestamp", condition: "Resolved", startsAt: &started},
+		{name: "resolved without start timestamp", condition: "Resolved", endsAt: &withinBound},
+		{name: "end before start", condition: "Resolved", startsAt: &started, endsAt: &beforeStart},
+		{name: "no bound still firing", condition: "Fired", startsAt: &started, unbounded: true, known: true},
+		{name: "no bound over ten minutes", condition: "Resolved", startsAt: &started, endsAt: &overBound, unbounded: true, known: true},
+		{name: "no bound missing timestamps", condition: "Fired", unbounded: true, known: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			config := `knownIssues:
+- name: "SomeAlert"
+  reason: "transient provisioning"
+`
+			if !tt.unbounded {
+				config += "  maxDuration: \"10m\"\n"
+			}
+			issues := mustParse(t, config)
+			alerts := []alert{{Alert: alertData{
+				Name:      "SomeAlert",
+				Condition: tt.condition,
+				StartsAt:  tt.startsAt,
+				EndsAt:    tt.endsAt,
+			}}}
+			got := classifyAlertsAt(alerts, issues, now)
+			if got[0].Metadata.KnownIssue != tt.known {
+				t.Errorf("known=%v, want %v", got[0].Metadata.KnownIssue, tt.known)
+			}
+			wantReason := ""
+			var wantFailed, wantSkipped uint
+			if tt.known {
+				wantReason = "transient provisioning"
+				wantSkipped = 1
+			} else {
+				wantFailed = 1
+			}
+			if got[0].Metadata.KnownIssueReason != wantReason {
+				t.Errorf("reason=%q, want %q", got[0].Metadata.KnownIssueReason, wantReason)
+			}
+			if alerts[0].Metadata.KnownIssue || alerts[0].Metadata.KnownIssueReason != "" {
+				t.Error("classification mutated the input alert metadata")
+			}
+			workspace := &workspaceData{
+				Type:        workspaceSvc,
+				AlertRules:  []string{"SomeAlert"},
+				FiredAlerts: got,
+			}
+			suite := workspaceDataToJUnit(logr.Discard(), workspace, timing.TimeWindow{})
+			if suite.NumFailed != wantFailed || suite.NumSkipped != wantSkipped {
+				t.Errorf("JUnit failures=%d skips=%d; want failures=%d skips=%d", suite.NumFailed, suite.NumSkipped, wantFailed, wantSkipped)
+			}
+		})
 	}
 }
 
