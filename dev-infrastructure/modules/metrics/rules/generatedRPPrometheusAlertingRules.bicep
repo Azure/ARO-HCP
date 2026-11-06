@@ -1807,3 +1807,324 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpExternalauthSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_externalauth_slo_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'externalauth-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
+          info: 'More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)'
+        }
+        expression: '(errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.72) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'externalauth-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
+          info: 'More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes'
+        }
+        expression: '(errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.3) and (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'externalauth-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthErrors3d/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 5% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 3 days sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
+          info: 'More than 5% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 3 days sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate exceeds SLO target (>5%) for 6+ hours'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate exceeds SLO target (>5%) for 6+ hours'
+        }
+        expression: '(errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.05) and (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthErrorsDegradation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'externalauth-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthErrorsDegradation/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'The ExternalAuth {{ $labels.operation_type }} failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
+          info: 'The ExternalAuth {{ $labels.operation_type }} failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} failure rate exceeds 15% for 30 minutes'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} failure rate exceeds 15% for 30 minutes'
+        }
+        expression: '(errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} / clamp_min(errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}, 1) > 0.15) and (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} >= 2)'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpExternalauthSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_externalauth_slo_latency_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthLatency1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'externalauth-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthLatency1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 72% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last hour and the last 5 minutes, with at least 5 samples. Fast burn (14.4x) against the 95% latency SLO.'
+          info: 'More than 72% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last hour and the last 5 minutes, with at least 5 samples. Fast burn (14.4x) against the 95% latency SLO.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO fast burn (>72% slow for 5m)'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO fast burn (>72% slow for 5m)'
+        }
+        expression: 'errors:backend_externalauth_operation:latency_total_1h >= 5 and errors:backend_externalauth_operation:latency_error_rate_1h > 0.72 and errors:backend_externalauth_operation:latency_error_rate_5m > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthLatency6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'externalauth-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthLatency6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 30% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 6 hours and the last 30 minutes, with at least 5 samples. Medium burn (6x) against the 95% latency SLO.'
+          info: 'More than 30% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 6 hours and the last 30 minutes, with at least 5 samples. Medium burn (6x) against the 95% latency SLO.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO medium burn (>30% slow for 30m)'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO medium burn (>30% slow for 30m)'
+        }
+        expression: 'errors:backend_externalauth_operation:latency_total_6h >= 5 and errors:backend_externalauth_operation:latency_error_rate_6h > 0.3 and errors:backend_externalauth_operation:latency_error_rate_30m > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthLatency3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'externalauth-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthLatency3d/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 5% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 3 days, with at least 5 samples. Slow burn (1x) against the 95% latency SLO.'
+          info: 'More than 5% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 3 days, with at least 5 samples. Slow burn (1x) against the 95% latency SLO.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO slow burn (>5% slow for 6h)'
+          title: '{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO slow burn (>5% slow for 6h)'
+        }
+        expression: 'errors:backend_externalauth_operation:latency_total_3d >= 5 and errors:backend_externalauth_operation:latency_error_rate_3d > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpExternalauthSloStuckAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_externalauth_slo_stuck_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          description: 'ExternalAuth operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'ExternalAuth operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: '{{ $labels.cluster }}: ExternalAuth operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1)) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpExternalauthSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_externalauth_saturation_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyExternalAuthSaturationQueueDepth'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyExternalAuthSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'ExternalAuth controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'ExternalAuth controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-externalauth'
+          summary: '{{ $labels.cluster }}: ExternalAuth controller workqueue {{ $labels.name }} depth is high'
+          title: '{{ $labels.cluster }}: ExternalAuth controller workqueue {{ $labels.name }} depth is high'
+        }
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

@@ -19,11 +19,10 @@ spec:
   # SLO: 95% of ExternalAuth operations (create/update/delete) should succeed.
   # Error Budget: 5% (1 - 0.95)
   #
-  # Combined error rate across all ExternalAuth operation types (create, update,
-  # delete). The unified recording rules produce per-operation_type series; we
-  # sum across operation_types to get the combined rate.
+  # Each operation_type keeps its own series, matching the unified recording
+  # rules (PR #7370). A failing create does not burn the update or delete budget.
   #
-  # Noise guard: >= 2 failures required before the rate threshold fires.
+  # Noise guard: >= 2 failures of that operation_type before the rate fires.
   # ExternalAuth traffic is low (~24 ops/hr), so a single failure could produce
   # a misleadingly high error rate. The >= 2 guard prevents alert spam.
   #
@@ -46,29 +45,23 @@ spec:
     - alert: userJourneyExternalAuthErrors1h5m
       expr: |
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_1h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          )
+          errors:backend_resource_operation:failed_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
           /
           clamp_min(
-            sum by (cluster, region) (
-              errors:backend_resource_operation:total_1h{
-                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-              }
-            ),
+            errors:backend_resource_operation:total_1h{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+            },
             1
           )
           > 0.72
         )
         and
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_1h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          ) >= 2
+          errors:backend_resource_operation:failed_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } >= 2
         )
       for: 5m
       labels:
@@ -77,8 +70,8 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth operation error rate critically high (>72%)"
-        description: "More than 72% of ExternalAuth operations (create/update/delete) have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate critically high (>72%)"
+        description: "More than 72% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last hour, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
@@ -88,29 +81,23 @@ spec:
     - alert: userJourneyExternalAuthErrors6h30m
       expr: |
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_6h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          )
+          errors:backend_resource_operation:failed_6h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
           /
           clamp_min(
-            sum by (cluster, region) (
-              errors:backend_resource_operation:total_6h{
-                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-              }
-            ),
+            errors:backend_resource_operation:total_6h{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+            },
             1
           )
           > 0.30
         )
         and
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_6h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          ) >= 2
+          errors:backend_resource_operation:failed_6h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } >= 2
         )
       for: 30m
       labels:
@@ -119,8 +106,8 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth operation error rate elevated (>30%) for 30+ minutes"
-        description: "More than 30% of ExternalAuth operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 6 hours sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
@@ -131,29 +118,23 @@ spec:
     - alert: userJourneyExternalAuthErrors3d
       expr: |
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_3d{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          )
+          errors:backend_resource_operation:failed_3d{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
           /
           clamp_min(
-            sum by (cluster, region) (
-              errors:backend_resource_operation:total_3d{
-                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-              }
-            ),
+            errors:backend_resource_operation:total_3d{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+            },
             1
           )
           > 0.05
         )
         and
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_3d{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          ) >= 2
+          errors:backend_resource_operation:failed_3d{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } >= 2
         )
       for: 6h
       labels:
@@ -161,8 +142,8 @@ spec:
         slo: externalauth-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth operation error rate exceeds SLO target (>5%) for 6+ hours"
-        description: "More than 5% of ExternalAuth operations have failed in the last 3 days sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} error rate exceeds SLO target (>5%) for 6+ hours"
+        description: "More than 5% of ExternalAuth {{ $labels.operation_type }} operations have failed in the last 3 days sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
     # ----------------------------------------
     # Degradation Alert (IcM Sev 4 — ticket)
@@ -173,96 +154,103 @@ spec:
     - alert: userJourneyExternalAuthErrorsDegradation
       expr: |
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_1h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          )
+          errors:backend_resource_operation:failed_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
           /
           clamp_min(
-            sum by (cluster, region) (
-              errors:backend_resource_operation:total_1h{
-                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-              }
-            ),
+            errors:backend_resource_operation:total_1h{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+            },
             1
           )
           > 0.15
         )
         and
         (
-          sum by (cluster, region) (
-            errors:backend_resource_operation:failed_1h{
-              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
-            }
-          ) >= 2
+          errors:backend_resource_operation:failed_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          } >= 2
         )
       for: 30m
       labels:
         severity: "4"
         slo: externalauth-errors
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth operation failure rate exceeds 15% for 30 minutes"
-        description: "The ExternalAuth operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} failure rate exceeds 15% for 30 minutes"
+        description: "The ExternalAuth {{ $labels.operation_type }} failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
   # ========================================
   # ExternalAuth SLO Alerts — Latency
   # ========================================
-  # Per-verb P95 latency alerts using unified recording rules.
-  # Thresholds match E2E test timeouts for each operation type.
-  # Only succeeded operations are checked (failed operations have different
-  # latency characteristics and are covered by error rate alerts).
+  # Multi-window burn rate of succeeded operations that exceeded the per-verb
+  # latency SLO, using externalauth-slo-recordingRule.yaml. Same tiers and
+  # sample floor as the cluster deletion latency alerts.
+  #
+  # SLO: 95% of succeeded operations complete within the verb timeout
+  # (create 900s, update 600s, delete 900s). operation_type stays on the series.
+  #
+  # Sample guard: >= 5 succeeded samples in the long window, so one slow
+  # operation on a quiet window cannot page.
+  #
+  # Burn rate thresholds from the 95% latency SLO (5% budget):
+  #   Fast (14.4x):  >72% slow over 1h and 5m
+  #   Medium (6x):   >30% slow over 6h and 30m
+  #   Slow (1x):     >5% slow over 3d
   - name: arohcp_externalauth_slo_latency_alerts
     labels:
       component: slo
     rules:
-    # Create P95 threshold: 900s (15 minutes = ExternalAuthCreationTimeout)
-    - alert: userJourneyExternalAuthCreateLatency
+    # 14.4x burn → >72% slow, sustained 5m. Sev 3.
+    - alert: userJourneyExternalAuthLatency1h5m
       expr: |
-        latency:backend_resource_operation:p95_1h{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-          operation_type="create",
-          phase="succeeded"
-        } > 900
-      for: 15m
+        errors:backend_externalauth_operation:latency_total_1h >= 5
+        and
+        errors:backend_externalauth_operation:latency_error_rate_1h > 0.72
+        and
+        errors:backend_externalauth_operation:latency_error_rate_5m > 0.72
+      for: 5m
       labels:
         severity: "3"
         slo: externalauth-latency
+        long_window: 1h
+        short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth create P95 latency exceeds 15 minutes"
-        description: "The P95 latency for succeeded ExternalAuth create operations in the last hour exceeds 900 seconds (15 minutes, the E2E timeout threshold)."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO fast burn (>72% slow for 5m)"
+        description: "More than 72% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last hour and the last 5 minutes, with at least 5 samples. Fast burn (14.4x) against the 95% latency SLO."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
-    # Update P95 threshold: 600s (10 minutes, no VM provisioning involved)
-    - alert: userJourneyExternalAuthUpdateLatency
+    # 6x burn → >30% slow, sustained 30m. Sev 3.
+    - alert: userJourneyExternalAuthLatency6h30m
       expr: |
-        latency:backend_resource_operation:p95_1h{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-          operation_type="update",
-          phase="succeeded"
-        } > 600
-      for: 15m
+        errors:backend_externalauth_operation:latency_total_6h >= 5
+        and
+        errors:backend_externalauth_operation:latency_error_rate_6h > 0.30
+        and
+        errors:backend_externalauth_operation:latency_error_rate_30m > 0.30
+      for: 30m
       labels:
         severity: "3"
         slo: externalauth-latency
+        long_window: 6h
+        short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth update P95 latency exceeds 10 minutes"
-        description: "The P95 latency for succeeded ExternalAuth update operations in the last hour exceeds 600 seconds (10 minutes)."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO medium burn (>30% slow for 30m)"
+        description: "More than 30% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 6 hours and the last 30 minutes, with at least 5 samples. Medium burn (6x) against the 95% latency SLO."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
-    # Delete P95 threshold: 900s (15 minutes = ExternalAuthDeletionTimeout)
-    - alert: userJourneyExternalAuthDeleteLatency
+    # 1x burn → >5% slow, sustained 6h. Sev 4 ticket.
+    - alert: userJourneyExternalAuthLatency3d
       expr: |
-        latency:backend_resource_operation:p95_1h{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-          operation_type="delete",
-          phase="succeeded"
-        } > 900
-      for: 15m
+        errors:backend_externalauth_operation:latency_total_3d >= 5
+        and
+        errors:backend_externalauth_operation:latency_error_rate_3d > 0.05
+      for: 6h
       labels:
-        severity: "3"
+        severity: "4"
         slo: externalauth-latency
+        long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: ExternalAuth delete P95 latency exceeds 15 minutes"
-        description: "The P95 latency for succeeded ExternalAuth delete operations in the last hour exceeds 900 seconds (15 minutes, the E2E timeout threshold)."
+        summary: "{{ $labels.cluster }}: ExternalAuth {{ $labels.operation_type }} latency SLO slow burn (>5% slow for 6h)"
+        description: "More than 5% of succeeded ExternalAuth {{ $labels.operation_type }} operations exceeded the latency SLO (create 15m, update 10m, delete 15m) over the last 3 days, with at least 5 samples. Slow burn (1x) against the 95% latency SLO."
         runbook_url: "https://aka.ms/arohcp-runbook-externalauth"
   # ========================================
   # ExternalAuth SLO Alerts — Stuck Operations
@@ -282,8 +270,8 @@ spec:
   # Holding the condition firing over a 6h look-back collapses a
   # continuously-stuck resource into a single long-lived incident.
   #
-  # Non-terminal phases include awaitingsecret (ExternalAuth-specific phase
-  # where the operation waits for a JWKS secret to be created).
+  # AwaitingSecret is not a stuck phase. The operation is waiting on the
+  # customer's client secret, not on the platform.
   - name: arohcp_externalauth_slo_stuck_alerts
     labels:
       component: slo
@@ -309,7 +297,7 @@ spec:
                 and
                 backend_resource_operation_phase_info{
                   resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-                  phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+                  phase=~"accepted|provisioning|updating|deleting"
                 } == 1
               ) > 3600
             )[6h:5m]
@@ -319,7 +307,7 @@ spec:
         (
           backend_resource_operation_phase_info{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-            phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+            phase=~"accepted|provisioning|updating|deleting"
           } == 1
         )
       for: 15m

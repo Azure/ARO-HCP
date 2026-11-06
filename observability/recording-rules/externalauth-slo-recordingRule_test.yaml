@@ -1,0 +1,98 @@
+rule_files:
+- externalauth-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Per-verb thresholds: create and delete are slow above 900s, update above 600s.
+# create 1000 slow, create 800 fast. update 700 slow, update 500 fast.
+# delete 1000 slow, delete 800 fast.
+# At 5m every completion is inside both the 5m and 1h windows.
+- name: latency_thresholds_split_by_operation_type
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1000+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="c-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "800+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "700+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="update",phase="succeeded",resource_id="u-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "500+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-slow",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1000+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x10"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="delete",phase="succeeded",resource_id="d-fast",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "800+0x10"
+  promql_expr_test:
+  - expr: errors:backend_externalauth_operation:latency_slow_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_externalauth_operation:latency_slow_1h{cluster="mgmt-1",operation_type="create",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 1
+    - labels: 'errors:backend_externalauth_operation:latency_slow_1h{cluster="mgmt-1",operation_type="delete",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 1
+    - labels: 'errors:backend_externalauth_operation:latency_slow_1h{cluster="mgmt-1",operation_type="update",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 1
+  - expr: errors:backend_externalauth_operation:latency_total_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_externalauth_operation:latency_total_1h{cluster="mgmt-1",operation_type="create",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 2
+    - labels: 'errors:backend_externalauth_operation:latency_total_1h{cluster="mgmt-1",operation_type="delete",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 2
+    - labels: 'errors:backend_externalauth_operation:latency_total_1h{cluster="mgmt-1",operation_type="update",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 2
+  - expr: errors:backend_externalauth_operation:latency_error_rate_1h
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_externalauth_operation:latency_error_rate_1h{cluster="mgmt-1",operation_type="create",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 0.5
+    - labels: 'errors:backend_externalauth_operation:latency_error_rate_1h{cluster="mgmt-1",operation_type="delete",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 0.5
+    - labels: 'errors:backend_externalauth_operation:latency_error_rate_1h{cluster="mgmt-1",operation_type="update",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 0.5
+# A completion older than 5 minutes stays in the 1h window and leaves the 5m window.
+- name: latency_short_window_ages_out
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="old",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1+0x30"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="old",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "0+0x30"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",operation_type="create",phase="succeeded",resource_id="old",subscription_id="sub1",cluster="mgmt-1",region="uksouth"}'
+    values: "1000+0x30"
+  promql_expr_test:
+  - expr: errors:backend_externalauth_operation:latency_error_rate_1h
+    eval_time: 25m
+    exp_samples:
+    - labels: 'errors:backend_externalauth_operation:latency_error_rate_1h{cluster="mgmt-1",operation_type="create",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 1
+  - expr: errors:backend_externalauth_operation:latency_slow_5m
+    eval_time: 25m
+    exp_samples:
+    - labels: 'errors:backend_externalauth_operation:latency_slow_5m{cluster="mgmt-1",operation_type="create",region="uksouth",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}'
+      value: 0
+  - expr: errors:backend_externalauth_operation:latency_total_5m
+    eval_time: 25m
