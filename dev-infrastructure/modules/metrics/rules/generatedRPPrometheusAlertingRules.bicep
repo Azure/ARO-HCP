@@ -1830,7 +1830,7 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
           summary: 'no successful Velero server metrics scrape for 15m on {{ $labels.cluster }}'
           title: 'no successful Velero server metrics scrape for 15m on {{ $labels.cluster }}'
         }
-        expression: 'group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)'
+        expression: '(group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
