@@ -38,8 +38,8 @@ ciFailurePatterns:
   results:
     table: "ciFailurePatterns"
     ingestionMapping: "ciFailurePatternsMapping"
-  interval: "15m"
-  workers: 2
+  interval: "5m"
+  workers: 4
   cacheSize: 20000
   cacheTTL: "15m"
 tenants: {}

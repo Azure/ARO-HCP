@@ -47,7 +47,9 @@ const (
 	DefaultCIJobOutcomesDiscoveryWorkers = 2
 	DefaultCIJobOutcomesCacheSize        = 20000
 	DefaultCIJobOutcomesCacheTTL         = 15 * time.Minute
-	DefaultCIFailurePatternsWorkers      = 2
+	// DefaultCIFailurePatternsInterval is the newest-build poll interval.
+	DefaultCIFailurePatternsInterval = 5 * time.Minute
+	DefaultCIFailurePatternsWorkers  = 4
 )
 
 var gcsBucketPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
@@ -521,7 +523,7 @@ func (c *CIFailurePatternsConfig) GetCacheSize() int {
 }
 
 func (c *CIFailurePatternsConfig) validate(raw CIJobOutcomesConfig) error {
-	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciFailurePatterns.interval"); err != nil {
+	if err := parseDuration(c.Interval, DefaultCIFailurePatternsInterval, &c.intervalDuration, "ciFailurePatterns.interval"); err != nil {
 		return err
 	}
 	if err := parseDuration(c.CacheTTL, DefaultCIJobOutcomesCacheTTL, &c.cacheTTLDuration, "ciFailurePatterns.cacheTTL"); err != nil {

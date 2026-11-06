@@ -294,29 +294,32 @@ func TestMappingRequiresEveryTypedColumnAndExactPath(t *testing.T) {
 
 func TestCompleteBuildIDReadsPreserveUnicodeAndRejectInvalidPages(t *testing.T) {
 	const cursor = "🧪'); .drop table ciTestResults; //"
+	// Newest first: strictly descending and strictly before the cursor.
 	validIDs := make([]string, discoveryPageSize)
 	for index := range validIDs {
-		validIDs[index] = fmt.Sprintf("%s-%04d", cursor, index)
+		validIDs[index] = fmt.Sprintf("build-%04d", discoveryPageSize-index)
 	}
 	for _, scenario := range []struct {
 		name     string
 		schema   map[string]string
 		ids      []string
+		newest   bool
 		terminal bool
 		wantErr  bool
 	}{
 		{name: "full page", ids: validIDs, terminal: true},
 		{name: "short page", ids: validIDs[:2], terminal: true},
+		{name: "newest page without cursor", ids: []string{"b", "a"}, newest: true, terminal: true},
 		{name: "empty page", terminal: true},
 		{name: "missing terminal", ids: validIDs[:2], wantErr: true},
 		{name: "missing column", schema: map[string]string{"other": "string"}, terminal: true, wantErr: true},
 		{name: "wrong column type", schema: map[string]string{"buildId": "long"}, terminal: true, wantErr: true},
-		{name: "oversized page", ids: append(append([]string(nil), validIDs...), cursor+"-overflow"), terminal: true, wantErr: true},
+		{name: "oversized page", ids: append(append([]string(nil), validIDs...), "a-overflow"), terminal: true, wantErr: true},
 		{name: "empty ID", ids: []string{""}, terminal: true, wantErr: true},
-		{name: "before cursor", ids: []string{"a"}, terminal: true, wantErr: true},
+		{name: "after cursor", ids: []string{cursor + "-newer"}, terminal: true, wantErr: true},
 		{name: "equal cursor", ids: []string{cursor}, terminal: true, wantErr: true},
 		{name: "duplicate ID", ids: []string{validIDs[0], validIDs[0]}, terminal: true, wantErr: true},
-		{name: "unordered page", ids: []string{validIDs[1], validIDs[0]}, terminal: true, wantErr: true},
+		{name: "ascending page", ids: []string{validIDs[1], validIDs[0]}, terminal: true, wantErr: true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			c := newTestController(t)
@@ -336,15 +339,23 @@ func TestCompleteBuildIDReadsPreserveUnicodeAndRejectInvalidPages(t *testing.T) 
 					} `json:"properties"`
 				}
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				before := cursor
+				if scenario.newest {
+					before = ""
+				}
 				require.NotContains(t, body.CSL, cursor, "arbitrary cursor remains data, not KQL")
 				parameter := body.Properties.Parameters["request"]
 				require.True(t, strings.HasPrefix(parameter, "dynamic("))
 				var payload map[string]any
 				require.NoError(t, json.Unmarshal([]byte(strings.TrimSuffix(strings.TrimPrefix(parameter, "dynamic("), ")")), &payload))
-				require.Equal(t, cursor, payload["afterBuildID"])
+				require.Equal(t, before, payload["beforeBuildID"])
 				_, _ = io.WriteString(w, completeFixture(t, schema, values, scenario.terminal))
 			})
-			ids, err := c.loadBuildIDs(t.Context(), sdk, cursor)
+			before := cursor
+			if scenario.newest {
+				before = ""
+			}
+			ids, err := c.loadBuildIDs(t.Context(), sdk, before, discoveryPageSize)
 			if scenario.wantErr {
 				require.Error(t, err)
 				require.Nil(t, ids, "an incomplete or invalid page never advances discovery")

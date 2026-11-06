@@ -210,8 +210,9 @@ clouds:
             results:
               table: "ciFailurePatterns"
               ingestionMapping: "ciFailurePatternsMapping"
-            interval: "15m"
-            workers: 2
+            # Newest-build poll interval; the paced history sweep is separate.
+            interval: "5m"
+            workers: 4
             cacheSize: 20000
             cacheTTL: "15m"
           prow:

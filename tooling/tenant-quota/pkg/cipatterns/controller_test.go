@@ -46,9 +46,9 @@ func newTestController(t *testing.T) *Controller {
 	}
 	require.NoError(t, cfg.Validate())
 	c := NewController(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	c.retryDelay, c.initializeDelay = time.Millisecond, time.Millisecond
+	c.retryDelay, c.maxRetryDelay, c.initializeDelay, c.sweepPoll = time.Millisecond, time.Millisecond, time.Millisecond, time.Millisecond
 	c.initialize = func(context.Context) error { return nil }
-	c.readBuildIDs = func(context.Context, string) ([]string, error) { return nil, nil }
+	c.readBuildIDs = func(context.Context, string, int) ([]string, error) { return nil, nil }
 	c.readInputs = func(context.Context, string) ([]input, error) { return nil, nil }
 	c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) { return nil, nil }
 	c.submit = func(context.Context, *bytes.Buffer) error { return nil }
@@ -84,19 +84,19 @@ type fakeDatabase struct {
 }
 
 func (db *fakeDatabase) attach(c *Controller) {
-	c.readBuildIDs = func(ctx context.Context, after string) ([]string, error) {
+	c.readBuildIDs = func(ctx context.Context, before string, limit int) ([]string, error) {
 		db.mu.Lock()
 		defer db.mu.Unlock()
 		db.discoveryReads++
 		distinct := map[string]bool{}
 		for _, id := range db.buildIDs {
-			if id != "" && id > after {
+			if id != "" && (before == "" || id < before) {
 				distinct[id] = true
 			}
 		}
 		for _, i := range db.inputs {
 			id := i.observation.BuildID
-			if id != "" && id > after {
+			if id != "" && (before == "" || id < before) {
 				distinct[id] = true
 			}
 		}
@@ -104,9 +104,9 @@ func (db *fakeDatabase) attach(c *Controller) {
 		for id := range distinct {
 			ids = append(ids, id)
 		}
-		sort.Strings(ids)
-		if len(ids) > discoveryPageSize {
-			ids = ids[:discoveryPageSize]
+		sort.Sort(sort.Reverse(sort.StringSlice(ids)))
+		if len(ids) > limit {
+			ids = ids[:limit]
 		}
 		return ids, ctx.Err()
 	}
@@ -216,7 +216,7 @@ func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
 	restarted := newTestController(t)
 	db.attach(restarted)
 	require.NoError(t, restarted.allowNormalReconciliation(compiledFailurePatternVersion()))
-	require.NoError(t, restarted.scan(t.Context()))
+	require.NoError(t, restarted.scanHead(t.Context()))
 	require.Equal(t, 1, restarted.queue.Len(), "discovery includes completed builds")
 	db.mu.Lock()
 	submissions, inputReads, resultReads := db.submissions, db.reads, db.resultReads
@@ -229,7 +229,7 @@ func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
 	require.Equal(t, resultReads+1, db.resultReads)
 	db.visible = nil
 	db.mu.Unlock()
-	require.NoError(t, restarted.scan(t.Context()))
+	require.NoError(t, restarted.scanHead(t.Context()))
 	require.Equal(t, 1, restarted.queue.Len())
 	require.True(t, restarted.processNext(t.Context()))
 	db.mu.Lock()
@@ -452,7 +452,7 @@ func TestStartCancelsInflightBeforeClosingClients(t *testing.T) {
 	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 	entered := make(chan struct{})
 	returned := make(chan struct{})
-	c.readBuildIDs = func(context.Context, string) ([]string, error) {
+	c.readBuildIDs = func(context.Context, string, int) ([]string, error) {
 		return []string{sampleInput().observation.BuildID}, nil
 	}
 	c.readInputs = func(ctx context.Context, build string) ([]input, error) {
@@ -501,138 +501,254 @@ func drainDiscoveredBuildIDs(t *testing.T, c *Controller) []string {
 	return ids
 }
 
-func TestDiscoveryPagesProgressWrapAndRestart(t *testing.T) {
+func newBuildIDs(count int) []string {
+	ids := make([]string, count)
+	for index := range ids {
+		ids[index] = fmt.Sprintf("build-%04d", index)
+	}
+	return ids
+}
+
+// newest returns the n highest IDs, newest first.
+func newest(ids []string, n int) []string {
+	out := make([]string, 0, n)
+	for index := len(ids) - 1; index >= 0 && len(out) < n; index-- {
+		out = append(out, ids[index])
+	}
+	return out
+}
+
+func TestHeadScanAlwaysReadsNewestPageOnly(t *testing.T) {
+	c := newTestController(t)
+	db := &fakeDatabase{}
+	want := newBuildIDs(3 * discoveryPageSize)
+	// Duplicate and shuffled metadata exercise the fixture's distinct descending discovery.
+	for index := range want {
+		db.buildIDs = append(db.buildIDs, want[len(want)-1-index])
+	}
+	db.buildIDs = append(db.buildIDs, want...)
+	db.attach(c)
+	c.readInputs = func(context.Context, string) ([]input, error) {
+		t.Error("discovery must not read evidence")
+		return nil, errors.New("evidence unavailable")
+	}
+	c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) {
+		t.Error("discovery must not read results")
+		return nil, errors.New("results unavailable")
+	}
+	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
+	for range 3 {
+		require.NoError(t, c.scanHead(t.Context()))
+		require.Equal(t, newest(want, headPageSize), drainDiscoveredBuildIDs(t, c), "every poll restarts at the newest build")
+	}
+	require.Equal(t, 3, db.discoveryReads)
+	require.Empty(t, c.sweepBefore, "head polls never move the sweep cursor")
+}
+
+func TestHeadScanSeesNewBuildDuringSweep(t *testing.T) {
+	c := newTestController(t)
+	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
+	db.attach(c)
+	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
+	require.NoError(t, c.sweepStep(t.Context()))
+	drainDiscoveredBuildIDs(t, c)
+	require.NotEmpty(t, c.sweepBefore, "sweep is mid-history")
+	cursor := c.sweepBefore
+	db.mu.Lock()
+	db.buildIDs = append(db.buildIDs, "build-9999")
+	db.mu.Unlock()
+	require.NoError(t, c.scanHead(t.Context()))
+	require.Equal(t, "build-9999", drainDiscoveredBuildIDs(t, c)[0], "new build is first in line without waiting for the sweep")
+	require.Equal(t, cursor, c.sweepBefore)
+}
+
+func TestSweepWalksNewestToOldestWhenIdleAndRests(t *testing.T) {
 	for _, count := range []int{2 * discoveryPageSize, 2*discoveryPageSize + 3} {
 		t.Run(fmt.Sprintf("%d-builds", count), func(t *testing.T) {
 			c := newTestController(t)
-			db := &fakeDatabase{}
-			want := make([]string, count)
-			for index := range want {
-				want[index] = fmt.Sprintf("build-%04d", index)
-			}
-			// Deliberate duplicate and reversed metadata exercise the fixture's
-			// distinct ascending discovery independently of evidence access.
-			for index := range want {
-				db.buildIDs = append(db.buildIDs, want[count-1-index])
-			}
-			db.buildIDs = append(db.buildIDs, want...)
+			clock := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+			c.now = func() time.Time { return clock }
+			want := newBuildIDs(count)
+			db := &fakeDatabase{buildIDs: want}
 			db.attach(c)
 			c.readInputs = func(context.Context, string) ([]input, error) {
 				t.Error("discovery must not read evidence")
 				return nil, errors.New("evidence unavailable")
 			}
-			c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) {
-				t.Error("discovery must not read results")
-				return nil, errors.New("results unavailable")
-			}
 			require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
-			offset, scans := 0, 0
+			var got []string
 			for {
-				require.NoError(t, c.scan(t.Context()))
-				scans++
-				end := min(offset+discoveryPageSize, len(want))
-				require.Equal(t, want[offset:end], drainDiscoveredBuildIDs(t, c))
-				require.Equal(t, scans, db.discoveryReads, "one scan reads exactly one page")
-				if end-offset < discoveryPageSize {
-					require.Empty(t, c.scanAfterBuildID)
+				require.NoError(t, c.sweepStep(t.Context()))
+				page := drainDiscoveredBuildIDs(t, c)
+				got = append(got, page...)
+				if len(page) < discoveryPageSize {
 					break
 				}
-				require.Equal(t, want[end-1], c.scanAfterBuildID)
-				offset = end
+				require.Equal(t, page[len(page)-1], c.sweepBefore)
 			}
-			require.NoError(t, c.scan(t.Context()))
-			require.Equal(t, want[:discoveryPageSize], drainDiscoveredBuildIDs(t, c), "next sweep revisits retained failures")
+			require.Equal(t, newest(want, count), got, "sweep visits every build exactly once, newest first")
+			require.Empty(t, c.sweepBefore)
+			reads := db.discoveryReads
+
+			clock = clock.Add(sweepRest - time.Second)
+			require.NoError(t, c.sweepStep(t.Context()))
+			require.Equal(t, reads, db.discoveryReads, "sweep rests after reaching the oldest build")
+			clock = clock.Add(time.Second)
+			require.NoError(t, c.sweepStep(t.Context()))
+			require.Equal(t, newest(want, discoveryPageSize), drainDiscoveredBuildIDs(t, c), "next sweep starts again at the newest build")
+
 			restarted := newTestController(t)
 			db.attach(restarted)
 			require.NoError(t, restarted.allowNormalReconciliation(compiledFailurePatternVersion()))
-			require.NoError(t, restarted.scan(t.Context()))
-			require.Equal(t, want[:discoveryPageSize], drainDiscoveredBuildIDs(t, restarted), "restart begins a new sweep")
+			require.NoError(t, restarted.sweepStep(t.Context()))
+			require.Equal(t, newest(want, discoveryPageSize), drainDiscoveredBuildIDs(t, restarted), "restart sweeps immediately from the newest build")
 			require.Zero(t, db.reads)
 			require.Zero(t, db.resultReads)
 		})
 	}
 }
 
-func TestDiscoveryFindsIDsInsertedAheadAndBehindCursor(t *testing.T) {
+func TestSweepBoundsOutstandingWorkIncludingPendingVisibility(t *testing.T) {
 	c := newTestController(t)
-	db := &fakeDatabase{}
-	for index := range discoveryPageSize + 2 {
-		db.buildIDs = append(db.buildIDs, fmt.Sprintf("build-%04d", index+100))
-	}
+	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
 	db.attach(c)
 	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
-	require.NoError(t, c.scan(t.Context()))
-	first := drainDiscoveredBuildIDs(t, c)
-	require.Len(t, first, discoveryPageSize)
-	require.Equal(t, first[len(first)-1], c.scanAfterBuildID)
-	db.buildIDs = append(db.buildIDs, "build-0001", "build-9999")
-	require.NoError(t, c.scan(t.Context()))
-	require.Equal(t, []string{fmt.Sprintf("build-%04d", discoveryPageSize+100), fmt.Sprintf("build-%04d", discoveryPageSize+101), "build-9999"}, drainDiscoveredBuildIDs(t, c))
-	require.Empty(t, c.scanAfterBuildID)
-	require.NoError(t, c.scan(t.Context()))
-	nextSweep := drainDiscoveredBuildIDs(t, c)
-	require.Len(t, nextSweep, discoveryPageSize)
-	require.Equal(t, "build-0001", nextSweep[0], "insertion behind cursor remains eligible next sweep")
-	require.Equal(t, first[:discoveryPageSize-1], nextSweep[1:])
+
+	// A full page that is queued blocks the next page.
+	for index := range discoveryPageSize {
+		c.queue.Add(fmt.Sprintf("queued-%d", index))
+	}
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Zero(t, db.discoveryReads, "sweep does not add a page while a page is queued")
+	drainDiscoveredBuildIDs(t, c)
+
+	// A page whose results are not visible yet is not in the ready queue, but it is still outstanding.
+	for index := range discoveryPageSize {
+		c.pendingDelay(fmt.Sprintf("awaiting-visibility-%d", index), time.Second)
+	}
+	require.Zero(t, c.queue.Len())
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Zero(t, db.discoveryReads, "sweep does not add a page while a page awaits visibility")
+
+	// Once part of that page becomes visible there is room for exactly one more page.
+	c.forgetPending("awaiting-visibility-0")
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Equal(t, 1, db.discoveryReads)
+	require.Equal(t, discoveryPageSize, c.queue.Len())
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Equal(t, 1, db.discoveryReads, "outstanding work stays under two pages")
 }
 
-func TestDiscoveryFailureAndCancellationPreserveCursor(t *testing.T) {
+func TestSweepCountsBuildsFailingBeforeFirstSubmission(t *testing.T) {
+	c := newTestController(t)
+	db := &fakeDatabase{buildIDs: newBuildIDs(3 * discoveryPageSize)}
+	db.attach(c)
+	c.readInputs = func(context.Context, string) ([]input, error) { return nil, errors.New("kusto unavailable") }
+	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Equal(t, 1, db.discoveryReads)
+	for range discoveryPageSize {
+		require.True(t, c.processNext(t.Context()))
+	}
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Equal(t, 1, db.discoveryReads, "builds delayed after a failure still count as outstanding")
+}
+
+func TestDiscoveryFailureAndCancellationPreserveSweepCursor(t *testing.T) {
 	for _, scenario := range []string{"query failure", "cancelled before query", "cancelled during query", "cancelled empty page"} {
 		t.Run(scenario, func(t *testing.T) {
 			c := newTestController(t)
 			require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
 			const cursor = "build-0100"
-			c.scanAfterBuildID = cursor
+			c.sweepBefore = cursor
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			calls := 0
-			c.readBuildIDs = func(ctx context.Context, after string) ([]string, error) {
+			c.readBuildIDs = func(ctx context.Context, before string, limit int) ([]string, error) {
 				calls++
-				require.Equal(t, cursor, after)
+				require.Equal(t, cursor, before)
+				require.Equal(t, discoveryPageSize, limit)
 				if scenario == "query failure" {
-					return []string{"build-0101"}, errors.New("failed page")
+					return []string{"build-0099"}, errors.New("failed page")
 				}
 				cancel()
 				if scenario == "cancelled empty page" {
 					return nil, nil
 				}
-				return []string{"build-0101"}, nil
+				return []string{"build-0099"}, nil
 			}
 			if scenario == "cancelled before query" {
 				cancel()
 			}
-			require.Error(t, c.scan(ctx))
-			require.Equal(t, cursor, c.scanAfterBuildID)
+			require.Error(t, c.sweepStep(ctx))
+			require.Equal(t, cursor, c.sweepBefore)
 			require.Zero(t, c.queue.Len(), "failed or cancelled page must not schedule returned IDs")
 			if scenario == "cancelled before query" {
 				require.Zero(t, calls)
 				return
 			}
 			require.Equal(t, 1, calls)
-			c.readBuildIDs = func(context.Context, string) ([]string, error) { return []string{"build-0101"}, nil }
-			require.NoError(t, c.scan(t.Context()), "next scan can retry the unchanged cursor")
-			require.Equal(t, []string{"build-0101"}, drainDiscoveredBuildIDs(t, c))
-			require.Empty(t, c.scanAfterBuildID)
+			c.readBuildIDs = func(context.Context, string, int) ([]string, error) { return []string{"build-0099"}, nil }
+			require.NoError(t, c.sweepStep(t.Context()), "next step can retry the unchanged cursor")
+			require.Equal(t, []string{"build-0099"}, drainDiscoveredBuildIDs(t, c))
+			require.Empty(t, c.sweepBefore)
 		})
 	}
 }
 
 func TestClosedDiscoveryGateDoesNotQueryOrMoveCursor(t *testing.T) {
 	c := newTestController(t)
-	c.scanAfterBuildID = "build-0100"
-	c.readBuildIDs = func(context.Context, string) ([]string, error) {
+	c.sweepBefore = "build-0100"
+	c.readBuildIDs = func(context.Context, string, int) ([]string, error) {
 		t.Fatal("closed admission must not query discovery")
 		return nil, nil
 	}
-	c.readInputs = func(context.Context, string) ([]input, error) {
-		t.Fatal("closed admission must not read evidence")
-		return nil, nil
-	}
-	c.readResults = func(context.Context, []input, failurePatternVersion) ([]resultRow, error) {
-		t.Fatal("closed admission must not read results")
-		return nil, nil
-	}
-	require.NoError(t, c.scan(t.Context()))
-	require.Equal(t, "build-0100", c.scanAfterBuildID)
+	require.NoError(t, c.scanHead(t.Context()))
+	require.NoError(t, c.sweepStep(t.Context()))
+	require.Equal(t, "build-0100", c.sweepBefore)
 	require.Zero(t, c.queue.Len())
+}
+
+func TestPendingDelayBacksOffAndResets(t *testing.T) {
+	c := newTestController(t)
+	c.maxRetryDelay = 40 * time.Millisecond
+	var got []time.Duration
+	for range 6 {
+		got = append(got, c.pendingDelay("build", 5*time.Millisecond))
+	}
+	require.Equal(t, []time.Duration{5, 10, 20, 40, 40, 40}, scaleMillis(got))
+	require.Equal(t, 5*time.Millisecond, c.pendingDelay("other", 5*time.Millisecond), "builds back off independently")
+	c.forgetPending("build")
+	require.Equal(t, 5*time.Millisecond, c.pendingDelay("build", 5*time.Millisecond), "visible work restarts at the base delay")
+}
+
+func scaleMillis(delays []time.Duration) []time.Duration {
+	out := make([]time.Duration, len(delays))
+	for index, d := range delays {
+		out[index] = d / time.Millisecond
+	}
+	return out
+}
+
+func TestStartSweepsHistoryBeyondNewestPage(t *testing.T) {
+	c := newTestController(t)
+	want := newBuildIDs(2*discoveryPageSize + 1)
+	db := &fakeDatabase{buildIDs: want}
+	db.attach(c)
+	var mu sync.Mutex
+	seen := map[string]bool{}
+	read := c.readInputs
+	c.readInputs = func(ctx context.Context, build string) ([]input, error) {
+		mu.Lock()
+		seen[build] = true
+		mu.Unlock()
+		return read(ctx, build)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { defer close(done); c.Start(ctx) }()
+	require.Eventually(t, func() bool { mu.Lock(); defer mu.Unlock(); return len(seen) == len(want) }, 5*time.Second, time.Millisecond,
+		"head polls cover only the newest page; the sweep reaches the rest")
+	cancel()
+	<-done
 }

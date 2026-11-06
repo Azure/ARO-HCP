@@ -108,7 +108,9 @@ func (c *Controller) initializeKustoWithCredential(ctx context.Context, credenti
 	if err != nil {
 		return fmt.Errorf("create result ingestor: %w", err)
 	}
-	c.readBuildIDs = func(ctx context.Context, after string) ([]string, error) { return c.loadBuildIDs(ctx, client, after) }
+	c.readBuildIDs = func(ctx context.Context, before string, limit int) ([]string, error) {
+		return c.loadBuildIDs(ctx, client, before, limit)
+	}
 	c.readInputs = func(ctx context.Context, build string) ([]input, error) { return c.loadInputs(ctx, client, build) }
 	c.readResults = func(ctx context.Context, inputs []input, t failurePatternVersion) ([]resultRow, error) {
 		return c.loadResults(ctx, client, inputs, t)

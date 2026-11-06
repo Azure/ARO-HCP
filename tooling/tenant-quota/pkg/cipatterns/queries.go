@@ -36,13 +36,13 @@ var inputColumns = map[string]string{
 	"multiplicity": "long", "nameStatus": "string", "nameVariantCount": "long",
 }
 
-func buildIDQuery(settings config.CIJobOutcomesConfig) *kql.Builder {
+func buildIDQuery(settings config.CIJobOutcomesConfig, limit int) *kql.Builder {
 	return kql.New("").AddTable(settings.TestResults.Table).AddLiteral(`
 | where failed
-| where isnotempty(buildId) and strcmp(buildId, tostring(request.afterBuildID)) > 0
+| where isnotempty(buildId) and (isempty(tostring(request.beforeBuildID)) or strcmp(buildId, tostring(request.beforeBuildID)) < 0)
 | distinct buildId
-| order by buildId asc
-| take `).AddInt(discoveryPageSize)
+| order by buildId desc
+| take `).AddInt(int32(limit))
 }
 
 func inputQuery(settings config.CIJobOutcomesConfig) *kql.Builder {
@@ -127,23 +127,25 @@ func (c *Controller) origin() string {
 	return strings.TrimRight(c.config.CIJobOutcomes.ClusterURI, "/") + "/" + c.config.CIJobOutcomes.Database
 }
 
-func (c *Controller) loadBuildIDs(ctx context.Context, client *azkustodata.Client, after string) ([]string, error) {
-	rows, err := c.query(ctx, client, buildIDQuery(c.config.CIJobOutcomes), map[string]any{"afterBuildID": after}, map[string]string{"buildId": "string"})
+// loadBuildIDs returns at most limit distinct failed build IDs strictly older than
+// before (all builds when empty), newest first.
+func (c *Controller) loadBuildIDs(ctx context.Context, client *azkustodata.Client, before string, limit int) ([]string, error) {
+	rows, err := c.query(ctx, client, buildIDQuery(c.config.CIJobOutcomes, limit), map[string]any{"beforeBuildID": before}, map[string]string{"buildId": "string"})
 	if err != nil {
 		return nil, err
 	}
-	if len(rows) > discoveryPageSize {
-		return nil, fmt.Errorf("build ID page exceeds %d rows", discoveryPageSize)
+	if len(rows) > limit {
+		return nil, fmt.Errorf("build ID page exceeds %d rows", limit)
 	}
 	builds := make([]string, 0, len(rows))
-	previous := after
+	previous := before
 	for index, row := range rows {
 		build, err := row.StringByName("buildId")
 		if err != nil {
 			return nil, fmt.Errorf("build ID row %d: %w", index, err)
 		}
-		if build == "" || build <= previous {
-			return nil, fmt.Errorf("build ID row %d is empty or not strictly after the previous ID", index)
+		if build == "" || (previous != "" && build >= previous) {
+			return nil, fmt.Errorf("build ID row %d is empty or not strictly before the previous ID", index)
 		}
 		builds = append(builds, build)
 		previous = build

@@ -21,7 +21,7 @@ import (
 )
 
 type controllerMetrics struct {
-	scans     prometheus.Counter
+	scans     *prometheus.CounterVec
 	accepted  prometheus.Counter
 	visible   prometheus.Counter
 	cacheHits prometheus.Counter
@@ -30,7 +30,7 @@ type controllerMetrics struct {
 
 func newControllerMetrics() controllerMetrics {
 	return controllerMetrics{
-		scans:     prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_scans_total", Help: "Complete retained-input scans."}),
+		scans:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_failure_patterns_scans_total", Help: "Completed build discovery steps: newest-build polls (head) and history sweep pages (sweep)."}, []string{"kind"}),
 		accepted:  prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_accepted_batches_total", Help: "Queued batches accepted, not proof of result visibility."}),
 		visible:   prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_visible_reconciles_total", Help: "Reconciles with every expected computation query-visible and valid."}),
 		cacheHits: prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_submission_cache_hits_total", Help: "Recent submission sets suppressed pending visibility."}),

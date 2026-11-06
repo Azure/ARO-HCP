@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -161,7 +162,9 @@ func TestControllerKustoIntegration(t *testing.T) {
 		}
 	}
 	require.EqualValues(t, 5, occurrences)
-	c.readBuildIDs = func(ctx context.Context, after string) ([]string, error) { return c.loadBuildIDs(ctx, client, after) }
+	c.readBuildIDs = func(ctx context.Context, before string, limit int) ([]string, error) {
+		return c.loadBuildIDs(ctx, client, before, limit)
+	}
 	c.readInputs = func(ctx context.Context, build string) ([]input, error) { return c.loadInputs(ctx, client, build) }
 	c.readResults = func(ctx context.Context, inputs []input, version failurePatternVersion) ([]resultRow, error) {
 		return c.loadResults(ctx, client, inputs, version)
@@ -207,7 +210,7 @@ func TestControllerKustoIntegration(t *testing.T) {
 	}
 	checkCoverage(0, 5)
 	require.NoError(t, c.allowNormalReconciliation(compiledFailurePatternVersion()))
-	require.NoError(t, c.scan(ctx))
+	require.NoError(t, c.scanHead(ctx))
 	require.Equal(t, 1, c.queue.Len())
 	require.True(t, c.processNext(ctx))
 	require.Len(t, submitted, 4)
@@ -225,7 +228,7 @@ func TestControllerKustoIntegration(t *testing.T) {
 	// only that new context to become pending, not mixing obsolete contexts.
 	ingest(t, "ciTestNames", "ciTestNamesMapping", []map[string]any{{"testId": "unicode", "name": "another name"}})
 	checkCoverage(3, 2)
-	require.NoError(t, c.scan(ctx))
+	require.NoError(t, c.scanHead(ctx))
 	require.True(t, c.processNext(ctx))
 	require.Len(t, submitted, 5)
 	require.True(t, c.processNext(ctx))
@@ -316,9 +319,9 @@ range n from 0 to %d step 1
 		discovery := newTestController(t)
 		discovery.config = c.config
 		queries := 0
-		discovery.readBuildIDs = func(ctx context.Context, after string) ([]string, error) {
+		discovery.readBuildIDs = func(ctx context.Context, before string, limit int) ([]string, error) {
 			queries++
-			return discovery.loadBuildIDs(ctx, client, after)
+			return discovery.loadBuildIDs(ctx, client, before, limit)
 		}
 		discovery.readInputs = func(context.Context, string) ([]input, error) {
 			t.Error("metadata discovery attempted to load large evidence")
@@ -333,24 +336,28 @@ range n from 0 to %d step 1
 		for index := range largeBuilds {
 			want = append(want, fmt.Sprintf("paged-%d", 100000+index))
 		}
-		scans := 0
+		sort.Sort(sort.Reverse(sort.StringSlice(want)))
+		require.NoError(t, discovery.scanHead(ctx))
+		require.Equal(t, want[:headPageSize], drainDiscoveredBuildIDs(t, discovery), "newest page needs no cursor")
+		queries = 0
+		steps := 0
 		for offset := 0; offset < len(want); offset += discoveryPageSize {
-			require.NoError(t, discovery.scan(ctx))
-			scans++
+			require.NoError(t, discovery.sweepStep(ctx))
+			steps++
 			end := min(offset+discoveryPageSize, len(want))
 			require.Equal(t, want[offset:end], drainDiscoveredBuildIDs(t, discovery))
-			require.Equal(t, scans, queries, "one real build-ID query per scan")
+			require.Equal(t, steps, queries, "one real build-ID query per sweep step")
 			if end-offset == discoveryPageSize {
-				require.Equal(t, want[end-1], discovery.scanAfterBuildID)
+				require.Equal(t, want[end-1], discovery.sweepBefore)
 				continue
 			}
-			require.Empty(t, discovery.scanAfterBuildID)
+			require.Empty(t, discovery.sweepBefore)
 		}
-		require.NoError(t, discovery.scan(ctx))
-		require.Equal(t, want[:discoveryPageSize], drainDiscoveredBuildIDs(t, discovery), "wrap revisits old retained builds")
+		require.NoError(t, discovery.sweepStep(ctx))
+		require.Equal(t, steps, queries, "sweep rests after reaching the oldest build")
 	})
 	t.Run("startup reconciles without manual admission", func(t *testing.T) {
-		const startupBuild = "000-startup"
+		const startupBuild = "zzz-startup" // newest: the head poll reaches it before the sweep drains older history
 		ingest(t, "ciTestResults", "ciTestResultsMapping", []map[string]any{
 			{"buildId": startupBuild, "testId": "startup", "source": "e2e", "failed": true, "message": "context deadline exceeded"},
 		})

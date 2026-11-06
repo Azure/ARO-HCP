@@ -33,8 +33,13 @@ import (
 )
 
 const (
-	ControllerName    = "ci-failure-patterns"
+	ControllerName = "ci-failure-patterns"
+	// headPageSize bounds each newest-build poll; discoveryPageSize bounds each
+	// step of the history sweep.
+	headPageSize      = 64
 	discoveryPageSize = 128
+	// sweepRest is the pause after a sweep reaches the oldest retained build.
+	sweepRest = 12 * time.Hour
 )
 
 // Controller owns normal reconciliation and its clients. Successful initialization
@@ -48,15 +53,23 @@ type Controller struct {
 	batches         *submissionCache
 	now             func() time.Time
 	retryDelay      time.Duration
+	maxRetryDelay   time.Duration
 	initializeDelay time.Duration
+	sweepPoll       time.Duration
 	initialize      func(context.Context) error
 	closeClients    func()
-	readBuildIDs    func(context.Context, string) ([]string, error)
+	readBuildIDs    func(ctx context.Context, before string, limit int) ([]string, error)
 	readInputs      func(context.Context, string) ([]input, error)
 	readResults     func(context.Context, []input, failurePatternVersion) ([]resultRow, error)
 	submit          func(context.Context, *bytes.Buffer) error
 
-	scanAfterBuildID string
+	// sweepBefore, sweepBuilds and sweepRestUntil are owned by the sweep loop.
+	sweepBefore    string
+	sweepBuilds    int
+	sweepRestUntil time.Time
+
+	pendingMu       sync.Mutex
+	pendingAttempts map[string]int
 
 	normalAdmissionMu             sync.Mutex
 	admittedFailurePatternVersion failurePatternVersion
@@ -73,7 +86,9 @@ func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
 			workqueue.NewTypedItemExponentialFailureRateLimiter[string](time.Second, 5*time.Minute),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: ControllerName}),
 		metrics: newControllerMetrics(), batches: newSubmissionCache(cfg.CIFailurePatterns.GetCacheSize(), cfg.CIFailurePatterns.GetCacheTTL()),
-		now: time.Now, retryDelay: 5 * time.Second, initializeDelay: 5 * time.Second,
+		now: time.Now, retryDelay: 5 * time.Second, maxRetryDelay: 2 * time.Minute,
+		initializeDelay: 5 * time.Second, sweepPoll: 5 * time.Second,
+		pendingAttempts: map[string]int{},
 	}
 	c.initialize = c.initializeKusto
 	return c
@@ -117,16 +132,33 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 		}()
 	}
-	workers.Add(1)
+	workers.Add(2)
 	go func() {
 		defer utilruntime.HandleCrashWithContext(ctx)
 		defer workers.Done()
 		ticker := time.NewTicker(c.config.CIFailurePatterns.GetInterval())
 		defer ticker.Stop()
 		for {
-			if err := recoverError(ctx, func() error { return c.scan(ctx) }); err != nil && ctx.Err() == nil {
+			if err := recoverError(ctx, func() error { return c.scanHead(ctx) }); err != nil && ctx.Err() == nil {
 				c.metrics.failures.WithLabelValues("scan").Inc()
-				c.logger.Error("Input scan failed; retrying next poll", "error", err)
+				c.logger.Error("Newest-build scan failed; retrying next poll", "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	go func() {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		defer workers.Done()
+		ticker := time.NewTicker(c.sweepPoll)
+		defer ticker.Stop()
+		for {
+			if err := recoverError(ctx, func() error { return c.sweepStep(ctx) }); err != nil && ctx.Err() == nil {
+				c.metrics.failures.WithLabelValues("sweep").Inc()
+				c.logger.Error("History sweep step failed; retrying", "error", err)
 			}
 			select {
 			case <-ctx.Done():
@@ -164,12 +196,15 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	if err != nil {
 		c.metrics.failures.WithLabelValues("reconcile").Inc()
 		c.logger.Error("Reconcile failed; retrying", "buildId", build, "error", err)
+		c.trackUnfinished(build)
 		c.queue.AddRateLimited(build)
 		return true
 	}
 	c.queue.Forget(build)
 	if delay > 0 {
-		c.queue.AddAfter(build, delay)
+		c.queue.AddAfter(build, c.pendingDelay(build, delay))
+	} else {
+		c.forgetPending(build)
 	}
 	return true
 }
@@ -235,32 +270,111 @@ func (c *Controller) allowNormalReconciliation(version failurePatternVersion) er
 	return nil
 }
 
-func (c *Controller) scan(ctx context.Context) error {
+// scanHead enqueues the newest builds. It always starts from the newest build, so
+// a recent run never waits for the history sweep to reach it.
+func (c *Controller) scanHead(ctx context.Context) error {
 	if _, allowed := c.normalReconciliationVersion(); !allowed {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	builds, err := c.readBuildIDs(ctx, c.scanAfterBuildID)
+	builds, err := c.readBuildIDs(ctx, "", headPageSize)
+	if err != nil {
+		return fmt.Errorf("read newest failed build IDs: %w", err)
+	}
+	if err := c.enqueueBuilds(ctx, builds); err != nil {
+		return err
+	}
+	c.metrics.scans.WithLabelValues("head").Inc()
+	return nil
+}
+
+// sweepStep enqueues one page of the newest-to-oldest walk through retained history.
+// It advances only while fewer than one page of builds is outstanding (queued, or
+// submitted and awaiting result visibility), so a cold start or rebuild proceeds at
+// worker speed and slow ingestion cannot pile pending visibility polls up across
+// history. It rests for sweepRest after reaching the oldest build. Failed or
+// cancelled steps leave the cursor unchanged.
+func (c *Controller) sweepStep(ctx context.Context) error {
+	if _, allowed := c.normalReconciliationVersion(); !allowed {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if c.now().Before(c.sweepRestUntil) || c.outstandingBuilds() >= discoveryPageSize {
+		return nil
+	}
+	builds, err := c.readBuildIDs(ctx, c.sweepBefore, discoveryPageSize)
 	if err != nil {
 		return fmt.Errorf("read retained failed build IDs: %w", err)
 	}
+	if err := c.enqueueBuilds(ctx, builds); err != nil {
+		return err
+	}
+	c.sweepBuilds += len(builds)
+	if len(builds) == discoveryPageSize {
+		c.sweepBefore = builds[len(builds)-1]
+	} else {
+		c.logger.Info("History sweep complete", "builds", c.sweepBuilds, "rest", sweepRest)
+		c.sweepBefore, c.sweepBuilds, c.sweepRestUntil = "", 0, c.now().Add(sweepRest)
+	}
+	c.metrics.scans.WithLabelValues("sweep").Inc()
+	return nil
+}
+
+func (c *Controller) enqueueBuilds(ctx context.Context, builds []string) error {
 	for _, build := range builds {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		c.queue.Add(build)
 	}
-	if err := ctx.Err(); err != nil {
-		return err
+	return ctx.Err()
+}
+
+// pendingDelay doubles a build's wait for result visibility from base up to
+// maxRetryDelay. Queued ingestion takes minutes, so a fixed short delay would make
+// every pending build re-read its evidence every few seconds.
+func (c *Controller) pendingDelay(build string, base time.Duration) time.Duration {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	delay := base
+	for range c.pendingAttempts[build] {
+		if delay >= c.maxRetryDelay {
+			break
+		}
+		delay *= 2
 	}
-	c.scanAfterBuildID = ""
-	if len(builds) == discoveryPageSize {
-		c.scanAfterBuildID = builds[len(builds)-1]
+	c.pendingAttempts[build]++
+	return min(delay, max(c.maxRetryDelay, base))
+}
+
+// trackUnfinished keeps a build that failed before reconciliation completed counted as
+// outstanding while its retry is delayed, without affecting its visibility backoff.
+func (c *Controller) trackUnfinished(build string) {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	if _, tracked := c.pendingAttempts[build]; !tracked {
+		c.pendingAttempts[build] = 0
 	}
-	c.metrics.scans.Inc()
-	return nil
+}
+
+// outstandingBuilds counts builds that still need worker time: ready in the queue,
+// submitted and waiting for their results to become visible, or failed and waiting to
+// be retried (delayed or in flight). A build that is both ready and tracked is counted
+// twice, which only makes the sweep gate more conservative.
+func (c *Controller) outstandingBuilds() int {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	return c.queue.Len() + len(c.pendingAttempts)
+}
+
+func (c *Controller) forgetPending(build string) {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	delete(c.pendingAttempts, build)
 }
 
 func (c *Controller) reconcile(ctx context.Context, build string) (time.Duration, error) {
