@@ -583,6 +583,8 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromA
 	desiredIdentities map[string]*identityToResolve,
 ) (map[string]*coreapi.IdentityMetadataValue, []error) {
 
+	logger := utils.LoggerFromContext(ctx)
+
 	// We build the list of identities to query the ARM User Assigned Identities API for.
 	// Control-plane and data-plane operator identities are queried. SMI-only identities
 	// are skipped because end-users are not asked to grant the SMI read on itself.
@@ -619,7 +621,9 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromA
 			// ServiceProviderCluster still lists that ARM was queried, but leave
 			// ClientID/PrincipalID/TenantID nil and record why in RetrievalError.
 			// This is an expected, potentially transient state rather than a sync
-			// failure, so it is not accumulated into errs.
+			// failure, so it is not accumulated into errs and therefore never reaches
+			// ReportSyncError's logging. We log it here so it's logged in an unaltered form.
+			logger.Info("User Assigned Managed Identity not found in Azure", "managedIdentityResourceID", resourceIDKey, "error", err.Error())
 			metadata[resourceIDKey] = c.identityMetadataValueFromRetrievalError(err)
 			continue
 		}
@@ -680,9 +684,9 @@ func (c *fetchManagedIdentitiesInfoSyncer) identityMetadataValueFromARMIdentity(
 
 // identityMetadataValueFromRetrievalError returns an IdentityMetadataValue
 // whose ClientID, PrincipalID, and TenantID are nil and whose RetrievalError
-// is the truncated error message.
+// is the redacted, truncated error message (see redactAndTruncateRetrievalErrorMessage).
 func (c *fetchManagedIdentitiesInfoSyncer) identityMetadataValueFromRetrievalError(err error) *coreapi.IdentityMetadataValue {
 	return &coreapi.IdentityMetadataValue{
-		RetrievalError: truncateRetrievalError(err.Error()),
+		RetrievalError: redactAndTruncateRetrievalErrorMessage(err.Error()),
 	}
 }
