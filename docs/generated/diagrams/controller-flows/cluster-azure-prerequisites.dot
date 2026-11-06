@@ -6,7 +6,7 @@ digraph cluster_azure_prerequisites {
   mrg [label="EnsureManagedResourceGroup", fillcolor="#e6f0fa", color="#35648a"];
   msi [label="FetchMSIIdentitiesInfo", fillcolor="#e6f0fa", color="#35648a"];
   dp [label="FetchDataPlaneOperatorsManaged\nIdentitiesInfo", fillcolor="#e6f0fa", color="#35648a"];
-  deny [label="ClusterDenyAssignment", fillcolor="#e6f0fa", color="#35648a"];
+  deny [label="ClusterDenyAssignment\nwhen enabled; nondeleting cluster\nALL shown incoming prerequisites required", fillcolor="#e6f0fa", color="#35648a"];
   azure [label="Azure group / identities / \ndenies", fillcolor="#fff0da", color="#b27624"];
   ready [label="Deny creation precondition satisfied\nno pending + nonempty confirmed\nEarliestRecheckTime set", fillcolor="#e4f2e5", color="#4c8053"];
   state -> mrg [label="group requested"];
@@ -17,8 +17,8 @@ digraph cluster_azure_prerequisites {
   msi -> azure [label="read identities"];
   dp -> azure [label="read identities"];
   mrg -> deny [label="confirmed group"];
-  msi -> deny [label="resolved principals"];
-  dp -> deny [label="resolved principals"];
+  msi -> deny [label="ALL CP entries + SMI principal;\nconfigured IDs resolve"];
+  dp -> deny [label="ALL DP principals; no retrieval errors;\nconfigured IDs resolve"];
   deny -> azure [label="GET / PUT / delete stale\ndenies"];
   deny -> ready [label="persist confirmed state"];
   azure -> mrg [label="observe provisioning; retry\n10s", style=dashed, color="#857456", constraint=false];

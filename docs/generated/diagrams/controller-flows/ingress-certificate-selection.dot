@@ -4,21 +4,29 @@ digraph ingress_certificate_selection {
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
   manifests [label="Cluster Service manifests\nlegacy objects still emitted\nseparate dedicated KAS ownership", fillcolor="#fff0da", color="#b27624"];
   gate [label="ClusterResources\ncase-insensitive match: four legacy names\nNO AFEC, version or prior-selection gate\nNO ConfigMap certificate-name rewrite"];
-  keep [label="Pre-existing legacy desires remain\nManagedCluster + DefaultIngressConfigMap\n+ default-ingress SecretSync / SecretProviderClass\nexcluded from live stale-desire cleanup", fillcolor="#e4f2e5", color="#4c8053"];
+  existing [label="Pre-existing four legacy desires\nManagedCluster + DefaultIngressConfigMap\n+ default-ingress SecretSync / SecretProviderClass", fillcolor="#e4f2e5", color="#4c8053"];
   remove [label="Omit four manifests for every subscription\nno new legacy desires or reassertion"];
-  teardown [label="Whole-cluster deletion chain\nexplicit Delete intents + observed completion"];
-  apply [label="ApplyDesireController\napply retained intent / execute Delete"];
+  cleanup [label="ClusterResources live stale cleanup\nALL: placement + CS ID + nonnil resources\nowned tag + absent from desired set\nforeign / untagged desires left alone"];
+  deleting [label="ClusterResources: EnsureApplyDesireRemoved\nset Type=Delete; clear apply payload / conditions\nwait for SuccessfullyDeleted=True"];
+  apply [label="ApplyDesireController\nGET target; DELETE if needed\npoll while deletion remains in flight"];
+  gone [label="Management-cluster target absent\nSuccessfullyDeleted=True", fillcolor="#fff0da", color="#b27624"];
+  purge [label="ClusterResources later reconcile\nremove ApplyDesire, then matching ReadDesire\nno whole-cluster deletion prerequisite", fillcolor="#e4f2e5", color="#4c8053"];
   acm [label="ACM ingress Policy + PlacementBinding retired\nno current delivery / renewal / reference enforcement\nold non-pruning policy did not intentionally delete Secrets\nretained material is not proof of validity or renewal", fillcolor="#eee7fb", color="#7b59a4"];
   delivery [label="Independent dedicated ingress delivery\nIngressServingCertificateK8sResources\nsee serving-certificate panel"];
   native [label="Secret-sync delivers provider certificate\nin HostedCluster namespace\nexternal HyperShift/HCCO consumes it\nbackend filtering does not prove consumer health", fillcolor="#fff0da", color="#b27624"];
   note [label="No backend live guest-certificate observation here\nintent and external policy are not convergence proof\nARM create gates remain in convergence panel", fillcolor="#eee7fb", color="#7b59a4"];
   manifests -> gate [label="classify each manifest"];
   gate -> remove [label="recognized name"];
-  keep -> apply [label="previously stored intent", style=dashed];
-  teardown -> apply [label="Delete intents"];
-  apply -> teardown [label="confirmed deletion permits purge", style=dashed, color="#857456", constraint=false];
+  remove -> cleanup [label="not in desired set"];
+  existing -> cleanup [label="owned stale intent"];
+  cleanup -> deleting [label="request deletion"];
+  deleting -> apply [label="persisted Delete intent"];
+  apply -> gone [label="GET confirms NotFound"];
+  gone -> purge [label="observed deletion permits purge"];
+  apply -> apply [label="still exists: delayed retry", style=dashed, color="#857456"];
+  deleting:e -> cleanup:e [label="30s resync / retry", style=dashed, color="#857456", constraint=false];
   delivery -> native [label="separate SPC / SecretSync desires"];
-  { rank=same; manifests; keep; teardown; }
+  { rank=same; manifests; existing; }
   gate -> acm [style=invis];
   remove -> note [style=invis];
   apply -> delivery [style=invis];
