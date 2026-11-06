@@ -127,11 +127,12 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
+	clusterMissing := cosmosstorageutils.IsNotFoundError(err)
 	desiresCRUD, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to resolve DeploymentStackDesire CRUD: %w", err))
 	}
-	if cosmosstorageutils.IsNotFoundError(err) || cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+	if clusterMissing || cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		// MRG deletion removes the stack and assignments. Stop publishing immediately;
 		// do not ask the generic applier to issue an Azure DELETE during cluster teardown.
 		// Skip the Delete call once the lister already shows the desire is gone, to avoid
