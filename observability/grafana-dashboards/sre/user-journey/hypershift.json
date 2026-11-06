@@ -45,7 +45,7 @@
       },
       "id": 1,
       "options": {
-        "content": "### HyperShift User Journey SLO\n\nChoose **services and HCP datasources for the same region**. Provisioning is regional; operator/CPO panels cover its management clusters.\n\n**Proposed component objectives (30d):** >=99.95% availability, >=99.9% successful reconciliations, >=99% within 10s. Owner review and historical baselining are deferred until telemetry exists. Check observation coverage before interpreting compliance or budgets.\n\n**Completed provisioning (3d):** 95% create success; 95% of successful creates within 20m. The window fits the operation gauges' 7d retention. Wait gauges are diagnostic; capacity thresholds are operational guides, not business SLOs.\n\n**Threshold alerts (Sev 3):** `userJourneyHypershiftOperatorAvailabilityPodsUnavailable` (1+ pods unavailable for 15m), `userJourneyHypershiftOperatorAvailabilityPodsDown` (2+ pods unavailable for 5m), `userJourneyHypershiftOperatorTrafficIdle` (no reconciles for 30m while HostedClusters exist), and `userJourneyControlPlaneOperatorAvailabilityDown` (no available CPO pods for 10m).\n\n**Proposed-SLO burn-rate alerts:** `userJourneyHypershiftAvailability*` (HostedCluster condition health), `userJourneyHypershiftLatency*` (initial availability wait), `userJourneyHypershiftOperatorAvailability*` / `userJourneyControlPlaneOperatorAvailability*` (replica availability), and `userJourneyHypershiftOperatorErrors*` / `userJourneyControlPlaneOperatorErrors*` (successful reconciliations). Fast 1h/5m (14.4x) and medium 6h/30m (6x) are Sev 3; slow 3d/6h (1x) is Sev 4. Reconcile latency, traffic beyond the idle alert, and saturation remain triage context. KAS alerting is unchanged.\n\n[ARO-27788](https://redhat.atlassian.net/browse/ARO-27788) extends [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787); [ARO-27789](https://redhat.atlassian.net/browse/ARO-27789) adds the burn-rate alerts. See interpretation and no-data acceptance notes below.",
+        "content": "### HyperShift User Journey SLO\n\nChoose **services and HCP datasources for the same region**. Provisioning is regional; operator/CPO panels cover its management clusters.\n\n**Proposed component objectives (30d):** >=99.95% availability, >=99.9% successful reconciliations, >=99% within 10s. Owner review and historical baselining are deferred until telemetry exists. Check observation coverage before interpreting compliance or budgets.\n\n**Completed provisioning (3d):** 95% create success; 95% of successful creates within 20m. The window fits the operation gauges' 7d retention. Wait gauges are diagnostic.\n\n**Threshold alerts (Sev 3):** `userJourneyHypershiftOperatorAvailabilityPodsUnavailable` (1+ pods unavailable for 15m), `userJourneyHypershiftOperatorAvailabilityPodsDown` (2+ pods unavailable for 5m), `userJourneyHypershiftOperatorTrafficIdle` (no reconciles for 30m while HostedClusters exist), and `userJourneyControlPlaneOperatorAvailabilityDown` (no available CPO pods for 10m).\n\n**Proposed-SLO burn-rate alerts:** `userJourneyHypershiftAvailability*` (HostedCluster condition health), `userJourneyHypershiftLatency*` (initial availability wait), `userJourneyHypershiftOperatorAvailability*` / `userJourneyControlPlaneOperatorAvailability*` (replica availability), and `userJourneyHypershiftOperatorErrors*` / `userJourneyControlPlaneOperatorErrors*` (successful reconciliations). Fast 1h/5m (14.4x) and medium 6h/30m (6x) are Sev 3; slow 3d/6h (1x) is Sev 4. Reconcile latency, traffic beyond the idle alert, and saturation remain triage context. KAS alerting is unchanged.\n\n[ARO-27788](https://redhat.atlassian.net/browse/ARO-27788) extends [ARO-27787](https://redhat.atlassian.net/browse/ARO-27787); [ARO-27789](https://redhat.atlassian.net/browse/ARO-27789) adds the burn-rate alerts. See interpretation and no-data acceptance notes below.",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -2846,7 +2846,7 @@
         "y": 104
       },
       "id": 38,
-      "title": "Management Cluster Resource Saturation - operational capacity guides, not business SLOs",
+      "title": "Operational Capacity Guides - not SLIs, SLOs, or error budgets",
       "type": "row"
     },
     {
@@ -2854,7 +2854,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst node CPU utilization across management clusters, including shared/HCP workloads. Every node in current kube_node_info inventory must have a current idle counter and a usable 5m rate; incomplete coverage is No data. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
+      "description": "Worst node CPU utilization across management clusters, including shared/HCP workloads. Every node in current kube_node_info inventory must have a current idle counter and a usable 5m rate; incomplete coverage is No data. Ops-guide colours: yellow at 60%, red at 80%, copied from Top Nodes by CPU Utilization in Management Cluster Capacity Planning (/d/mgmt-capacity-planning). These are advisory utilization markers, not validated safety limits, SLO compliance, or error-budget consumption. Excluded from the SLO overview and budgets.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2942,7 +2942,7 @@
           "refId": "A"
         }
       ],
-      "title": "Management Node CPU Utilization",
+      "title": "Management Node CPU Utilization (Ops Guide)",
       "type": "gauge"
     },
     {
@@ -2950,7 +2950,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst node used/total memory across management clusters. Every node in current kube_node_info inventory must have current available and positive total bytes; incomplete coverage is No data. Operational guides: 60% warning, 80% limit; reused from management capacity dashboard.",
+      "description": "Worst node used/total memory across management clusters. Every node in current kube_node_info inventory must have current available and positive total bytes; incomplete coverage is No data. Ops-guide colours: yellow at 60%, red at 80%, copied from Top Nodes by Memory Utilization in Management Cluster Capacity Planning (/d/mgmt-capacity-planning). These are advisory utilization markers, not validated safety limits, SLO compliance, or error-budget consumption. Excluded from the SLO overview and budgets.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3038,7 +3038,7 @@
           "refId": "A"
         }
       ],
-      "title": "Management Node Memory Utilization",
+      "title": "Management Node Memory Utilization (Ops Guide)",
       "type": "gauge"
     },
     {
@@ -3046,7 +3046,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst writable physical filesystem used/size across management clusters. Current kube_node_info nodes must report filesystem telemetry. Physical mount identities observed over 30d on those nodes require current available bytes, positive size, and read-only status; missing inputs are No data. Explicitly read-only, zero-size, virtual, and empty-mountpoint filesystems remain excluded. An unmounted filesystem remains expected for up to 30d. Operational guides: 75% warning, 85% limit (15% free filesystem warning boundary).",
+      "description": "Worst writable physical filesystem used/size across management clusters. Current kube_node_info nodes must report filesystem telemetry. Physical mount identities observed over 30d on those nodes require current available bytes, positive size, and read-only status; missing inputs are No data. Explicitly read-only, zero-size, virtual, and empty-mountpoint filesystems remain excluded. An unmounted filesystem remains expected for up to 30d. Ops-guide colours: red at 85% used corresponds to the rendered node-exporter NodeFilesystemSpaceFillingUp warning's 15% free-space boundary; yellow at 75% is a dashboard-selected earlier headroom marker. This gauge does not reproduce that alert's forecast or duration gates. These are advisory markers, not validated safety limits or SLOs; excluded from the SLO overview and budgets.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3134,7 +3134,7 @@
           "refId": "A"
         }
       ],
-      "title": "Management Node Disk Utilization",
+      "title": "Management Node Disk Utilization (Ops Guide)",
       "type": "gauge"
     },
     {
@@ -3142,7 +3142,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Worst management-cluster running pods / allocatable pod slots. Kubelet counts include HCP pods without cross-workspace joins. Every capacity node must have current running-pod telemetry matched through kubelet_node_name; any missing node makes the gauge No data. Operational guides: 60% warning, 80% limit.",
+      "description": "Worst management-cluster running pods / allocatable pod slots. Kubelet counts include HCP pods without cross-workspace joins. Every capacity node must have current running-pod telemetry matched through kubelet_node_name; any missing node makes the gauge No data. Ops-guide colours: yellow at 60%, red at 80% are dashboard-selected provisional headroom markers, using the CPU/memory guide convention (nominal 40% and 20% pod-slot headroom). They are not derived from an approved pod-capacity objective or measured safe HCP density; owner review and baselining are still required. Excluded from the SLO overview, compliance, and error budgets.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3230,7 +3230,7 @@
           "refId": "A"
         }
       ],
-      "title": "Management Cluster Pod Capacity Used",
+      "title": "Management Cluster Pod Capacity Used (Ops Guide)",
       "type": "gauge"
     },
     {

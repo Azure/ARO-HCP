@@ -96,11 +96,17 @@ retain the accounting distinction above.
   operations are excluded; wait gauges are diagnostic, not completion evidence.
 - Remaining budgets use `100 * (1 - bad_fraction / allowed_bad_fraction)`.
   Negative values indicate overspending and are intentionally retained.
+- Zero wait counts require reporting HostedCluster inventory; zero KAS counts
+  require reporting KAS availability. Missing inventory must not manufacture a
+  healthy zero.
+
+## Operational capacity guides (not SLIs)
+
 - Management-node CPU, memory, disk, and pod capacity gauges include shared and
-  HCP workloads. Their operational capacity guides are not approved business
-  SLOs. Missing capacity metrics show **No data**. Zero wait counts require
-  reporting HostedCluster inventory; zero KAS counts require reporting KAS
-  availability. Missing inventory must not manufacture a healthy zero.
+  HCP workloads. Their colours are advisory utilization/headroom markers, not
+  validated safety limits or approved business SLOs. These panels are outside
+  the SLO overview and do not contribute to compliance, error budgets, or
+  burn-rate alerts. Missing capacity metrics show **No data**.
 - CPU, memory, and disk maxima require reporting from every node in current
   `kube_node_info` inventory. Its `node` label identifies the managed node-exporter
   `instance`, as in the existing AKS performance dashboard. CPU rates also require
@@ -113,6 +119,20 @@ retain the accounting distinction above.
   inventory, an intentional unmount also remains unknown until its last samples
   expire from that window; removing a node from current inventory retires its
   filesystems immediately.
+
+Threshold provenance:
+
+| Gauge | Yellow / red | Source and interpretation |
+|---|---|---|
+| CPU | 60% / 80% used | Reuses the Top Nodes by CPU Utilization colours in [Management Cluster Capacity Planning](../../observability/grafana-dashboards/sre/user-journey/mgmt-capacity-planning.json) |
+| Memory | 60% / 80% used | Reuses the Top Nodes by Memory Utilization colours in the same capacity dashboard |
+| Disk | 75% / 85% used | Red maps the rendered node-exporter `NodeFilesystemSpaceFillingUp` warning's [15% free-space boundary](../../observability/prometheus/testdata/zz_fixture_TestHelmTemplate_helmtest_mgmt_resources.yaml#L70262); yellow is a dashboard-selected earlier headroom marker. The gauge does not reproduce the alert's forecast or duration gates |
+| Pod slots | 60% / 80% used | Dashboard-selected provisional markers following the CPU/memory colour convention, representing nominal 40% / 20% pod-slot headroom; not an approved pod-capacity objective or measured safe HCP density |
+
+Review and baseline these guides with owners; a red capacity gauge is not an SLO
+breach or an exhausted error budget.
+
+## Dashboard validation
 
 Validate changes with the recording-rule generators and
 `cd tooling/prometheus-rules && go test ./...`. `TestHyperShiftDashboardQueries`
