@@ -358,7 +358,11 @@ func TestDeletionPurgesDesireWithoutPrerequisites(t *testing.T) {
 	}
 }
 
-func TestLiveParentRecheckBeforePublishing(t *testing.T) {
+// TestStaleParentLagEventuallyPurges covers a lagging clusterLister: while it still reports
+// a live Cluster, Cosmos has already moved on to deletion. SyncOnce is allowed to publish
+// against the stale view in the meantime; once the lister catches up to the real deletion,
+// the next reconcile must purge the DeploymentStackDesire.
+func TestStaleParentLagEventuallyPurges(t *testing.T) {
 	for _, existing := range []bool{false, true} {
 		for _, missing := range []bool{false, true} {
 			t.Run(fmt.Sprintf("existing=%t/missing=%t", existing, missing), func(t *testing.T) {
@@ -369,7 +373,7 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 					spc.Status.MSIManagedIdentities.ServiceManagedIdentity.PrincipalID = ptr.To("44444444-4444-4444-4444-444444444444")
 					syncer.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}}
 				}
-				// The informer still sees a live cluster while Cosmos has moved on.
+				// The lister lags: it still sees a live cluster while Cosmos has moved on.
 				syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}
 				clusters := db.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName)
 				if missing {
@@ -381,11 +385,23 @@ func TestLiveParentRecheckBeforePublishing(t *testing.T) {
 					_, err = clusters.Replace(t.Context(), live, nil)
 					require.NoError(t, err)
 				}
+				// While the lister lags, SyncOnce publishes against its stale view; this is expected.
 				require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
+
+				// Once the lister catches up to the real deletion, the next reconcile purges the desire.
+				if missing {
+					syncer.clusterLister = &corelistertesting.SliceClusterLister{}
+				} else {
+					live, err := clusters.Get(t.Context(), testKey.HCPClusterName)
+					require.NoError(t, err)
+					syncer.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{live}}
+				}
+				require.NoError(t, syncer.SyncOnce(t.Context(), testKey))
+
 				desires, err := azureResourcesDB.DeploymentStackDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
 				_, err = desires.Get(t.Context(), RoleAssignmentsAzureDeploymentStackDesireName)
-				require.True(t, cosmosstorageutils.IsNotFoundError(err), "live deletion must prevent Create/Replace and purge any existing desire")
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "once the lister catches up with the deletion, the desire must be purged")
 			})
 		}
 	}
