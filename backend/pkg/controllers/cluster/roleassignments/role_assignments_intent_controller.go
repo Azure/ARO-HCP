@@ -17,6 +17,8 @@ package roleassignments
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -240,7 +242,10 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 	unresolvedResourceIDs := map[string]struct{}{}
 	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 
-	for operatorName, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
+	// Sort control plane operator names for deterministic error ordering
+	sortedControlPlaneOperatorNames := slices.Sorted(maps.Keys(userAssignedIdentities.ControlPlaneOperators))
+	for _, operatorName := range sortedControlPlaneOperatorNames {
+		identityResourceID := userAssignedIdentities.ControlPlaneOperators[operatorName]
 		if identityResourceID == nil {
 			continue
 		}
@@ -261,7 +266,10 @@ func (s *clusterRoleAssignmentIntentSyncer) desiredRoleAssignmentIdentities(
 		}
 	}
 
-	for operatorName, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
+	// Sort data plane operator names for deterministic error ordering
+	sortedDataPlaneOperatorNames := slices.Sorted(maps.Keys(userAssignedIdentities.DataPlaneOperators))
+	for _, operatorName := range sortedDataPlaneOperatorNames {
+		identityResourceID := userAssignedIdentities.DataPlaneOperators[operatorName]
 		if len(operatorName) == 0 {
 			return nil, nil, utils.TrackError(fmt.Errorf("unexpected empty operator name for data plane operator"))
 		}

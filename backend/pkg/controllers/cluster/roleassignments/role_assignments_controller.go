@@ -196,7 +196,20 @@ func (s *clusterRoleAssignmentsSyncer) reserveAzureResourceIDs(
 ) (*coreapi.ServiceProviderCluster, error) {
 	replacement := existingServiceProviderCluster.DeepCopy()
 
-	for key, status := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
+	// Sort keys for deterministic processing
+	keys := make([]coreapi.RoleAssignmentKey, 0, len(replacement.Status.RoleAssignmentsOverManagedResourceGroup))
+	for key := range replacement.Status.RoleAssignmentsOverManagedResourceGroup {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].PrincipalID != keys[j].PrincipalID {
+			return keys[i].PrincipalID < keys[j].PrincipalID
+		}
+		return keys[i].RoleDefinitionResourceID < keys[j].RoleDefinitionResourceID
+	})
+
+	for _, key := range keys {
+		status := replacement.Status.RoleAssignmentsOverManagedResourceGroup[key]
 		if status.ReservedAzureResourceID != nil {
 			continue
 		}
