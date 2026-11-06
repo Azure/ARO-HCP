@@ -1,5 +1,0 @@
-apiVersion: v2
-name: AcmPolicies
-description: A Helm chart for deploying ACM Policies
-version: 0.1.0
-appVersion: "1.0.0"
