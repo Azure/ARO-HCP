@@ -120,3 +120,4 @@ Engineering want metrics from HCP to be present in Azure Monitor Workspace
 Engineering want metrics from SVC and MGMT clusters to be present in Azure Monitor WOrkspace
 Customer should be able to list available HCP Operator Identity Role Sets and validate response content
 Customer should be able to get a specific HCP Operator Identity Role Set by version
+ARO-HCP should complete a TLS 1.3 handshake using the runtime image's kubectl
