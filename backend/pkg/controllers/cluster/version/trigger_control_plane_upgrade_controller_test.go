@@ -350,6 +350,8 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 	}
 	deletingCluster := clusterInCache()
 	deletingCluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.NewTime(now))
+	uninstallingCluster := clusterInCache()
+	uninstallingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
 	previouslyObservedSPC := spcInCache("4.19.15", "4.19.22")
 	previouslyObservedSPC.Status.Conditions = []metav1.Condition{{
 		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionTrue,
@@ -419,6 +421,13 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			disabled:  true,
 		},
 		{
+			name:      "durable uninstallation observation blocks dispatch without another CS read",
+			clusters:  []*coreapi.Cluster{uninstallingCluster},
+			spcs:      []*coreapi.ServiceProviderCluster{spcInCache("4.19.15", "4.19.22")},
+			mockSetup: func(*ocm.MockClusterServiceClientSpec) {},
+			disabled:  true,
+		},
+		{
 			name:      "CS lookup failure blocks dispatch and preserves the previous observation",
 			clusters:  []*coreapi.Cluster{clusterInCache()},
 			spcs:      []*coreapi.ServiceProviderCluster{previouslyObservedSPC},
@@ -455,19 +464,19 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
-			if len(tt.clusters) > 0 && len(tt.spcs) > 0 && tt.clusters[0].ServiceProviderProperties.DeletionTimestamp == nil {
+			if len(tt.clusters) > 0 && len(tt.spcs) > 0 && tt.clusters[0].ServiceProviderProperties.DeletionTimestamp == nil && !tt.clusters[0].ServiceProviderProperties.ClusterServiceUninstallingObserved {
 				if tt.csError != nil {
-					mockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), testClusterServiceID).Return(nil, tt.csError)
+					mockClusterServiceClient.EXPECT().GetClusterStatus(gomock.Any(), testClusterServiceID).Return(nil, tt.csError)
 				} else {
 					state := tt.csState
 					if state == "" {
 						state = arohcpv1alpha1.ClusterStateReady
 					}
-					builder := arohcpv1alpha1.NewCluster()
+					builder := arohcpv1alpha1.NewClusterStatus()
 					if !tt.missingState {
-						builder.Status(arohcpv1alpha1.NewClusterStatus().State(state))
+						builder.State(state)
 					}
-					csCluster := metadataapi.Must(builder.Build())
+					csStatus := metadataapi.Must(builder.Build())
 					calls := 1
 					if tt.repeat {
 						calls = 2
@@ -477,10 +486,16 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 						remaining := time.Until(deadline)
 						return ok && remaining > controllerutils.CSReadTimeout-time.Second && remaining <= controllerutils.CSReadTimeout
 					})
-					mockClusterServiceClient.EXPECT().GetCluster(readContext, testClusterServiceID).Return(csCluster, nil).Times(calls)
+					mockClusterServiceClient.EXPECT().GetClusterStatus(readContext, testClusterServiceID).Return(csStatus, nil).Times(calls)
 				}
 			}
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
+			if tt.csState == arohcpv1alpha1.ClusterStateUninstalling {
+				tt.clusters[0].PartitionKey = testSubscriptionID
+				created, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, tt.clusters[0], nil)
+				require.NoError(t, err)
+				tt.clusters[0] = created
+			}
 			for i, spc := range tt.spcs {
 				spc.PartitionKey = testSubscriptionID
 				created, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spc, nil)
@@ -509,6 +524,11 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 				require.ErrorContains(t, err, tt.wantError)
 			} else {
 				require.NoError(t, err)
+			}
+			if tt.csState == arohcpv1alpha1.ClusterStateUninstalling {
+				parent, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.True(t, parent.ServiceProviderProperties.ClusterServiceUninstallingObserved, "uninstallation must outlive the SPC observation")
 			}
 			if len(tt.spcs) > 0 {
 				stored, getErr := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
