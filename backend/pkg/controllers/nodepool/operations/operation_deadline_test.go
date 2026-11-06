@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -116,6 +118,10 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					fixture := operationtesting.NewNodePoolTestFixture()
 					nodePool := fixture.NewNodePool()
 					nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateAccepted
+					nodePool.Properties.Version = coreapi.NodePoolVersionProfile{
+						ID:           "4.20.8",
+						ChannelGroup: "stable",
+					}
 					nodePool.ServiceProviderProperties.ClusterServiceID = nil
 					if tc.owner != nil {
 						nodePool.ServiceProviderProperties.ActiveOperationID = *tc.owner
@@ -133,6 +139,17 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					resources := []any{operation}
 					if !tc.resourceAbsent {
 						resources = append(resources, nodePool)
+					}
+					// Add ServiceProviderNodePool and Controller for CREATE operations only
+					// (needed for version validation in CREATE controller)
+					if !tc.resourceAbsent && request == cosmosstorageutils.OperationRequestCreate {
+						spnp := fixture.NewServiceProviderNodePool()
+						if nodePool.Properties.Version.ID != "" {
+							version := semver.MustParse(nodePool.Properties.Version.ID)
+							spnp.Spec.NodePoolVersion.DesiredVersion = &version
+						}
+						resources = append(resources, spnp)
+						resources = append(resources, fixture.NewNodePoolVersionController([]metav1.Condition{}))
 					}
 					db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 					require.NoError(t, err)
@@ -175,10 +192,10 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					operations := &corelistertesting.SliceActiveOperationLister{Operations: []*coreapi.Operation{cachedOperation}}
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
-						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs}
+						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: db}, readDesireLister: reads, clusterServiceClient: cs}
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestUpdate:
-						controller := &operationNodePoolUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs, serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{}}
+						controller := &operationNodePoolUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs, serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: db}, desiredVersionMismatchFirstSeen: lru.New(100000)}
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestDelete:
 						controller := &operationNodePoolDelete{clock: clock, resourcesDBClient: db, clusterServiceClient: cs}
