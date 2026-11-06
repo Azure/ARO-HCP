@@ -1,14 +1,3 @@
-acm:
-  mce:
-    bundle:
-      digest: sha256:9dcdf31fb7c4e8fcea49402e6223bae44d1f751b856a3dc21b6bd20638e99a41
-      registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-  operator:
-    bundle:
-      digest: sha256:785e8104bcab52cd5409dcb2049488b55527c6dd43c035ba027d08d92e71e9d5
-      registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
   ocp:
     diagnosticSettings:
