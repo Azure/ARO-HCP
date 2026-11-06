@@ -91,9 +91,6 @@ github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshi
 # github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000 => ./test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ## explicit; go 1.25.0
 github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
-# github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000 => ./test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
-## explicit; go 1.25.0
-github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 # github.com/Azure/ARO-HCP/tooling/azutils v0.0.0-00010101000000-000000000000 => ./tooling/azutils
 ## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/cifailurepatterns v0.0.0-00010101000000-000000000000 => ./tooling/cifailurepatterns
@@ -4270,6 +4267,5 @@ sigs.k8s.io/yaml/kyaml
 # github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 # github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 # github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
-# github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 # github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54
 # github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
