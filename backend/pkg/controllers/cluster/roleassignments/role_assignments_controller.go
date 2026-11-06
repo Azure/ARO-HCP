@@ -227,27 +227,6 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to set stack ready: %w", err))
 	}
 
-	var replacement *azureresourcesapi.DeploymentStackDesire
-	if existingDeploymentStackDesire != nil {
-		replacement = existingDeploymentStackDesire.DeepCopy()
-		replacement.Spec = desiredDeploymentStackDesireSpec
-		if !controllerutil.NeedsUpdate(existingDeploymentStackDesire, replacement) {
-			return nil
-		}
-	}
-
-	// Recheck the parent before writing intent: the informer can lag deletion.
-	// This narrows the race, but is not a transaction with the following write.
-	liveCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to recheck Cluster before publishing StackDesire: %w", err))
-	}
-	if cosmosstorageutils.IsNotFoundError(err) || liveCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		if err := desiresCRUD.Delete(ctx, RoleAssignmentsAzureDeploymentStackDesireName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("failed to purge role assignment StackDesire: %w", err))
-		}
-		return nil
-	}
 	if existingDeploymentStackDesire == nil {
 		resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, RoleAssignmentsAzureDeploymentStackDesireName)
 		if err != nil {
@@ -258,6 +237,14 @@ func (c *roleAssignmentsSyncer) SyncOnce(ctx context.Context, key controllerutil
 			Spec:           desiredDeploymentStackDesireSpec,
 		}, nil)
 		return err
+	}
+
+	// At this point we know that the DeploymentStackDesire exists and we need to update it if has changed.
+
+	replacement := existingDeploymentStackDesire.DeepCopy()
+	replacement.Spec = desiredDeploymentStackDesireSpec
+	if !controllerutil.NeedsUpdate(existingDeploymentStackDesire, replacement) {
+		return nil
 	}
 	_, err = desiresCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
