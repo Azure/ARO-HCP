@@ -21,7 +21,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
-	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
+	github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b
 	github.com/roasbeef/claude-agent-sdk-go v1.1.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -127,7 +127,7 @@ require (
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/gomega v1.42.1 // indirect
-	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b // indirect
+	github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect

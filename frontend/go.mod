@@ -68,8 +68,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.468 // indirect
-	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b // indirect
-	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c // indirect
+	github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect

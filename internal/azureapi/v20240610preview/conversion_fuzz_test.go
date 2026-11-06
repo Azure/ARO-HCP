@@ -36,6 +36,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		func(j *coreapi.NodePoolPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j.SubnetID != nil {
+				j.SubnetID = coreapitesting.FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", coreapitesting.GenName(c))
+			}
+		},
 		// ImageDigestMirrors, Ingress, and CryptoRestrictions do not exist in v20240610preview.
 		func(j *coreapi.ClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -130,7 +136,7 @@ func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
 	externalObj := v.NewNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	roundTrippedObj, err := externalObj.ConvertToInternal(original)
 	require.NoError(t, err)
 
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {

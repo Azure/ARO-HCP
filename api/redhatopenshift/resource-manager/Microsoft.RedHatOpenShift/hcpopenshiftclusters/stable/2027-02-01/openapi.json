@@ -3204,6 +3204,35 @@
             "read",
             "create"
           ]
+        },
+        "ipForwarding": {
+          "type": "string",
+          "description": "Whether the node pool's VM NICs allow forwarding traffic for addresses not\nassigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster\nnetwork operator's ipForwarding setting. Immutable after creation; to change\nit, create a replacement node pool.",
+          "default": "InterfaceAddressesOnly",
+          "enum": [
+            "InterfaceAddressesOnly",
+            "AllowAllAddresses"
+          ],
+          "x-ms-enum": {
+            "name": "IPForwarding",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "InterfaceAddressesOnly",
+                "value": "InterfaceAddressesOnly",
+                "description": "Keep Azure's default check, restricting NICs to traffic whose source or\ndestination IP address is assigned to the interface."
+              },
+              {
+                "name": "AllowAllAddresses",
+                "value": "AllowAllAddresses",
+                "description": "Relax Azure's source/destination address check so nodes may forward traffic\non behalf of other networks (e.g. BGP-advertised prefixes)."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [

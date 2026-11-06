@@ -583,6 +583,10 @@ func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.NodePool, cluster *co
 }
 
 func nodePoolToHypershiftNodePool(nodePool *coreapi.NodePool, cluster *coreapi.Cluster) *v1beta1.NodePool {
+	defaulted := *nodePool
+	defaulted.EnsureDefaults()
+	nodePool = &defaulted
+
 	effectiveNodeDrainMinutes := nodePool.Properties.NodeDrainTimeoutMinutes
 	if effectiveNodeDrainMinutes == nil {
 		effectiveNodeDrainMinutes = &cluster.CustomerProperties.NodeDrainTimeoutMinutes
@@ -626,6 +630,11 @@ func nodePoolToHypershiftNodePool(nodePool *coreapi.NodePool, cluster *coreapi.C
 				Value:  taint.Value,
 				Effect: corev1.TaintEffect(taint.Effect),
 			})
+		}
+	}
+	if len(nodePool.Properties.Platform.IPForwarding) != 0 {
+		np.Spec.Platform.Azure = &v1beta1.AzureNodePoolPlatform{
+			IPForwarding: v1beta1.AzureIPForwarding(nodePool.Properties.Platform.IPForwarding),
 		}
 	}
 	return np

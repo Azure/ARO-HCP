@@ -201,6 +201,8 @@ func (h *NodePool) ConvertToInternal(existing *coreapi.NodePool) (*coreapi.NodeP
 func preserveUnknownNodePoolFields(from, to *coreapi.NodePool) {
 	// DiskType was added in v20251223preview.
 	to.Properties.Platform.OSDisk.DiskType = from.Properties.Platform.OSDisk.DiskType
+	// IPForwarding was added in v20270201.
+	to.Properties.Platform.IPForwarding = from.Properties.Platform.IPForwarding
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *coreapi.NodePoolVersionProfile) {

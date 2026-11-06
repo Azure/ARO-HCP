@@ -61,6 +61,13 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 			internalDefault.Properties.Platform.OSDisk.DiskType)
 	}
 
+	// Verify IPForwarding against internal constructor
+	if ensuredDefault.Properties.Platform.IPForwarding != internalDefault.Properties.Platform.IPForwarding {
+		t.Errorf("ensured default IPForwarding = %q, internal constructor = %q",
+			ensuredDefault.Properties.Platform.IPForwarding,
+			internalDefault.Properties.Platform.IPForwarding)
+	}
+
 	// Verify against each versioned API's SetDefaultValues
 	t.Run("v20240610preview", func(t *testing.T) {
 		externalDefault := &v20240610preview.NodePool{}
@@ -146,6 +153,11 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 			t.Errorf("ensured default DiskType = %q, versioned default = %q",
 				ensuredDefault.Properties.Platform.OSDisk.DiskType,
 				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.IPForwarding) != string(ptr.Deref(externalDefault.Properties.Platform.IPForwarding, "")) {
+			t.Errorf("ensured default IPForwarding = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.IPForwarding,
+				ptr.Deref(externalDefault.Properties.Platform.IPForwarding, ""))
 		}
 	})
 }
@@ -609,6 +621,9 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 	}
 	if internalDefault.Properties.Platform.OSDisk.DiskType != metadataapi.OsDiskTypeManaged {
 		t.Errorf("DiskType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskType, metadataapi.OsDiskTypeManaged)
+	}
+	if internalDefault.Properties.Platform.IPForwarding != metadataapi.IPForwardingInterfaceAddressesOnly {
+		t.Errorf("IPForwarding = %q, want %q", internalDefault.Properties.Platform.IPForwarding, metadataapi.IPForwardingInterfaceAddressesOnly)
 	}
 }
 

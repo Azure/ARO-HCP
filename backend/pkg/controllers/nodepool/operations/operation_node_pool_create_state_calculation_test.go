@@ -676,6 +676,72 @@ func TestCreateHypershiftNodePoolTaintsSpecMatchesDesired(t *testing.T) {
 	}
 }
 
+func TestCreateHypershiftNodePoolIPForwardingSpecMatchesDesired(t *testing.T) {
+	t.Parallel()
+
+	controller := &operationNodePoolCreate{}
+
+	nodePoolWithIPForwarding := func(ipForwarding metadataapi.IPForwarding) *coreapi.NodePool {
+		return &coreapi.NodePool{
+			Properties: coreapi.NodePoolProperties{
+				Platform: coreapi.NodePoolPlatformProfile{
+					IPForwarding: ipForwarding,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name       string
+		desired    *coreapi.NodePool
+		observed   v1beta1.NodePoolSpec
+		wantMatch  bool
+		wantSubstr string
+	}{
+		{
+			name:      "desired unset matches regardless of observed",
+			desired:   nodePoolWithIPForwarding(""),
+			observed:  v1beta1.NodePoolSpec{},
+			wantMatch: true,
+		},
+		{
+			name:       "desired set with observed azure platform unset",
+			desired:    nodePoolWithIPForwarding(metadataapi.IPForwardingAllowAllAddresses),
+			observed:   v1beta1.NodePoolSpec{Platform: v1beta1.NodePoolPlatform{Azure: nil}},
+			wantMatch:  false,
+			wantSubstr: "hypershift NodePool azure platform is unset, want ipForwarding=AllowAllAddresses",
+		},
+		{
+			name:    "desired set with observed value mismatch",
+			desired: nodePoolWithIPForwarding(metadataapi.IPForwardingAllowAllAddresses),
+			observed: v1beta1.NodePoolSpec{Platform: v1beta1.NodePoolPlatform{
+				Azure: &v1beta1.AzureNodePoolPlatform{IPForwarding: v1beta1.AzureIPForwardingInterfaceAddressesOnly},
+			}},
+			wantMatch:  false,
+			wantSubstr: `hypershift NodePool ipForwarding is "InterfaceAddressesOnly", want "AllowAllAddresses"`,
+		},
+		{
+			name:    "desired set matches observed",
+			desired: nodePoolWithIPForwarding(metadataapi.IPForwardingAllowAllAddresses),
+			observed: v1beta1.NodePoolSpec{Platform: v1beta1.NodePoolPlatform{
+				Azure: &v1beta1.AzureNodePoolPlatform{IPForwarding: v1beta1.AzureIPForwardingAllowAllAddresses},
+			}},
+			wantMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			match, msg := controller.hypershiftNodePoolIPForwardingSpecMatchesDesired(tt.desired, tt.observed)
+			assert.Equal(t, tt.wantMatch, match)
+			if tt.wantSubstr != "" {
+				assert.Contains(t, msg, tt.wantSubstr)
+			}
+		})
+	}
+}
+
 func TestCreateHypershiftNodePoolStatusReplicasMatchesDesired(t *testing.T) {
 	t.Parallel()
 

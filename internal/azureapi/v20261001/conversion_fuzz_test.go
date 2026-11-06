@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	"sigs.k8s.io/randfill"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
@@ -32,8 +34,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(
-		coreapitesting.CommonRoundTripFuzzFuncs(),
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		func(j *coreapi.NodePoolPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j.SubnetID != nil {
+				j.SubnetID = coreapitesting.FuzzArmResourceID("Microsoft.Network/virtualNetworks/subnets", coreapitesting.GenName(c))
+			}
+		},
+	),
 		rand.NewSource(seed),
 	)
 
@@ -90,7 +98,7 @@ func roundTripNodePool(t *testing.T, original *coreapi.NodePool) {
 	v := version{}
 	externalObj := v.NewNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	roundTrippedObj, err := externalObj.ConvertToInternal(original)
 	require.NoError(t, err)
 
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {

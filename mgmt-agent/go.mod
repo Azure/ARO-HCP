@@ -13,7 +13,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
 	github.com/openshift/hypershift v0.1.76
-	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
+	github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.88.0
 	github.com/spf13/cobra v1.10.2
 	k8s.io/api v0.37.1
@@ -71,7 +71,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.512 // indirect
-	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b // indirect
+	github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect

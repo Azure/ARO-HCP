@@ -100,6 +100,7 @@ type NodePoolParams20270201 struct {
 	AutoRepair       bool
 	Tags             map[string]*string
 	EncryptionSetID  string
+	IPForwarding     hcpsdk20270201.IPForwarding
 }
 
 // --- Functions from deployment_params.go ---
@@ -687,6 +688,10 @@ func BuildNodePoolFromParams20270201(
 
 	if parameters.EncryptionSetID != "" {
 		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
+	if parameters.IPForwarding != "" {
+		nodePool.Properties.Platform.IPForwarding = to.Ptr(parameters.IPForwarding)
 	}
 
 	if parameters.AutoScaling != nil {

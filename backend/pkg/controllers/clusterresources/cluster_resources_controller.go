@@ -358,6 +358,14 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 				continue
 			}
 
+			// Backend-authored decoration: set ipForwarding field on the NodePool CR before creating the ApplyDesire.
+			if len(np.Properties.Platform.IPForwarding) != 0 {
+				if err := unstructured.SetNestedField(unstructuredObj.Object, string(np.Properties.Platform.IPForwarding), "spec", "platform", "azure", "ipForwarding"); err != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set nodepool ipForwarding for %s: %w", classified.nodePoolName, err)))
+					continue
+				}
+			}
+
 			desire, err = buildNodePoolResourceApplyDesire(
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 				classified.nodePoolName, classified.desireName,

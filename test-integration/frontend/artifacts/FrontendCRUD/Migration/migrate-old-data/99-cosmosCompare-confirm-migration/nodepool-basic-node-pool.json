@@ -28,6 +28,7 @@
 			"nodeDrainTimeoutMinutes": 2,
 			"platform": {
 				"enableEncryptionAtHost": false,
+				"ipForwarding": "InterfaceAddressesOnly",
 				"osDisk": {
 					"diskStorageAccountType": "Premium_LRS",
 					"diskType": "Managed",

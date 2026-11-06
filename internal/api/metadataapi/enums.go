@@ -50,6 +50,26 @@ var (
 	)
 )
 
+// IPForwarding controls which source and destination IP addresses the VMs in a
+// node pool may send and receive network traffic for.
+type IPForwarding string
+
+const (
+	// IPForwardingInterfaceAddressesOnly keeps Azure's default check, restricting
+	// NICs to traffic whose source or destination IP is assigned to the interface.
+	IPForwardingInterfaceAddressesOnly IPForwarding = "InterfaceAddressesOnly"
+	// IPForwardingAllowAllAddresses relaxes Azure's source/destination address
+	// check so nodes may forward traffic on behalf of other networks.
+	IPForwardingAllowAllAddresses IPForwarding = "AllowAllAddresses"
+)
+
+var (
+	ValidIPForwarding = sets.New[IPForwarding](
+		IPForwardingInterfaceAddressesOnly,
+		IPForwardingAllowAllAddresses,
+	)
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 

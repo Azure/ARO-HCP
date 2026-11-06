@@ -131,12 +131,12 @@ github.com/openshift-online/ocm-api-model/clientapi v0.0.468 h1:CDcmsjb0xntIpW+B
 github.com/openshift-online/ocm-api-model/clientapi v0.0.468/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
 github.com/openshift-online/ocm-sdk-go v0.1.512 h1:BUkwApvzxvOuBi7kEhg3zkEA+lCFHmS7lUwv1Xv99C0=
 github.com/openshift-online/ocm-sdk-go v0.1.512/go.mod h1:55QlWHimRye3eek/mRKVxm8tJyVP0aXy2u1w4jdqFNk=
-github.com/openshift/api v0.0.0-20260930220732-5588d747a72b h1:GBKpMg/gdxTOXyemaxtn4IoO+MeJJdRij2xP/d0kXmg=
-github.com/openshift/api v0.0.0-20260930220732-5588d747a72b/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
+github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7 h1:hdo1AalEZcD6TG2LTvyeYz1FJngC7ldW6m3Te9WlIvc=
+github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
 github.com/openshift/hypershift v0.1.76 h1:G83t2z1ISGA4sGbsmhsq4yoYhtk9iXHNCOyMySD+Zps=
 github.com/openshift/hypershift v0.1.76/go.mod h1:7hq5PkN4UNRBNmgkzsjVV3uzmIGNBEAt+mOFdCc0ht0=
-github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c h1:lxDsIEVEmwWtea1TRcJuZ1hrZsd6FcAaC88ipZ+G46U=
-github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c/go.mod h1:bLo59wHg6XfQo7yshqCReNg4iQlFAooqqXOR4hwot+g=
+github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b h1:wZ5fqwXgtRn1vLnuN7BYr5lw7Tpb6G75cB5WrDl7gvo=
+github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b/go.mod h1:aZcfCGGZtvQEoWXz3LcS0zBBaohz13eQa43W2H5kQwQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

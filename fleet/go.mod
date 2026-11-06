@@ -81,8 +81,8 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.468 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.468 // indirect
-	github.com/openshift/api v0.0.0-20260930220732-5588d747a72b // indirect
-	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c // indirect
+	github.com/openshift/api v0.0.0-20261028163820-1f109e9eefc7 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20261030213910-241463dbb32b // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect

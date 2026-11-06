@@ -114,6 +114,7 @@ func TestApplyDesireDestructChainCoversEveryDesireName(t *testing.T) {
 		}
 		classified[strings.ToLower(result.desireName)] = result.desireName
 	}
+
 	claimed := claimedDesireNames()
 	require.Len(t, claimed, len(classified), "the runtime claim registry must cover exactly the classified names")
 	for name := range classified {

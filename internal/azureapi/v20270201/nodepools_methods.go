@@ -78,6 +78,9 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 	if obj.Properties.Platform.OSDisk.DiskType == nil {
 		obj.Properties.Platform.OSDisk.DiskType = ptr.To(generated.OsDiskTypeManaged)
 	}
+	if obj.Properties.Platform.IPForwarding == nil {
+		obj.Properties.Platform.IPForwarding = ptr.To(generated.IPForwardingInterfaceAddressesOnly)
+	}
 	if obj.Properties.AutoRepair == nil {
 		obj.Properties.AutoRepair = ptr.To(true)
 	}
@@ -213,6 +216,7 @@ func normalizeNodePoolPlatform(fldPath *field.Path, p *generated.NodePoolPlatfor
 	out.VMSize = metadataapihelpers.Deref(p.VMSize)
 	out.AvailabilityZone = metadataapihelpers.Deref(p.AvailabilityZone)
 	out.EnableEncryptionAtHost = metadataapihelpers.Deref(p.EnableEncryptionAtHost)
+	out.IPForwarding = metadataapi.IPForwarding(metadataapihelpers.Deref(p.IPForwarding))
 	if p.OSDisk != nil {
 		errs = append(errs, normalizeOSDiskProfile(fldPath.Child("osDisk"), p.OSDisk, &out.OSDisk)...)
 	} else {
@@ -281,6 +285,7 @@ func newNodePoolPlatformProfile(from *coreapi.NodePoolPlatformProfile) generated
 		EnableEncryptionAtHost: metadataapihelpers.Ptr(from.EnableEncryptionAtHost),
 		OSDisk:                 metadataapihelpers.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
 		SubnetID:               metadataapihelpers.ResourceIDToStringPtr(from.SubnetID),
+		IPForwarding:           metadataapihelpers.PtrOrNil(generated.IPForwarding(from.IPForwarding)),
 	}
 }
 

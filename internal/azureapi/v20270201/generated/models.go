@@ -640,6 +640,12 @@ type NodePoolPlatformProfile struct {
 	//   - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
 
+	// Whether the node pool's VM NICs allow forwarding traffic for addresses not
+	// assigned to the NIC (e.g. BGP-advertised prefixes). Unrelated to the cluster
+	// network operator's ipForwarding setting. Immutable after creation; to change
+	// it, create a replacement node pool.
+	IPForwarding *IPForwarding
+
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
