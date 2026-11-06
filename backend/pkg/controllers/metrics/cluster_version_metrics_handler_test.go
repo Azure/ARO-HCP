@@ -267,7 +267,7 @@ func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 	handler.Delete(spcKey)
 
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""),
-		"backend_cluster_version_info", "backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_monitoring_enabled"))
+		"backend_cluster_version_info", "backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_converged", "backend_cluster_upgrade_monitoring_enabled"))
 }
 
 func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
@@ -278,7 +278,31 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 		lifecycle   metav1.ConditionStatus
 		wantTargets []string
 		wantEnabled string
+		converged   bool
 	}{
+		{
+			name: "matching current and desired completed", desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.43"}, converged: true,
+		},
+		{
+			name: "historical completed desired is not current", desired: "4.20.42",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.42")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.42", "4.20.43"},
+		},
+		{
+			name: "historical completion does not override newest partial", desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.PartialUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.43"},
+		},
 		{
 			name:    "superseded partial is diagnostic only",
 			desired: "4.20.43",
@@ -346,13 +370,20 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 			expected.WriteString("# HELP backend_cluster_upgrade_target_count Expected current target rows in the same coherent cluster version snapshot.\n# TYPE backend_cluster_upgrade_target_count gauge\n")
 			fmt.Fprintf(&expected, "backend_cluster_upgrade_target_count{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
 				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), len(tt.wantTargets))
+			converged := 0
+			if tt.converged {
+				converged = 1
+			}
+			expected.WriteString("# HELP backend_cluster_upgrade_converged Whether resolved desired equals the newest observed current version and that entry is completed.\n# TYPE backend_cluster_upgrade_converged gauge\n")
+			fmt.Fprintf(&expected, "backend_cluster_upgrade_converged{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
+				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), converged)
 			if tt.wantEnabled != "" {
 				expected.WriteString("# HELP backend_cluster_upgrade_monitoring_enabled Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.\n# TYPE backend_cluster_upgrade_monitoring_enabled gauge\n")
 				fmt.Fprintf(&expected, "backend_cluster_upgrade_monitoring_enabled{cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %s\n",
 					resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), tt.wantEnabled)
 			}
 			require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected.String()),
-				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_monitoring_enabled"))
+				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_converged", "backend_cluster_upgrade_monitoring_enabled"))
 		})
 	}
 }
@@ -410,7 +441,7 @@ func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
 	for metric := range metrics {
 		observed = append(observed, metric)
 	}
-	require.Len(t, observed, 3)
+	require.Len(t, observed, 4)
 	frozen := prometheus.NewRegistry()
 	frozen.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for _, metric := range observed {
@@ -421,6 +452,9 @@ func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	for _, family := range oldFamilies {
 		if family.GetName() == "backend_cluster_upgrade_target_count" {
+			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
+		}
+		if family.GetName() == "backend_cluster_upgrade_converged" {
 			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
 		}
 		for _, metric := range family.Metric {
@@ -441,6 +475,8 @@ func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
 			require.Equal(t, float64(2), family.Metric[0].GetGauge().GetValue())
 		case "backend_cluster_upgrade_target_info":
 			require.Len(t, family.Metric, 2)
+		case "backend_cluster_upgrade_converged":
+			require.Equal(t, float64(0), family.Metric[0].GetGauge().GetValue())
 		}
 	}
 }

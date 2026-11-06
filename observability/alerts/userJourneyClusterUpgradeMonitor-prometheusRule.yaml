@@ -23,7 +23,7 @@ spec:
       annotations:
         summary: "{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck"
         description: |
-          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
+          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until three valid observations confirm that resolved desired equals the newest current version and is completed, or confirm deletion/uninstallation. Missing observations hold the monitor and pause confirmation. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
           Service Cluster: {{ $labels.cluster }}
         runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
         correlationId: "userJourneyClusterUpgradeStuck/{{ $labels.cluster }}{{ $labels.resource_id }}"

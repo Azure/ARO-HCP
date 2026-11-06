@@ -20,10 +20,11 @@ rules, and `backend_cluster_upgrade_target_info`.
 | Partial | The target has not completed. For a current target this can mean an ongoing or stalled rollout; for a historical target it can mean an abandoned attempt. |
 | Completed | Successful rollout reported by the selected version-history source. Prefer `HostedCluster.status.controlPlaneVersion.history`; otherwise use legacy `status.version.history`. ARM `Succeeded` is not this signal. |
 | Stuck | A current target exceeds an applicable timing budget. After the full pending window, the cluster condition stays active while a current target remains incomplete, including after selecting a younger target. |
-| Recovered | All current targets are observed as Completed. Historical Partial entries do not prevent recovery. Deletion/uninstallation clears the monitor for a different reason: it is no longer applicable. |
+| Converged | Resolved Desired equals the newest observed current version and that newest entry is Completed. An older Completed history entry is insufficient. Exported as `backend_cluster_upgrade_converged`. |
+| Recovered | Convergence is confirmed by three valid observations. Historical Partial entries do not prevent recovery. Deletion/uninstallation uses a separate three-observation lifecycle-exclusion path, not upgrade success. |
 | Upgrade eligible | The existing recording rule observes at least two distinct version labels and at least one Completed version for the cluster. This excludes initial installs; it is not a general cluster-health preflight. |
 | Lifecycle eligible | A non-uninstalling CS lifecycle has been observed and no RP deletion timestamp has been observed. This does not mean every health or upgradeability check passed. |
-| Unknown | Required observations are unavailable. Unknown is not a numeric monitor value and must not be interpreted as a successful `0`. An existing `1` is retained. |
+| Unknown | Required observations are missing, incomplete or stale. Hold the last monitor value, whether `0` or `1`; do not manufacture an initial zero or count the gap as confirmation. |
 
 ### Timing and monitor values
 
@@ -54,12 +55,25 @@ No upgrade alert is not, by itself, proof that the cluster is healthy.
 | Initial install | Cluster is not upgrade eligible; target and lifecycle observations are available | `0` | No upgrade-stuck alert |
 | Upgrade progressing within budget | Cluster is eligible; current targets are within both applicable budgets | `0` | No upgrade-stuck alert |
 | First budget exceeded | A current target exceeds either timing threshold | `1` | Pending for five minutes; not yet a firing upgrade alert |
-| Stall clears during Pending | No current target still exceeds a budget, for example after completion or reaching Partial within the completion budget | `0` | Cancel Pending; no upgrade incident is raised for that transient stall |
+| Stall clears during Pending | A phase transition puts the current target back within budget | `0` | Cancel Pending for that transient stall; completion and lifecycle clearing still use their confirmation paths below |
 | Budget remains exceeded through Pending | Condition remains `1` for the full five-minute pending window | `1` | Fire one cluster-level upgrade-stuck alert |
 | Phase or target changes after firing | At least one current target remains incomplete, even if a new target has a younger timer | Keep `1` | Keep the same cluster alert active; do not reset its identity or open another version-specific incident |
-| Current targets complete | All current targets are Completed; historical Partial entries may remain | `0` | Clear the condition and use the normal 1-to-0 auto-mitigation flow |
-| Deletion or uninstallation confirmed at any stage | RP deletion timestamp is set, or CS reports `uninstalling` | `0`, regardless of retained version metrics | Cancel Pending or clear Firing; deletion monitoring takes ownership. This is lifecycle exclusion, not upgrade success |
-| Observations become unavailable | An existing stuck condition can no longer be reassessed | Retain the previous `1` | Do not auto-mitigate merely because telemetry disappeared or a lifecycle lookup failed |
+| Completion candidate | Fresh, coherent Desired=current+Completed observation | Keep an existing `1` on observations 1 and 2; emit `0` on observation 3 | Clear only after confirmed convergence |
+| Deletion or uninstallation candidate | Fresh RP deletion, CS uninstallation, or authoritative resource-removal observation | Keep an existing `1` on observations 1 and 2; emit `0` on observation 3 | Deletion monitoring takes ownership after lifecycle exclusion; dispatch stops immediately on the first confirmed lifecycle observation |
+| Observations become unavailable | The condition can no longer be reassessed | Retain the previous `0` or `1` | No state transition and no confirmation progress; missing data is not health |
+
+Completion and lifecycle exclusion have independent counters in
+`hosted_control_plane_upgrade:clear_confirmations:count`, distinguished by
+`reason="completed"` or `reason="lifecycle"`. A missing observation pauses the
+counter without resetting it. A valid contrary observation resets that reason's
+counter to zero. Counts are bounded at three.
+
+The group evaluates once per minute. A valid snapshot must be less than one
+evaluation interval (60 seconds) old and pass all coherence/coverage checks.
+Repeated evaluations of an old sample cannot count as new observations.
+Three uninterrupted observations occur at the first valid evaluation and the
+next two; this is an observation count, not a three-minute wall-clock timer.
+Gaps can make confirmation take longer.
 
 The established firing latch is a separate recording rule. Five prior one-minute
 samples plus the current condition establish it at the first firing evaluation;
@@ -77,7 +91,7 @@ label is not part of alert identity.
 
 Before a healthy zero is allowed, every observed source must have all expected
 target rows with the same scrape timestamp as its count. The count must also
-match the latest version-state scrape timestamp. Missing counts, lost rows,
+match the convergence and latest version-state scrape timestamps. Missing counts, lost rows,
 mixed scrape generations or an incomplete replica are unknown, not completion.
 A count of zero does not establish a completed upgrade.
 
@@ -86,6 +100,7 @@ A count of zero does not establish a completed upgrade.
 | Current target is Completed but stale Partial samples for the same version remain | Completed takes precedence; stale Partial samples must not retain the alert |
 | Control-plane history is Completed but worker-dependent CVO history is Partial | Use independent control-plane completion when that history is available; worker lag alone does not retain this upgrade alert |
 | Rollback selects a numerically older version | Use the explicit current-target set, not the highest version number |
+| Desired names an older Completed history entry but newest current differs | Not converged; do not clear until Desired is actually current and Completed, confirmed three times |
 
 ## Lifecycle and dispatch
 
@@ -104,8 +119,8 @@ and survives SPC cleanup and backend restarts.
 
 | Independent primary inventory signal | Recovery meaning |
 | --- | --- |
-| Primary Cluster has an RP deletion timestamp or durable uninstallation observation | Confirmed lifecycle exclusion, even if the SPC metrics queue coalesced the disable update and deletion |
-| A synced, complete inventory no longer contains a previously stuck Cluster | Confirmed resource removal; emit a clear zero, then retire its monitor series |
+| Primary Cluster has an RP deletion timestamp or durable uninstallation observation | Lifecycle-exclusion evidence, even if the SPC metrics queue coalesced the disable update and deletion; confirm across three valid evaluations |
+| A synced, complete inventory no longer contains a previously known Cluster | Resource-removal evidence; after three valid evaluations emit a clear zero, then retire the series once remaining SPC metrics are gone |
 | Initial cache synchronization is incomplete | No inventory assertion; do not infer deletion |
 | Inventory rows are missing or come from a different scrape than the expected size | Incomplete observation; do not infer deletion |
 
@@ -116,9 +131,10 @@ absence can prove removal. Thus a scrape outage spanning cleanup, followed by
 an exporter restart, can recover from authoritative inventory without relying on
 the SPC's transient final zero or its 30-second Cosmos soft-delete document.
 
-A confirmed deletion/uninstallation both prevents creating another upgrade
-policy and makes the cluster monitor explicitly zero, even while Partial
-version metrics remain. Deletion monitoring owns stalled cleanup.
+A confirmed deletion/uninstallation immediately prevents creating another
+upgrade policy. Alert clearing is separate: the monitor becomes explicitly zero
+after three valid lifecycle observations, even while Partial version metrics
+remain. Deletion monitoring owns stalled cleanup.
 
 CS read errors or missing lifecycle state prevent dispatch and preserve the
 last observation for monitoring; they are not recovery. Other CS failure states
@@ -143,7 +159,7 @@ default is `legacy`; this PR does not automatically enable new paging.
 
 | Step | Required evidence before promotion |
 | --- | --- |
-| Deploy backend | Current targets, their expected counts and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
+| Deploy backend | Current targets, their expected counts, explicit convergence and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
 | Deploy recording rules, then select `shadow` | New inputs are available before evaluating the new detector; old alerting remains enabled |
 | Validate shadow behavior | Known stuck clusters produce 1; completion or confirmed deleting/uninstalling produces 0; missing observations do not mitigate; phase/version/UUID changes do not duplicate the cluster condition |
 | Prepare cutover | Review old active incidents, routing, silences, old SLO labels and version-specific correlation IDs; agree how to dispose of old incidents; separately review any dashboard/UI changes with required screenshots |
@@ -189,7 +205,10 @@ raise an IcM.
 | Both target families are older than the version observations | Snapshot coverage is `0`, even when the old counts match |
 | Expected target count is missing | No healthy zero; an already firing condition is retained |
 | One replica is complete but another loses B's row | The complete replica cannot hide the incomplete snapshot |
-| B actually completes with a coherent target snapshot | Monitor becomes `0` and the alert clears at 70m |
+| B actually becomes current and Completed at 70m | Monitor stays `1` for the first two valid observations and becomes `0` at 72m |
+| A poll is missing during completion or lifecycle confirmation | Hold the monitor and confirmation count; count resumes only on another valid observation |
+| A valid contrary observation arrives during confirmation | Reset that reason's count without declaring recovery |
+| The budget boundary is crossed while observations are missing | Hold an existing clear value; do not create a failure from the missing poll |
 | Reconcile changes targets halfway through collection | The current scrape keeps the old count/rows/states; the next scrape has the new snapshot |
 
 The rule cases live in
@@ -197,4 +216,6 @@ The rule cases live in
 and run through the generator's `run-rp-upgrade` target. Backend snapshot tests
 run from the backend module with `go test ./pkg/controllers/metrics -count=1`.
 Local rule tests do not prove Azure receiver delivery or IcM auto-mitigation;
-those remain shadow/cutover validation gates.
+those remain shadow/cutover validation gates. The three-observation contract
+controls the monitor's `1` to `0` transition. Azure alert auto-resolution and
+downstream IcM processing may add latency; they are not timed by `promtool`.

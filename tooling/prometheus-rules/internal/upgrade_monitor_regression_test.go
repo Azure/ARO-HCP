@@ -25,7 +25,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func TestUpgradeMonitorEstablishedLatchSurvivesEvaluationGap(t *testing.T) {
+func upgradeMonitorExpressions(t *testing.T) map[string]string {
+	t.Helper()
 	source, err := os.ReadFile(filepath.Join("..", "..", "..", "observability", "recording-rules", "userJourneyClusterUpgrade-recordingRule.yaml"))
 	require.NoError(t, err)
 	var rules struct {
@@ -45,6 +46,52 @@ func TestUpgradeMonitorEstablishedLatchSurvivesEvaluationGap(t *testing.T) {
 			expressions[rule.Record] = rule.Expr
 		}
 	}
+	return expressions
+}
+
+func TestUpgradeClearConfirmationsCountObservationsNotElapsedGaps(t *testing.T) {
+	expression := upgradeMonitorExpressions(t)["hosted_control_plane_upgrade:clear_confirmations:count"]
+	require.NotEmpty(t, expression)
+	for _, tc := range []struct {
+		name, previous, observed string
+		expected                 int
+	}{
+		{"missing poll pauses", "1 _x4", "1 stale", 1},
+		{"skipped evaluations count once", "0 1 _x3", "_x4 1", 2},
+		{"contrary observation resets", "0 2 _x3", "_x4 0", 0},
+		{"third observation confirms", "0 2 _x3", "_x4 1", 3},
+		{"confirmed count is bounded", "0 3 _x3", "_x4 1", 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := `cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", reason="completed"`
+			fixture := map[string]interface{}{
+				"evaluation_interval": "1m",
+				"tests": []map[string]interface{}{{
+					"interval": "1m",
+					"input_series": []map[string]string{
+						{"series": "hosted_control_plane_upgrade:clear_confirmations:count{" + keys + "}", "values": tc.previous},
+						{"series": "hosted_control_plane_upgrade:clear_observed:bool{" + keys + "}", "values": tc.observed},
+					},
+					"promql_expr_test": []map[string]interface{}{{
+						"expr": "(" + expression + ") * 1", "eval_time": "4m",
+						"exp_samples": []map[string]interface{}{
+							{"labels": "{" + keys + "}", "value": tc.expected},
+						},
+					}},
+				}},
+			}
+			data, err := yaml.Marshal(fixture)
+			require.NoError(t, err)
+			file := filepath.Join(t.TempDir(), "clear-confirmations_test.yaml")
+			require.NoError(t, os.WriteFile(file, data, 0600))
+			output, err := exec.Command("promtool", "test", "rules", file).CombinedOutput()
+			require.NoError(t, err, "%s", output)
+		})
+	}
+}
+
+func TestUpgradeMonitorEstablishedLatchSurvivesEvaluationGap(t *testing.T) {
+	expressions := upgradeMonitorExpressions(t)
 	keys := `cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1"`
 	for _, tc := range []struct {
 		name, firing, stuck, current, evalTime string
@@ -66,6 +113,7 @@ func TestUpgradeMonitorEstablishedLatchSurvivesEvaluationGap(t *testing.T) {
 				{"series": "backend_cluster_version_info{" + keys + `, cluster_uuid="uuid-1", version="4.20.44", state="partial"}`, "values": "1x60"},
 				{"series": "hosted_control_plane_upgrade:duration_in_progress:seconds{" + keys + `, cluster_uuid="uuid-1", version="4.20.44", state="partial"}`, "values": "0x40 60+60x20"},
 			}
+
 			checks := []map[string]interface{}{}
 			for _, name := range []string{"hosted_control_plane_upgrade:firing:bool", "hosted_control_plane_upgrade:stuck:bool"} {
 				require.NotEmpty(t, expressions[name])

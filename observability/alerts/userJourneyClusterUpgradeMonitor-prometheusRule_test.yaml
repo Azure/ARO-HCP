@@ -21,6 +21,8 @@ tests:
     values: "1x45 0x35"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x80"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x80"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 30m
@@ -55,7 +57,7 @@ tests:
       exp_annotations: &stuckAnnotations
         summary: "svc-1: Cluster upgrade on /sub/1/rg/c1 is stuck"
         description: |
-          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
+          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until three valid observations confirm that resolved desired equals the newest current version and is completed, or confirm deletion/uninstallation. Missing observations hold the monitor and pause confirmation. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
           Service Cluster: svc-1
         runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
         correlationId: userJourneyClusterUpgradeStuck/svc-1/sub/1/rg/c1
@@ -75,9 +77,11 @@ tests:
     values: "1x33 0x17"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x50"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x50"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
-    eval_time: 34m
+    eval_time: 36m
     exp_samples:
     - labels: *monitorLabels
       value: 0
@@ -102,6 +106,8 @@ tests:
     values: "1x80"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x80"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 1x34"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 50m
@@ -140,6 +146,8 @@ tests:
     values: "1x100"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x40 2x19 1x40"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x75 1x25"
   alert_rule_test:
   - eval_time: 25m
     alertname: userJourneyClusterUpgradeStuck
@@ -175,6 +183,8 @@ tests:
     values: "1x50"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x50"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x50"
   alert_rule_test:
   - eval_time: 40m
     alertname: userJourneyClusterUpgradeStuck
@@ -196,6 +206,8 @@ tests:
     values: "1x50"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x50"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x50"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 26m
@@ -222,6 +234,8 @@ tests:
     values: "1x60"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x60"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x60"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 60m
@@ -245,6 +259,8 @@ tests:
     values: "1x45 stale"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 70m
@@ -268,6 +284,8 @@ tests:
     values: "1x60"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x60"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x60"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 60m
@@ -303,6 +321,12 @@ tests:
     values: "1x60"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c2", subscription_id="sub-1", cluster_uuid="uuid-2"}'
     values: "1x60"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", prometheus_replica="a"}'
+    values: "0x60"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", prometheus_replica="b"}'
+    values: "0x60"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c2", subscription_id="sub-1", cluster_uuid="uuid-2"}'
+    values: "0x60"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 50m
@@ -326,7 +350,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Cluster upgrade on /sub/1/rg/c2 is stuck"
         description: |
-          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
+          The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until three valid observations confirm that resolved desired equals the newest current version and is completed, or confirm deletion/uninstallation. Missing observations hold the monitor and pause confirmation. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
           Service Cluster: svc-1
         runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
         correlationId: userJourneyClusterUpgradeStuck/svc-1/sub/1/rg/c2
@@ -355,6 +379,10 @@ tests:
     values: "1x45 stale"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "_x46 1x35"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid=""}'
+    values: "0x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "_x46 0x14 1x20"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 50m
@@ -384,13 +412,15 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="completed"}'
     values: "_x65 1x35"
   - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.42"}'
-    values: "1x100"
+    values: "1x59 stale"
   - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
     values: "1x100"
   - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x100"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
-    values: "2x100"
+    values: "2x59 1x41"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x64 1x36"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:target_observations_complete:bool
     eval_time: 60m
@@ -433,6 +463,8 @@ tests:
     values: "_x65 1x35"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 60m
@@ -463,6 +495,8 @@ tests:
     values: "_x65 0x35"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 60m
@@ -470,7 +504,7 @@ tests:
     - labels: *monitorLabels
       value: 1
   - expr: hosted_control_plane_upgrade:stuck:bool
-    eval_time: 65m
+    eval_time: 67m
     exp_samples:
     - labels: *monitorLabels
       value: 0
@@ -498,6 +532,8 @@ tests:
     values: "_x65 1x35"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:inventory_observations_complete:bool
     eval_time: 70m
@@ -527,6 +563,8 @@ tests:
     values: "1x64 _x10 1x25"
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:inventory_observations_complete:bool
     eval_time: 65m
@@ -539,7 +577,7 @@ tests:
     - labels: *monitorLabels
       value: 1
   - expr: hosted_control_plane_upgrade:stuck:bool
-    eval_time: 75m
+    eval_time: 77m
     exp_samples:
     - labels: *monitorLabels
       value: 0
@@ -552,7 +590,7 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
-  - eval_time: 75m
+  - eval_time: 77m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
 - name: losing only the desired target row must not complete a firing upgrade
@@ -579,6 +617,10 @@ tests:
   - &targetLossLifecycle
     series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
     values: "1x100"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1x31"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1x31"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:current_targets:count
     eval_time: 46m
@@ -595,6 +637,16 @@ tests:
     exp_samples:
     - labels: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="desired"}'
       value: 1
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"}
+    eval_time: 70m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:clear_confirmations:count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", reason="completed"}'
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 71m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
   - expr: hosted_control_plane_upgrade:stuck:bool
     eval_time: 46m
     exp_samples:
@@ -606,7 +658,7 @@ tests:
     - labels: *monitorLabels
       value: 1
   - expr: hosted_control_plane_upgrade:stuck:bool
-    eval_time: 70m
+    eval_time: 72m
     exp_samples:
     - labels: *monitorLabels
       value: 0
@@ -621,7 +673,7 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
-  - eval_time: 70m
+  - eval_time: 72m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
 - name: old target rows do not satisfy a fresh expected count
@@ -635,6 +687,8 @@ tests:
     values: "1x45 _x14 1x40"
   - *targetLossCount
   - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1x31"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:target_snapshots_complete:bool
     eval_time: 46m
@@ -660,6 +714,8 @@ tests:
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
     values: "2x45 _x14 2x9 1x31"
   - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x45 _x14 0x9 1x31"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:target_snapshots_complete:bool
     eval_time: 46m
@@ -672,7 +728,7 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
-  - eval_time: 70m
+  - eval_time: 72m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
 - name: missing expected count is not target coverage
@@ -684,8 +740,10 @@ tests:
   - *targetLossTargetA
   - *targetLossTargetB
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
-    values: "_x60 2x9 1x31"
+    values: "2x40 _x19 2x9 1x31"
   - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x40 _x19 0x9 1x31"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:target_snapshots_complete:bool
     eval_time: 46m
@@ -698,7 +756,7 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
-  - eval_time: 70m
+  - eval_time: 72m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
 - name: one complete replica cannot hide another incomplete target snapshot
@@ -723,6 +781,10 @@ tests:
   - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", prometheus_replica="b", backend_process="backend-1"}'
     values: "2x69 1x31"
   - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", prometheus_replica="a", backend_process="backend-1"}'
+    values: "1x100"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", prometheus_replica="b", backend_process="backend-1"}'
+    values: "0x69 1x31"
   promql_expr_test:
   - expr: hosted_control_plane_upgrade:target_observations_complete:bool
     eval_time: 30m
@@ -740,6 +802,195 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
-  - eval_time: 70m
+  - eval_time: 72m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
+- name: completion confirmations pause on missing observations
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - *targetLossDesiredB
+  - *targetLossCompletedB
+  - *targetLossTargetA
+  - *targetLossTargetB
+  - *targetLossCount
+  - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1 _x2 1x27"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"}
+    eval_time: 72m
+    exp_samples:
+    - labels: &completionCountLabels 'hosted_control_plane_upgrade:clear_confirmations:count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", reason="completed"}'
+      value: 1
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"}
+    eval_time: 73m
+    exp_samples:
+    - labels: *completionCountLabels
+      value: 2
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"}
+    eval_time: 74m
+    exp_samples:
+    - labels: *completionCountLabels
+      value: 3
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 73m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 74m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+- name: a contrary completion observation resets confirmation progress
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - *targetLossDesiredB
+  - *targetLossCompletedB
+  - *targetLossTargetA
+  - *targetLossTargetB
+  - *targetLossCount
+  - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1 0 1x28"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"}
+    eval_time: 71m
+    exp_samples:
+    - labels: *completionCountLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 73m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 74m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+- name: lifecycle confirmations pause rather than count a missing poll
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - *targetLossDesiredB
+  - *targetLossCompletedB
+  - *targetLossTargetA
+  - *targetLossTargetB
+  - *targetLossCount
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x100"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 0 _ 0x52"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="lifecycle"}
+    eval_time: 47m
+    exp_samples:
+    - labels: &lifecycleCountLabels 'hosted_control_plane_upgrade:clear_confirmations:count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", reason="lifecycle"}'
+      value: 1
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="lifecycle"}
+    eval_time: 48m
+    exp_samples:
+    - labels: *lifecycleCountLabels
+      value: 2
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 48m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 49m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+- name: an active lifecycle observation resets exclusion confirmations
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - *targetLossDesiredB
+  - *targetLossCompletedB
+  - *targetLossTargetA
+  - *targetLossTargetB
+  - *targetLossCount
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x100"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 0 1 0x52"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:clear_confirmations:count{reason="lifecycle"}
+    eval_time: 47m
+    exp_samples:
+    - labels: *lifecycleCountLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 49m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 50m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+- name: a missing poll cannot turn a clear monitor into a failure
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - *targetLossDesiredB
+  - *targetLossCompletedB
+  - *targetLossTargetA
+  - *targetLossTargetB
+  - *targetLossCount
+  - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x20 _ 0x78"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 20m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 21m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 22m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+- name: a completed historical desired version is not current convergence
+  interval: 1m
+  input_series:
+  - *targetLossCompletedA
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="completed"}'
+    values: "_x46 1x54"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.42", backend_process="backend-1"}'
+    values: "1x100"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", backend_process="backend-1"}'
+    values: "1x69 stale"
+  - *targetLossCount
+  - *targetLossLifecycle
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", backend_process="backend-1"}'
+    values: "0x69 1x30"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 50m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 71m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 72m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
