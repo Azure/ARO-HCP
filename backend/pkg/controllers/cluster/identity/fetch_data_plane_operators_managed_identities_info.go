@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -232,8 +234,11 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 		return utils.TrackError(fmt.Errorf("failed to get User Assigned Identities Client: %w", err))
 	}
 
+	// Sort identity resource IDs for deterministic processing order.
+	sortedIdentityResourceIDStrs := slices.Sorted(maps.Keys(identitiesToSync))
+
 	errs := []error{}
-	for identityResourceIDStr := range identitiesToSync {
+	for _, identityResourceIDStr := range sortedIdentityResourceIDStrs {
 		resourceID, err := azcorearm.ParseResourceID(identityResourceIDStr)
 		if err != nil {
 			// We should never get a nil ResourceID from uniqueDataPlaneOperatorResourceIDs because it's built from
