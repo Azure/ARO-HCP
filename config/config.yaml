@@ -1148,18 +1148,6 @@ defaults:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
       digest: sha256:114feec47cb0b9de574721967057066beda55750a3c994e59b52606703696fc4 # d407e7603cd2e5ea691c88a02ab82c249dfdc544 (2026-11-03 21:30)
-  # ACM
-  acm:
-    operator:
-      bundle:
-        registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:785e8104bcab52cd5409dcb2049488b55527c6dd43c035ba027d08d92e71e9d5 # v2.17.4-519 (2026-11-05 21:04)
-    mce:
-      bundle:
-        registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:9dcdf31fb7c4e8fcea49402e6223bae44d1f751b856a3dc21b6bd20638e99a41 # v2.17.4-570 (2026-11-06 03:56)
   # Cluster Service
   clustersService:
     image:

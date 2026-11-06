@@ -140,9 +140,6 @@ resourceGroups:
       resourceGroup: service
       step: deploy
     # the rest of the deps make sure the MC installation is complete
-    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-      resourceGroup: management
-      step: deploy-policies
     - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
       resourceGroup: management
       step: deploy
