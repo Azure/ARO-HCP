@@ -376,11 +376,11 @@ There is **no runner election** — all specs are identical. The upgrade runs in
 - Logs go to `os.Stderr` via a `logr/stdr` logger (set via `SetUpgradeCoordinatorLogger` in `main.go`) — never to Ginkgo's captured output.
 
 **UpgradeBarrier** (worker processes):
-- Created per-spec via `NewUpgradeBarrier()`. All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
+- Created per-spec via `tc.NewUpgradeBarrier()` after `NewTestContext()`. Making it a TestContext method enforces construction order at compile time so barrier DeferCleanups always register after tc teardown (FILO: abort unblocks peers before Azure cleanup). All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
 - `CheckIn(ctx)` atomically increments `checked_in` and **returns immediately** — it does not wait for settlement. It also starts a background goroutine that polls for `UpgradeDone` and cancels the returned `upgradeDoneCtx` when the coordinator signals completion.
 - `WaitForUpgrade(ctx)` blocks until `UpgradeDone=true` and returns the coordinator's upgrade error (if any).
 - `CheckInAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
-- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `NewUpgradeBarrier` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
+- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `tc.NewUpgradeBarrier()` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
 
 ### Timing
 
@@ -413,7 +413,7 @@ export GITHUB_ACTIONS=true   # makes templatize's cmdutils.GetAzureTokenCredenti
 lookups done by the test helpers). `GITHUB_ACTIONS` controls the credential used by the *templatize pipeline*
 when it performs its own subscription lookup. Both must be set for a fully local run of `upgrade/in-place`.
 
-The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
+The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `tc.NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
 ### Invocation
 
@@ -424,10 +424,9 @@ The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'
 ```go
 tc := framework.NewTestContext()
 
-// NewUpgradeBarrier must be called after NewTestContext so its abort DeferCleanup
-// runs before tc teardown in FILO order, unblocking other specs before resource cleanup.
-// The total spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
-barrier, err := framework.NewUpgradeBarrier()
+// Constructed via TestContext so abort DeferCleanup runs before tc teardown in
+// FILO order. Spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
+barrier, err := tc.NewUpgradeBarrier()
 Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 // ... provision cluster, capture baseline ...

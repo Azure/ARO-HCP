@@ -538,7 +538,8 @@ func TestNewUpgradeBarrier_SubprocessMode(t *testing.T) {
 
 	seedUpgradeState(t, &upgradeBarrierState{RunID: os.Getppid()})
 
-	b, err := NewUpgradeBarrier()
+	tc := &perItOrDescribeTestContext{}
+	b, err := tc.NewUpgradeBarrier()
 	require.NoError(t, err, "NewUpgradeBarrier should succeed in subprocess mode")
 	if b != nil {
 		_ = b.lockFile.Close()
@@ -558,7 +559,8 @@ func TestNewUpgradeBarrier_InProcessMode(t *testing.T) {
 
 	seedUpgradeState(t, &upgradeBarrierState{RunID: os.Getpid()})
 
-	b, err := NewUpgradeBarrier()
+	tc := &perItOrDescribeTestContext{}
+	b, err := tc.NewUpgradeBarrier()
 	require.NoError(t, err, "NewUpgradeBarrier should succeed in in-process mode")
 	if b != nil {
 		_ = b.lockFile.Close()
@@ -580,7 +582,8 @@ func TestNewUpgradeBarrier_RunIDMismatch(t *testing.T) {
 	staleRunID := os.Getpid() + os.Getppid() + 1
 	seedUpgradeState(t, &upgradeBarrierState{RunID: staleRunID})
 
-	_, err := NewUpgradeBarrier()
+	tc := &perItOrDescribeTestContext{}
+	_, err := tc.NewUpgradeBarrier()
 	require.Error(t, err, "NewUpgradeBarrier should fail on RunID mismatch")
 	assert.Contains(t, err.Error(), "RunID mismatch", "error should name the mismatch")
 }
