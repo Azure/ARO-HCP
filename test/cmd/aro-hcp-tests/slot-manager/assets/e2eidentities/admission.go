@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
@@ -35,8 +36,10 @@ import (
 )
 
 type admitClients struct {
-	identities *armmsi.UserAssignedIdentitiesClient
-	roles      *armauthorization.RoleAssignmentsClient
+	subscriptionID string
+	resourceGroups *armresources.ResourceGroupsClient
+	identities     *armmsi.UserAssignedIdentitiesClient
+	roles          *armauthorization.RoleAssignmentsClient
 }
 
 func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error) {
@@ -48,9 +51,15 @@ func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating role assignments client: %w", err)
 	}
+	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating resource groups client: %w", err)
+	}
 	return &admitClients{
-		identities: msiFactory.NewUserAssignedIdentitiesClient(),
-		roles:      roles,
+		subscriptionID: subscriptionID,
+		resourceGroups: resourceGroups,
+		identities:     msiFactory.NewUserAssignedIdentitiesClient(),
+		roles:          roles,
 	}, nil
 }
 
@@ -94,7 +103,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	logger.Info(fmt.Sprintf("Loaded identity lease inventory with %d role assignments", len(assignments)))
 	workers := max(cleanupWorkers, 1)
 	logger.Info("Deleting role assignments", "count", len(assignments), "workers", workers)
-	if err := azureutil.RunWithWorkers(ctx, azureutil.DeleteRoleAssignmentOps(logger, clients.roles, assignments), workers); err != nil {
+	if err := azureutil.RunWithWorkers(ctx, azureutil.DeleteRoleAssignmentOps(logger, clients.roles, clients.resourceGroups, clients.subscriptionID, assignments), workers); err != nil {
 		return fmt.Errorf("failed cleaning E2E identity lease: %w", err)
 	}
 	return nil

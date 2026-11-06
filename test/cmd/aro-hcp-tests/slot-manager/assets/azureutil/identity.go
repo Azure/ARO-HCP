@@ -30,8 +30,10 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -257,7 +259,7 @@ func roleAssignmentPrincipal(assignment *armauthorization.RoleAssignment) (uuid.
 }
 
 // DeleteRoleAssignmentOps returns bounded-worker operations that delete assignments by ID.
-func DeleteRoleAssignmentOps(logger logr.Logger, client *armauthorization.RoleAssignmentsClient, assignments []*armauthorization.RoleAssignment) []func(context.Context) error {
+func DeleteRoleAssignmentOps(logger logr.Logger, client *armauthorization.RoleAssignmentsClient, resourceGroups *armresources.ResourceGroupsClient, subscriptionID string, assignments []*armauthorization.RoleAssignment) []func(context.Context) error {
 	operations := make([]func(context.Context) error, 0, len(assignments))
 	for _, assignment := range assignments {
 		operations = append(operations, func(ctx context.Context) error {
@@ -271,6 +273,11 @@ func DeleteRoleAssignmentOps(logger logr.Logger, client *armauthorization.RoleAs
 				return nil
 			}
 			if err != nil {
+				var responseError *azcore.ResponseError
+				if errors.As(err, &responseError) && responseError.ErrorCode == "AuthorizationFailed" && roleAssignmentResourceGroupMissing(ctx, resourceGroups, subscriptionID, assignment) {
+					logger.Info("Role assignment resource group not found. Nothing to delete", "roleAssignmentResourceID", *assignment.ID)
+					return nil
+				}
 				return fmt.Errorf("failed deleting role assignment %q: %w", *assignment.ID, err)
 			}
 			logger.Info("Deleted role assignment",
@@ -285,6 +292,37 @@ func DeleteRoleAssignmentOps(logger logr.Logger, client *armauthorization.RoleAs
 		})
 	}
 	return operations
+}
+
+func roleAssignmentResourceGroupMissing(ctx context.Context, client *armresources.ResourceGroupsClient, subscriptionID string, assignment *armauthorization.RoleAssignment) bool {
+	if client == nil || assignment.Properties == nil || assignment.Properties.Scope == nil {
+		return false
+	}
+	scope := *assignment.Properties.Scope
+	resourceID, err := azcorearm.ParseResourceID(scope)
+	if err != nil || resourceID.ResourceGroupName == "" || !strings.EqualFold(resourceID.SubscriptionID, subscriptionID) || !strings.EqualFold(resourceID.String(), scope) {
+		return false
+	}
+	if _, err := ParsePrincipalID(resourceID.SubscriptionID); err != nil {
+		return false
+	}
+	parts := strings.Split(scope, "/")
+	if len(parts) < 5 || !strings.EqualFold(parts[1], "subscriptions") || !strings.EqualFold(parts[3], "resourceGroups") || (len(parts) > 5 && !strings.EqualFold(parts[5], "providers")) {
+		return false
+	}
+	for _, part := range parts[1:] {
+		if part == "" || part != strings.TrimSpace(part) || part == "." || part == ".." || strings.ContainsAny(part, "\\%?#") {
+			return false
+		}
+	}
+	for current := resourceID; current.Parent != nil; current = current.Parent {
+		if current.Name == "" {
+			return false
+		}
+	}
+	_, err = client.Get(ctx, resourceID.ResourceGroupName, nil)
+	var responseError *azcore.ResponseError
+	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound && responseError.ErrorCode == "ResourceGroupNotFound"
 }
 
 // DeleteFederatedCredentialOps returns bounded-worker operations that delete federated credentials.
