@@ -34,6 +34,7 @@ import (
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
 	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/egresspublicips"
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
@@ -1149,6 +1150,26 @@ func registerIdentityRoleAssignmentsController() controllerconfig.ControllerRegi
 	}
 }
 
+func registerEgressPublicIPsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateEgressPublicIPsController, false),
+	}
+}
+
+func instantiateEgressPublicIPsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+	return egresspublicips.NewEgressPublicIPsController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		subscriptionLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.BackendInformers,
+	), nil
+}
+
 func instantiateIdentityRoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
@@ -1418,5 +1439,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(egresspublicips.EgressPublicIPsControllerName)] = registerEgressPublicIPsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }
