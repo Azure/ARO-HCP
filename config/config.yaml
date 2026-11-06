@@ -448,7 +448,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:22e41393c0b5ed3c36a5a72572ae511b0834081344f367dbd7e5a3ef04c6f7e7 # 1b72ba5ab18b58009ea31ccfde3744009476189a (2026-11-05 19:37)
+      digest: sha256:d4ff8d1c0f387fce6d3ed1b398ec6106af8e8edf24f6f26d3d13500260045f7e # ddfdbdc811c08ebc2fbe0dc607fb52b5548592c4 (2026-11-06 21:00)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -698,13 +698,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: ca5ad845fe74b8c56ea8bb6c331591cbfc1c3d8f3190c769c98d78f6b3b825e0 # v0.95.0 (2026-11-05 10:29)
+          sha: bed2045efeb56abb836eda42bb80a328ad659182c2f4dd6b56fb5729bcbdf77b # v0.95.1 (2026-11-06 10:29)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 2a25aec581a6bdedd35653fb16dc2daaa96697b68590dbed7edb7c5b920704a2 # v3.15.1 (2026-11-03 11:38)
+          sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710 # v3.16.0 (2026-11-06 11:08)
         version: ""
         resources:
           requests:
@@ -718,7 +718,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 17be6a39e3e6e051c8118ac4ceb8abe67b646e17e97e0d8510cc6ec2ad8fedd1 # v0.95.0 (2026-11-05 10:30)
+          sha: ed1b753be134bf88ad333e52cf39e27c3f121be5ce6fb5082d7fa9f260a2bd56 # v0.95.1 (2026-11-06 10:26)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -837,13 +837,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: ca5ad845fe74b8c56ea8bb6c331591cbfc1c3d8f3190c769c98d78f6b3b825e0 # v0.95.0 (2026-11-05 10:29)
+          sha: bed2045efeb56abb836eda42bb80a328ad659182c2f4dd6b56fb5729bcbdf77b # v0.95.1 (2026-11-06 10:29)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 2a25aec581a6bdedd35653fb16dc2daaa96697b68590dbed7edb7c5b920704a2 # v3.15.1 (2026-11-03 11:38)
+          sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710 # v3.16.0 (2026-11-06 11:08)
         resources:
           requests:
             cpu: NONE
@@ -856,7 +856,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 17be6a39e3e6e051c8118ac4ceb8abe67b646e17e97e0d8510cc6ec2ad8fedd1 # v0.95.0 (2026-11-05 10:30)
+          sha: ed1b753be134bf88ad333e52cf39e27c3f121be5ce6fb5082d7fa9f260a2bd56 # v0.95.1 (2026-11-06 10:26)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -1154,12 +1154,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
-        digest: sha256:785e8104bcab52cd5409dcb2049488b55527c6dd43c035ba027d08d92e71e9d5 # v2.17.4-519 (2026-11-05 21:04)
+        digest: sha256:e81635131784cc6a83f91b0da00207e3d0189426bc0ec0fbba880c192e7b495c # v2.17.4-521 (2026-11-06 21:04)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
-        digest: sha256:9dcdf31fb7c4e8fcea49402e6223bae44d1f751b856a3dc21b6bd20638e99a41 # v2.17.4-570 (2026-11-06 03:56)
+        digest: sha256:dab65ee39be8765efa887ad5f3008947d04a775910d7e3cde4e42a245075bca0 # v2.17.4-571 (2026-11-06 15:05)
   # Cluster Service
   clustersService:
     image:
