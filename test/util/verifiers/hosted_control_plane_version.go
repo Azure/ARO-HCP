@@ -266,7 +266,7 @@ func (v verifyHostedControlPlaneReachedVersion) Verify(ctx context.Context, admi
 	}
 
 	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+		"history", renderClusterVersionHistory(clusterVersion.Status.History))
 
 	for _, h := range clusterVersion.Status.History {
 		if len(h.Version) == 0 {
