@@ -122,6 +122,35 @@ func SetWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, 
 	}
 }
 
+// SetNamespaceFinalized records the result of an ApplyDesire
+// Type=FinalizeNamespace sync attempt. It writes both the operation-specific
+// ConditionTypeNamespaceFinalized and the legacy ConditionTypeSuccessful
+// (retained for backwards compatibility) with the same status/reason/message.
+func SetNamespaceFinalized(conds *[]metav1.Condition, err error) {
+	setResult(conds, kubeapplierapi.ConditionTypeNamespaceFinalized, err)
+	setResult(conds, kubeapplierapi.ConditionTypeSuccessful, err)
+}
+
+// SetFinalizePreconditionFailed records that an execution precondition did not
+// hold when re-checked against the live API immediately before the mutation.
+//
+// This is not a failure the caller should treat as terminal and not a success:
+// the preconditions are re-evaluated from scratch on the next pass, so a
+// transient state resolves itself without operator action.
+func SetFinalizePreconditionFailed(conds *[]metav1.Condition, reason string) {
+	for _, condType := range []string{
+		kubeapplierapi.ConditionTypeNamespaceFinalized,
+		kubeapplierapi.ConditionTypeSuccessful,
+	} {
+		meta.SetStatusCondition(conds, metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionFalse,
+			Reason:  kubeapplierapi.ConditionReasonFinalizePreconditionFailed,
+			Message: reason,
+		})
+	}
+}
+
 // SetDegraded records controller-level health. Convention matches the
 // existing backend controllers: nil -> NoErrors/False, non-nil -> Failed/True.
 func SetDegraded(conds *[]metav1.Condition, err error) {
