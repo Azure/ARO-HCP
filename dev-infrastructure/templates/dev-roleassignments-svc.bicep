@@ -1,5 +1,6 @@
-// This is used to grant CI the ability to deploy resources into
-// dev AKS clusters. It should not be used in higher environments.
+// This is used to grant personal dev environments the ability to deploy
+// resources into dev AKS clusters. It should not be used in higher
+// environments.
 //
 // This template is deployed to the service cluster resource group,
 // which is where the AKS cluster lives. Cosmos DB role assignments
@@ -12,8 +13,8 @@ param location string = resourceGroup().location
 param principalID string
 
 // Defaults to User because the make goal derives principalID from the
-// signed-in human (az ad signed-in-user). CI runs as a service principal
-// and must pass ServicePrincipal.
+// signed-in human (az ad signed-in-user). When the signed-in account is
+// a service principal instead, the make goal passes ServicePrincipal.
 @allowed([
   'User'
   'Group'
