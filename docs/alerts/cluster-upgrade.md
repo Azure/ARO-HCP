@@ -61,6 +61,13 @@ No upgrade alert is not, by itself, proof that the cluster is healthy.
 | Deletion or uninstallation confirmed at any stage | RP deletion timestamp is set, or CS reports `uninstalling` | `0`, regardless of retained version metrics | Cancel Pending or clear Firing; deletion monitoring takes ownership. This is lifecycle exclusion, not upgrade success |
 | Observations become unavailable | An existing stuck condition can no longer be reassessed | Retain the previous `1` | Do not auto-mitigate merely because telemetry disappeared or a lifecycle lookup failed |
 
+The established firing latch is a separate recording rule. Five prior one-minute
+samples plus the current condition establish it at the first firing evaluation;
+a later skipped evaluation does not require
+that initial window to be satisfied again. Recomputing a healthy value requires
+known state for every member of the current-target set, not just one completed
+member. Missing one target therefore cannot silently resolve a firing condition.
+
 | Completion edge case | Required treatment |
 | --- | --- |
 | Current target is Completed but stale Partial samples for the same version remain | Completed takes precedence; stale Partial samples must not retain the alert |
@@ -70,11 +77,31 @@ No upgrade alert is not, by itself, proof that the cluster is healthy.
 ## Lifecycle and dispatch
 
 `TriggerControlPlaneUpgrade` observes CS lifecycle on every normal reconcile,
-including clusters already at their desired version. It mirrors
+including clusters already at their desired version. It uses `GetClusterStatus`,
+not a full cluster read that can resolve unrelated autoscaler links. It mirrors
 `ControlPlaneUpgradeMonitoringEnabled` onto ServiceProviderCluster conditions.
 The metrics handler exports that observation as
 `backend_cluster_upgrade_monitoring_enabled`: 1 for an observed non-uninstalling
 CS state, 0 for an RP deletion timestamp or CS `uninstalling`.
+
+The terminal CS uninstallation observation is also persisted as
+`Cluster.ServiceProviderProperties.ClusterServiceUninstallingObserved` before
+publishing the SPC condition. This is an observation, not a deletion request,
+and survives SPC cleanup and backend restarts.
+
+| Independent primary inventory signal | Recovery meaning |
+| --- | --- |
+| Primary Cluster has an RP deletion timestamp or durable uninstallation observation | Confirmed lifecycle exclusion, even if the SPC metrics queue coalesced the disable update and deletion |
+| A synced, complete inventory no longer contains a previously stuck Cluster | Confirmed resource removal; emit a clear zero, then retire its monitor series |
+| Initial cache synchronization is incomplete | No inventory assertion; do not infer deletion |
+| Inventory rows are missing or come from a different scrape than the expected size | Incomplete observation; do not infer deletion |
+
+`backend_cluster_upgrade_inventory_info` and `_size` are collected directly from
+one primary cache snapshot rather than from the per-object metrics queue.
+Counts and scrape timestamps must agree per backend process/source before
+absence can prove removal. Thus a scrape outage spanning cleanup, followed by
+an exporter restart, can recover from authoritative inventory without relying on
+the SPC's transient final zero or its 30-second Cosmos soft-delete document.
 
 A confirmed deletion/uninstallation both prevents creating another upgrade
 policy and makes the cluster monitor explicitly zero, even while Partial
@@ -106,7 +133,7 @@ default is `legacy`; this PR does not automatically enable new paging.
 | Deploy backend | Current targets and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
 | Deploy recording rules, then select `shadow` | New inputs are available before evaluating the new detector; old alerting remains enabled |
 | Validate shadow behavior | Known stuck clusters produce 1; completion or confirmed deleting/uninstalling produces 0; missing observations do not mitigate; phase/version/UUID changes do not duplicate the cluster condition |
-| Prepare cutover | Review old active incidents, routing, silences, old SLO labels and version-specific correlation IDs; agree how to dispose of old incidents |
+| Prepare cutover | Review old active incidents, routing, silences, old SLO labels and version-specific correlation IDs; agree how to dispose of old incidents; separately review any dashboard/UI changes with required screenshots |
 | Select `active` | Verify that the production detector starts its pending/firing lifecycle, reaches the RP receiver, and auto-mitigates on a confirmed 1-to-0 transition |
 | Expand by environment/region | Reviewer-approved observations support widening the rollout; the mode can be returned to `legacy` for detector rollback |
 
@@ -131,4 +158,7 @@ against historical data before rollout.
 
 Rule tests cover current completion with retained historical Partial series,
 pending and firing lifecycle transitions, stable identity across stages and
-targets, rollback, initial-install exclusion, and missing observations.
+targets, rollback, initial-install exclusion, selective telemetry loss,
+evaluation gaps, coalesced SPC deletion and scrape outages/exporter restart.
+This PR does not modify the Grafana dashboard; its text/layout changes require
+a separate screenshot-backed review.

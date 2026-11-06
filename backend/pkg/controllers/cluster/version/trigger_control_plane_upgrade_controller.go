@@ -137,21 +137,34 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		condition.Status = metav1.ConditionFalse
 		condition.Reason = "Deleting"
 		condition.Message = "Cluster deletion has been requested."
+	} else if existingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = "Uninstalling"
+		condition.Message = "Cluster Service is uninstalling the cluster."
 	} else {
 		if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 			return nil
 		}
 		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-		csCluster, csErr := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+		csStatus, csErr := c.clusterServiceClient.GetClusterStatus(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 		cancel()
 		if csErr != nil {
 			// Preserve the last observation on failure; unknown is not recovery.
 			return utils.TrackError(fmt.Errorf("failed to observe cluster lifecycle before upgrade: %w", csErr))
 		}
-		if csCluster == nil || csCluster.Status() == nil || csCluster.Status().State() == "" {
+		if csStatus == nil || csStatus.State() == "" {
 			return utils.TrackError(fmt.Errorf("cluster service returned no cluster lifecycle state"))
 		}
-		if csCluster.Status().State() == arohcpv1alpha1.ClusterStateUninstalling {
+		if csStatus.State() == arohcpv1alpha1.ClusterStateUninstalling {
+			clusterReplacement := existingCluster.DeepCopy()
+			clusterReplacement.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
+			_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
+			if cosmosstorageutils.IsPreconditionFailedError(err) {
+				return nil
+			}
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to retain cluster uninstallation observation: %w", err))
+			}
 			condition.Status = metav1.ConditionFalse
 			condition.Reason = "Uninstalling"
 			condition.Message = "Cluster Service is uninstalling the cluster."

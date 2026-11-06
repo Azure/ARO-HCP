@@ -344,3 +344,176 @@ tests:
     exp_alerts:
     - exp_labels: *stuckLabels
       exp_annotations: *stuckAnnotations
+- name: selective version telemetry loss is not completion of all targets
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x100"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.42", state="completed"}'
+    values: "1x100"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="completed"}'
+    values: "_x65 1x35"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.42"}'
+    values: "1x100"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x100"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x100"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:target_observations_complete:bool
+    eval_time: 60m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:target_observations_complete:bool{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1"}'
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 60m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 70m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts:
+    - exp_labels: *stuckLabels
+      exp_annotations: *stuckAnnotations
+  - eval_time: 70m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts: []
+- name: durable parent uninstallation clears after SPC cleanup and scrape outage
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_inventory_size{cluster="svc-1", backend_process="restarted"}'
+    values: "_x65 1x35"
+  - series: 'backend_cluster_upgrade_inventory_info{cluster="svc-1", backend_process="restarted", resource_id="/sub/1/rg/c1", subscription_id="sub-1", deletion_confirmed="true"}'
+    values: "_x65 1x35"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 60m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 70m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts: []
+- name: complete primary inventory clears a removed cluster after exporter restart
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_inventory_size{cluster="svc-1", backend_process="restarted"}'
+    values: "_x65 0x35"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 60m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 65m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 70m
+    exp_samples: []
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts: []
+- name: incomplete inventory ingestion does not prove cluster deletion
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_inventory_size{cluster="svc-1", backend_process="restarted"}'
+    values: "_x65 2x35"
+  - series: 'backend_cluster_upgrade_inventory_info{cluster="svc-1", backend_process="restarted", resource_id="/sub/1/rg/other", subscription_id="sub-1", deletion_confirmed="false"}'
+    values: "_x65 1x35"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:inventory_observations_complete:bool
+    eval_time: 70m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:inventory_observations_complete:bool{cluster="svc-1", backend_process="restarted"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts:
+    - exp_labels: *stuckLabels
+      exp_annotations: *stuckAnnotations
+- name: matching inventory count from an older scrape does not prove deletion
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_inventory_size{cluster="svc-1", backend_process="restarted"}'
+    values: "_x65 1x35"
+  - series: 'backend_cluster_upgrade_inventory_info{cluster="svc-1", backend_process="restarted", resource_id="/sub/1/rg/other", subscription_id="sub-1", deletion_confirmed="false"}'
+    values: "1x64 _x10 1x25"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:inventory_observations_complete:bool
+    eval_time: 65m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:inventory_observations_complete:bool{cluster="svc-1", backend_process="restarted"}'
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 65m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 75m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 80m
+    exp_samples: []
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts:
+    - exp_labels: *stuckLabels
+      exp_annotations: *stuckAnnotations
+  - eval_time: 75m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts: []
