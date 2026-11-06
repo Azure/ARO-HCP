@@ -1634,7 +1634,7 @@
           "refId": "B"
         }
       ],
-      "title": "Worst Component Availability (30d, Provisional Target 99.95%)",
+      "title": "Worst Component Availability (30d, Proposed 99.95%)",
       "type": "stat"
     },
     {
@@ -2238,7 +2238,7 @@
           "refId": "B"
         }
       ],
-      "title": "Current Availability (Provisional Target 99.95%)",
+      "title": "Current Availability (Proposed 99.95%)",
       "type": "timeseries"
     },
     {
