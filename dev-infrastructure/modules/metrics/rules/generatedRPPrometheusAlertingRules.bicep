@@ -1339,7 +1339,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'hypershiftOperatorPodsUnavailable'
+        alert: 'userJourneyHypershiftOperatorAvailabilityPodsUnavailable'
         enabled: true
         labels: {
           component: 'slo'
@@ -1348,7 +1348,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'hypershiftOperatorPodsUnavailable/{{ $labels.cluster }}'
+          correlationId: 'userJourneyHypershiftOperatorAvailabilityPodsUnavailable/{{ $labels.cluster }}'
           description: '''{{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1356,8 +1356,8 @@ Management Cluster: {{ $labels.cluster }}
 Management Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
-          title: '{{ $labels.cluster }}: hypershift-operator pods unavailable'
+          summary: 'hypershift-operator pods unavailable'
+          title: 'hypershift-operator pods unavailable'
         }
         expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 1'
         for: 'PT15M'
@@ -1373,16 +1373,16 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'hypershiftOperatorPodsDown'
+        alert: 'userJourneyHypershiftOperatorAvailabilityPodsDown'
         enabled: true
         labels: {
           component: 'slo'
           service: 'hypershift-operator'
-          severity: '2'
+          severity: '3'
           slo: 'hypershift-operator-availability'
         }
         annotations: {
-          correlationId: 'hypershiftOperatorPodsDown/{{ $labels.cluster }}'
+          correlationId: 'userJourneyHypershiftOperatorAvailabilityPodsDown/{{ $labels.cluster }}'
           description: '''{{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1390,12 +1390,12 @@ Management Cluster: {{ $labels.cluster }}
 Management Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: hypershift-operator pods down'
-          title: '{{ $labels.cluster }}: hypershift-operator pods down'
+          summary: 'hypershift-operator pods down'
+          title: 'hypershift-operator pods down'
         }
         expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1407,7 +1407,7 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'hypershiftOperatorIdle'
+        alert: 'userJourneyHypershiftOperatorTrafficIdle'
         enabled: true
         labels: {
           component: 'slo'
@@ -1416,7 +1416,7 @@ Management Cluster: {{ $labels.cluster }}
           slo: 'hypershift-operator-traffic'
         }
         annotations: {
-          correlationId: 'hypershiftOperatorIdle/{{ $labels.cluster }}'
+          correlationId: 'userJourneyHypershiftOperatorTrafficIdle/{{ $labels.cluster }}'
           description: '''hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
 Management Cluster: {{ $labels.cluster }}
 '''
@@ -1424,8 +1424,8 @@ Management Cluster: {{ $labels.cluster }}
 Management Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
-          title: '{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes'
+          summary: 'hypershift-operator has not reconciled anything for 30 minutes'
+          title: 'hypershift-operator has not reconciled anything for 30 minutes'
         }
         expression: 'hypershift:operator:reconcile:rate5m == 0 and on (cluster) sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0'
         for: 'PT30M'

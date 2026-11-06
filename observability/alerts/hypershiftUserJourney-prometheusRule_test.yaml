@@ -1,5 +1,9 @@
 rule_files:
+- hypershiftControlPlaneOperator-recordingRule.yaml
 - hypershiftUserJourney-prometheusRule.yaml
+group_eval_order:
+- hypershift-cpo-recording-rules
+- hypershift-cpo-monitor-rules
 evaluation_interval: 1m
 tests:
 - interval: 1m
@@ -20,10 +24,10 @@ tests:
     values: "0+0x60"
   alert_rule_test:
   - eval_time: 5m
-    alertname: hypershiftCPODown
+    alertname: userJourneyControlPlaneOperatorAvailabilityDown
     exp_alerts: []
   - eval_time: 15m
-    alertname: hypershiftCPODown
+    alertname: userJourneyControlPlaneOperatorAvailabilityDown
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -33,10 +37,10 @@ tests:
         cluster: mc1
         namespace: ocm-prefix-1
       exp_annotations:
-        summary: "mc1/ocm-prefix-1: control-plane-operator has no available pods"
+        summary: "ocm-prefix-1: control-plane-operator has no available pods"
         description: |
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: mc1
           Namespace: ocm-prefix-1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftCPODown/mc1/ocm-prefix-1"
+        correlationId: "userJourneyControlPlaneOperatorAvailabilityDown/mc1/ocm-prefix-1"

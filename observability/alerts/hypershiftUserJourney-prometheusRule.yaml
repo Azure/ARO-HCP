@@ -4,28 +4,16 @@ metadata:
   name: hypershift-user-journey-hcp-alerts
   namespace: prometheus
 spec:
-  # ========================================
-  # HyperShift User Journey SLO Alerts - HCP workspace (ARO-27787)
-  # ========================================
-  # Only rules whose inputs live in the HCP Azure Monitor workspace belong here.
-  # prometheus.yaml remote-write routes any series whose namespace or
-  # hostedcontrolplane label matches ocm-<env>* to the HCP workspace, so the
-  # control-plane-operator (runs in the per-HCP namespace) is here. HyperShift
-  # Operator alerts live in hypershiftOperatorUserJourney-prometheusRule.yaml
-  # (services workspace) because the operator runs in the "hypershift"
-  # namespace. Cross-workspace PromQL joins are not possible.
+  # Control Plane Operator threshold alerts - HCP workspace.
+  # prometheus.yaml remote-write routes HCP-namespace-backed metrics here.
+  # HyperShift Operator alerts live in hypershiftOperatorUserJourney-prometheusRule.yaml
+  # (services workspace). Cross-workspace PromQL joins are not possible.
+  # Burn-rate alerts are deferred until the shared recordings are live in
+  # production, stakeholders approve the targets, and an alert-tester report
+  # validates the proposed alerts. KAS alerting is unchanged.
   #
-  # Journey availability from hypershift_kube_apiserver_available is deferred
-  # until that metric is scraped in production and its overlap with
-  # HCPKASAvailableBurn is settled; other CPO signals are dashboard-only.
-  #
-  # SLO targets are proposed defaults from the ARO-27787 spike, pending
-  # confirmation by the SLO owners; promtool tests prove the maths, not the
-  # targets.
-  #
-  # Aggregation: every alert is scoped per management cluster + HCP namespace
-  # (cluster, namespace), i.e. one alert per hosted control plane, so a single
-  # unhealthy HCP is never averaged away by healthy neighbours on the same MC.
+  # Aggregation: per management cluster + HCP namespace (cluster, namespace),
+  # so a single unhealthy HCP is never averaged away by healthy neighbours.
   groups:
   # control-plane-operator (CPO) health, one CPO per hosted control plane.
   # Fires when the CPO has no available pods; backend operation alerts cannot
@@ -35,7 +23,7 @@ spec:
     labels:
       component: slo
     rules:
-    - alert: hypershiftCPODown
+    - alert: userJourneyControlPlaneOperatorAvailabilityDown
       expr: |
         max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0
         and on (cluster, namespace)
@@ -46,10 +34,10 @@ spec:
         slo: control-plane-operator-availability
         service: control-plane-operator
       annotations:
-        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods"
+        summary: "{{ $labels.namespace }}: control-plane-operator has no available pods"
         description: |
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: {{ $labels.cluster }}
           Namespace: {{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftCPODown/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        correlationId: "userJourneyControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}"

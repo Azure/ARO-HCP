@@ -3,6 +3,7 @@ rule_files:
 - hypershiftOperatorUserJourney-prometheusRule.yaml
 group_eval_order:
 - hypershift-operator-recording-rules
+- hypershift-hostedcluster-recording-rules
 - hypershift-operator-monitor-rules
 evaluation_interval: 1m
 tests:
@@ -19,13 +20,13 @@ tests:
     values: "0+10x120"
   alert_rule_test:
   - eval_time: 120m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 120m
-    alertname: hypershiftOperatorPodsDown
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsDown
     exp_alerts: []
   - eval_time: 120m
-    alertname: hypershiftOperatorIdle
+    alertname: userJourneyHypershiftOperatorTrafficIdle
     exp_alerts: []
 - interval: 1m
   name: "One HyperShift Operator pod unavailable"
@@ -36,10 +37,10 @@ tests:
     values: "3+0x60"
   alert_rule_test:
   - eval_time: 10m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 20m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -48,14 +49,14 @@ tests:
         component: slo
         cluster: mc1
       exp_annotations:
-        summary: "mc1: hypershift-operator pods unavailable"
+        summary: "hypershift-operator pods unavailable"
         description: |
           1 hypershift-operator pod(s) have been unavailable for 15 minutes.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftOperatorPodsUnavailable/mc1"
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsUnavailable/mc1"
   - eval_time: 20m
-    alertname: hypershiftOperatorPodsDown
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsDown
     exp_alerts: []
 - interval: 1m
   name: "Two HyperShift Operator pods unavailable"
@@ -68,23 +69,7 @@ tests:
     values: "3+0x60"
   alert_rule_test:
   - eval_time: 10m
-    alertname: hypershiftOperatorPodsDown
-    exp_alerts:
-    - exp_labels:
-        severity: "2"
-        slo: hypershift-operator-availability
-        service: hypershift-operator
-        component: slo
-        cluster: mc1
-      exp_annotations:
-        summary: "mc1: hypershift-operator pods down"
-        description: |
-          2 hypershift-operator pods have been unavailable for 5 minutes.
-          Management Cluster: mc1
-        runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftOperatorPodsDown/mc1"
-  - eval_time: 20m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsDown
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -93,15 +78,31 @@ tests:
         component: slo
         cluster: mc1
       exp_annotations:
-        summary: "mc1: hypershift-operator pods unavailable"
+        summary: "hypershift-operator pods down"
+        description: |
+          2 hypershift-operator pods have been unavailable for 5 minutes.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsDown/mc1"
+  - eval_time: 20m
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "hypershift-operator pods unavailable"
         description: |
           2 hypershift-operator pod(s) have been unavailable for 15 minutes.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftOperatorPodsUnavailable/mc1"
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsUnavailable/mc1"
   # With no operator reconciling there is no reconcile series, so Idle stays quiet and does not duplicate the pod alerts.
   - eval_time: 60m
-    alertname: hypershiftOperatorIdle
+    alertname: userJourneyHypershiftOperatorTrafficIdle
     exp_alerts: []
 - interval: 1m
   name: "Short HyperShift Operator pod outages fire no alerts"
@@ -118,13 +119,13 @@ tests:
     values: "3+0x60"
   alert_rule_test:
   - eval_time: 8m
-    alertname: hypershiftOperatorPodsDown
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsDown
     exp_alerts: []
   - eval_time: 15m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 30m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
 - interval: 1m
   name: "HyperShift Operator wedged while HostedClusters exist"
@@ -135,7 +136,7 @@ tests:
     values: "5+0x100"
   alert_rule_test:
   - eval_time: 60m
-    alertname: hypershiftOperatorIdle
+    alertname: userJourneyHypershiftOperatorTrafficIdle
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -144,12 +145,12 @@ tests:
         component: slo
         cluster: mc1
       exp_annotations:
-        summary: "mc1: hypershift-operator has not reconciled anything for 30 minutes"
+        summary: "hypershift-operator has not reconciled anything for 30 minutes"
         description: |
           hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "hypershiftOperatorIdle/mc1"
+        correlationId: "userJourneyHypershiftOperatorTrafficIdle/mc1"
 - interval: 1m
   name: "HyperShift Operator idle without HostedClusters fires no alert"
   input_series:
@@ -159,5 +160,5 @@ tests:
     values: "5+0x100"
   alert_rule_test:
   - eval_time: 60m
-    alertname: hypershiftOperatorIdle
+    alertname: userJourneyHypershiftOperatorTrafficIdle
     exp_alerts: []

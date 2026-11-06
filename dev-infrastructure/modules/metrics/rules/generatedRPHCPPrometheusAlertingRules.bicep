@@ -150,7 +150,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
             }
           }
         ]
-        alert: 'hypershiftCPODown'
+        alert: 'userJourneyControlPlaneOperatorAvailabilityDown'
         enabled: true
         labels: {
           component: 'slo'
@@ -159,7 +159,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
           slo: 'control-plane-operator-availability'
         }
         annotations: {
-          correlationId: 'hypershiftCPODown/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          correlationId: 'userJourneyControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}'
           description: '''control-plane-operator has had no available pods for 10 minutes.
 Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
@@ -169,8 +169,8 @@ Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
-          title: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
+          summary: '{{ $labels.namespace }}: control-plane-operator has no available pods'
+          title: '{{ $labels.namespace }}: control-plane-operator has no available pods'
         }
         expression: 'max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0'
         for: 'PT10M'
