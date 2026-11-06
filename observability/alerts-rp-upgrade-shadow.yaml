@@ -1,0 +1,9 @@
+prometheusRules:
+  rulesFolders:
+  - alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
+  untestedRules: []
+  testDependencies:
+  - recording-rules-services.yaml
+  parameterizeAlertRulesEnabled: true
+  groupNamePrefix: shadow-
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPUpgradeShadowAlertingRules.bicep

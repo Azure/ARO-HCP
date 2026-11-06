@@ -10,7 +10,7 @@ metadata:
   namespace: monitoring
 spec:
   groups:
-  - name: rp-user-journey-cluster-upgrade-monitor-rules
+  - name: rp-user-journey-cluster-upgrade-monitor-rules-v2
     rules:
     - alert: userJourneyClusterUpgradeStuck
       expr: |

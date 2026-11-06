@@ -433,52 +433,6 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
   }
 }
 
-resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'rp-user-journey-cluster-upgrade-monitor-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeStuck'
-        enabled: true
-        labels: {
-          component: 'slo'
-          severity: '4'
-          slo: 'cluster-upgrade'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeStuck/{{ $labels.cluster }}{{ $labels.resource_id }}'
-          description: '''The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
-Service Cluster: {{ $labels.cluster }}
-'''
-          info: '''The cluster version change (upgrade or rollback) has not converged. The target exceeded 20 minutes in desired or 30 minutes in progress, with a further 5-minute alert pending window. This cluster-level condition remains active across target and phase changes until the current observed targets complete or deletion/uninstallation is confirmed. Inspect backend_cluster_version_info and backend_cluster_upgrade_target_info for version details.
-Service Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck'
-          title: '{{ $labels.cluster }}: Cluster upgrade on {{ $labels.resource_id }} is stuck'
-        }
-        expression: 'hosted_control_plane_upgrade:stuck:bool == 1'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_nodepool_slo_error_alerts'
   location: location
