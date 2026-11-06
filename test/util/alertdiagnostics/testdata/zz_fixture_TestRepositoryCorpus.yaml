@@ -5635,6 +5635,111 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
   alert: hypershiftCPODown
   occurrence: 1
@@ -12543,6 +12648,126 @@
         thresholds:
           - operator: '>'
             value: 2
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: |
+    1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995))
+    and
+    1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: |
+    1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995)
+    and
+    1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995)
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: |
+    1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995))
+    and
+    1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995)) and 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: 1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h]))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   group: rp-user-journey-cluster-upgrade-monitor-rules
