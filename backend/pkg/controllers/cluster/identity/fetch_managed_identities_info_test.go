@@ -17,6 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +32,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
@@ -838,6 +842,7 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 		mockARMUserAssignedIdentitiesClient                *fakeUserAssignedIdentitiesClientByName
 		mockARMUserAssignedIdentitiesClientBuilderErr      error
 		want                                               map[string]*coreapi.IdentityMetadataValue
+		wantRetryAfter                                     time.Duration
 		wantErrorsSubstrs                                  []string
 		wantARMUserAssignedIdentitiesClientBuilderCallsNum int
 	}{
@@ -978,6 +983,34 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 			wantErrorsSubstrs: []string{"Properties is nil"},
 			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
 		},
+		{
+			name:              "throttle stops loop",
+			cluster:           newTestClusterForManagedIdentities(),
+			desiredIdentities: defaultDesiredIdentitiesToResolve,
+			mockARMUserAssignedIdentitiesClient: &fakeUserAssignedIdentitiesClientByName{
+				errByName: map[string]error{
+					strings.ToLower(controlPlaneOperatorName): throttleResponseError("5"),
+					strings.ToLower(dataPlaneOperatorName):    throttleResponseError("5"),
+				},
+			},
+			wantRetryAfter:    5 * time.Second,
+			wantErrorsSubstrs: []string{"ARM throttled (HTTP 429)"},
+			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
+		},
+		{
+			name:              "throttle without Retry-After falls back to default",
+			cluster:           newTestClusterForManagedIdentities(),
+			desiredIdentities: defaultDesiredIdentitiesToResolve,
+			mockARMUserAssignedIdentitiesClient: &fakeUserAssignedIdentitiesClientByName{
+				errByName: map[string]error{
+					strings.ToLower(controlPlaneOperatorName): throttleResponseError(""),
+					strings.ToLower(dataPlaneOperatorName):    throttleResponseError(""),
+				},
+			},
+			wantRetryAfter:    defaultThrottleRetryAfter,
+			wantErrorsSubstrs: []string{"ARM throttled (HTTP 429)"},
+			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -994,10 +1027,43 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 			syncer := &fetchManagedIdentitiesInfoSyncer{
 				smiClientBuilder: smiClientBuilder,
 			}
-			got, errs := syncer.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(context.Background(), tc.cluster, tc.desiredIdentities)
+			got, errs, retryAfter := syncer.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(context.Background(), tc.cluster, tc.desiredIdentities)
 			assertErrorsContainSubstringsInAnyOrder(t, errs, tc.wantErrorsSubstrs)
-			assertIdentityMetadataValues(t, got, tc.want)
+			assert.Equal(t, tc.wantRetryAfter, retryAfter)
+			if tc.want != nil {
+				assertIdentityMetadataValues(t, got, tc.want)
+			} else if tc.wantRetryAfter > 0 {
+				// Throttle case: map iteration order is nondeterministic, so
+				// we only verify the loop stopped (fewer entries than ARM
+				// identities attempted) and one entry has a retrieval error.
+				assert.Less(t, len(got), 2, "throttle should stop the loop before processing all ARM identities")
+				assert.Len(t, errs, 1, "exactly one throttle error expected")
+			}
 		})
+	}
+}
+
+// throttleResponseError returns an *azcore.ResponseError with HTTP 429 and
+// the given Retry-After header value. The RawResponse is fully populated so
+// err.Error() renders without panicking.
+func throttleResponseError(retryAfterSeconds string) *azcore.ResponseError {
+	header := http.Header{}
+	if retryAfterSeconds != "" {
+		header.Set("Retry-After", retryAfterSeconds)
+	}
+	return &azcore.ResponseError{
+		ErrorCode:  "TooManyRequests",
+		StatusCode: http.StatusTooManyRequests,
+		RawResponse: &http.Response{
+			Status:     "429 Too Many Requests",
+			StatusCode: http.StatusTooManyRequests,
+			Header:     header,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"TooManyRequests","message":"Rate limit exceeded."}}`)),
+			Request: &http.Request{
+				Method: http.MethodGet,
+				URL:    &url.URL{Scheme: "https", Host: "management.azure.com", Path: "/identity"},
+			},
+		},
 	}
 }
 
@@ -1276,6 +1342,36 @@ func TestFetchManagedIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 					MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
 						RetrievalError: ptr.To("ResourceNotFound"),
 					},
+				},
+			},
+		},
+		{
+			name: "ARM throttle sets recheck deadline",
+			cluster: newTestClusterForManagedIdentities(func(c *coreapi.Cluster) {
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{}
+			}),
+			serviceProviderCluster:              newTestServiceProviderCluster(),
+			mockManagedIdentitiesDataplaneCreds: defaultMIDataplaneCredentialsResponse,
+			mockARMUserAssignedIdentitiesClient: &fakeUserAssignedIdentitiesClientByName{
+				errByName: map[string]error{
+					strings.ToLower(controlPlaneOperatorName): throttleResponseError("5"),
+				},
+			},
+			wantManagedIdentitiesDataplaneCallsNum:             1,
+			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
+			wantErrorsSubstrs:          []string{"ARM throttled (HTTP 429)"},
+			wantEarliestRecheckTimeSet: true,
+			want: map[string]*coreapi.ManagedIdentityMetadata{
+				lowerControlPlaneOperatorIdentityResourceIDStr: {
+					ResourceID: controlplaneOperatorIdentityResourceID,
+					MetadataFromManagedIdentitiesDataplaneService: controlPlaneOperatorIdentityMIDataplaneMetadata,
+					MetadataFromARMUserAssignedIdentitiesAPI: &coreapi.IdentityMetadataValue{
+						RetrievalError: ptr.To("TooManyRequests"),
+					},
+				},
+				lowerServiceManagedIdentityResourceIDStr: {
+					ResourceID: serviceManagedIdentityResourceID,
+					MetadataFromManagedIdentitiesDataplaneService: serviceManagedIdentityMIDataplaneMetadata,
 				},
 			},
 		},
