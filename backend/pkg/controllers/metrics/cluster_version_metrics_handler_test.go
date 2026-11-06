@@ -267,7 +267,7 @@ func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 	handler.Delete(spcKey)
 
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""),
-		"backend_cluster_version_info", "backend_cluster_upgrade_target_info", "backend_cluster_upgrade_monitoring_enabled"))
+		"backend_cluster_version_info", "backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_monitoring_enabled"))
 }
 
 func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
@@ -325,6 +325,8 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			handler := newTestClusterVersionMetricsHandler(t, registry, nil)
+			metricsHandler, ok := handler.(*clusterVersionMetricsHandler)
+			require.True(t, ok)
 			cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
 			spc := newTestServiceProviderCluster(t, cluster, tt.desired, tt.active)
 			if tt.lifecycle != "" {
@@ -338,16 +340,19 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 			var expected strings.Builder
 			expected.WriteString("# HELP backend_cluster_upgrade_target_info Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.\n# TYPE backend_cluster_upgrade_target_info gauge\n")
 			for _, target := range tt.wantTargets {
-				fmt.Fprintf(&expected, "backend_cluster_upgrade_target_info{cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\",version=\"%s\"} 1\n",
-					resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), target)
+				fmt.Fprintf(&expected, "backend_cluster_upgrade_target_info{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\",version=\"%s\"} 1\n",
+					metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), target)
 			}
+			expected.WriteString("# HELP backend_cluster_upgrade_target_count Expected current target rows in the same coherent cluster version snapshot.\n# TYPE backend_cluster_upgrade_target_count gauge\n")
+			fmt.Fprintf(&expected, "backend_cluster_upgrade_target_count{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
+				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), len(tt.wantTargets))
 			if tt.wantEnabled != "" {
 				expected.WriteString("# HELP backend_cluster_upgrade_monitoring_enabled Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.\n# TYPE backend_cluster_upgrade_monitoring_enabled gauge\n")
 				fmt.Fprintf(&expected, "backend_cluster_upgrade_monitoring_enabled{cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %s\n",
 					resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), tt.wantEnabled)
 			}
 			require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected.String()),
-				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_monitoring_enabled"))
+				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_monitoring_enabled"))
 		})
 	}
 }
@@ -380,6 +385,64 @@ func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
 `, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
+func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	handler := newTestClusterVersionMetricsHandler(t, registry, nil)
+	collector, ok := handler.(prometheus.Collector)
+	require.True(t, ok)
+	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
+	active := []coreapi.ServiceProviderClusterActiveVersion{{
+		Version: ptr.To(semver.MustParse("4.20.42")), State: configv1.CompletedUpdate,
+	}}
+	handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.42", active))
+
+	metrics := make(chan prometheus.Metric)
+	go func() {
+		collector.Collect(metrics)
+		close(metrics)
+	}()
+	first := <-metrics
+	// Change the desired target while the scrape is paused after its count.
+	handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.43", active))
+	observed := []prometheus.Metric{first}
+	for metric := range metrics {
+		observed = append(observed, metric)
+	}
+	require.Len(t, observed, 3)
+	frozen := prometheus.NewRegistry()
+	frozen.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		for _, metric := range observed {
+			ch <- metric
+		}
+	}))
+	oldFamilies, err := frozen.Gather()
+	require.NoError(t, err)
+	for _, family := range oldFamilies {
+		if family.GetName() == "backend_cluster_upgrade_target_count" {
+			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
+		}
+		for _, metric := range family.Metric {
+			for _, label := range metric.Label {
+				if label.GetName() == "version" {
+					require.Equal(t, "4.20.42", label.GetValue(), "a scrape must not mix target revisions")
+				}
+			}
+		}
+	}
+	require.Contains(t, first.Desc().String(), "backend_cluster_upgrade_target_count")
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		switch family.GetName() {
+		case "backend_cluster_upgrade_target_count":
+			require.Equal(t, float64(2), family.Metric[0].GetGauge().GetValue())
+		case "backend_cluster_upgrade_target_info":
+			require.Len(t, family.Metric, 2)
+		}
+	}
 }
 
 func TestClusterVersionMetricsController_DeletesMetricsWhenResourceRemoved(t *testing.T) {

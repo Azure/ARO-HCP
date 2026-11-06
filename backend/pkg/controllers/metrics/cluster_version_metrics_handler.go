@@ -17,11 +17,13 @@ package metrics
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -32,10 +34,21 @@ import (
 )
 
 type clusterVersionMetricsHandler struct {
-	clusterVersionInfo *prometheus.GaugeVec
-	upgradeTargetInfo  *prometheus.GaugeVec
-	monitoringEnabled  *prometheus.GaugeVec
+	clusterVersionInfo *prometheus.Desc
+	upgradeTargetInfo  *prometheus.Desc
+	upgradeTargetCount *prometheus.Desc
+	monitoringEnabled  *prometheus.Desc
 	readDesireLister   kubeapplierlisters.ReadDesireLister
+	processID          string
+	mu                 sync.RWMutex
+	snapshots          map[string]clusterVersionMetricSnapshot
+}
+
+type clusterVersionMetricSnapshot struct {
+	resourceID, subscriptionID, clusterUUID string
+	targets                                 map[string]struct{}
+	versionStates                           map[string]string
+	lifecycle                               metav1.ConditionStatus
 }
 
 // NewClusterVersionMetricsHandler creates a metrics handler for cluster version metrics.
@@ -45,66 +58,89 @@ func NewClusterVersionMetricsHandler(
 ) Handler[*coreapi.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
 		readDesireLister: readDesireLister,
-		clusterVersionInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "backend_cluster_version_info",
-			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, but version hasn't reflected in the cluster active versions), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics.",
-		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version", "state"}),
-		upgradeTargetInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "backend_cluster_upgrade_target_info",
-			Help: "Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.",
-		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version"}),
-		monitoringEnabled: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "backend_cluster_upgrade_monitoring_enabled",
-			Help: "Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.",
-		}, []string{"resource_id", "subscription_id", "cluster_uuid"}),
+		processID:        string(uuid.NewUUID()),
+		snapshots:        map[string]clusterVersionMetricSnapshot{},
+		clusterVersionInfo: prometheus.NewDesc(
+			"backend_cluster_version_info",
+			"Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, but version hasn't reflected in the cluster active versions), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid", "version", "state"}, nil),
+		upgradeTargetInfo: prometheus.NewDesc(
+			"backend_cluster_upgrade_target_info",
+			"Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process", "version"}, nil),
+		upgradeTargetCount: prometheus.NewDesc(
+			"backend_cluster_upgrade_target_count",
+			"Expected current target rows in the same coherent cluster version snapshot.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process"}, nil),
+		monitoringEnabled: prometheus.NewDesc(
+			"backend_cluster_upgrade_monitoring_enabled",
+			"Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid"}, nil),
 	}
-	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo, metricsHandler.upgradeTargetInfo, metricsHandler.monitoringEnabled)
+	prometheusRegisterer.MustRegister(metricsHandler)
 	return metricsHandler
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) {
-	resourceID := resourceIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
-	subscriptionID := subscriptionIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
-	clusterUUID := metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent)
+func (metricsHandler *clusterVersionMetricsHandler) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricsHandler.clusterVersionInfo
+	ch <- metricsHandler.upgradeTargetInfo
+	ch <- metricsHandler.upgradeTargetCount
+	ch <- metricsHandler.monitoringEnabled
+}
 
-	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-	metricsHandler.upgradeTargetInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-	metricsHandler.monitoringEnabled.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-
-	labels := prometheus.Labels{
-		"resource_id": resourceID, "subscription_id": subscriptionID, "cluster_uuid": clusterUUID,
+func (metricsHandler *clusterVersionMetricsHandler) Collect(ch chan<- prometheus.Metric) {
+	// Copy immutable snapshots once so Sync cannot split a scrape across revisions.
+	metricsHandler.mu.RLock()
+	snapshots := make([]clusterVersionMetricSnapshot, 0, len(metricsHandler.snapshots))
+	for _, snapshot := range metricsHandler.snapshots {
+		snapshots = append(snapshots, snapshot)
 	}
-	if condition := apimeta.FindStatusCondition(serviceProviderCluster.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled); condition != nil {
-		switch condition.Status {
+	metricsHandler.mu.RUnlock()
+
+	for _, snapshot := range snapshots {
+		ch <- prometheus.MustNewConstMetric(metricsHandler.upgradeTargetCount, prometheus.GaugeValue, float64(len(snapshot.targets)),
+			snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID)
+		for version := range snapshot.targets {
+			ch <- prometheus.MustNewConstMetric(metricsHandler.upgradeTargetInfo, prometheus.GaugeValue, 1,
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID, version)
+		}
+		for version, state := range snapshot.versionStates {
+			ch <- prometheus.MustNewConstMetric(metricsHandler.clusterVersionInfo, prometheus.GaugeValue, 1,
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, version, state)
+		}
+		switch snapshot.lifecycle {
 		case metav1.ConditionTrue:
-			metricsHandler.monitoringEnabled.With(labels).Set(1)
+			ch <- prometheus.MustNewConstMetric(metricsHandler.monitoringEnabled, prometheus.GaugeValue, 1,
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID)
 		case metav1.ConditionFalse:
-			metricsHandler.monitoringEnabled.With(labels).Set(0)
+			ch <- prometheus.MustNewConstMetric(metricsHandler.monitoringEnabled, prometheus.GaugeValue, 0,
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID)
 		}
 	}
-	targets := map[string]struct{}{}
+}
+
+func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) {
+	snapshot := clusterVersionMetricSnapshot{
+		resourceID:     resourceIDMetricLabel(serviceProviderCluster.ResourceID.Parent),
+		subscriptionID: subscriptionIDMetricLabel(serviceProviderCluster.ResourceID.Parent),
+		clusterUUID:    metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent),
+		targets:        map[string]struct{}{},
+		versionStates:  metricsHandler.versionStatesFromServiceProviderCluster(serviceProviderCluster),
+	}
+	if condition := apimeta.FindStatusCondition(serviceProviderCluster.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled); condition != nil {
+		snapshot.lifecycle = condition.Status
+	}
 	active := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	if len(active) > 0 {
-		targets[active[0].Version.String()] = struct{}{}
+		snapshot.targets[active[0].Version.String()] = struct{}{}
 	}
 	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
-		targets[desired.String()] = struct{}{}
-	}
-	for version := range targets {
-		metricsHandler.upgradeTargetInfo.With(prometheus.Labels{
-			"resource_id": resourceID, "subscription_id": subscriptionID, "cluster_uuid": clusterUUID, "version": version,
-		}).Set(1)
+		snapshot.targets[desired.String()] = struct{}{}
 	}
 
-	for version, state := range metricsHandler.versionStatesFromServiceProviderCluster(serviceProviderCluster) {
-		metricsHandler.clusterVersionInfo.With(prometheus.Labels{
-			"resource_id":     resourceID,
-			"subscription_id": subscriptionID,
-			"cluster_uuid":    clusterUUID,
-			"version":         version,
-			"state":           state,
-		}).Set(1.0)
-	}
+	metricsHandler.mu.Lock()
+	metricsHandler.snapshots[snapshot.resourceID] = snapshot
+	metricsHandler.mu.Unlock()
 }
 
 func (metricsHandler *clusterVersionMetricsHandler) Delete(serviceProviderClusterKey string) {
@@ -116,12 +152,9 @@ func (metricsHandler *clusterVersionMetricsHandler) Delete(serviceProviderCluste
 		return
 	}
 
-	labels := prometheus.Labels{
-		"resource_id": resourceIDMetricLabel(serviceProviderClusterResourceID.Parent),
-	}
-	metricsHandler.clusterVersionInfo.DeletePartialMatch(labels)
-	metricsHandler.upgradeTargetInfo.DeletePartialMatch(labels)
-	metricsHandler.monitoringEnabled.DeletePartialMatch(labels)
+	metricsHandler.mu.Lock()
+	delete(metricsHandler.snapshots, resourceIDMetricLabel(serviceProviderClusterResourceID.Parent))
+	metricsHandler.mu.Unlock()
 }
 
 func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
