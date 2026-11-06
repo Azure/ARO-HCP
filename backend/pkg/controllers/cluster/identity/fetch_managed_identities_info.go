@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
@@ -54,6 +56,12 @@ const (
 	// managedIdentitiesRecheckInterval when setting this controller's
 	// Spec.EarliestRecheckTimesByController entry.
 	managedIdentitiesRecheckJitter = 0.5
+
+	// defaultThrottleRetryAfter is the cooldown applied when ARM returns
+	// HTTP 429 without a parseable Retry-After header. 30 s is a
+	// conservative lower bound that avoids hammering a throttled endpoint
+	// while remaining responsive enough to resume promptly.
+	defaultThrottleRetryAfter = 30 * time.Second
 )
 
 // identityToResolve describes one unique managed identity resource ID for which
@@ -322,7 +330,7 @@ func (c *fetchManagedIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key con
 	// operator identities. SMI-only identities are skipped because end-users are not asked to grant the
 	// SMI read on itself. If the same resource ID is also a control-plane or data-plane operator, ARM
 	// still applies.
-	armMetadata, armErrs := c.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(ctx, existingCluster, desiredIdentities)
+	armMetadata, armErrs, armRetryAfter := c.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(ctx, existingCluster, desiredIdentities)
 	errs = append(errs, armErrs...)
 	// Per-identity ARM Get failures still return an IdentityMetadataValue with
 	// RetrievalError set, so they overwrite the empty placeholder. A nil map
@@ -334,15 +342,22 @@ func (c *fetchManagedIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key con
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 	replacement.Status.ManagedIdentityDetails = replacementManagedIdentityDetails
-	// This controller's entry in Spec.EarliestRecheckTimesByController is
-	// intentionally cleared up-front and only set to a future value in the
-	// len(errs) == 0 success branch below. On any accumulated source error it
-	// stays absent so needsWork keeps returning true and the workqueue retry
-	// re-queries instead of being gated by a stale (possibly future) recheck
-	// time persisted alongside a partial update. delete on a nil map is a no-op.
-	delete(replacement.Spec.EarliestRecheckTimesByController, FetchManagedIdentitiesInfoControllerName)
 
-	if len(errs) == 0 {
+	// Three-way recheck logic:
+	//  1. armRetryAfter > 0 (ARM returned 429): set the recheck gate to
+	//     now + Retry-After so the controller backs off instead of
+	//     amplifying pressure on a throttled endpoint.
+	//  2. No errors at all: set the recheck gate to a jittered ~1 h so
+	//     the controller polls at a healthy interval.
+	//  3. Non-throttle errors: delete the entry so needsWork returns true
+	//     immediately and the workqueue retry re-queries.
+	if armRetryAfter > 0 {
+		recheckAt := metav1.NewTime(c.clock.Now().Add(armRetryAfter))
+		if replacement.Spec.EarliestRecheckTimesByController == nil {
+			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		}
+		replacement.Spec.EarliestRecheckTimesByController[FetchManagedIdentitiesInfoControllerName] = &recheckAt
+	} else if len(errs) == 0 {
 		recheckAt := metav1.NewTime(c.clock.Now().Add(wait.Jitter(
 			managedIdentitiesRecheckInterval,
 			managedIdentitiesRecheckJitter,
@@ -351,6 +366,10 @@ func (c *fetchManagedIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key con
 			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
 		}
 		replacement.Spec.EarliestRecheckTimesByController[FetchManagedIdentitiesInfoControllerName] = &recheckAt
+	} else {
+		// Non-throttle error: clear the gate so needsWork keeps returning
+		// true and the workqueue retry re-queries. delete on a nil map is a no-op.
+		delete(replacement.Spec.EarliestRecheckTimesByController, FetchManagedIdentitiesInfoControllerName)
 	}
 
 	if controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
@@ -577,11 +596,17 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromM
 // are accumulated. Successfully resolved identities have RetrievalError nil.
 // Returns a nil map when there are no ARM identities or when the client cannot
 // be built.
+//
+// When ARM returns HTTP 429 (Too Many Requests), the loop stops immediately
+// to avoid amplifying pressure on a throttled endpoint. The Retry-After
+// duration from the 429 response is returned so the caller can set a
+// cooldown gate via EarliestRecheckTimesByController. Partial metadata
+// from identities resolved before the 429 is still returned.
 func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(
 	ctx context.Context,
 	cluster *coreapi.Cluster,
 	desiredIdentities map[string]*identityToResolve,
-) (map[string]*coreapi.IdentityMetadataValue, []error) {
+) (map[string]*coreapi.IdentityMetadataValue, []error, time.Duration) {
 
 	// We build the list of identities to query the ARM User Assigned Identities API for.
 	// Control-plane and data-plane operator identities are queried. SMI-only identities
@@ -593,27 +618,45 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromA
 		}
 	}
 	if len(armIdentities) == 0 {
-		return nil, nil
+		return nil, nil, 0
 	}
 
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	if smiResourceID == nil {
-		return nil, []error{utils.TrackError(fmt.Errorf("cluster ServiceManagedIdentity is nil. Cannot resolve ARM User Assigned Identities metadata"))}
+		return nil, []error{utils.TrackError(fmt.Errorf("cluster ServiceManagedIdentity is nil. Cannot resolve ARM User Assigned Identities metadata"))}, 0
 	}
 
 	// If the Service Managed Identity does not exist, this call fails and the controller will accumulate the error.
 	userAssignedIdentitiesClient, err := c.smiClientBuilder.UserAssignedIdentitiesClient(ctx, cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL, smiResourceID, cluster.ID.SubscriptionID)
 	if err != nil {
-		return nil, []error{utils.TrackError(fmt.Errorf("failed to get User Assigned Identities Client: %w", err))}
+		return nil, []error{utils.TrackError(fmt.Errorf("failed to get User Assigned Identities Client: %w", err))}, 0
 	}
 
 	metadata := make(map[string]*coreapi.IdentityMetadataValue)
 	var errs []error
+	var retryAfter time.Duration
 	for _, identity := range armIdentities {
 		resourceIDKey := strings.ToLower(identity.resourceID.String())
 		// If the Service Managed Identity does not have permissions to do a GET over the identity resource ID it is querying, this call
 		// fails and the controller accumulates the error.
 		currentMI, err := userAssignedIdentitiesClient.Get(ctx, identity.resourceID.ResourceGroupName, identity.resourceID.Name, nil)
+		if azureclient.IsThrottleError(err) {
+			// ARM is rate-limiting us. Record the error for this identity,
+			// parse the cooldown, and stop the loop immediately to avoid
+			// amplifying pressure on the throttled endpoint.
+			metadata[resourceIDKey] = c.identityMetadataValueFromRetrievalError(err)
+			errs = append(errs, utils.TrackError(fmt.Errorf("ARM throttled (HTTP 429) while getting User Assigned Managed Identity %s: %w", resourceIDKey, err)))
+			var azErr *azcore.ResponseError
+			if errors.As(err, &azErr) && azErr.RawResponse != nil {
+				if seconds, atoiErr := strconv.Atoi(azErr.RawResponse.Header.Get("Retry-After")); atoiErr == nil && seconds > 0 {
+					retryAfter = time.Duration(seconds) * time.Second
+				}
+			}
+			if retryAfter == 0 {
+				retryAfter = defaultThrottleRetryAfter
+			}
+			break
+		}
 		if azureclient.IsResourceNotFoundErr(err) {
 			// The identity is not found in Azure. Keep the source entry so the
 			// ServiceProviderCluster still lists that ARM was queried, but leave
@@ -643,7 +686,7 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromA
 		metadata[resourceIDKey] = c.identityMetadataValueFromARMIdentity(&currentMI.Identity)
 	}
 
-	return metadata, errs
+	return metadata, errs, retryAfter
 }
 
 // identityMetadataValueFromHardcodedIdentity maps the controller's hardcoded

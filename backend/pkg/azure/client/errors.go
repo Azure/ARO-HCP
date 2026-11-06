@@ -70,3 +70,11 @@ func IsAzureAuthorizationFailedError(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "AuthorizationFailed"
 }
+
+// IsThrottleError returns true if the error is an azcore.ResponseError with
+// HTTP 429 Too Many Requests. This detects ARM rate-limiting so callers can
+// honor the Retry-After header instead of continuing to issue requests.
+func IsThrottleError(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.StatusCode == http.StatusTooManyRequests
+}
