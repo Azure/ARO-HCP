@@ -13,6 +13,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 @description('Identities to assign')
@@ -24,6 +25,9 @@ param identities ManagedIdentities
   'resourceGroup'
 ])
 param rbacScope string = 'resourceGroup'
+
+@description('If true, grant the dp-autonode identity its role assignments')
+param enableAutoNode bool = false
 
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identities.clusterApiAzureMiName
@@ -71,6 +75,10 @@ resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identities.dpImageRegistryMiName
+}
+
+resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: identities.dpAutoNodeMiName
 }
 
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -235,6 +243,17 @@ resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(dpImageRegistryMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
   scope: dpImageRegistryMi
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: federatedCredentialsRoleId
+  }
+}
+
+// Lets the service MSI federate dp-autonode to the kube-system/karpenter-operator service account.
+resource dpAutoNodeMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableAutoNode && rbacScope == 'resource') {
+  name: guid(dpAutoNodeMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
+  scope: dpAutoNodeMi
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
