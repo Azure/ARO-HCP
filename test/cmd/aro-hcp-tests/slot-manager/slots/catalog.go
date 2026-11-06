@@ -98,6 +98,7 @@ type Catalog struct {
 
 type Environment struct {
 	DeploymentEnvironment DeploymentEnvironment `yaml:"deployment_environment,omitempty"`
+	IdentityConsumerGuard string                `yaml:"identity_consumer_guard,omitempty"`
 	Pools                 []Pool                `yaml:"pools"`
 }
 
@@ -235,6 +236,7 @@ func resolveRepoFile(relPath, startDir string) (string, error) {
 	return "", fmt.Errorf("failed to find %q from %q", relPath, startDir)
 }
 
+// Validate checks catalog bindings and explicit identity consumer policies before leasing.
 func (c *Catalog) Validate() error {
 	if c.Version != 2 {
 		return fmt.Errorf("unsupported catalog version %d", c.Version)
@@ -246,6 +248,11 @@ func (c *Catalog) Validate() error {
 	resourceTypes := map[string]string{}
 	for _, environmentName := range c.EnvironmentNames() {
 		environment := c.Environments[environmentName]
+		switch environment.IdentityConsumerGuard {
+		case "", "disabled", "audit", "enforce":
+		default:
+			return fmt.Errorf("environment %q has invalid identity_consumer_guard %q", environmentName, environment.IdentityConsumerGuard)
+		}
 		environment.DeploymentEnvironment.Name = strings.TrimSpace(environment.DeploymentEnvironment.Name)
 		environment.DeploymentEnvironment.InfrastructureSubscription = strings.TrimSpace(environment.DeploymentEnvironment.InfrastructureSubscription)
 		if environment.DeploymentEnvironment.Name == "" {

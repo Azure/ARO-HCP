@@ -38,6 +38,60 @@ import (
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
+func TestAcquireIdentityGuardPolicyPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name, catalogMode, envMode, flagMode, want string
+		wantError                                  bool
+	}{
+		{name: "unconfigured", want: "disabled"},
+		{name: "catalog enforcement", catalogMode: "enforce", want: "enforce"},
+		{name: "environment overrides catalog", catalogMode: "enforce", envMode: "audit", want: "audit"},
+		{name: "flag overrides environment", catalogMode: "enforce", envMode: "audit", flagMode: "disabled", want: "disabled"},
+		{name: "invalid override fails before leasing", catalogMode: "enforce", envMode: "typo", wantError: true},
+		{name: "invalid catalog fails even with override", catalogMode: "typo", flagMode: "disabled", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(leaseenv.IdentityConsumerGuardMode, tc.envMode)
+			data, err := os.ReadFile(writeAcquireTestCatalog(t, slots.RegionModeFixed, "westus3"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			catalog := string(data)
+			if tc.catalogMode != "" {
+				catalog = strings.Replace(catalog, "  dev:\n", "  dev:\n    identity_consumer_guard: "+tc.catalogMode+"\n", 1)
+			}
+			options := lifecycleOptions(t, catalog, "http://unused.invalid", nil)
+			options.IdentityConsumerGuardMode = DefaultAcquireOptions().IdentityConsumerGuardMode
+			command := &cobra.Command{}
+			if err := BindAcquireOptions(options, command); err != nil {
+				t.Fatal(err)
+			}
+			if tc.flagMode != "" {
+				if err := command.ParseFlags([]string{"--identity-consumer-guard=" + tc.flagMode}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			validated, err := options.Validate()
+			var completed *AcquireOptions
+			if err == nil {
+				completed, err = validated.Complete(t.Context())
+			}
+			if tc.wantError {
+				if err == nil {
+					t.Fatal("invalid policy accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if completed.IdentityConsumerGuardMode != tc.want {
+				t.Fatalf("resolved guard policy %q, want %q", completed.IdentityConsumerGuardMode, tc.want)
+			}
+		})
+	}
+}
+
 func TestAcquireAdmissionFlagAndEnvironment(t *testing.T) {
 	for _, test := range []struct {
 		name  string

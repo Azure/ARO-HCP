@@ -45,6 +45,7 @@ const (
 	DefaultAdmissionTimeout  = 10 * time.Minute
 )
 
+// DefaultAcquireOptions loads acquisition selectors and policies from the environment.
 func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
 	admissionTimeout := strings.TrimSpace(os.Getenv("ARO_HCP_ADMISSION_TIMEOUT"))
@@ -52,19 +53,20 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 		admissionTimeout = DefaultAdmissionTimeout.String()
 	}
 	return &RawAcquireOptions{
-		ClusterProfileDir:      strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
-		ClusterProfileDirs:     splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
-		Environment:            strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
-		DeployEnv:              strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment)),
-		AllowedSubscriptions:   allowedSubscriptions,
-		AllowedLocations:       allowedLocations,
-		SelectedLocation:       selectedLocation,
-		LocationWeights:        strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
-		BuildID:                strings.TrimSpace(os.Getenv("BUILD_ID")),
-		SharedDir:              strings.TrimSpace(os.Getenv("SHARED_DIR")),
-		DisabledAssetAdmission: splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
-		AdmissionTimeout:       admissionTimeout,
-		AssetAdmissionOptions:  splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
+		ClusterProfileDir:         strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		ClusterProfileDirs:        splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
+		Environment:               strings.TrimSpace(os.Getenv("ARO_HCP_SLOT_ENV")),
+		DeployEnv:                 strings.TrimSpace(os.Getenv(leaseenv.RuntimeDeployEnvironment)),
+		AllowedSubscriptions:      allowedSubscriptions,
+		AllowedLocations:          allowedLocations,
+		SelectedLocation:          selectedLocation,
+		LocationWeights:           strings.TrimSpace(os.Getenv("LOCATION_WEIGHTS")),
+		BuildID:                   strings.TrimSpace(os.Getenv("BUILD_ID")),
+		SharedDir:                 strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		DisabledAssetAdmission:    splitSelectorValues(os.Getenv("ARO_HCP_DISABLE_ASSET_ADMISSION")),
+		AdmissionTimeout:          admissionTimeout,
+		AssetAdmissionOptions:     splitSelectorValues(os.Getenv("ARO_HCP_ASSET_ADMISSION_OPTIONS")),
+		IdentityConsumerGuardMode: os.Getenv(testutilframework.IdentityConsumerGuardEnvvar),
 
 		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
@@ -134,6 +136,7 @@ func normalizeValues(parts []string) []string {
 	return values
 }
 
+// BindAcquireOptions binds acquisition controls and asset-specific admission options.
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringSliceVar(&opts.ClusterProfileDirs, "cluster-profile-dirs", opts.ClusterProfileDirs, "Optional list of cluster profile dirs to resolve the leased subscription's owning tenant/credentials across. Falls back to --cluster-profile-dir when unset.")
@@ -147,6 +150,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringSliceVar(&opts.DisabledAssetAdmission, "disable-asset-admission", opts.DisabledAssetAdmission, "Emergency opt-out of admission for named asset kinds (repeatable or comma-separated). All other assets remain admitted. Defaults from ARO_HCP_DISABLE_ASSET_ADMISSION.")
 	cmd.Flags().StringVar(&opts.AdmissionTimeout, "admission-timeout", opts.AdmissionTimeout, "Maximum duration for the entire asset admission phase (e.g. 20m). Defaults from ARO_HCP_ADMISSION_TIMEOUT, or 10m when unset.")
+	cmd.Flags().StringVar(&opts.IdentityConsumerGuardMode, "identity-consumer-guard", opts.IdentityConsumerGuardMode, "Identity consumer guard: disabled, audit or enforce. Overrides the catalog environment policy; defaults from ARO_HCP_IDENTITY_CONSUMER_GUARD.")
 	assetAdmissionOptionUsage := "Per-asset admission option as <kind>.<key>=<value> (repeatable or comma-separated). Defaults from ARO_HCP_ASSET_ADMISSION_OPTIONS."
 	if opts.AssetRegistry != nil {
 		if registryUsage := opts.AssetRegistry.OptionsUsage(); registryUsage != "" {
@@ -163,28 +167,29 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 }
 
 type RawAcquireOptions struct {
-	WriteState             func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDir      string
-	ClusterProfileDirs     []string
-	Environment            string
-	DeployEnv              string
-	AllowedSubscriptions   []string
-	AllowedLocations       []string
-	SelectedLocation       string
-	LocationWeights        string
-	BuildID                string
-	SharedDir              string
-	CatalogPath            string
-	LeaseProxyServerURL    string
-	LeaseProxyTimeout      time.Duration
-	MaxWaitForLease        time.Duration
-	LeaseWaitInterval      time.Duration
-	Now                    func() time.Time
-	AssetRegistry          *assets.Registry
-	DisabledAssetAdmission []string
-	AdmissionTimeout       string
-	AssetAdmissionOptions  []string
-	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	WriteState                func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDir         string
+	ClusterProfileDirs        []string
+	Environment               string
+	DeployEnv                 string
+	AllowedSubscriptions      []string
+	AllowedLocations          []string
+	SelectedLocation          string
+	LocationWeights           string
+	BuildID                   string
+	SharedDir                 string
+	CatalogPath               string
+	LeaseProxyServerURL       string
+	LeaseProxyTimeout         time.Duration
+	MaxWaitForLease           time.Duration
+	LeaseWaitInterval         time.Duration
+	Now                       func() time.Time
+	AssetRegistry             *assets.Registry
+	DisabledAssetAdmission    []string
+	AdmissionTimeout          string
+	AssetAdmissionOptions     []string
+	IdentityConsumerGuardMode string
+	ResolveSubscriptions      func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
 	// AzureGlobalLoggerLogPath is the file the Azure SDK's global logger writes
 	// to. See DefaultAcquireOptions for how the CLI computes a default.
 	AzureGlobalLoggerLogPath string
@@ -204,24 +209,25 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	AssetInventories       []slots.AssetInventory
-	WriteState             func(string, *slots.AcquiredSlotState) error
-	ClusterProfileDirs     []string
-	DeployEnvironment      string
-	SharedDir              string
-	LeaseProxyURL          string
-	LeaseProxyTimeout      time.Duration
-	MaxWaitForLease        time.Duration
-	LeaseWaitInterval      time.Duration
-	RegionSelection        RegionSelection
-	CandidatePools         []slots.Pool
-	PoolEnvironment        string
-	AssetRegistry          *assets.Registry
-	DisabledAssetAdmission []assets.Kind
-	AdmissionTimeout       time.Duration
-	ResolveSubscriptions   func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
-	Now                    func() time.Time
-	Sleep                  func(context.Context, time.Duration) error
+	AssetInventories          []slots.AssetInventory
+	WriteState                func(string, *slots.AcquiredSlotState) error
+	ClusterProfileDirs        []string
+	DeployEnvironment         string
+	SharedDir                 string
+	LeaseProxyURL             string
+	LeaseProxyTimeout         time.Duration
+	MaxWaitForLease           time.Duration
+	LeaseWaitInterval         time.Duration
+	RegionSelection           RegionSelection
+	CandidatePools            []slots.Pool
+	PoolEnvironment           string
+	AssetRegistry             *assets.Registry
+	DisabledAssetAdmission    []assets.Kind
+	AdmissionTimeout          time.Duration
+	IdentityConsumerGuardMode string
+	ResolveSubscriptions      func(context.Context, string, string, string, string) (slots.ResolvedSubscriptions, error)
+	Now                       func() time.Time
+	Sleep                     func(context.Context, time.Duration) error
 	// AzureGlobalLoggerCloser is the open azure-global-logger log file, produced
 	// by SetupAzureGlobalLogger during Complete. Run closes it, guarding against
 	// nil since it's reachable from code that doesn't call Complete.
@@ -262,7 +268,11 @@ func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 	return completed.Run(ctx)
 }
 
+// Validate rejects invalid acquisition controls before loading a catalog or leasing assets.
 func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
+	if _, err := testutilframework.IdentityConsumerGuardMode(o.IdentityConsumerGuardMode); err != nil {
+		return nil, err
+	}
 	switch {
 	case len(o.effectiveClusterProfileDirs()) == 0:
 		return nil, fmt.Errorf("--cluster-profile-dir or --cluster-profile-dirs must not be empty")
@@ -315,6 +325,7 @@ func (o *RawAcquireOptions) effectiveClusterProfileDirs() []string {
 	return nil
 }
 
+// Complete resolves catalog policy, asset options and runtime dependencies before acquisition.
 func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, error) {
 	catalog, err := slots.LoadCatalog(o.CatalogPath)
 	if err != nil {
@@ -330,6 +341,14 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		}
 	} else if _, found := catalog.Environments[environment]; !found {
 		return nil, fmt.Errorf("unknown environment %q", environment)
+	}
+	mode := o.IdentityConsumerGuardMode
+	if mode == "" {
+		mode = catalog.Environments[environment].IdentityConsumerGuard
+	}
+	mode, err = testutilframework.IdentityConsumerGuardMode(mode)
+	if err != nil {
+		return nil, err
 	}
 
 	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), selectedLocation)
@@ -385,25 +404,26 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			AssetInventories:        assetInventories,
-			WriteState:              o.WriteState,
-			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
-			DeployEnvironment:       o.DeployEnv,
-			SharedDir:               o.SharedDir,
-			LeaseProxyURL:           o.LeaseProxyServerURL,
-			LeaseProxyTimeout:       o.LeaseProxyTimeout,
-			MaxWaitForLease:         o.MaxWaitForLease,
-			LeaseWaitInterval:       o.LeaseWaitInterval,
-			RegionSelection:         regionSelection,
-			CandidatePools:          candidatePools,
-			PoolEnvironment:         environment,
-			AssetRegistry:           registry,
-			DisabledAssetAdmission:  disabledAssetAdmission,
-			AdmissionTimeout:        o.admissionTimeout,
-			ResolveSubscriptions:    resolveSubscriptions,
-			Now:                     o.Now,
-			Sleep:                   sleepContext,
-			AzureGlobalLoggerCloser: azureGlobalLoggerCloser,
+			AssetInventories:          assetInventories,
+			WriteState:                o.WriteState,
+			ClusterProfileDirs:        o.effectiveClusterProfileDirs(),
+			DeployEnvironment:         o.DeployEnv,
+			SharedDir:                 o.SharedDir,
+			LeaseProxyURL:             o.LeaseProxyServerURL,
+			LeaseProxyTimeout:         o.LeaseProxyTimeout,
+			MaxWaitForLease:           o.MaxWaitForLease,
+			LeaseWaitInterval:         o.LeaseWaitInterval,
+			RegionSelection:           regionSelection,
+			CandidatePools:            candidatePools,
+			PoolEnvironment:           environment,
+			AssetRegistry:             registry,
+			DisabledAssetAdmission:    disabledAssetAdmission,
+			AdmissionTimeout:          o.admissionTimeout,
+			IdentityConsumerGuardMode: mode,
+			ResolveSubscriptions:      resolveSubscriptions,
+			Now:                       o.Now,
+			Sleep:                     sleepContext,
+			AzureGlobalLoggerCloser:   azureGlobalLoggerCloser,
 		},
 	}, nil
 }
@@ -697,6 +717,7 @@ func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
 	return pool.Region
 }
 
+// Resolves and admits a lease, persisting its safe identity subset before runtime publication.
 func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.Pool, leasedName string) (result error) {
 	if err := slots.ValidateLeasedResourceName(leasedName); err != nil {
 		return fmt.Errorf("primary lease acquisition returned an invalid name for type %q: %w", pool.ResourceType, err)
@@ -753,7 +774,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err != nil {
 		return err
 	}
-	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal}
+	request := assets.LeaseRequest{AcquiredSlotState: state, SelectedClusterProfileDir: profile, LeaseJournal: journal, IdentityConsumerGuardMode: o.IdentityConsumerGuardMode}
 	if err := o.AssetRegistry.AcquireLeases(ctx, request, o.AssetInventories); err != nil {
 		return err
 	}
@@ -775,6 +796,9 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	}
 	cancelAdmission()
 	if err != nil {
+		return err
+	}
+	if err := journal.Persist(); err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()
