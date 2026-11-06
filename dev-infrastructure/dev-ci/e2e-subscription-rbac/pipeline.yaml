@@ -57,6 +57,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: ci-bots
       step: check-owners
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: ci-bot-secrets
     action: Shell
     command: |
@@ -101,6 +106,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: ci-bots
       step: check-owners
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: tenant-quota-secret
     action: Shell
     command: |
