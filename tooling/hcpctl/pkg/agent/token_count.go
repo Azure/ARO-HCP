@@ -16,38 +16,34 @@ package agent
 
 import (
 	"fmt"
-	"strconv"
+	"regexp"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+var tokenCountPattern = regexp.MustCompile(`^[0-9]+[kK]?$`)
 
 // ParseTokenCount parses a non-negative token count, optionally suffixed with
 // k or K (1,000 tokens, not 1,024). Empty and zero mean use the runtime default.
 // It is exported so programmatic callers such as the release dashboard can
 // share the CLI's parsing without importing the snapshot command package.
 func ParseTokenCount(value string) (int, error) {
-	digits := strings.TrimSpace(value)
-	if digits == "" {
+	input := strings.TrimSpace(value)
+	if input == "" {
 		return 0, nil
-	}
-	multiplier := 1
-	if strings.HasSuffix(digits, "k") || strings.HasSuffix(digits, "K") {
-		multiplier = 1000
-		digits = digits[:len(digits)-1]
 	}
 	invalid := func() (int, error) {
 		return 0, fmt.Errorf("invalid token count %q: expected a non-negative integer, optionally suffixed with k (e.g. 128000 or 128k)", value)
 	}
-	if digits == "" {
+	// Quantities also accept fractions and resource units; keep the token syntax.
+	if !tokenCountPattern.MatchString(input) {
 		return invalid()
 	}
-	for _, digit := range digits {
-		if digit < '0' || digit > '9' {
-			return invalid()
-		}
-	}
-	count, err := strconv.Atoi(digits)
-	if err != nil || count > int(^uint(0)>>1)/multiplier {
+	count, err := resource.ParseQuantity(strings.ToLower(input))
+	maxInt := resource.NewQuantity(int64(int(^uint(0)>>1)), resource.DecimalSI)
+	if err != nil || count.Cmp(*maxInt) > 0 {
 		return invalid()
 	}
-	return count * multiplier, nil
+	return int(count.Value()), nil
 }

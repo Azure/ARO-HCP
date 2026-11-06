@@ -28,6 +28,8 @@ func TestParseTokenCount(t *testing.T) {
 	}{
 		{value: ""},
 		{value: "0"},
+		{value: "0K"},
+		{value: "00128k", want: 128000},
 		{value: "128000", want: 128000},
 		{value: "128k", want: 128000},
 		{value: "200K", want: 200000},
@@ -35,11 +37,21 @@ func TestParseTokenCount(t *testing.T) {
 		{value: strconv.Itoa(maxInt), want: maxInt},
 		{value: strconv.Itoa(maxInt/1000) + "k", want: (maxInt / 1000) * 1000},
 		{value: strconv.Itoa(maxInt/1000+1) + "k", wantErr: true},
+		{value: strconv.FormatUint(uint64(maxInt)+1, 10), wantErr: true},
+		{value: "9223372036854775808K", wantErr: true},
 		{value: "999999999999999999999999999999", wantErr: true},
 		{value: "-1", wantErr: true},
+		{value: "+1", wantErr: true},
+		{value: "-0", wantErr: true},
+		{value: "1.5", wantErr: true},
 		{value: "1.5k", wantErr: true},
 		{value: "k", wantErr: true},
+		{value: "1kK", wantErr: true},
+		{value: "1 k", wantErr: true},
 		{value: "1m", wantErr: true},
+		{value: "1M", wantErr: true},
+		{value: "1Ki", wantErr: true},
+		{value: "1e3", wantErr: true},
 	} {
 		t.Run(tc.value, func(t *testing.T) {
 			got, err := ParseTokenCount(tc.value)
