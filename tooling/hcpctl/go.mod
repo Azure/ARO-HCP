@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/hcpctl
 
-go 1.26.0
+go 1.26.10
 
 require (
 	cloud.google.com/go/storage v1.62.1

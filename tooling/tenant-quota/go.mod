@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/tenant-quota
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-20260410130855-a983e955fbe8

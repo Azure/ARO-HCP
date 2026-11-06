@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/image-updater
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
