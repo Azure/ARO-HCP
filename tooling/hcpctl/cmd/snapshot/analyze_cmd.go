@@ -105,7 +105,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.ReviewRounds, "review-rounds", opts.ReviewRounds, "Number of review rounds")
 	cmd.Flags().IntVar(&opts.MaxRounds, "max-rounds", opts.MaxRounds, "Maximum validation rounds per cycle")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output directory for analysis results (defaults to data-dir)")
-	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers)")
+	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers; GitHub-authenticated Copilot defaults to "+agent.DefaultCopilotModel+")")
 	cmd.Flags().StringVar(&opts.ReasoningEffort, "effort", opts.ReasoningEffort, "Reasoning effort for models that support it (applies to all providers; defaults to the model's own default). copilot: "+strings.Join(agent.CopilotReasoningEfforts, ", ")+"; claude and claude-code: "+strings.Join(agent.ClaudeReasoningEfforts, ", "))
 
 	cmd.Flags().StringVar(&opts.Intent, "intent", opts.Intent, "Free-form investigation objective (e.g. a customer complaint). When set, analyzes the snapshot against this objective instead of assuming a failed e2e test. Mutually exclusive with --intent-file.")

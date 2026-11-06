@@ -133,16 +133,30 @@ func TestBuildSessionConfigBYOK(t *testing.T) {
 func TestBuildSessionConfigGitHubAuth(t *testing.T) {
 	for _, authMode := range []string{"", CopilotAuthModeLoggedIn, CopilotAuthModeToken} {
 		t.Run(authMode, func(t *testing.T) {
-			client := &CopilotClient{cfg: &AgentConfig{AuthMode: authMode, Model: "client-model"}}
-			cfg, err := client.buildSessionConfig(t.Context(), SessionConfig{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if cfg.Provider != nil {
-				t.Fatal("Provider must remain unset for GitHub-authenticated sessions")
-			}
-			if cfg.Model != client.cfg.Model {
-				t.Errorf("Model = %q, want %q", cfg.Model, client.cfg.Model)
+			for _, tc := range []struct {
+				name         string
+				clientModel  string
+				sessionModel string
+				wantModel    string
+			}{
+				{name: "default", wantModel: "gpt-6.1-terra"},
+				{name: "client override", clientModel: "client-model", wantModel: "client-model"},
+				{name: "session override", sessionModel: "session-model", wantModel: "session-model"},
+				{name: "session overrides client", clientModel: "client-model", sessionModel: "session-model", wantModel: "session-model"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					client := &CopilotClient{cfg: &AgentConfig{AuthMode: authMode, Model: tc.clientModel}}
+					cfg, err := client.buildSessionConfig(t.Context(), SessionConfig{Model: tc.sessionModel})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if cfg.Provider != nil {
+						t.Fatal("Provider must remain unset for GitHub-authenticated sessions")
+					}
+					if cfg.Model != tc.wantModel {
+						t.Errorf("Model = %q, want %q", cfg.Model, tc.wantModel)
+					}
+				})
 			}
 		})
 	}

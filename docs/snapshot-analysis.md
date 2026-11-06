@@ -59,6 +59,15 @@ hcpctl snapshot analyze ./snapshot-20250101-120000/periodic-ci-.../1234567890/Te
 The argument is the data directory produced by `gather` (the directory
 containing `manifest.json`).
 
+GitHub-authenticated Copilot sessions default to `gpt-6.1-terra`; use `--model`
+to select another model. Copilot BYOK sessions continue to use
+`--model-deployment` unless `--model` overrides it. Claude provider defaults
+are unchanged. Model selection does not override the Copilot runtime's context
+budget. To inspect the effective budget, run with `--verbosity=5` and look for
+`tokenLimit` in the `Copilot event: SessionUsageInfo` log entries. This is the
+runtime-reported input/context budget, not the cumulative token usage in
+`usage.json` or proof that a request of that size has been accepted.
+
 The agent runs through several phases:
 
 1. **Initial prompt** — the agent receives the manifest, test logs, and data

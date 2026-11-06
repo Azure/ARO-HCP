@@ -39,6 +39,10 @@ import (
 )
 
 const (
+	// DefaultCopilotModel makes GitHub-authenticated analyses independent of
+	// the installed Copilot CLI's default model. BYOK keeps its deployment name.
+	DefaultCopilotModel = "gpt-6.1-terra"
+
 	// CopilotAuthModeLoggedIn uses the developer's GitHub CLI session.
 	CopilotAuthModeLoggedIn = "logged-in"
 	// CopilotAuthModeToken reads a GitHub token from a file.
@@ -218,6 +222,8 @@ func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfi
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
 		}
+	} else if sessionCfg.Model == "" {
+		sessionCfg.Model = DefaultCopilotModel
 	}
 
 	return sessionCfg, nil
@@ -236,7 +242,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 	}
 
 	logger = logger.WithValues("sessionID", session.SessionID)
-	logger.Info("Created Copilot session.", "reasoningEffort", sessionCfg.ReasoningEffort)
+	logger.Info("Created Copilot session.", "model", sessionCfg.Model, "reasoningEffort", sessionCfg.ReasoningEffort)
 	usageProvider := "github-copilot"
 	usageDimensions := map[string]string{"backend": "github"}
 	if c.cfg.AuthMode == CopilotAuthModeBYOK {
@@ -752,7 +758,11 @@ func (s *Session) traceEvents() {
 		case *copilot.SessionTruncationData:
 			s.logger.V(5).Info("Copilot event: SessionTruncation")
 		case *copilot.SessionUsageInfoData:
-			s.logger.V(5).Info("Copilot event: SessionUsageInfo")
+			s.logger.V(5).Info("Copilot event: SessionUsageInfo",
+				"currentTokens", d.CurrentTokens,
+				"tokenLimit", d.TokenLimit,
+				"messagesLength", d.MessagesLength,
+			)
 		case *copilot.AssistantUsageData:
 			s.logger.V(5).Info("Copilot event: AssistantUsage",
 				"model", d.Model,
