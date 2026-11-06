@@ -113,19 +113,9 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
-			name:            "cluster still has maestro readonly bundles -- blocks",
+			name:            "SPC still present as child -- blocks",
 			existingCluster: readyForDeletionCluster(t),
-			extraResources: []any{
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "test-bundle"},
-				}),
-			},
-			verifyDB: verifyClusterStillExists,
-		},
-		{
-			name:            "SPC with no bundles still present as child -- blocks",
-			existingCluster: readyForDeletionCluster(t),
-			extraResources:  []any{newTestSPC(t, nil)},
+			extraResources:  []any{newTestSPC(t)},
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
@@ -330,7 +320,7 @@ func newTestExternalAuth(t *testing.T) *coreapi.ExternalAuth {
 	}
 }
 
-func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *coreapi.ServiceProviderCluster {
+func newTestSPC(t *testing.T) *coreapi.ServiceProviderCluster {
 	t.Helper()
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -341,9 +331,6 @@ func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *corea
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
-		},
-		Status: coreapi.ServiceProviderClusterStatus{
-			MaestroReadonlyBundles: bundles,
 		},
 	}
 }
