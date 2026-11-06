@@ -58,7 +58,7 @@ spec:
         - name: OPERAND_IMAGE_ADDON_MANAGER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/addon-manager-rhel9@sha256:fe12294904dad8b0e4e67fabf2574bbc5aad0b57286e852b5aef4daf7c0916f7'
         - name: OPERAND_IMAGE_AZURE_SERVICE_OPERATOR_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/azure-service-operator-rhel9@sha256:a99ac61626a32c9ec25ebb1f34c59c503eae1b905a71dd8333f6e1fb3206fa48'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/azure-service-operator-rhel9@sha256:6d8e5b136c127a7ba795c316a97e0542b717286efba33c4b5b0ff599bbd2f935'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:651a16b4e1010fd274544c8edce6eeb76c5e1c1272a435fac54f84de4b025524'
         - name: OPERAND_IMAGE_CLOUDEVENTS_CONDUCTOR
@@ -88,13 +88,13 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_PERMISSION
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-permission-rhel9@sha256:d9b85d1e7fe34db1fdf05670f908e05cbf63d95382b3b15b515c7825ce3f1ca4'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:84abb205b96f87ca9c10410b17303558ba35cc33b45efa011a67aabde1472c16'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:b3a63be3d40f03ad8905a2c1359c852c4515086c9f21e1676969af13606a6cf5'
         - name: OPERAND_IMAGE_CONSOLE_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:d22ffa48b04e57c57380c025bdb33189bd11c96df5f3cdce82aaf7ac80c7cebe'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:96d6a7188f7b5af1fe7ef4b5759263d13305ff72e5fcb3407212e9f6d54cb4e2'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:d0602c055d68f1bcea61dc3732d70a5a1a56768167e6424b5d6169c45f246ab8'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:1504caf627ad72c161bd22647c32513aadbca20024563a6057c7e18600953b53'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:f3f5be7bbfe99d21d78d66625ca00b39df1a93685690158d2005fefec152dd97'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
@@ -108,7 +108,7 @@ spec:
         - name: OPERAND_IMAGE_MAESTRO
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/maestro-rhel9@sha256:5c3d24f90e95bbf04d34fdc5a7de2dbc3f52b29a0f03e23525a60bbec39d1233'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:8123b651e72e2d5c50898662268beff9278f446449f2b177cb4f6ac2698f7f47'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:b46749941214c2c5d83c4e64882231f9f61693c6ebffdabd387678b764f64735'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managed-serviceaccount-rhel9@sha256:ed7bac42c3db860ff17f2291cc9e18e3fb029b29d452ff7b0e07312056d5b66d'
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
