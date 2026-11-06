@@ -17,7 +17,6 @@ package cipatterns
 import (
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/cifailurepatterns"
 )
@@ -80,7 +79,7 @@ func validatedVisibleResults(inputs []input, version failurePatternVersion, rows
 		if row.ComputedAt.IsZero() {
 			return nil, fmt.Errorf("result %s missing computedAt", row.ResultKey)
 		}
-		if err := validateFindings(row.Findings, row.Message); err != nil {
+		if err := validateFindings(row.Findings, want.observation.Text); err != nil {
 			return nil, fmt.Errorf("result %s: %w", row.ResultKey, err)
 		}
 		if previous, exists := visible[row.ResultKey]; exists && !reflect.DeepEqual(previous.Findings, row.Findings) {
@@ -93,20 +92,10 @@ func validatedVisibleResults(inputs []input, version failurePatternVersion, rows
 
 func matchesEnvelope(row resultRow, i input, version failurePatternVersion) bool {
 	o := i.observation
-	return row.ResultKey == i.key && row.RawFingerprint == o.Fingerprint &&
+	return row.ResultKey == i.key && row.RawFingerprint == o.Fingerprint && row.MessageHash == messageHash(o.Text) &&
 		row.ExtractorVersion == version.extractorVersion && row.ResultSchemaVersion == version.resultSchemaVersion &&
 		row.Origin == o.Origin && row.BuildID == o.BuildID && row.Source == o.Source &&
-		row.TestID == o.TestID && row.Message == o.Text && row.TestName == o.TestName &&
-		matchesTime(row.StartedAt, o.StartedAt) && matchesTime(row.FinishedAt, o.FinishedAt) &&
-		matchesTime(row.SetupFinishTime, o.SetupFinishTime) && matchesTime(row.TestStartTime, o.TestStartTime) &&
-		matchesTime(row.CleanupStartTime, o.CleanupStartTime)
-}
-
-func matchesTime(stored *time.Time, raw time.Time) bool {
-	if stored == nil {
-		return raw.IsZero()
-	}
-	return stored.Equal(raw)
+		row.TestID == o.TestID && row.TestName == o.TestName
 }
 
 func validateFindings(findings []cifailurepatterns.Finding, text string) error {

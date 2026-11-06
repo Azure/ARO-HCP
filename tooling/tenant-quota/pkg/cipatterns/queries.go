@@ -72,8 +72,8 @@ func resultQuery(table string) *kql.Builder {
 	return kql.New("").AddTable(table).AddLiteral(`
 | where extractorVersion == tostring(request.version) and resultSchemaVersion == tolong(request.schema)
 | where resultKey in (request.keys)
-| project resultKey, rawFingerprint, extractorVersion, resultSchemaVersion, origin, buildId, source, testId,
-    startedAt, finishedAt, setupFinishTime, testStartTime, cleanupStartTime, message, testName, findings, computedAt, producerCommit`)
+| project resultKey, rawFingerprint, messageHash, extractorVersion, resultSchemaVersion, origin, buildId, source, testId,
+    testName, findings, computedAt, producerCommit`)
 }
 
 func (c *Controller) query(ctx context.Context, client *azkustodata.Client, statement *kql.Builder, payload any, required ...map[string]string) ([]query.Row, error) {
@@ -120,7 +120,7 @@ func (c *Controller) operationTimeout() time.Duration {
 	if timeout := c.config.GetTimeout(); timeout > 0 {
 		return timeout
 	}
-	return 2 * time.Minute
+	return defaultOperationTimeout
 }
 
 func (c *Controller) origin() string {

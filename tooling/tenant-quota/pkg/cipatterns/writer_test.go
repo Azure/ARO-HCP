@@ -30,9 +30,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustoingest"
-	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	tenantkusto "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/kusto"

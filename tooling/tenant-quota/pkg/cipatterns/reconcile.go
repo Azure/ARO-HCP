@@ -25,8 +25,8 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cifailurepatterns"
 )
 
-// reconcileInputs is also the fixed-input reconciliation path for the future
-// coordinator. It never re-enriches inputs and never treats acceptance as visibility.
+// reconcileInputs reconciles a fixed set of inputs against the stored results. It
+// never re-enriches inputs and never treats acceptance as visibility.
 func (c *Controller) reconcileInputs(ctx context.Context, version failurePatternVersion, inputs []input) (time.Duration, error) {
 	if version != compiledFailurePatternVersion() {
 		return 0, fmt.Errorf("cannot compute a target other than the executable contract")
@@ -88,7 +88,7 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 			return 0, err
 		}
 		row := envelope(i, version)
-		row.Findings = cifailurepatterns.Extract(cifailurepatterns.Input{Text: row.Message, TestName: row.TestName, Source: row.Source})
+		row.Findings = cifailurepatterns.Extract(cifailurepatterns.Input{Text: i.observation.Text, TestName: row.TestName, Source: row.Source})
 		row.ComputedAt = c.now().UTC()
 		row.ProducerCommit = producerCommit
 		computed = append(computed, row)

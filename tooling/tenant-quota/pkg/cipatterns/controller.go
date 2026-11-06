@@ -41,10 +41,13 @@ const (
 	discoveryPageSize = 128
 	// sweepRest is the pause after a sweep reaches the oldest retained build.
 	sweepRest = 12 * time.Hour
+	// defaultOperationTimeout bounds a Kusto operation when the config sets no timeout.
+	defaultOperationTimeout = 2 * time.Minute
 )
 
-// Controller owns normal reconciliation and its clients. Successful initialization
-// admits the compiled extractor/schema contract; PR3 will coordinate upgrades.
+// Controller computes CI failure patterns for the failed results stored in Kusto
+// and writes them to the results table. Once it has verified the Kusto tables and
+// mappings it needs, it discovers builds newest first and reconciles each one.
 type Controller struct {
 	config          *config.Config
 	logger          *slog.Logger
@@ -82,7 +85,7 @@ type Controller struct {
 func NewController(cfg *config.Config, logger *slog.Logger) *Controller {
 	c := &Controller{
 		config: cfg, logger: logger.With(utils.LogValues{}.AddControllerName(ControllerName)...),
-		client: &http.Client{Timeout: 2 * time.Minute},
+		client: &http.Client{Timeout: defaultOperationTimeout},
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[string](time.Second, 5*time.Minute),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: ControllerName}),

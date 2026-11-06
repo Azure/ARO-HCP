@@ -35,7 +35,7 @@ const (
 	maxBatchRows              = 128
 )
 
-// A failurePatternVersion is deliberately package-owned. Production admission is not configurable.
+// A failurePatternVersion is compiled into the binary and is not configurable.
 type failurePatternVersion struct {
 	extractorVersion    string
 	resultSchemaVersion int64
@@ -55,26 +55,37 @@ type input struct {
 }
 
 // resultRow is the complete computation, not an aggregate or a display-limited report.
+// It carries raw identity but not raw content: message and timings are read from
+// ciTestResults by joining on (buildId, source, testId, messageHash): a test can
+// fail more than once in a run, and the message hash tells those raw rows apart.
+// Finding locations are byte offsets into that raw message.
 // Multiplicity belongs exclusively to current raw inputs.
 type resultRow struct {
 	ResultKey           string                      `json:"resultKey"`
 	RawFingerprint      string                      `json:"rawFingerprint"`
+	MessageHash         string                      `json:"messageHash"`
 	ExtractorVersion    string                      `json:"extractorVersion"`
 	ResultSchemaVersion int64                       `json:"resultSchemaVersion"`
 	Origin              string                      `json:"origin"`
 	BuildID             string                      `json:"buildId"`
 	Source              string                      `json:"source"`
 	TestID              string                      `json:"testId"`
-	StartedAt           *time.Time                  `json:"startedAt"`
-	FinishedAt          *time.Time                  `json:"finishedAt"`
-	SetupFinishTime     *time.Time                  `json:"setupFinishTime"`
-	TestStartTime       *time.Time                  `json:"testStartTime"`
-	CleanupStartTime    *time.Time                  `json:"cleanupStartTime"`
-	Message             string                      `json:"message"`
 	TestName            string                      `json:"testName"`
 	Findings            []cifailurepatterns.Finding `json:"findings"`
 	ComputedAt          time.Time                   `json:"computedAt"`
 	ProducerCommit      string                      `json:"producerCommit"`
+}
+
+// messageHash is the lowercase hex SHA-256 of the raw message bytes, empty for an
+// empty message. It equals Kusto's hash_sha256(message), including that empty
+// strings hash to the empty string, so consumers can join results to the exact
+// raw row with hash_sha256(message) when a test reports several failures.
+func messageHash(message string) string {
+	if message == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(message))
+	return hex.EncodeToString(sum[:])
 }
 
 func resultKey(rawFingerprint, name string, version failurePatternVersion) string {
@@ -86,14 +97,6 @@ func resultKey(rawFingerprint, name string, version failurePatternVersion) strin
 		_, _ = h.Write([]byte(field))
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-func normalizedTime(value time.Time) *time.Time {
-	if value.IsZero() {
-		return nil
-	}
-	value = value.UTC()
-	return &value
 }
 
 func prepareInput(i input, version failurePatternVersion) input {
@@ -113,17 +116,10 @@ func (i input) keyFor(version failurePatternVersion) string { return prepareInpu
 
 func envelope(i input, version failurePatternVersion) resultRow {
 	i = prepareInput(i, version)
-	row := rawEnvelope(i.observation)
-	row.ResultKey, row.RawFingerprint = i.key, i.observation.Fingerprint
-	row.ExtractorVersion, row.ResultSchemaVersion = version.extractorVersion, version.resultSchemaVersion
-	return row
-}
-
-func rawEnvelope(o cifailures.Observation) resultRow {
+	o := i.observation
 	return resultRow{
-		Origin: o.Origin, BuildID: o.BuildID, Source: o.Source, TestID: o.TestID,
-		StartedAt: normalizedTime(o.StartedAt), FinishedAt: normalizedTime(o.FinishedAt),
-		SetupFinishTime: normalizedTime(o.SetupFinishTime), TestStartTime: normalizedTime(o.TestStartTime),
-		CleanupStartTime: normalizedTime(o.CleanupStartTime), Message: o.Text, TestName: o.TestName,
+		ResultKey: i.key, RawFingerprint: o.Fingerprint, MessageHash: messageHash(o.Text),
+		ExtractorVersion: version.extractorVersion, ResultSchemaVersion: version.resultSchemaVersion,
+		Origin: o.Origin, BuildID: o.BuildID, Source: o.Source, TestID: o.TestID, TestName: o.TestName,
 	}
 }

@@ -85,20 +85,18 @@ func decodeInputs(rows []query.Row) ([]input, error) {
 func decodeResults(rows []query.Row) ([]resultRow, error) {
 	results := make([]resultRow, 0, len(rows))
 	for index, row := range rows {
-		o, err := decodeObservation(row)
-		if err != nil {
-			return nil, fmt.Errorf("result row %d: %w", index, err)
-		}
-		r := rawEnvelope(o)
+		var r resultRow
 		for _, column := range []struct {
 			name  string
 			value *string
 		}{
-			{"resultKey", &r.ResultKey}, {"rawFingerprint", &r.RawFingerprint}, {"extractorVersion", &r.ExtractorVersion}, {"producerCommit", &r.ProducerCommit},
+			{"resultKey", &r.ResultKey}, {"rawFingerprint", &r.RawFingerprint}, {"messageHash", &r.MessageHash}, {"extractorVersion", &r.ExtractorVersion},
+			{"origin", &r.Origin}, {"buildId", &r.BuildID}, {"source", &r.Source}, {"testId", &r.TestID}, {"testName", &r.TestName},
+			{"producerCommit", &r.ProducerCommit},
 		} {
 			value, err := row.StringByName(column.name)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("result row %d: read %s: %w", index, column.name, err)
 			}
 			*column.value = value
 		}

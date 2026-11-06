@@ -31,10 +31,9 @@ import (
 )
 
 var resultColumns = map[string]string{
-	"resultKey": "string", "rawFingerprint": "string", "extractorVersion": "string", "resultSchemaVersion": "long",
+	"resultKey": "string", "rawFingerprint": "string", "messageHash": "string", "extractorVersion": "string", "resultSchemaVersion": "long",
 	"origin": "string", "buildId": "string", "source": "string", "testId": "string",
-	"startedAt": "datetime", "finishedAt": "datetime", "setupFinishTime": "datetime", "testStartTime": "datetime", "cleanupStartTime": "datetime",
-	"message": "string", "testName": "string", "findings": "dynamic", "computedAt": "datetime", "producerCommit": "string",
+	"testName": "string", "findings": "dynamic", "computedAt": "datetime", "producerCommit": "string",
 }
 
 func (c *Controller) initializeKusto(ctx context.Context) error {

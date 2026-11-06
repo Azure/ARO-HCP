@@ -38,7 +38,7 @@ func sampleInput() input {
 
 func computedRow(i input) resultRow {
 	r := envelope(i, compiledFailurePatternVersion())
-	r.Findings = cifailurepatterns.Extract(cifailurepatterns.Input{Text: r.Message, TestName: r.TestName, Source: r.Source})
+	r.Findings = cifailurepatterns.Extract(cifailurepatterns.Input{Text: i.observation.Text, TestName: r.TestName, Source: r.Source})
 	r.ComputedAt = time.Date(2026, 11, 4, 1, 2, 3, 0, time.UTC)
 	return r
 }
@@ -74,21 +74,6 @@ func TestIdentityUsesRawFingerprintAndExactSemanticContext(t *testing.T) {
 	require.NotEqual(t, r.ResultKey, resultKey(r.RawFingerprint, r.TestName, failurePatternVersion{extractorVersion: cifailurepatterns.Version, resultSchemaVersion: 2}))
 }
 
-func TestTimestampNullZeroNormalization(t *testing.T) {
-	i := sampleInput()
-	r := envelope(i, compiledFailurePatternVersion())
-	require.Nil(t, r.StartedAt)
-	encoded, err := json.Marshal(r)
-	require.NoError(t, err)
-	require.Contains(t, string(encoded), `"startedAt":null`)
-	var roundTrip resultRow
-	require.NoError(t, json.Unmarshal(encoded, &roundTrip))
-	require.Nil(t, roundTrip.StartedAt)
-	localZero := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
-	i.observation.StartedAt = localZero
-	require.Equal(t, r, envelope(i, compiledFailurePatternVersion()))
-}
-
 func TestPersistedFindingsAreDirectUncappedExtract(t *testing.T) {
 	for _, test := range []struct {
 		name, text, testName, source string
@@ -109,7 +94,6 @@ func TestPersistedFindingsAreDirectUncappedExtract(t *testing.T) {
 			require.NoError(t, err)
 			require.Positive(t, delay)
 			require.Len(t, got, 1)
-			require.Equal(t, test.text, got[0].Message)
 			require.Equal(t, cifailurepatterns.Extract(cifailurepatterns.Input{Text: test.text, TestName: test.testName, Source: test.source}), got[0].Findings)
 			require.Len(t, got[0].Findings, test.count)
 			_, err = validatedVisibleResults([]input{i}, compiledFailurePatternVersion(), got)
@@ -130,13 +114,14 @@ func TestValidatedVisibleResultsDuplicatesAndCorruption(t *testing.T) {
 		{"diagnostic differences", func(r *resultRow) { r.ComputedAt = r.ComputedAt.Add(time.Second); r.ProducerCommit = "other" }, true},
 		{"conflict", func(r *resultRow) { r.Findings[0].Canonical += " conflict" }, false},
 		{"wrong fingerprint", func(r *resultRow) { r.RawFingerprint = "wrong" }, false},
-		{"wrong raw", func(r *resultRow) { r.Message += "\n" }, false},
+		{"wrong message hash", func(r *resultRow) { r.MessageHash = messageHash("another message") }, false},
+		{"wrong raw identity", func(r *resultRow) { r.TestID = "other" }, false},
 		{"wrong name", func(r *resultRow) { r.TestName = "other" }, false},
 		{"wrong schema", func(r *resultRow) { r.ResultSchemaVersion++ }, false},
 		{"no findings", func(r *resultRow) { r.Findings = nil }, false},
 		{"no timestamp", func(r *resultRow) { r.ComputedAt = time.Time{} }, false},
 		{"bad offset", func(r *resultRow) {
-			r.Findings[0].Locations = []cifailurepatterns.Location{{Start: 0, End: len(r.Message) + 1}}
+			r.Findings[0].Locations = []cifailurepatterns.Location{{Start: 0, End: len(i.observation.Text) + 1}}
 		}, false},
 		{"bad outcome", func(r *resultRow) { r.Findings[0].Outcome = "made-up" }, false},
 	} {
@@ -186,10 +171,27 @@ func TestDeterministicBoundedEncoding(t *testing.T) {
 		require.LessOrEqual(t, first[index].payload.Len(), maxBatchBytes)
 	}
 	oversized := computedRow(sampleInput())
-	oversized.Message = strings.Repeat("\x00", maxRowBytes/6+1)
+	oversized.TestName = strings.Repeat("\x00", maxRowBytes/6+1)
 	batches, err := encodeBatches([]resultRow{oversized})
 	require.ErrorContains(t, err, "exceeds")
 	require.Nil(t, batches)
 	err = validateInputPopulation(make([]input, maxReadRows+1))
 	require.Error(t, err)
+}
+
+// The expected values were computed by Kusto's hash_sha256 (emulator and DEV cluster)
+// for the same strings. Kusto returns the empty string, not the digest of empty
+// input, for an empty message.
+func TestMessageHashMatchesKustoHashSHA256(t *testing.T) {
+	for name, test := range map[string]struct{ message, want string }{
+		"empty":   {"", ""},
+		"ascii":   {"hello", "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"},
+		"crlf":    {"a\r\nb\r\n", "58055bdcc73787eb88c78d36f0b4939e9c5dc1c3ad17e25cc85a6833cf1a0cab"},
+		"nul":     {"a\x00b", "59b271ae1bbcb1d31d41929817f4b16fb439eb4f31520b5ad1d5ce98920a7138"},
+		"unicode": {"中文🙂𐐷\r\ncontext deadline exceeded\x00\n", "2f89853312cb8045ab1b6c02ecff3841d57fad2e4a3b5ad58c56290d93f10c19"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, test.want, messageHash(test.message))
+		})
+	}
 }

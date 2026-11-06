@@ -30,6 +30,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/workqueue"
 
@@ -39,7 +40,7 @@ import (
 func newTestController(t *testing.T) *Controller {
 	t.Helper()
 	cfg := &config.Config{
-		CIJobOutcomes: config.CIJobOutcomesConfig{ClusterURI: "http://127.0.0.1:8080", Database: "test",
+		CIJobOutcomes: config.CIJobOutcomesConfig{ClusterURI: "http://127.0.0.1:8080", IngestionURI: "http://127.0.0.1:8081", Database: "test",
 			Outcomes: config.KustoTableConfig{Table: "ciJobOutcomes"}, TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"}},
 		CIFailurePatterns: config.CIFailurePatternsConfig{Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"}, Interval: "10ms", CacheTTL: "1h"},
 		Tenants:           []config.TenantConfig{{TenantID: "t", ServicePrincipalClientId: "c", KeyVaultSecretName: "s"}},

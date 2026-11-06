@@ -27,9 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
-	"github.com/stretchr/testify/require"
+	"github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -216,6 +218,27 @@ func TestControllerKustoIntegration(t *testing.T) {
 	require.Len(t, submitted, 4)
 	require.True(t, c.processNext(ctx))
 	checkCoverage(5, 0)
+	// Stored message hashes equal Kusto's hash_sha256 of the raw message, so the
+	// documented join finds the raw row of every result.
+	joined := func(buildFilter, join string) []query.Row {
+		t.Helper()
+		dataset, err := kusto.CompleteQuery(ctx, client, database, kql.New("ciFailurePatterns | where ").AddUnsafe(buildFilter+`
+| join kind=inner (ciTestResults | where failed | extend messageHash = hash_sha256(message)) on `+join+`
+| summarize raw = count() by resultKey`))
+		require.NoError(t, err)
+		rows, err := primaryRows(dataset)
+		require.NoError(t, err)
+		return rows
+	}
+	rawMatches := joined(`buildId != "retry-fixture"`, "buildId, source, testId, messageHash")
+	require.Len(t, rawMatches, len(submitted), "every result must match a raw row")
+	var matched int64
+	for _, row := range rawMatches {
+		count, err := row.LongByName("raw")
+		require.NoError(t, err)
+		matched += *count
+	}
+	require.EqualValues(t, occurrences, matched, "each raw occurrence matches exactly its own result")
 	// Physical retry duplicates do not change the logical population or findings.
 	ingest(t, "ciFailurePatterns", "ciFailurePatternsMapping", submitted)
 	orphan := submitted[0]
@@ -240,7 +263,7 @@ func TestControllerKustoIntegration(t *testing.T) {
 	}{
 		{
 			name:    "mismatched-envelope",
-			mutate:  func(row *resultRow) { row.Message = "not the raw evidence" },
+			mutate:  func(row *resultRow) { row.TestID = "not the raw test" },
 			wantErr: "envelope",
 		},
 		{
@@ -391,5 +414,30 @@ range n from 0 to %d step 1
 			visible, err := validatedVisibleResults(current, compiledFailurePatternVersion(), rows)
 			return err == nil && len(visible) == 1
 		}, 10*time.Second, 50*time.Millisecond)
-	})
+	}) // A test that fails twice in one run shares (buildId, source, testId) between
+	// two raw rows with different messages. Only the hash tells them apart.
+	const retryBuild = "retry-fixture"
+	flaky := func(message string) map[string]any {
+		return map[string]any{"buildId": retryBuild, "testId": "flaky", "source": "e2e", "message": message, "failed": true, "resourceGroup": "fixture", "result": "Failed"}
+	}
+	ingest(t, "ciTestResults", "ciTestResultsMapping", []map[string]any{flaky("first failure: context deadline exceeded"), flaky(exactText)})
+	attempts, err := c.loadInputs(ctx, client, retryBuild)
+	require.NoError(t, err)
+	require.Len(t, attempts, 2)
+	var attemptResults []resultRow
+	for _, attempt := range attempts {
+		attemptResults = append(attemptResults, computedRow(attempt))
+	}
+	ingest(t, "ciFailurePatterns", "ciFailurePatternsMapping", attemptResults)
+	require.Len(t, joined(`buildId == "retry-fixture"`, "buildId, source, testId"), 2)
+	for _, row := range joined(`buildId == "retry-fixture"`, "buildId, source, testId") {
+		count, err := row.LongByName("raw")
+		require.NoError(t, err)
+		require.EqualValues(t, 2, *count, "joining on the triple alone matches both attempts")
+	}
+	for _, row := range joined(`buildId == "retry-fixture"`, "buildId, source, testId, messageHash") {
+		count, err := row.LongByName("raw")
+		require.NoError(t, err)
+		require.EqualValues(t, 1, *count, "the hash selects the attempt's own raw row")
+	}
 }
