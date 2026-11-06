@@ -103,7 +103,7 @@ func TestQueuedSDKWirePreservesEnvelopesWithoutExtentGates(t *testing.T) {
 	// Both submissions really upload and enqueue. No permanent batch tag can
 	// suppress a later repair of a missing computation.
 	for range 2 {
-		require.NoError(t, tenantkusto.IngestJSONLines(ctx, ingestor, "ciFailurePatternsMapping", bytes.NewBuffer(batches[0].Bytes())))
+		require.NoError(t, tenantkusto.IngestJSONLines(ctx, ingestor, "ciFailurePatternsMapping", bytes.NewBuffer(batches[0].payload.Bytes())))
 	}
 	require.Len(t, uploads, 2)
 	require.Len(t, messages, 2)
@@ -130,7 +130,7 @@ func TestQueuedSDKWirePreservesEnvelopesWithoutExtentGates(t *testing.T) {
 		payload, err := io.ReadAll(reader)
 		require.NoError(t, err)
 		require.NoError(t, reader.Close())
-		require.Equal(t, batches[0].Bytes(), payload)
+		require.Equal(t, batches[0].payload.Bytes(), payload)
 	}
 }
 

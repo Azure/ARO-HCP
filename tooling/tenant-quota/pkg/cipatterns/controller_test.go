@@ -239,6 +239,8 @@ func TestRealNormalQueueVisibilityLateInputsNamesAndRestart(t *testing.T) {
 
 func TestReconcileRetainsRepeatedInputsAndMultiplicity(t *testing.T) {
 	c := newTestController(t)
+	now := time.Now()
+	c.now = func() time.Time { return now }
 	first := sampleInput()
 	second := first
 	second.observation.Text = "a different failure"
@@ -267,7 +269,16 @@ func TestReconcileRetainsRepeatedInputsAndMultiplicity(t *testing.T) {
 	require.EqualValues(t, 3, inputs[2].multiplicity)
 	require.Empty(t, inputs[0].key, "preparing missing computations must not mutate fixed inputs")
 
+	// A changed missing set (second became visible) must not resubmit first,
+	// which was accepted moments ago and is still awaiting visibility.
 	db.visible = []resultRow{computedRow(second)}
+	delay, err = c.reconcileInputs(t.Context(), version, inputs)
+	require.NoError(t, err)
+	require.Positive(t, delay)
+	require.Len(t, db.accepted, 3, "an accepted computation is not resubmitted when the missing set changes")
+
+	// Once the acceptance expires unseen, both repeated missing inputs are written again.
+	now = now.Add(2 * time.Hour)
 	delay, err = c.reconcileInputs(t.Context(), version, inputs)
 	require.NoError(t, err)
 	require.Positive(t, delay)

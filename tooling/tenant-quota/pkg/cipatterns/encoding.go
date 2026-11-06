@@ -21,10 +21,17 @@ import (
 	"sort"
 )
 
-func encodeBatches(rows []resultRow) ([]*bytes.Buffer, error) {
+// encodedBatch is one ingestion payload and the computation keys it carries, so
+// acceptance can be recorded per computation.
+type encodedBatch struct {
+	payload *bytes.Buffer
+	keys    []string
+}
+
+func encodeBatches(rows []resultRow) ([]encodedBatch, error) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].ResultKey < rows[j].ResultKey })
-	var batches []*bytes.Buffer
-	batch := &bytes.Buffer{}
+	var batches []encodedBatch
+	batch := encodedBatch{payload: &bytes.Buffer{}}
 	count := 0
 	total := 0
 	for _, row := range rows {
@@ -39,12 +46,13 @@ func encodeBatches(rows []resultRow) ([]*bytes.Buffer, error) {
 		if total > maxReadBytes {
 			return nil, fmt.Errorf("encoded result population exceeds %d bytes", maxReadBytes)
 		}
-		if count == maxBatchRows || batch.Len()+encoded.Len() > maxBatchBytes {
+		if count == maxBatchRows || batch.payload.Len()+encoded.Len() > maxBatchBytes {
 			batches = append(batches, batch)
-			batch = &bytes.Buffer{}
+			batch = encodedBatch{payload: &bytes.Buffer{}}
 			count = 0
 		}
-		_, _ = batch.Write(encoded.Bytes())
+		_, _ = batch.payload.Write(encoded.Bytes())
+		batch.keys = append(batch.keys, row.ResultKey)
 		count++
 	}
 	if count > 0 {

@@ -33,7 +33,7 @@ func newControllerMetrics() controllerMetrics {
 		scans:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_failure_patterns_scans_total", Help: "Completed build discovery steps: newest-build polls (head) and history sweep pages (sweep)."}, []string{"kind"}),
 		accepted:  prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_accepted_batches_total", Help: "Queued batches accepted, not proof of result visibility."}),
 		visible:   prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_visible_reconciles_total", Help: "Reconciles with every expected computation query-visible and valid."}),
-		cacheHits: prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_submission_cache_hits_total", Help: "Recent submission sets suppressed pending visibility."}),
+		cacheHits: prometheus.NewCounter(prometheus.CounterOpts{Name: "ci_failure_patterns_submission_cache_hits_total", Help: "Reconciles where every missing computation was recently submitted and is awaiting visibility."}),
 		failures:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ci_failure_patterns_failures_total", Help: "Retryable failures by bounded operation."}, []string{"operation"}),
 	}
 }

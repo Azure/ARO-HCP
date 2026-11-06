@@ -18,8 +18,6 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -51,14 +49,12 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 		return 0, err
 	}
 	missing := make([]input, 0, len(inputs))
-	keys := make([]string, 0, cap(missing))
 	for _, i := range inputs {
 		i = prepareInput(i, version)
 		if _, ok := visible[i.key]; ok {
 			continue
 		}
 		missing = append(missing, i)
-		keys = append(keys, i.key)
 	}
 	build := inputs[0].observation.BuildID
 	if len(missing) == 0 {
@@ -70,16 +66,24 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 		}
 		return 0, nil
 	}
-	sort.Strings(keys)
-	cacheKey := strings.Join(keys, "\n")
-	if c.batches.contains(cacheKey, c.now()) {
+	// Acceptance is tracked per computation, not per set of missing computations, so a
+	// changed set (partial visibility, a new input or name) never resubmits a
+	// computation that was just accepted and is still waiting to become visible.
+	now := c.now()
+	pending := make([]input, 0, len(missing))
+	for _, i := range missing {
+		if !c.batches.contains(i.key, now) {
+			pending = append(pending, i)
+		}
+	}
+	if len(pending) == 0 {
 		c.metrics.cacheHits.Inc()
 		c.logger.Debug("Awaiting visibility of submitted computations", "buildId", build, "missing", len(missing))
 		return c.retryDelay, nil
 	}
-	computed := make([]resultRow, 0, len(missing))
+	computed := make([]resultRow, 0, len(pending))
 	producerCommit := buildversion.CommitSHA
-	for _, i := range missing {
+	for _, i := range pending {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
@@ -93,17 +97,20 @@ func (c *Controller) reconcileInputs(ctx context.Context, version failurePattern
 	if err != nil {
 		return 0, err
 	}
-	for _, payload := range batches {
+	for _, batch := range batches {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		if err := c.submit(ctx, payload); err != nil {
+		if err := c.submit(ctx, batch.payload); err != nil {
 			return 0, fmt.Errorf("submit missing computations: %w", err)
 		}
 		c.metrics.accepted.Inc()
+		accepted := c.now()
+		for _, key := range batch.keys {
+			c.batches.add(key, accepted)
+		}
 	}
-	c.batches.add(cacheKey, c.now())
-	c.logger.Debug("Submitted computations", "buildId", build, "inputs", len(inputs), "missing", len(missing), "batches", len(batches))
+	c.logger.Debug("Submitted computations", "buildId", build, "inputs", len(inputs), "missing", len(missing), "submitted", len(pending), "batches", len(batches))
 	return c.retryDelay, nil
 }
 

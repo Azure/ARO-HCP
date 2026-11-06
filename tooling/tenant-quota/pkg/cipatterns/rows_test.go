@@ -181,8 +181,9 @@ func TestDeterministicBoundedEncoding(t *testing.T) {
 	second, err := encodeBatches(rows)
 	require.NoError(t, err)
 	for index := range first {
-		require.Equal(t, first[index].Bytes(), second[index].Bytes())
-		require.LessOrEqual(t, first[index].Len(), maxBatchBytes)
+		require.Equal(t, first[index].payload.Bytes(), second[index].payload.Bytes())
+		require.Equal(t, first[index].keys, second[index].keys)
+		require.LessOrEqual(t, first[index].payload.Len(), maxBatchBytes)
 	}
 	oversized := computedRow(sampleInput())
 	oversized.Message = strings.Repeat("\x00", maxRowBytes/6+1)
