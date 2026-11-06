@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -370,8 +371,10 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 	}
 	identities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	var expected []roleAssignmentDefinition
-	for operator, id := range identities.ControlPlaneOperators {
-		principal, ok := controlPlaneOperatorPrincipalID(spc, id)
+
+	sortedControlPlaneOperatorNames := slices.Sorted(maps.Keys(identities.ControlPlaneOperators))
+	for _, operator := range sortedControlPlaneOperatorNames {
+		principal, ok := controlPlaneOperatorPrincipalID(spc, identities.ControlPlaneOperators[operator])
 		if !ok {
 			return nil, fmt.Errorf("principal ID not yet resolved for control plane operator %q", operator)
 		}
@@ -384,8 +387,10 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 			return nil, err
 		}
 	}
-	for operator, id := range identities.DataPlaneOperators {
-		principal, ok := dataPlaneOperatorPrincipalID(spc, id)
+
+	sortedDataPlaneOperatorNames := slices.Sorted(maps.Keys(identities.DataPlaneOperators))
+	for _, operator := range sortedDataPlaneOperatorNames {
+		principal, ok := dataPlaneOperatorPrincipalID(spc, identities.DataPlaneOperators[operator])
 		if !ok {
 			return nil, fmt.Errorf("principal ID not yet resolved for data plane operator %q", operator)
 		}
@@ -398,6 +403,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 			return nil, err
 		}
 	}
+
 	principal, ok := serviceManagedIdentityPrincipalID(spc, identities.ServiceManagedIdentity)
 	if !ok {
 		return nil, fmt.Errorf("principal ID not yet resolved for service managed identity")
@@ -413,6 +419,7 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignments(cluster *coreapi.Cluster
 	slices.SortFunc(expected, func(a, b roleAssignmentDefinition) int {
 		return strings.Compare(strings.ToLower(a.resourceID.String()), strings.ToLower(b.resourceID.String()))
 	})
+
 	return expected, nil
 }
 
