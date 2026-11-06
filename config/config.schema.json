@@ -3400,6 +3400,15 @@
           "maximum": 4,
           "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
         },
+        "clusterUpgradeMonitorMode": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "shadow",
+            "active"
+          ],
+          "description": "Cluster-upgrade detector rollout: legacy preserves version-specific paging; shadow evaluates the new detector without Action Groups; active enables new cluster-level paging and disables legacy detectors."
+        },
         "eventHubAlerting": {
           "type": "object",
           "description": "Configuration for sending alert events to an Event Hub for Kusto ingestion",

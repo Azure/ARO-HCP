@@ -442,7 +442,7 @@ update-helm-fixtures:
 .PHONY: update-helm-fixtures
 
 test-infrastructure:
-	BICEP="$(BICEP)" go test -C dev-infrastructure infrastructure_identities_test.go
+	BICEP="$(BICEP)" go test -C dev-infrastructure infrastructure_identities_test.go cluster_upgrade_monitoring_test.go
 .PHONY: test-infrastructure
 
 test-helm-fixtures: test-infrastructure

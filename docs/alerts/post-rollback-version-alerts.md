@@ -29,8 +29,10 @@ that CVO reports `Failing` solely because the completed version is below the
 fleet's best version; the current rules and synthetic tests cannot establish
 that CVO behavior. Check live CVO conditions if that case is observed.
 
-The single journey alert replaces the two version-specific journey alerts.
-Its identity is stable across version and phase changes. See
+The single journey alert replaces the two version-specific journey alerts only
+after `monitoring.clusterUpgradeMonitorMode` is set to `active`. Default `legacy`
+retains existing paging; `shadow` evaluates the new detector without delivery.
+The new identity is stable across version and phase changes. See
 [Cluster upgrade stuck monitor](cluster-upgrade.md) for lifecycle resolution,
 missing-observation handling, deployment order, and the required external
 routing/silence migration checks. Promtool tests exercise blocked rollback

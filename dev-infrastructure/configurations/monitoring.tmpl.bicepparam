@@ -13,6 +13,7 @@ param actionGroupDEV = '__actionGroupDEV__'
 
 param alertsEnabled = {{ .monitoring.alertsEnabled }}
 param alertSeverityCeiling = {{ .monitoring.alertSeverityCeiling }}
+param clusterUpgradeMonitorMode = '{{ .monitoring.clusterUpgradeMonitorMode }}'
 param icmEnabledSRE = {{ .monitoring.icm.sre.enabled }}
 param icmEnabledSL = {{ .monitoring.icm.sl.enabled }}
 param icmEnabledRP = {{ .monitoring.icm.rp.enabled }}

@@ -501,6 +501,7 @@ defaults:
     alertRuleOwningTeamTag: ""
     alertsEnabled: true
     alertSeverityCeiling: 0
+    clusterUpgradeMonitorMode: legacy
     eventHubAlerting:
       enabled: false
     icm:

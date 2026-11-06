@@ -670,11 +670,64 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "#disable-next-line no-unused-params")
 		assert.Contains(t, generated, "param azureMonitoring string")
 		assert.Contains(t, generated, "param actionGroups array")
+		assert.NotContains(t, generated, "param alertRulesEnabled")
 		assert.Contains(t, generated, "param severityCeiling int = 0")
 		assert.NotContains(t, generated, unusedSeverityCeilingSuppression)
 		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 		assert.Contains(t, generated, "alert: 'TestAlert'")
 		assert.Contains(t, generated, "severity: severityCeiling > 0 ? max(2, severityCeiling) : 2")
+	})
+
+	t.Run("parameterized alert evaluation and shadow group identity", func(t *testing.T) {
+		opts := &Options{
+			outputBicep:                   filepath.Join(t.TempDir(), "generatedAlertingRules.bicep"),
+			parameterizeAlertRulesEnabled: true,
+			groupNamePrefix:               "shadow-",
+			ruleFiles: []alertingRuleFile{{
+				Rules: monitoringv1.PrometheusRule{
+					Spec: monitoringv1.PrometheusRuleSpec{
+						Groups: []monitoringv1.RuleGroup{{
+							Name: "upgrade-monitor",
+							Rules: []monitoringv1.Rule{{
+								Alert:       "ClusterUpgradeStuck",
+								Expr:        intstr.FromString("upgrade_stuck == 1"),
+								Labels:      map[string]string{"severity": "4", "component": "test"},
+								Annotations: map[string]string{"summary": "Cluster upgrade is stuck"},
+							}},
+						}},
+					},
+				},
+			}},
+		}
+		require.NoError(t, opts.Generate())
+		content, err := os.ReadFile(opts.outputBicep)
+		require.NoError(t, err)
+		generated := string(content)
+		assert.Contains(t, generated, "param alertRulesEnabled bool = true")
+		assert.Contains(t, generated, "enabled: alertRulesEnabled")
+		assert.NotContains(t, generated, "enabled: true")
+		assert.Contains(t, generated, "name: 'shadow-upgrade-monitor'")
+		assert.Contains(t, generated, "alert: 'ClusterUpgradeStuck'")
+		assert.Contains(t, generated, "expression: 'upgrade_stuck == 1'")
+	})
+
+	t.Run("recording output rejects alert evaluation parameter", func(t *testing.T) {
+		opts := &Options{
+			outputBicep:                   filepath.Join(t.TempDir(), "generatedRecordingRules.bicep"),
+			parameterizeAlertRulesEnabled: true,
+		}
+		require.ErrorContains(t, opts.Generate(), "only supported for alerting-rule modules")
+	})
+
+	t.Run("empty parameterized alerting output suppresses unused enable parameter", func(t *testing.T) {
+		opts := &Options{
+			outputBicep:                   filepath.Join(t.TempDir(), "generatedAlertingRules.bicep"),
+			parameterizeAlertRulesEnabled: true,
+		}
+		require.NoError(t, opts.Generate())
+		content, err := os.ReadFile(opts.outputBicep)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "#disable-next-line no-unused-params\nparam alertRulesEnabled bool = true")
 	})
 
 	t.Run("with included alerts", func(t *testing.T) {
@@ -1364,7 +1417,7 @@ func TestWriteGroups(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeAlertGroups(group, &buf)
+	err := writeAlertGroups(group, &buf, false)
 	assert.NoError(t, err)
 
 	output := buf.String()

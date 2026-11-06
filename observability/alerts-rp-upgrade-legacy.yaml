@@ -1,0 +1,8 @@
+prometheusRules:
+  rulesFolders:
+  - alerts/userJourneyClusterUpgradeLegacyMonitor-prometheusRule.yaml
+  untestedRules: []
+  testDependencies:
+  - recording-rules-services.yaml
+  parameterizeAlertRulesEnabled: true
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPUpgradeLegacyAlertingRules.bicep

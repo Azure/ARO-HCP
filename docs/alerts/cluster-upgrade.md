@@ -41,6 +41,11 @@ The completion clock includes time spent in Desired: becoming Partial does
 Partial at 00:10 reaches the completion threshold just after 00:30, not 00:40.
 These clocks use monitoring observations, not the ARM request timestamp.
 
+Existing eligibility and diagnostic cardinality are preserved: the backend
+reports at most three active-history entries. Verify that a Completed baseline
+is visible during shadow validation, especially for deeper Partial histories.
+No upgrade alert is not, by itself, proof that the cluster is healthy.
+
 ### State-transition process
 
 | Step or transition | Observed condition | Monitor value | Alert/incident behavior |
@@ -86,15 +91,43 @@ uninstall; the RP check alone is not atomic.
 
 ## Rollout and review
 
-1. Deploy the backend first and verify target and lifecycle metrics are present.
-2. Deploy the recording and alert rules together. The old
-   `userJourneyClusterUpgradeStuckInDesired` and
-   `userJourneyClusterUpgradeStuckInProgress` alerts are replaced, not retained.
-3. Check external routing, silences, dashboards, and automation for those names,
-   their old SLO labels, and version-specific correlation IDs. Existing incidents
-   do not automatically inherit the new correlation key.
-4. Confirm the standard monitor 1-to-0 auto-mitigation flow with reviewers,
-   including a firing-to-uninstalling transition.
+Set `monitoring.clusterUpgradeMonitorMode` in the scoped configuration. It is
+passed through the monitoring Bicep parameters to the RP rule wrapper. The
+default is `legacy`; this PR does not automatically enable new paging.
+
+| Mode | Legacy detectors | Shadow detector | Production detector | Delivery |
+| --- | --- | --- | --- | --- |
+| `legacy` | Enabled | Disabled | Disabled | Existing legacy routing is unchanged |
+| `shadow` | Enabled | Enabled | Disabled | Shadow has no Action Groups, including no Event Hub delivery; legacy still pages |
+| `active` | Disabled | Disabled | Enabled | New production detector uses existing RP routing |
+
+| Step | Required evidence before promotion |
+| --- | --- |
+| Deploy backend | Current targets and lifecycle metrics are present; deletion/uninstallation blocks dispatch; steady-state CS polling load is acceptable |
+| Deploy recording rules, then select `shadow` | New inputs are available before evaluating the new detector; old alerting remains enabled |
+| Validate shadow behavior | Known stuck clusters produce 1; completion or confirmed deleting/uninstalling produces 0; missing observations do not mitigate; phase/version/UUID changes do not duplicate the cluster condition |
+| Prepare cutover | Review old active incidents, routing, silences, old SLO labels and version-specific correlation IDs; agree how to dispose of old incidents |
+| Select `active` | Verify that the production detector starts its pending/firing lifecycle, reaches the RP receiver, and auto-mitigates on a confirmed 1-to-0 transition |
+| Expand by environment/region | Reviewer-approved observations support widening the rollout; the mode can be returned to `legacy` for detector rollback |
+
+Legacy, shadow and production groups have different Azure resource identities.
+The production detector is not evaluated before `active`, rather than attaching
+an Action Group to an already-firing shadow alert and assuming a notification
+will be replayed. Both new detectors use the same recording rule and alert
+definition. Other RP rules and the shared Action Group are unaffected.
+
+The old `userJourneyClusterUpgradeStuckInDesired` and
+`userJourneyClusterUpgradeStuckInProgress` detectors retain their expressions,
+labels and correlation IDs during `legacy` and `shadow`. They do not gain the
+new lifecycle-clear behavior. They remain deployed but are disabled in `active`.
+Existing incidents do not inherit the new correlation key, and disabling a rule
+must not be assumed to close its existing incidents.
+
+This is a phased deployment through SDP pipelines, not a production deployment
+performed by the PR. Metric-only preparation has precedent in
+[Azure/ARO-HCP#7767](https://github.com/Azure/ARO-HCP/pull/7767); the repository's
+[Alert Verification guide](../alert-verification.md) also recommends testing
+against historical data before rollout.
 
 Rule tests cover current completion with retained historical Partial series,
 pending and firing lifecycle transitions, stable identity across stages and

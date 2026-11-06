@@ -2,6 +2,9 @@ rule_files:
 - userJourneyClusterUpgrade-recordingRule.yaml
 - userJourneyClusterUpgradeMonitor-prometheusRule.yaml
 evaluation_interval: 1m
+group_eval_order:
+- arohcp_user_journey_cluster_upgrade_recording_rules
+- rp-user-journey-cluster-upgrade-monitor-rules-v2
 tests:
 - name: superseded versions and lifecycle resolution
   interval: 1m

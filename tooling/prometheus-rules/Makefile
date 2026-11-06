@@ -23,7 +23,7 @@ fmt-devinfra:
 run: alerts recording-rules
 .PHONY: run
 
-alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-rp-hcps run-msft-services run-kusto-services run-kusto-hcps run-dev-services run-dev-hcps
+alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-rp-upgrade-legacy run-rp-upgrade-shadow run-rp-upgrade run-rp-hcps run-msft-services run-kusto-services run-kusto-hcps run-dev-services run-dev-hcps
 	$(MAKE) fmt-devinfra
 .PHONY: alerts
 
@@ -50,6 +50,18 @@ run-sre-services:
 run-rp-services:
 	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-rp-services
+
+run-rp-upgrade-legacy:
+	go run ./... --config-file ../../observability/alerts-rp-upgrade-legacy.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-upgrade-legacy
+
+run-rp-upgrade-shadow:
+	go run ./... --config-file ../../observability/alerts-rp-upgrade-shadow.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-upgrade-shadow
+
+run-rp-upgrade:
+	go run ./... --config-file ../../observability/alerts-rp-upgrade.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-upgrade
 
 run-rp-hcps:
 	go run ./...  --config-file ../../observability/alerts-rp-hcps.yaml $(EXTRA_FLAGS)
@@ -89,6 +101,9 @@ ALERT_CONFIGS = \
 	../../observability/alerts-sre-hcps.yaml \
 	../../observability/alerts-sre-services.yaml \
 	../../observability/alerts-rp-services.yaml \
+	../../observability/alerts-rp-upgrade-legacy.yaml \
+	../../observability/alerts-rp-upgrade-shadow.yaml \
+	../../observability/alerts-rp-upgrade.yaml \
 	../../observability/alerts-rp-hcps.yaml \
 	../../observability/alerts-msft-services.yaml \
 	../../observability/alerts-kusto-services.yaml \
