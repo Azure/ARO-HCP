@@ -70,10 +70,13 @@ var (
 )
 
 const (
-	stepDeleteMCE                  = "delete-multiclusterengine"
-	stepDeleteNamespace            = "delete-namespace"
-	stepDeleteAppliedManifestWorks = "delete-appliedmanifestworks"
-	stepDeleteOCMCRDs              = "delete-open-cluster-management-crds"
+	stepEnsurePodNetworksNotACMOwned            = "ensure-podnetworks-not-acm-owned"
+	stepEnsurePodNetworkInstancesNotACMOwned    = "ensure-podnetworkinstances-not-acm-owned"
+	stepEnsureHostedClusterResourcesNotACMOwned = "ensure-hostedcluster-resources-not-acm-owned"
+	stepDeleteMCE                               = "delete-multiclusterengine"
+	stepDeleteNamespace                         = "delete-namespace"
+	stepDeleteAppliedManifestWorks              = "delete-appliedmanifestworks"
+	stepDeleteOCMCRDs                           = "delete-open-cluster-management-crds"
 )
 
 // syncKey is the single work item that drives the ordered uninstall.
@@ -90,26 +93,39 @@ type stepResult struct {
 	values []any
 }
 
-// stepFunc runs one uninstall action.
+// stepFunc runs one uninstall action or prerequisite check.
 type stepFunc func(context.Context) (stepResult, error)
 
-// uninstallStep is one ordered action in the ACM teardown sequence.
-type uninstallStep struct {
+// step is one named action in an ordered sequence.
+type step struct {
 	name string
 	run  stepFunc
 }
 
-// Controller tears down ACM/MCE leftovers in order:
+// Controller tears down ACM/MCE leftovers after ownership prerequisites pass.
+//
+// Prerequisites (block teardown while any fail; checked until they succeed once):
+//  1. PodNetwork objects are not ACM-owned
+//  2. PodNetworkInstance objects are not ACM-owned
+//  3. HostedClusters, their namespaced resources, and HostedControlPlane
+//     namespaces are not ACM-owned
+//
+// After the prerequisites succeed once they are not rechecked: new clusters are
+// no longer ACM-managed, so ownership cannot reappear for this purpose.
+//
+// Uninstall order once prerequisites pass:
 //  1. MultiClusterEngine/multiclusterengine
 //  2. Namespace/multicluster-engine
 //  3. All AppliedManifestWorks (clear finalizers, then delete)
 //  4. All CRDs whose names end in .open-cluster-management.io
 type Controller struct {
-	name          string
-	kubeClient    kubernetes.Interface
-	dynamicClient dynamic.Interface
-	queue         workqueue.TypedRateLimitingInterface[syncKey]
-	steps         []uninstallStep
+	name             string
+	kubeClient       kubernetes.Interface
+	dynamicClient    dynamic.Interface
+	queue            workqueue.TypedRateLimitingInterface[syncKey]
+	prereqs          []step
+	steps            []step
+	prereqsSatisfied bool
 }
 
 func NewController(kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) (*Controller, error) {
@@ -125,7 +141,12 @@ func NewController(kubeClient kubernetes.Interface, dynamicClient dynamic.Interf
 			workqueue.TypedRateLimitingQueueConfig[syncKey]{Name: ACMUninstallControllerName},
 		),
 	}
-	c.steps = []uninstallStep{
+	c.prereqs = []step{
+		{name: stepEnsurePodNetworksNotACMOwned, run: c.ensurePodNetworksNotACMOwned},
+		{name: stepEnsurePodNetworkInstancesNotACMOwned, run: c.ensurePodNetworkInstancesNotACMOwned},
+		{name: stepEnsureHostedClusterResourcesNotACMOwned, run: c.ensureHostedClusterResourcesNotACMOwned},
+	}
+	c.steps = []step{
 		{name: stepDeleteMCE, run: c.ensureMCEDeleted},
 		{name: stepDeleteNamespace, run: c.ensureNamespaceDeleted},
 		{name: stepDeleteAppliedManifestWorks, run: c.ensureAppliedManifestWorksDeleted},
@@ -184,11 +205,30 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	return true
 }
 
-// reconcile runs configured uninstall steps in order. It returns how long to
-// wait before checking again. After a successful uninstall it rechecks on
-// idleRecheckInterval in case ACM leftovers reappear.
+// reconcile checks uninstall prerequisites (until they succeed once), then
+// runs uninstall steps in order. It returns how long to wait before checking
+// again. After a successful uninstall it rechecks on idleRecheckInterval in
+// case ACM leftovers reappear.
 func (c *Controller) reconcile(ctx context.Context) (time.Duration, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	if !c.prereqsSatisfied {
+		for _, step := range c.prereqs {
+			result, err := step.run(ctx)
+			if err != nil {
+				return 0, fmt.Errorf("prerequisite %q: %w", step.name, err)
+			}
+			if result.done {
+				logger.Info("ACM uninstall prerequisite met", "step", step.name)
+				continue
+			}
+			pendingLogger := logger.WithValues("step", step.name, "reason", result.reason)
+			pendingLogger.Info("ACM uninstall prerequisite not met", result.values...)
+			return recheckInterval, nil
+		}
+		c.prereqsSatisfied = true
+		logger.Info("ACM uninstall prerequisites satisfied; skipping future ownership checks")
+	}
 
 	for _, step := range c.steps {
 		result, err := step.run(ctx)
@@ -199,7 +239,6 @@ func (c *Controller) reconcile(ctx context.Context) (time.Duration, error) {
 			logger.Info("ACM uninstall step completed", "step", step.name)
 			continue
 		}
-
 		pendingLogger := logger.WithValues("step", step.name, "reason", result.reason)
 		pendingLogger.Info("ACM uninstall step not done", result.values...)
 		return recheckInterval, nil
