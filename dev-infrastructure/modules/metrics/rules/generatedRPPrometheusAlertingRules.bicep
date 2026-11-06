@@ -468,7 +468,7 @@ Service Cluster: {{ $labels.cluster }}
           summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
           title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
         }
-        expression: 'hosted_control_plane_upgrade:duration_in_desired:seconds > 1200'
+        expression: '(hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -501,7 +501,7 @@ Service Cluster: {{ $labels.cluster }}
           summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
           title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
         }
-        expression: 'hosted_control_plane_upgrade:duration_in_progress:seconds > 1800'
+        expression: '(hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
