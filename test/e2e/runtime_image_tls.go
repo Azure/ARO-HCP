@@ -52,7 +52,7 @@ const (
 	// pool to become ready and schedulable so the check pod can be placed.
 	runtimeImageTLSNodeReadyTimeout = 15 * time.Minute
 	// runtimeImageTLSPodCompletionTimeout bounds the check pod itself: the
-	// image pull is the only slow part, the kubectl call returns immediately.
+	// image pull is the only slow part, the in-pod check returns immediately.
 	runtimeImageTLSPodCompletionTimeout = 5 * time.Minute
 )
 
@@ -65,15 +65,60 @@ var kubectlTLS13PanicSignatures = []string{
 	"OSSL_PARAM_BLD_push_octet_string",
 }
 
+// runtimeImageTLSCheckScript runs inside a pod of the image under test. It
+// starts a TLS-1.3-only server on the pod's loopback interface (openssl
+// s_server -tls1_3 cannot negotiate any other version) and then makes the
+// image's own kubectl talk to it. Because the server only speaks TLS 1.3, a
+// kubectl that completes the round trip has necessarily negotiated TLS 1.3 —
+// this is what the check asserts; a TLS-1.2-only client fails the handshake.
+// --insecure-skip-tls-verify only skips certificate verification, not the
+// handshake itself, which is where the AROSLSRE-2481 panic lives. The dummy
+// token exists because kubectl refuses to run without credentials; the server
+// ignores it.
+const runtimeImageTLSCheckScript = `cert=/tmp/tls-check.crt
+key=/tmp/tls-check.key
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout "$key" -out "$cert" \
+  -days 1 -subj "/CN=127.0.0.1" >/dev/null 2>&1
+openssl s_server -accept 127.0.0.1:8443 -tls1_3 \
+  -cert "$cert" -key "$key" -www -quiet \
+  >/dev/null 2>&1 &
+S_SERVER_PID=$!
+ready=""
+for attempt in 1 2 3 4 5; do
+  if ! kill -0 "$S_SERVER_PID" 2>/dev/null; then
+    echo "TLS-CHECK-ERROR: the local TLS 1.3-only server exited before serving"
+    exit 3
+  fi
+  probe="$(timeout 10 openssl s_client -connect 127.0.0.1:8443 -tls1_3 -brief </dev/null 2>&1 || true)"
+  if printf '%s\n' "$probe" | grep -q 'Protocol version: *TLSv1.3'; then
+    ready=yes
+    break
+  fi
+  sleep 2
+done
+if [ "$ready" != yes ]; then
+  echo "TLS-CHECK-ERROR: the local TLS 1.3-only server did not come up"
+  exit 3
+fi
+echo "TLS-CHECK: local TLS 1.3-only server is up on 127.0.0.1:8443"
+kubectl get --raw / --server=https://127.0.0.1:8443 --insecure-skip-tls-verify --token=tls-check
+status=$?
+echo "TLS-CHECK: kubectl exited with status $status"
+exit $status
+`
+
 // The aks/command/runtime image is executed in the deployment path (the
 // unannotate-default-sc, azure-cns-cpu-limits and Velero install hook Jobs all
 // run its kubectl), and it has shipped a kubectl that panics on TLS 1.3
 // handshakes twice (AROSLSRE-2021, AROSLSRE-2481). curl-style checks cannot
 // catch that: the panic is in kubectl's own Go/OpenSSL binding, so the check
-// has to make kubectl itself talk to a real API server. Every Kubernetes API
-// server negotiates TLS 1.3, so a successful kubectl call from inside a pod of
-// that image proves the handshake works. When AROSLSRE-2528's first-party
-// toolbox image replaces this image in the hook Jobs, point this spec at it.
+// has to make kubectl itself perform a TLS 1.3 handshake — against a
+// TLS-1.3-only endpoint, so success proves the version and not just any
+// handshake. The spec reads the image reference from the service config, so it
+// validates whatever digest is actually shipped in each environment, and will
+// follow the first-party toolbox image from AROSLSRE-2528 when it replaces
+// this one in the hook Jobs.
 var _ = Describe("ARO-HCP", func() {
 	It("should complete a TLS 1.3 handshake using the runtime image's kubectl",
 		labels.RequireNothing,
@@ -179,7 +224,7 @@ var _ = Describe("ARO-HCP", func() {
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
 
-			By("deploying a pod that runs kubectl from the runtime image against the cluster API server")
+			By("creating a namespace for the kubectl TLS check")
 			DeferCleanup(func(ctx context.Context) {
 				err := kubeClient.CoreV1().Namespaces().Delete(ctx, runtimeImageTLSNamespace, metav1.DeleteOptions{})
 				if err != nil {
@@ -197,31 +242,51 @@ var _ = Describe("ARO-HCP", func() {
 			}).WithContext(ctx).WithTimeout(30*time.Second).WithPolling(1*time.Second).Should(Succeed(),
 				"failed to create namespace %s", runtimeImageTLSNamespace)
 
-			// The service account token and CA are the pod's projected mounts;
-			// kubectl has no in-cluster config discovery of its own, so the
-			// server, token and CA are passed explicitly. The token mounts are
-			// required for the call, unlike the ACR pull pods which disable
-			// them.
-			kubectlCommand := `kubectl get --raw /healthz ` +
-				`--server=https://kubernetes.default.svc ` +
-				`--token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" ` +
-				`--certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`
+			By("creating a service account for the kubectl TLS check pod")
+			// A dedicated service account plus the UID-range wait below avoid
+			// racing the controllers that provision a new namespace (default
+			// service account, SCC UID range): without them, pod admission
+			// can fail before kubectl ever runs and reject a healthy image.
+			// See the equivalent wait in oidc_issuer_workload_identity.go.
+			var checkSA *corev1.ServiceAccount
+			Eventually(func() error {
+				var err error
+				checkSA, err = kubeClient.CoreV1().ServiceAccounts(runtimeImageTLSNamespace).Create(ctx, &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{Name: "kubectl-tls-check"},
+				}, metav1.CreateOptions{})
+				if err != nil && apierrors.IsAlreadyExists(err) {
+					checkSA, err = kubeClient.CoreV1().ServiceAccounts(runtimeImageTLSNamespace).Get(ctx, "kubectl-tls-check", metav1.GetOptions{})
+				}
+				return err
+			}).WithContext(ctx).WithTimeout(30*time.Second).WithPolling(1*time.Second).Should(Succeed(),
+				"failed to create service account in %s", runtimeImageTLSNamespace)
+
+			By("waiting for the namespace SCC UID range annotation")
+			Eventually(func() bool {
+				updatedNS, err := kubeClient.CoreV1().Namespaces().Get(ctx, runtimeImageTLSNamespace, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				_, ok := updatedNS.Annotations["openshift.io/sa.scc.uid-range"]
+				return ok
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(5*time.Second).Should(BeTrue(),
+				"namespace %s was never annotated with openshift.io/sa.scc.uid-range", runtimeImageTLSNamespace)
+
+			By("deploying a pod that runs the image's kubectl against a local TLS 1.3-only server")
 			_, err = kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).Create(ctx, &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      runtimeImageTLSPodName,
 					Namespace: runtimeImageTLSNamespace,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					ServiceAccountName:           checkSA.Name,
+					AutomountServiceAccountToken: to.Ptr(false),
+					RestartPolicy:                corev1.RestartPolicyNever,
 					Containers: []corev1.Container{
 						{
-							Name:  "kubectl-tls-check",
-							Image: runtimeImage,
-							Command: []string{
-								"/bin/bash",
-								"-c",
-								kubectlCommand,
-							},
+							Name:            "kubectl-tls-check",
+							Image:           runtimeImage,
+							Command:         []string{"/bin/bash", "-c", runtimeImageTLSCheckScript},
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: to.Ptr(false),
@@ -240,24 +305,41 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create the kubectl TLS check pod")
 
 			By("waiting for the kubectl TLS check pod to finish")
+			// The wait is a manual deadline loop rather than Eventually so
+			// that a stall (image pull, scheduling) captures pod and event
+			// diagnostics before the assertion fails, instead of timing out
+			// with nothing but a phase name.
 			var podPhase corev1.PodPhase
-			Eventually(func() error {
-				pod, err := kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).Get(ctx, runtimeImageTLSPodName, metav1.GetOptions{})
-				if err != nil {
-					return err
+			waitErr := func() error {
+				deadline := time.Now().Add(runtimeImageTLSPodCompletionTimeout)
+				for {
+					pod, err := kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).Get(ctx, runtimeImageTLSPodName, metav1.GetOptions{})
+					if err != nil {
+						return fmt.Errorf("failed to get the kubectl TLS check pod: %w", err)
+					}
+					switch pod.Status.Phase {
+					case corev1.PodSucceeded:
+						podPhase = corev1.PodSucceeded
+						return nil
+					case corev1.PodFailed:
+						podPhase = corev1.PodFailed
+						return nil
+					}
+					if time.Now().After(deadline) {
+						return fmt.Errorf("the kubectl TLS check pod is stalled in phase %q (image pull or scheduling)", pod.Status.Phase)
+					}
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(5 * time.Second):
+					}
 				}
-				switch pod.Status.Phase {
-				case corev1.PodSucceeded:
-					podPhase = corev1.PodSucceeded
-					return nil
-				case corev1.PodFailed:
-					podPhase = corev1.PodFailed
-					return nil
-				default:
-					return fmt.Errorf("kubectl TLS check pod is not finished yet, phase %q", pod.Status.Phase)
-				}
-			}).WithContext(ctx).WithTimeout(runtimeImageTLSPodCompletionTimeout).WithPolling(5*time.Second).Should(Succeed(),
-				"the kubectl TLS check pod never finished")
+			}()
+			if waitErr != nil {
+				verifiers.CapturePodFailureDiagnostics(ctx, waitErr, kubeClient,
+					runtimeImageTLSNamespace, runtimeImageTLSPodName, tc.LogDirPath)
+			}
+			Expect(waitErr).NotTo(HaveOccurred(), "the kubectl TLS check pod never finished")
 
 			if podPhase == corev1.PodFailed {
 				verifiers.CapturePodFailureDiagnostics(ctx,
@@ -283,8 +365,11 @@ var _ = Describe("ARO-HCP", func() {
 					runtimeImage, signature)
 			}
 
+			// Success proves TLS 1.3 by construction: the in-pod server only
+			// negotiates TLS 1.3, so a kubectl that completed the round trip
+			// cannot have used TLS 1.2.
 			Expect(podPhase).To(Equal(corev1.PodSucceeded),
-				"kubectl from the runtime image %s did not succeed against the cluster API server (pod logs above; a TLS panic is the AROSLSRE-2021/AROSLSRE-2481 regression class)",
+				"kubectl from the runtime image %s did not complete a round trip against the TLS 1.3-only server (pod logs above; a TLS panic is the AROSLSRE-2021/AROSLSRE-2481 regression class, and any other handshake failure means the image's kubectl cannot negotiate TLS 1.3)",
 				runtimeImage)
 		})
 })
