@@ -7,8 +7,8 @@ digraph fleet_placement {
   service [label="Router Service\nhypershift-sharedingress/router", fillcolor="#fff0da", color="#b27624"];
   mirror [label="ReadDesireKubernetesController"];
   ingress [label="SharedIngressReportingController"];
-  registrations [label="ClustersServiceRegistrationController\nMaestroRegistrationController\napproved Stamp gates external calls\nonce True, later errors keep True/CheckFailed"];
-  lifecycle [label="ManagementClusterLifecycleController\nall three conditions required"];
+  registrations [label="ClustersServiceRegistrationController\napproved Stamp gates external calls\nonce True, later errors keep True/CheckFailed"];
+  lifecycle [label="ManagementClusterLifecycleController\nboth active conditions required\nremoves retired MaestroRegistered"];
   capacity [label="CapacityReportingController\nManagementClusterScaleCeilingReportingController"];
   policy [label="ManagementCluster.Spec\nSchedulingPolicy = Schedulable", fillcolor="#e4f2e5", color="#4c8053"];
   placement [label="Placement\ncached unresolved, nondeleting, nonterminal HCP"];
@@ -21,7 +21,7 @@ digraph fleet_placement {
   service -> mirror [label="observed Service content"];
   mirror -> ingress [label="KubeContent"];
   ingress -> lifecycle [label="SharedIngressAvailable"];
-  registrations -> lifecycle [label="CS + Maestro registration status\nTrue/CheckFailed still satisfies gate"];
+  registrations -> lifecycle [label="ClustersServiceRegistered\nTrue/CheckFailed still satisfies gate"];
   lifecycle -> placement [label="Ready = True"];
   capacity -> placement [label="current capacity + scaling data;\nSWIFT NIC fit; non-SWIFT contention ranking"];
   policy -> placement [label="eligible policy"];

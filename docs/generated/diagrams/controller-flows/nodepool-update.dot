@@ -2,7 +2,7 @@ digraph nodepool_update {
   graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Node pool update · controller flow", dpi=110];
   node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
   edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
-  api [label="Frontend PUT / PATCH node pool\nadmission: cached SPC + SPNP\nbest-effort reject last capacity reduction to zero\nmissing provider state: internal error, no live fallback\nreset update deadline (default 60m)\nthen desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
+  api [label="Frontend PUT / PATCH node pool\nadmission: cached SPC + SPNP\nbest-effort reject last capacity reduction to zero\nmissing provider state: internal error, no live fallback\nreset update deadline (default 90m)\nthen desired state + Update Operation", fillcolor="#eee7fb", color="#7b59a4"];
   dispatch [label="NodePoolClusterServiceUpdate\nDispatch", fillcolor="#e6f0fa", color="#35648a"];
   version [label="NodePoolVersion", fillcolor="#e6f0fa", color="#35648a"];
   upgrade [label="TriggerNodePoolUpgrade", fillcolor="#e6f0fa", color="#35648a"];
@@ -10,7 +10,7 @@ digraph nodepool_update {
   kube [label="ClusterResources / ApplyDesireController\nKubernetes NodePool convergence", fillcolor="#fff0da", color="#b27624"];
   mirror [label="ReadDesireKubernetesController", fillcolor="#e6f0fa", color="#35648a"];
   active [label="NodePoolActiveVersions", fillcolor="#e6f0fa", color="#35648a"];
-  op [label="OperationNodePoolUpdate\nmatching operation; nondeleting + CS ID\nno direct installed-version gate", fillcolor="#e6f0fa", color="#35648a"];
+  op [label="OperationNodePoolUpdate\nmatching operation; nondeleting; missing CS ID waits\nAND: version resolution + CS status\n+ CS spec + mirrored spec/status\nno direct installed-version gate", fillcolor="#e6f0fa", color="#35648a"];
   done [label="ARM operation terminal state", fillcolor="#e4f2e5", color="#4c8053"];
   api -> dispatch [label="changed dispatchable\nconfiguration"];
   api -> version [label="requested version"];
@@ -24,7 +24,7 @@ digraph nodepool_update {
   api -> op [label="UpdateOperationCompletionDeadline"];
   cs -> op [label="state + exact labels / ordered taints\nstored drain timeout if no override"];
   mirror -> op [label="label / taint subsets + scaling / drain spec\nreplicas + health (skip health at fixed zero)"];
-  op -> done [label="completion / failure checks;\npending past deadline: selected code + reasons;\nonly InternalServerError becomes DeadlineExceeded"];
+  op -> done [label="completion / failure checks;\npending / observation error past deadline: fail;\nfully observed terminal result wins; see deadline table"];
   observed [label="Customer resource Status.ActiveVersions\nfull OCP versions", fillcolor="#e4f2e5", color="#4c8053"];
   active -> observed [label="separate Cosmos replace"];
   active -> upgrade [label="active versus desired", style=dashed, color="#857456", constraint=false];

@@ -9,8 +9,8 @@ digraph manifest_delivery {
   objects [label="Management-cluster Kubernetes objects\nHyperShift / Kubernetes reconciliation\nexternal completion is asynchronous", fillcolor="#fff0da", color="#b27624"];
   read [label="ReadDesireKubernetesController\nrequested resource observation"];
   backend [label="ActualHostedCluster / version / operation controllers\nindependent observed-state and completion gates"];
-  config [label="Maestro-agent chart + pipeline values\nenabled: false\nno mandatory work-agent delivery hop", fillcolor="#eee7fb", color="#7b59a4"];
-  legacy [label="Retained contracts, not delivery evidence\nMaestroRegistered still gates Fleet Ready\nMaestroReadonlyBundles still gate child cleanup", fillcolor="#eee7fb", color="#7b59a4"];
+  config [label="Maestro-agent chart + pipeline values\nenabled: false; runtime-support gate\nAppliedManifestWork CRD gate is independent\nno mandatory work-agent delivery hop", fillcolor="#eee7fb", color="#7b59a4"];
+  legacy [label="Retired registration / bundle cleanup gates\nFleet removes MaestroRegistered from Ready\nNo provider bundle fields or bundle cleanup waits", fillcolor="#eee7fb", color="#7b59a4"];
   cs -> fetch [label="GetClusterResources response"];
   fetch -> intent [label="persist desired objects"];
   intent -> apply [label="informer events / reconcile"];
