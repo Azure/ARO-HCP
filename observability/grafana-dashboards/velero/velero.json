@@ -115,7 +115,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
+          "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
           "instant": true,
           "legendFormat": "Attempts",
           "range": false,
@@ -193,7 +193,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
+          "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Backup Deletions",
@@ -341,7 +341,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "max without(prometheus_replica) (velero_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})",
+          "expr": "max without(prometheus_replica) (velero_hcp_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})",
           "instant": true,
           "legendFormat": "{{schedule}}",
           "refId": "A"
@@ -446,7 +446,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "count(max without(prometheus_replica) (velero_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\"}) == 0) or vector(0)",
+          "expr": "count(max without(prometheus_replica) (velero_hcp_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\"}) == 0) or vector(0)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -579,7 +579,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Failure",
@@ -592,7 +592,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Partial Failure",
@@ -605,7 +605,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Validation Failure",
@@ -619,7 +619,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "instant": true,
           "legendFormat": "Success",
           "range": false,
@@ -702,7 +702,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "range": true,
           "refId": "A"
@@ -787,7 +787,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Backup Deletion",
@@ -937,7 +937,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / 60 / 60",
+          "expr": "(time() - max without(prometheus_replica) (velero_hcp_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / 60 / 60",
           "instant": true,
           "legendFormat": "{{schedule}}",
           "refId": "A"
@@ -1044,7 +1044,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "  count((time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 48*3600 ) or vector(0)",
+          "expr": "  count((time() - max without(prometheus_replica) (velero_hcp_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 48*3600 ) or vector(0)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1162,7 +1162,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Failure",
@@ -1175,7 +1175,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Partial Failure",
@@ -1188,7 +1188,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Validation Failure",
@@ -1265,7 +1265,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "Backup Deletion",
@@ -2137,7 +2137,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "(sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_failure_total{schedule!=\"\"}[$__range]))) + sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_partial_failure_total{schedule!=\"\"}[$__range]))) + sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_validation_failure_total{schedule!=\"\"}[$__range])))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "(sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_failure_total{schedule!=\"\"}[$__range]))) + sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{schedule!=\"\"}[$__range]))) + sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{schedule!=\"\"}[$__range])))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{cluster}}",
@@ -2273,7 +2273,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "(sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) + sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) + sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) ) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "(sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) + sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) + sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) ) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{schedule}}",
@@ -2445,7 +2445,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -2636,7 +2636,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup success",
               "refId": "A"
             },
@@ -2645,7 +2645,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup failure",
               "refId": "B"
             },
@@ -2654,7 +2654,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup partial failure",
               "refId": "C"
             },
@@ -2663,7 +2663,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup validation failure",
               "refId": "D"
             },
@@ -2672,7 +2672,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup warning",
               "refId": "E"
             },
@@ -2681,7 +2681,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion success",
               "refId": "F"
             },
@@ -2690,7 +2690,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion failure",
               "refId": "G"
             }
@@ -2898,7 +2898,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (cluster) (max without(prometheus_replica) (velero_backup_items_total))",
+              "expr": "max by (cluster) (max without(prometheus_replica) (velero_hcp_backup_items_total))",
               "format": "time_series",
               "instant": false,
               "legendFormat": "{{cluster}}",
@@ -3026,7 +3026,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum(max without(prometheus_replica) (velero_backup_items_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "expr": "sum(max without(prometheus_replica) (velero_hcp_backup_items_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
               "legendFormat": "Items Total",
               "range": true,
               "refId": "A"
@@ -3037,7 +3037,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum(max without(prometheus_replica) (velero_backup_items_errors{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "expr": "sum(max without(prometheus_replica) (velero_hcp_backup_items_errors{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
               "legendFormat": "Item Errors",
               "range": true,
               "refId": "B"
@@ -3132,7 +3132,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (cluster) (max without(prometheus_replica) (velero_backup_tarball_size_bytes))",
+              "expr": "max by (cluster) (max without(prometheus_replica) (velero_hcp_backup_tarball_size_bytes))",
               "format": "time_series",
               "instant": false,
               "legendFormat": "{{cluster}}",
@@ -3240,7 +3240,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (schedule) (avg_over_time(max without(prometheus_replica) (velero_backup_tarball_size_bytes{cluster=~\"$cluster\", schedule=~\"$schedule\"})[15m:]))",
+              "expr": "avg by (schedule) (avg_over_time(max without(prometheus_replica) (velero_hcp_backup_tarball_size_bytes{cluster=~\"$cluster\", schedule=~\"$schedule\"})[15m:]))",
               "legendFormat": "{{schedule}}",
               "range": true,
               "refId": "A"
@@ -3251,7 +3251,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg_over_time(max without(prometheus_replica) (velero_backup_tarball_size_bytes{cluster=~\"$cluster\", schedule!~\".+\"})[15m:])",
+              "expr": "avg_over_time(max without(prometheus_replica) (velero_hcp_backup_tarball_size_bytes{cluster=~\"$cluster\", schedule!~\".+\"})[15m:])",
               "legendFormat": "Non Scheduled",
               "range": true,
               "refId": "B"
@@ -3351,7 +3351,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_duration_seconds_bucket{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) by (le)",
+              "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_backup_duration_seconds_bucket{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) by (le)",
               "format": "heatmap",
               "legendFormat": "{{le}}",
               "range": true,
@@ -3459,7 +3459,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{schedule!=\"\"}[$__range]))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{schedule!=\"\"}[$__range]))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{cluster}}",
@@ -3588,7 +3588,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{schedule}}",
@@ -3719,7 +3719,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
               "format": "time_series",
               "instant": false,
               "legendFormat": "{{schedule}}-success",
@@ -3732,7 +3732,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
               "format": "time_series",
               "instant": false,
               "legendFormat": "{{schedule}}-failure",
@@ -3745,7 +3745,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
               "format": "time_series",
               "instant": false,
               "legendFormat": "{{schedule}}-attempt",
@@ -3915,7 +3915,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+              "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
               "format": "table",
               "instant": true,
               "legendFormat": "__auto",
@@ -3999,7 +3999,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
+              "expr": "sum(max without(prometheus_replica) (increase(velero_hcp_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / (sum(max without(prometheus_replica) (increase(velero_hcp_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) > 0)",
               "format": "time_series",
               "range": true,
               "refId": "A"
@@ -4092,7 +4092,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_restore_failed_total{schedule!=\"\"}[$__range]))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_restore_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_restore_failed_total{schedule!=\"\"}[$__range]))) / (sum by (cluster) (max without(prometheus_replica) (increase(velero_hcp_restore_attempt_total{schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{cluster}}",
@@ -4221,7 +4221,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
               "format": "time_series",
               "instant": true,
               "legendFormat": "{{schedule}}",
@@ -4356,7 +4356,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / (sum by (schedule) (max without(prometheus_replica) (increase(velero_hcp_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -4484,7 +4484,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore success",
               "refId": "A"
             },
@@ -4494,7 +4494,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore failure",
               "refId": "B"
             },
@@ -4504,7 +4504,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore validation failure",
               "refId": "C"
             },
@@ -4514,7 +4514,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_hcp_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore partial failure",
               "refId": "D"
             }
@@ -5060,14 +5060,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(velero_backup_attempt_total{cluster=~\"$cluster\"},schedule)",
+        "definition": "label_values(velero_hcp_backup_attempt_total{cluster=~\"$cluster\"},schedule)",
         "includeAll": true,
         "label": "Schedule",
         "multi": true,
         "name": "schedule",
         "options": [],
         "query": {
-          "query": "label_values(velero_backup_attempt_total{cluster=~\"$cluster\"},schedule)",
+          "query": "label_values(velero_hcp_backup_attempt_total{cluster=~\"$cluster\"},schedule)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

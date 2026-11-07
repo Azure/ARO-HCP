@@ -36,7 +36,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### HCP Backup & Restore SLO Dashboard\n\nUser-journey dashboard for Velero-managed HCP backups on management clusters. Baseline panels follow **ARO-29950** and mirror the current SLO/alert thresholds from **ARO-29948 / ARO-26261**.\n\n| SLI | Dashboard interpretation | Objective / threshold |\n|-----|---------------------------|-----------------------|\n| **Availability** | 6-hourly backup freshness per HostedCluster (daily/weekly freshness only in the per-HCP table below) | `userJourneyBackupAvailability` fires at **13h / 49h / 337h** (6-hourly/daily/weekly); `userJourneyBackupNeverSucceeded` fires at **12h / 48h / 336h** (single tier each, no escalation) |\n| **Errors** | failed completed outcomes / all completed outcomes | **< 0.5%** failures / **99.5%** success over 30d |\n| **Latency** | completed backup duration p50/p95/p99 | **p99 < 20m** |\n| **Traffic** | backup attempt rate vs 1d baseline | no sustained drop below **10%** of baseline |\n| **Saturation** | non-terminal backup backlog + data-upload health | informational only - no backing alert |\n\n**Scope:** Prometheus service datasources and management clusters. Selecting an HCP Namespace scopes Availability / Errors / Latency / Traffic. Storage Availability and Saturation stay management-cluster-wide because those are fleet proxy signals.\n\n**Known gaps:** Storage Availability and repo-maintenance Saturation are proxy signals pending ARO-29949. Snapshot-specific panels wait for ARO-29444. Restore SLIs are deferred until restore activity is exercised and instrumented. Visibility into paused backup schedules (Schedule `spec.pause` via KSM, so a paused HC doesn't look stale) is also tracked under ARO-29949. In prod, `velero_backup_last_successful_timestamp`, `velero_backup_duration_seconds_*` and `velerobackup_phase` are currently only emitted in Australia East, East US 2 EUAP and UK South, so the freshness, latency and backlog panels will be blank in other regions until those metrics ship fleet-wide.\n\n**Runbook / TSG:** [aka.ms/arohcp-runbook-backup](https://aka.ms/arohcp-runbook-backup) | **Jira:** [ARO-29950](https://redhat.atlassian.net/browse/ARO-29950)\n\n**Drilldown:** use the HCP Namespace selector and the per-HCP tables at the bottom. Component-level details remain in the existing Velero dashboard (`ozk-vlr-mon`).",
+        "content": "### HCP Backup & Restore SLO Dashboard\n\nUser-journey dashboard for Velero-managed HCP backups on management clusters. Baseline panels follow **ARO-29950** and mirror the current SLO/alert thresholds from **ARO-29948 / ARO-26261**.\n\n| SLI | Dashboard interpretation | Objective / threshold |\n|-----|---------------------------|-----------------------|\n| **Availability** | 6-hourly backup freshness per HostedCluster (daily/weekly freshness only in the per-HCP table below) | `userJourneyBackupAvailability` fires at **13h / 49h / 337h** (6-hourly/daily/weekly); `userJourneyBackupNeverSucceeded` fires at **12h / 48h / 336h** (single tier each, no escalation) |\n| **Errors** | failed completed outcomes / all completed outcomes | **< 0.5%** failures / **99.5%** success over 30d |\n| **Latency** | completed backup duration p50/p95/p99 | **p99 < 20m** |\n| **Traffic** | backup attempt rate vs 1d baseline | no sustained drop below **10%** of baseline |\n| **Saturation** | non-terminal backup backlog + data-upload health | informational only - no backing alert |\n\n**Scope:** Prometheus service datasources and management clusters. Selecting an HCP Namespace scopes Availability / Errors / Latency / Traffic. Storage Availability and Saturation stay management-cluster-wide because those are fleet proxy signals.\n\n**Known gaps:** Storage Availability and repo-maintenance Saturation are proxy signals pending ARO-29949. Snapshot-specific panels wait for ARO-29444. Restore SLIs are deferred until restore activity is exercised and instrumented. Visibility into paused backup schedules (Schedule `spec.pause` via KSM, so a paused HC doesn't look stale) is also tracked under ARO-29949. In prod, `velero_hcp_backup_last_successful_timestamp`, `velero_hcp_backup_duration_seconds_*` and `velerobackup_phase` are currently only emitted in Australia East, East US 2 EUAP and UK South, so the freshness, latency and backlog panels will be blank in other regions until those metrics ship fleet-wide.\n\n**Runbook / TSG:** [aka.ms/arohcp-runbook-backup](https://aka.ms/arohcp-runbook-backup) | **Jira:** [ARO-29950](https://redhat.atlassian.net/browse/ARO-29950)\n\n**Drilldown:** use the HCP Namespace selector and the per-HCP tables at the bottom. Component-level details remain in the existing Velero dashboard (`ozk-vlr-mon`).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -121,7 +121,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n))) <= bool 12 * 3600) * 100",
+          "expr": "avg((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n))) <= bool 12 * 3600) * 100",
           "legendFormat": "Fresh HCs",
           "refId": "A",
           "instant": true,
@@ -195,7 +195,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "clamp_max(max((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n))) / 3600), 168)",
+          "expr": "clamp_max(max((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n))) / 3600), 168)",
           "legendFormat": "Worst age",
           "refId": "A",
           "instant": true,
@@ -270,7 +270,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(1-(((sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))*100",
+          "expr": "(1-(((sum(max without (prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))*100",
           "legendFormat": "Success %",
           "refId": "A",
           "instant": true,
@@ -345,7 +345,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "clamp_max(clamp_min((0.005-(((sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))/0.005*100,0),100)",
+          "expr": "clamp_max(clamp_min((0.005-(((sum(max without (prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))/((sum(max without (prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[30d]))) or vector(0)))))/0.005*100,0),100)",
           "legendFormat": "Budget %",
           "refId": "A",
           "instant": true,
@@ -432,7 +432,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "clamp_max((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n)))/3600, 168)",
+          "expr": "clamp_max((time() - (max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ),\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n) or max by (cluster, hosted_cluster_namespace) (\n  label_replace(\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-6-hourly\"}\n    ) * 0,\n    \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-6-hourly\"\n  )\n)))/3600, 168)",
           "legendFormat": "{{hosted_cluster_namespace}}",
           "refId": "A"
         }
@@ -517,7 +517,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100*(((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))))/((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))))",
+          "expr": "100*(((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))))/((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))+(sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval]))))))",
           "legendFormat": "{{cluster}}",
           "refId": "A"
         }
@@ -602,7 +602,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range])))",
+          "expr": "histogram_quantile(0.99, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range])))",
           "legendFormat": "p99",
           "refId": "A",
           "instant": true,
@@ -668,7 +668,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m])))",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m])))",
           "legendFormat": "attempts/s",
           "refId": "A",
           "instant": true,
@@ -742,7 +742,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[12h:5m]) / avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[1d:5m])",
+          "expr": "100 * avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[12h:5m]) / avg_over_time((sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[5m]))))[1d:5m])",
           "legendFormat": "Baseline %",
           "refId": "A",
           "instant": true,
@@ -808,7 +808,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "round((sum(max without (prometheus_replica) (increase(velero_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0)))",
+          "expr": "round((sum(max without (prometheus_replica) (increase(velero_hcp_backup_success_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_partial_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0))+(sum(max without (prometheus_replica) (increase(velero_hcp_backup_validation_failure_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__range]))) or vector(0)))",
           "legendFormat": "Completed",
           "refId": "A",
           "instant": true,
@@ -895,7 +895,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -905,7 +905,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
           "legendFormat": "p95",
           "refId": "B"
         },
@@ -915,7 +915,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (cluster, le) (rate(velero_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (cluster, le) (rate(velero_hcp_backup_duration_seconds_bucket{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -996,7 +996,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(velero_hcp_backup_attempt_total{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"}[$__rate_interval])))",
           "legendFormat": "{{cluster}}",
           "refId": "A"
         }
@@ -1117,7 +1117,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "100*((count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"}) == 0) or 0 * count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))/count by (cluster) (max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))",
+          "expr": "100*((count by (cluster) (max without (prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"}) == 0) or 0 * count by (cluster) (max without (prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))/count by (cluster) (max without (prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-6-hourly\"})))",
           "legendFormat": "Failure %",
           "refId": "A",
           "instant": true,
@@ -1129,7 +1129,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (cluster) (\n  count by (cluster, hosted_cluster_namespace) (\n    label_replace(\n      max without (prometheus_replica) (\n        velero_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\".+-(6-hourly|daily|weekly)\"\n        }\n      ),\n      \"hosted_cluster_namespace\", \"$1\",\n      \"schedule\", \"(.+)-(6-hourly|daily|weekly)\"\n    )\n  )\n)",
+          "expr": "count by (cluster) (\n  count by (cluster, hosted_cluster_namespace) (\n    label_replace(\n      max without (prometheus_replica) (\n        velero_hcp_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\".+-(6-hourly|daily|weekly)\"\n        }\n      ),\n      \"hosted_cluster_namespace\", \"$1\",\n      \"schedule\", \"(.+)-(6-hourly|daily|weekly)\"\n    )\n  )\n)",
           "legendFormat": "HC Count",
           "refId": "B",
           "instant": true,
@@ -1692,7 +1692,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(\n  time()\n  -\n  (\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_backup_last_successful_timestamp{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      )\n    )\n    or\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      ) * 0\n    )\n  )\n) / 3600",
+          "expr": "(\n  time()\n  -\n  (\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_hcp_backup_last_successful_timestamp{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      )\n    )\n    or\n    max by (cluster, schedule) (\n      max without (prometheus_replica) (\n        velero_hcp_backup_last_status{\n          cluster=\"$cluster\",\n          schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\"\n        }\n      ) * 0\n    )\n  )\n) / 3600",
           "legendFormat": "{{schedule}}",
           "refId": "A",
           "instant": true,
@@ -1789,7 +1789,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max without (prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\", schedule!=\"\"})",
+          "expr": "max without (prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\"${hcp_namespace:regex}-(6-hourly|daily|weekly)\", schedule!=\"\"})",
           "legendFormat": "{{schedule}}",
           "refId": "A",
           "instant": true,
@@ -1991,7 +1991,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n  unless\n  max without (prometheus_replica) (\n    velero_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n)\nor\n(\n  0 *\n  count by (cluster) (\n    max without (prometheus_replica) (\n      velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n    )\n  )\n)",
+          "expr": "count by (cluster) (\n  max without (prometheus_replica) (\n    velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n  unless\n  max without (prometheus_replica) (\n    velero_hcp_backup_last_successful_timestamp{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n  )\n)\nor\n(\n  0 *\n  count by (cluster) (\n    max without (prometheus_replica) (\n      velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}\n    )\n  )\n)",
           "legendFormat": "Never succeeded",
           "refId": "A",
           "instant": true,
@@ -2076,7 +2076,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed Velero DeleteBackupRequests (velero_backup_deletion_failure_total) in the selected time range - same metric already used in the existing Velero component dashboard (ozk-vlr-mon). A sustained non-zero count means orphaned backups are piling up because cleanup keeps failing.",
+      "description": "Failed Velero DeleteBackupRequests (velero_hcp_backup_deletion_failure_total) in the selected time range - same metric already used in the existing Velero component dashboard (ozk-vlr-mon). A sustained non-zero count means orphaned backups are piling up because cleanup keeps failing.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2131,7 +2131,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "round(sum(max without (prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=\"$cluster\"}[$__range]))) or vector(0))",
+          "expr": "round(sum(max without (prometheus_replica) (increase(velero_hcp_backup_deletion_failure_total{cluster=\"$cluster\"}[$__range]))) or vector(0))",
           "legendFormat": "Deletion failures",
           "refId": "A",
           "instant": true,
@@ -2242,14 +2242,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(velero_backup_attempt_total, cluster)",
+        "definition": "label_values(velero_hcp_backup_attempt_total, cluster)",
         "includeAll": false,
         "label": "Management Cluster",
         "multi": false,
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(velero_backup_attempt_total, cluster)",
+          "query": "label_values(velero_hcp_backup_attempt_total, cluster)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -2268,14 +2268,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
+        "definition": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
         "includeAll": true,
         "label": "HCP Namespace",
         "multi": true,
         "name": "hcp_namespace",
         "options": [],
         "query": {
-          "query": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
+          "query": "query_result(count by (hosted_cluster_namespace) (label_replace(max without(prometheus_replica) (velero_hcp_backup_last_status{cluster=\"$cluster\", schedule=~\".+-(6-hourly|daily|weekly)\"}), \"hosted_cluster_namespace\", \"$1\", \"schedule\", \"(.+)-(6-hourly|daily|weekly)\")))",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
