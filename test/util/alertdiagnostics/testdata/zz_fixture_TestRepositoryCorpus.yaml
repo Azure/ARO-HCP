@@ -6737,6 +6737,202 @@
             value: 0.15
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_saturation_alerts
+  alert: userJourneyExternalAuthSaturationQueueDepth
+  occurrence: 1
+  input: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10
+  plan:
+    expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors1h5m
+  occurrence: 1
+  input: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.72) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.72) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.72
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors3d
+  occurrence: 1
+  input: (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.05) and (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.05) and (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.05
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors6h30m
+  occurrence: 1
+  input: (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.3) and (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.3) and (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.3
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrorsDegradation
+  occurrence: 1
+  input: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.15) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.15) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.15
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthCreateLatency
+  occurrence: 1
+  input: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 900
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthDeleteLatency
+  occurrence: 1
+  input: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 900
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthUpdateLatency
+  occurrence: 1
+  input: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 600
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 600
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 600
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 600
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_externalauth_slo_stuck_alerts
+  alert: userJourneyExternalAuthStuckOperation
+  occurrence: 1
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1)) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1)) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:left
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left/and:right
+        queries:
+          - expression: (backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_frontend_slo_error_alerts
   alert: userJourneyFrontendErrors1h5m
   occurrence: 1
@@ -9442,6 +9638,354 @@
         thresholds:
           - operator: '>'
             value: 0.15
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_saturation_alerts
+  alert: userJourneyExternalAuthSaturationQueueDepth
+  occurrence: 1
+  input: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp", name=~".*ExternalAuth.*"}
+      )
+    ) > 10
+  plan:
+    expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10
+    conditions:
+      - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"})) > 10
+        path: root
+        queries:
+          - expression: max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*ExternalAuth.*",namespace="aro-hcp"}))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 10
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors1h5m
+  occurrence: 1
+  input: |
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_1h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      )
+      /
+      clamp_min(
+        sum by (cluster, region) (
+          errors:backend_resource_operation:total_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
+        ),
+        1
+      )
+      > 0.72
+    )
+    and
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_1h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      ) >= 2
+    )
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.72) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.72
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.72
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors3d
+  occurrence: 1
+  input: |
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_3d{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      )
+      /
+      clamp_min(
+        sum by (cluster, region) (
+          errors:backend_resource_operation:total_3d{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
+        ),
+        1
+      )
+      > 0.05
+    )
+    and
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_3d{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      ) >= 2
+    )
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.05) and (sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.05
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.05
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrors6h30m
+  occurrence: 1
+  input: |
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_6h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      )
+      /
+      clamp_min(
+        sum by (cluster, region) (
+          errors:backend_resource_operation:total_6h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
+        ),
+        1
+      )
+      > 0.30
+    )
+    and
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_6h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      ) >= 2
+    )
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.3) and (sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.3
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.3
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_error_alerts
+  alert: userJourneyExternalAuthErrorsDegradation
+  occurrence: 1
+  input: |
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_1h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      )
+      /
+      clamp_min(
+        sum by (cluster, region) (
+          errors:backend_resource_operation:total_1h{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+          }
+        ),
+        1
+      )
+      > 0.15
+    )
+    and
+    (
+      sum by (cluster, region) (
+        errors:backend_resource_operation:failed_1h{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        }
+      ) >= 2
+    )
+  plan:
+    expression: (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.15) and (sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2)
+    conditions:
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1) > 0.15
+        path: root/and:left
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) / clamp_min(sum by (cluster, region) (errors:backend_resource_operation:total_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}), 1)
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.15
+        unsupported: ""
+      - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) >= 2
+        path: root/and:right
+        queries:
+          - expression: sum by (cluster, region) (errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"})
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 2
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthCreateLatency
+  occurrence: 1
+  input: |
+    latency:backend_resource_operation:p95_1h{
+      resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+      operation_type="create",
+      phase="succeeded"
+    } > 900
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="create",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 900
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthDeleteLatency
+  occurrence: 1
+  input: |
+    latency:backend_resource_operation:p95_1h{
+      resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+      operation_type="delete",
+      phase="succeeded"
+    } > 900
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 900
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 900
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_latency_alerts
+  alert: userJourneyExternalAuthUpdateLatency
+  occurrence: 1
+  input: |
+    latency:backend_resource_operation:p95_1h{
+      resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+      operation_type="update",
+      phase="succeeded"
+    } > 600
+  plan:
+    expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 600
+    conditions:
+      - expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} > 600
+        path: root
+        queries:
+          - expression: latency:backend_resource_operation:p95_1h{operation_type="update",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 600
+        unsupported: ""
+- source: observability/alerts/externalauth-slo-prometheusRule.yaml
+  group: arohcp_externalauth_slo_stuck_alerts
+  alert: userJourneyExternalAuthStuckOperation
+  occurrence: 1
+  input: |
+    max by (
+      cluster,
+      environment,
+      region,
+      subscription_id,
+      resource_id,
+      resource_type,
+      operation_type,
+      phase
+    ) (
+      max_over_time(
+        (
+          (
+            (time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+            })
+            and
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+            } == 1
+          ) > 3600
+        )[6h:5m]
+      )
+    )
+    and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+    (
+      backend_resource_operation_phase_info{
+        resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+        phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+      } == 1
+    )
+  plan:
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1)
+    conditions:
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m]))
+        path: root/and:left
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1) > 3600)[6h:5m]))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"} == 1
+        path: root/and:right
+        queries:
+          - expression: backend_resource_operation_phase_info{phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: observability/alerts/frontend-slo-prometheusRule.yaml
   group: arohcp_frontend_slo_error_alerts
