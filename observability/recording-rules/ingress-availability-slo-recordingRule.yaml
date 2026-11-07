@@ -182,7 +182,13 @@ spec:
   # Production label set for ingress_canary_check_duration_bucket (confirmed 2026-08-17):
   #   _id, cluster, container, endpoint, environment, host, instance, job,
   #   le, namespace, pod, prometheus, prometheus_replica, region
-  # Histogram buckets: 25, 50, 100, 200, 400, 800, 1600, +Inf (milliseconds)
+  # Histogram buckets: 25, 50, 100, 200, 400, 800, 1600, Infinity (milliseconds).
+  # The overflow bucket's `le` value is the literal string "Infinity", not the
+  # "+Inf" most Prometheus client libraries emit -- confirmed against prod via
+  # `count by (le) (ingress_canary_check_duration_bucket)` on 2026-11-06. Using
+  # "+Inf" here silently matches zero series (total_Xm always empty), which
+  # neither errors nor shows up in unit tests seeded with "+Inf" fixtures --
+  # it only surfaces as every latency alert being permanently un-fireable.
   #
   # 99.5% of checks within 200ms is closer to a P99 latency objective than a
   # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
@@ -200,7 +206,7 @@ spec:
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="200"}[5m])))
         /
-        sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (rate(ingress_canary_check_duration_bucket{le="Infinity"}[5m])))
     # Error rate derived from the latency SLI.
     # Instantaneous (5m rate) value only -- kept for dashboards / SLI
     # reporting. NOT used for alerting: see the windowed group below.
@@ -223,7 +229,7 @@ spec:
     # --- 5m window (fast burn, short) ---
     - record: errors:ingress_canary_latency:total_5m
       expr: |
-        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[5m])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="Infinity"}[5m])))
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[5m])))
@@ -236,7 +242,7 @@ spec:
     # --- 30m window (medium burn, short) ---
     - record: errors:ingress_canary_latency:total_30m
       expr: |
-        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[30m])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="Infinity"}[30m])))
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[30m])))
@@ -249,7 +255,7 @@ spec:
     # --- 1h window (fast burn, long) ---
     - record: errors:ingress_canary_latency:total_1h
       expr: |
-        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[1h])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="Infinity"}[1h])))
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[1h])))
@@ -262,7 +268,7 @@ spec:
     # --- 6h window (medium burn long / slow burn short) ---
     - record: errors:ingress_canary_latency:total_6h
       expr: |
-        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[6h])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="Infinity"}[6h])))
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[6h])))
@@ -275,7 +281,7 @@ spec:
     # --- 3d window (slow burn, long) ---
     - record: errors:ingress_canary_latency:total_3d
       expr: |
-        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="+Inf"}[3d])))
+        sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="Infinity"}[3d])))
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (increase(ingress_canary_check_duration_bucket{le="200"}[3d])))
