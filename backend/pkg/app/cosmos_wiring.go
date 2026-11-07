@@ -19,6 +19,7 @@ import (
 	"maps"
 	"sync"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
@@ -40,12 +41,14 @@ type StorageFactory interface {
 	BillingStorageClient(controllerName string) billingcosmosstorage.BillingDBClient
 	FleetStorageClient(controllerName string) fleetcosmosstorage.FleetDBClient
 	KubeApplierStorageClients(controllerName string) kubeappliercosmosstorage.KubeApplierDBClients
+	AzureResourcesStorageClient(controllerName string) azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 type StorageFactoryOptions struct {
-	ResourcesRUsPerSecond float64
-	BillingRUsPerSecond   float64
-	FleetRUsPerSecond     float64
+	ResourcesRUsPerSecond      float64
+	BillingRUsPerSecond        float64
+	FleetRUsPerSecond          float64
+	AzureResourcesRUsPerSecond float64
 	// KubeApplierRUsPerSecond applies independently to each MC container.
 	KubeApplierRUsPerSecond float64
 	// KubeApplierUtilization overrides Utilization for MC containers so the
@@ -60,10 +63,11 @@ type StorageFactoryOptions struct {
 }
 
 type controllerStorageClients struct {
-	resources   corecosmosstorage.ResourcesDBClient
-	billing     billingcosmosstorage.BillingDBClient
-	fleet       fleetcosmosstorage.FleetDBClient
-	kubeApplier kubeappliercosmosstorage.KubeApplierDBClients
+	resources      corecosmosstorage.ResourcesDBClient
+	billing        billingcosmosstorage.BillingDBClient
+	fleet          fleetcosmosstorage.FleetDBClient
+	kubeApplier    kubeappliercosmosstorage.KubeApplierDBClients
+	azureResources azureresourcescosmosstorage.AzureResourcesDBClient
 }
 
 type cosmosStorageFactory struct {
@@ -129,6 +133,7 @@ func newStorageFactory(cosmosURL, databaseName string, clientOptions cosmosclien
 		{"Resources", options.ResourcesRUsPerSecond},
 		{"Billing", options.BillingRUsPerSecond},
 		{"Fleet", options.FleetRUsPerSecond},
+		{"AzureResources", options.AzureResourcesRUsPerSecond},
 	} {
 		containerOptions := commonOptions
 		containerOptions.TotalRUsPerSecond = allocation.rus
@@ -214,8 +219,17 @@ func (f *cosmosStorageFactory) newControllerClients(name string) (*controllerSto
 		func(containerName string) (*cosmosratelimit.TokenBucket, error) {
 			return f.tokenBucket(containerName, name)
 		},
-		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleet))
-	return &controllerStorageClients{resources: resources, billing: billing, fleet: fleet, kubeApplier: kubeApplier}, nil
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleet),
+	)
+	azureResourcesBucket, err := f.tokenBucket("AzureResources", name)
+	if err != nil {
+		return nil, err
+	}
+	azureResources, err := azureresourcescosmosstorage.NewAzureResourcesDBClient(f.cosmosURL, f.databaseName, f.clientOptions, azureResourcesBucket)
+	if err != nil {
+		return nil, err
+	}
+	return &controllerStorageClients{resources: resources, billing: billing, fleet: fleet, kubeApplier: kubeApplier, azureResources: azureResources}, nil
 }
 
 func (f *cosmosStorageFactory) forController(name string) *controllerStorageClients {
@@ -237,4 +251,7 @@ func (f *cosmosStorageFactory) FleetStorageClient(name string) fleetcosmosstorag
 }
 func (f *cosmosStorageFactory) KubeApplierStorageClients(name string) kubeappliercosmosstorage.KubeApplierDBClients {
 	return f.forController(name).kubeApplier
+}
+func (f *cosmosStorageFactory) AzureResourcesStorageClient(name string) azureresourcescosmosstorage.AzureResourcesDBClient {
+	return f.forController(name).azureResources
 }

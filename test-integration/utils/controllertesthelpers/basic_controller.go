@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -41,6 +42,7 @@ import (
 type ControllerInitializationInput struct {
 	ResourcesDBClient       corecosmosstorage.ResourcesDBClient
 	BillingDBClient         billingcosmosstorage.BillingDBClient
+	AzureResourcesDBClient  azureresourcescosmosstorage.AzureResourcesDBClient
 	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 	SubscriptionLister      corelisters.SubscriptionLister
 	ManagementClusterLister fleetlisters.ManagementClusterLister
@@ -117,8 +119,9 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 
 	controllerInput := &ControllerInitializationInput{
-		ResourcesDBClient: storageIntegrationTestInfo.ResourcesDBClient(),
-		BillingDBClient:   storageIntegrationTestInfo.BillingDBClient(),
+		ResourcesDBClient:      storageIntegrationTestInfo.ResourcesDBClient(),
+		BillingDBClient:        storageIntegrationTestInfo.BillingDBClient(),
+		AzureResourcesDBClient: storageIntegrationTestInfo.AzureResourcesDBClient(),
 		// An empty plural registry — populated for *Desire-specific tests via overlay.
 		// Pre-populating here keeps tests that don't touch *Desires from accidentally
 		// exercising a nil kube-applier registry; iterating an empty registry is exactly

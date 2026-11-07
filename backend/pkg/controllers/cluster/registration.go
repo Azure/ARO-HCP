@@ -552,6 +552,7 @@ func instantiateClusterDegradedAggregatorController(controllerContext controller
 		clusterLister,
 		controllerLister,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.UnionKubeApplierInformers,
 		controllerContext.Clock,
 	), nil
@@ -871,6 +872,7 @@ func registerClusterChildResourcesCleanupController() controllerconfig.Controlle
 func instantiateClusterChildResourcesCleanupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return clusterdeletion.NewClusterChildResourcesCleanupController(
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
@@ -1153,13 +1155,13 @@ func instantiateIdentityRoleAssignmentsController(controllerContext controllerco
 	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
 	return clusterroleassignments.NewRoleAssignmentsController(
-		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
 		serviceProviderClusterLister,
 		subscriptionLister,
-		controllerContext.FPAClientBuilder,
 		controllerContext.ClusterScopedIdentitiesConfig,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.UnionKubeApplierInformers,
 	), nil
 }

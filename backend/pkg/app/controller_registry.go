@@ -21,6 +21,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/azuredeploymentstackdesires"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
@@ -57,6 +58,7 @@ func instantiateControllers(registry map[string]ControllerRegistration, controll
 			instanceContext.BillingDBClient = storageFactory.BillingStorageClient(name)
 			instanceContext.FleetDBClient = storageFactory.FleetStorageClient(name)
 			instanceContext.KubeApplierDBClients = storageFactory.KubeApplierStorageClients(name)
+			instanceContext.AzureResourcesDBClient = storageFactory.AzureResourcesStorageClient(name)
 		}
 		runnable, err := entry.Instantiate(instanceContext)
 		if err != nil {
@@ -78,6 +80,7 @@ func newControllerRegistry() map[string]ControllerRegistration {
 	metrics.Register(registry)
 	mismatch.Register(registry)
 	nodepool.Register(registry)
+	azuredeploymentstackdesires.Register(registry)
 	cachedreader.Register(registry, func(context ControllerContext) *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController {
 		return context.VirtualMachineResourceSKUsCachedReaderController
 	})
@@ -97,12 +100,13 @@ func (runner informerRunner) Run(ctx context.Context, _ int) {
 }
 
 func startControllers(ctx context.Context, controllers map[string]instantiatedController, controllerContext ControllerContext) {
-	runners := make(map[string]instantiatedController, len(controllers)+2)
+	runners := make(map[string]instantiatedController, len(controllers)+3)
 	for name, controller := range controllers {
 		runners[name] = controller
 	}
 	runners["backend-informers"] = instantiatedController{runnable: informerRunner{run: controllerContext.BackendInformers.RunWithContext}}
 	runners["fleet-informers"] = instantiatedController{runnable: informerRunner{run: controllerContext.FleetInformers.RunWithContext}}
+	runners["azureresources-informers"] = instantiatedController{runnable: informerRunner{run: controllerContext.AzureResourcesInformers.RunWithContext}}
 	for _, controller := range runners {
 		go controller.runnable.Run(ctx, controller.workers)
 	}

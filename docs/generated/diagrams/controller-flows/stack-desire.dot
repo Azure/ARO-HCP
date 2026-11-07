@@ -1,0 +1,30 @@
+digraph stack_desire {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Deployment stacks: one intent, one outcome", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  producer [label="IdentityRoleAssignments\nconfirmed MRG + all principals + tenant + roles\ncomplete deterministic template; no Azure calls"];
+  desire [label="Resources: cluster-rooted StackDesire\nProducer owns spec and immutable target contract\nFPA/SMI, Apply/Delete, typed SDK Stack, interval\nSame spec shape for both actions", fillcolor="#e4f2e5", color="#4c8053"];
+  decide [label="StackDesires: one decision\nimmutable desire + time + lazy GET (at most once)\nPrechecks and cooldown before observation\nPrecheck failure: nondegraded status, return\nExplicit Status update / Apply / Delete / NoOp"];
+  azure [label="Direct generated Azure SDK: all supported scopes\nIndependent lazy clients for GET and submission\nApply: capture initial typed stack + body correlation\nUnknown operations never prove Apply success\nDelete: acceptance only; no capture or correlation\nGET deleting: wait; GET 404: Delete success\nAbsent Apply: submit now\nRunning: wait; unknown completed: submit directly", fillcolor="#fff0da", color="#b27624"];
+  outcome [label="One status outcome\nObservedSpecHash + ObservedAt\ntyped Stack + Error + Conditions\nSuccessfullyApplied / SuccessfullyDeleted / Degraded", fillcolor="#e4f2e5", color="#4c8053"];
+  schedule [label="Only matching-hash success or InvalidIntent cools down\nDocument ObservedAt + interval (default 6h)\nNew invalid rejection refreshes ObservedAt\nDiagnostics do not restart completed cooldown\nInvalidIntent: Degraded=False; resync after expiry\nOther failures: Degraded=True; ordinary queue backoff\nPending: fixed 30s poll; earlier events allowed\nNo manual Retry-After or global retry gate", fillcolor="#e4f2e5", color="#4c8053"];
+  errors [label="Invalid intent: InvalidTemplate / InvalidRequestContent\nOr DeploymentStackDeploymentFailed with all direct\ncauses narrow invalid codes and no nested details\nInvalidTemplateDeployment: always retryable\nNo blanket HTTP 400 rule or broad wrapper recursion\nCredential / GET error: no status write", fillcolor="#e6f0fa", color="#35648a"];
+  ready [label="IdentityRoleAssignments mirrors StackReady\ncurrent-spec hash + SuccessfullyApplied + Succeeded\nPending / failed / absent / changed intent: not ready"];
+  op [label="OperationClusterCreate\nStackReady plus other completion checks"];
+  purge [label="Cluster deletion: purge intent, no Azure Delete\nMRG cascade removes stack and assignments", fillcolor="#e4f2e5", color="#4c8053"];
+  health [label="ClusterDegradedAggregator\nDirect StackDesire watch + current-spec hash check\nIgnore stale / missing / False Degraded\nGeneric health, independent of StackReady"];
+  cluster [label="Cluster.Status.Conditions: Degraded\nUnion with controller / kube-applier health", fillcolor="#e4f2e5", color="#4c8053"];
+  producer -> desire [label="create / replace complete spec"];
+  desire -> decide [label="informer events / 1m resync"];
+  decide -> azure [label="lazy GET / explicit Apply or Delete"];
+  azure -> decide [label="observation / submission response", style=dashed, color="#857456", constraint=false];
+  decide -> outcome [label="changed known observation: original-ETag CAS, return\nsubmit + record allowed; no pre-submit checkpoint\nunchanged GET: no write / timestamp refresh\ncondition transition time: status changes only"];
+  outcome -> schedule;
+  errors -> schedule [label="error classification"];
+  schedule -> decide [label="resync / retry / pending poll", style=dashed, color="#857456", constraint=false];
+  outcome -> ready [label="status event"];
+  outcome -> health [label="direct status event"];
+  health -> cluster;
+  ready -> op [label="current outcome, not RBAC propagation proof"];
+  producer -> purge [label="deletion path", style=dashed, color="#857456"];
+}

@@ -1,0 +1,192 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "03-missing-content-permission/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "APPLICATION_CLIENT_ID",
+          "createdByType": "Application",
+          "createdAt": "2026-10-14T23:29:44.7393741Z",
+          "lastModifiedBy": "APPLICATION_CLIENT_ID",
+          "lastModifiedByType": "Application",
+          "lastModifiedAt": "2026-10-14T23:29:44.7393741Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "permission"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "probe-content",
+                "location": "westus3"
+              }
+            ]
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "28eac009c06b84c76834c29085123f93887f9c6eb7f662a894ace35ebd2b2af1"
+    },
+    {
+      "case": "03-missing-content-permission/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "APPLICATION_CLIENT_ID",
+          "createdByType": "Application",
+          "createdAt": "2026-10-14T23:29:44.7393741Z",
+          "lastModifiedBy": "APPLICATION_CLIENT_ID",
+          "lastModifiedByType": "Application",
+          "lastModifiedAt": "2026-10-14T23:29:44.7393741Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "permission"
+      }
+    },
+    {
+      "case": "03-missing-content-permission/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "duration": "PT2.4719354S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "InvalidTemplateDeployment",
+                "message": "The template deployment failed with error: 'Authorization failed for template resource 'probe-content' of type 'Microsoft.ManagedIdentity/userAssignedIdentities'. The client 'APPLICATION_CLIENT_ID' with object id 'SERVICE_PRINCIPAL_ID' does not have permission to perform action 'Microsoft.ManagedIdentity/userAssignedIdentities/write' at scope '/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/probe-content'.'."
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "APPLICATION_CLIENT_ID",
+          "createdByType": "Application",
+          "createdAt": "2026-10-14T23:29:44.7393741Z",
+          "lastModifiedBy": "APPLICATION_CLIENT_ID",
+          "lastModifiedByType": "Application",
+          "lastModifiedAt": "2026-10-14T23:29:44.7393741Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/permission",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "permission"
+      }
+    },
+    {
+      "case": "03-missing-content-permission/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "InvalidTemplateDeployment",
+              "message": "The template deployment failed with error: 'Authorization failed for template resource 'probe-content' of type 'Microsoft.ManagedIdentity/userAssignedIdentities'. The client 'APPLICATION_CLIENT_ID' with object id 'SERVICE_PRINCIPAL_ID' does not have permission to perform action 'Microsoft.ManagedIdentity/userAssignedIdentities/write' at scope '/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/probe-content'.'."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
