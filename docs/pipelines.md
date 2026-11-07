@@ -4,7 +4,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
 [ADO Pipeline Overview](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
 
 - Microsoft.Azure.ARO.HCP.Global ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/global-pipeline.yaml)): Deploy global shared infrastructure. (Global)
-  - Microsoft.Azure.ARO.HCP.Geography ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/geography-pipeline.yaml)): Deploy geography-level shared infrastructure.
+  - Microsoft.Azure.ARO.HCP.Geography ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/geography-pipeline.yaml)): Deploy geography-level shared infrastructure. (Geography)
     - Microsoft.Azure.ARO.HCP.Region ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/region-pipeline.yaml)): Deploy regional shared infrastructure. (Region)
       - Microsoft.Azure.ARO.HCP.Service.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/svc-pipeline.yaml)): Deploy the service cluster and supporting infrastructure.
         - Microsoft.Azure.ARO.HCP.Maestro.Server ([ref](https://github.com/Azure/ARO-HCP/tree/main/maestro/server/pipeline.yaml)): Deploy the Maestro Server.

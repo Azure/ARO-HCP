@@ -630,7 +630,7 @@ func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
 			Enabled:      true,
 			ClusterURI:   "https://hcp-dev-us-2.eastus2.kusto.windows.net",
 			IngestionURI: "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
-			Database:     "ServiceLogs",
+			Database:     "AllAroHcpLogs",
 			Outcomes:     KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
 			TestNames:    KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
 			TestResults:  KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},

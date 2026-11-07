@@ -179,8 +179,7 @@ resourceGroups:
   - name: entity-groups
     action: KustoEntityGroups
     entityGroups:
-    - "AllServiceLogs:ServiceLogs"
-    - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
+    - "AllAllAroHcpLogs:AllAroHcpLogs"
     - "AllMonitoringEvents:MonitoringEvents"
     environment: '{{ .environmentName }}'
     timeout: "10m"

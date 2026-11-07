@@ -3,7 +3,7 @@
 ## Summary
 
 Lists Kubernetes API events from the klusterlet namespace (`klusterlet-<cluster-id>`) for this cluster.
-These are K8s Event objects ingested by the kube-events collector into `ServiceLogs.kubernetesEvents`.
+These are K8s Event objects ingested by the kube-events collector into `AllAroHcpLogs.kubernetesEvents`.
 
 ## What to Look For
 

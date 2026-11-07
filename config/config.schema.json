@@ -2286,11 +2286,17 @@
         "tier": {
           "type": "string"
         },
+        "allAroHcpLogsDatabase": {
+          "type": "string",
+          "description": "Name of the single consolidated logs database. Hosts the forwarder routing table set (rawLogs landing table + routing helpers + typed target tables) plus the Event-Hub and CI tables."
+        },
         "serviceLogsDatabase": {
-          "type": "string"
+          "type": "string",
+          "description": "DEPRECATED, for backward compatibility only. Alias of allAroHcpLogsDatabase kept for external consumers."
         },
         "hostedControlPlaneLogsDatabase": {
-          "type": "string"
+          "type": "string",
+          "description": "DEPRECATED, for backward compatibility only. Names the legacy per-type database used to resolve hosted-control-plane logs for snapshot/prow queries against pre-consolidation deployments."
         },
         "monitoringEventsDatabase": {
           "type": "string",
@@ -2350,8 +2356,7 @@
         "manageInstance",
         "sku",
         "tier",
-        "serviceLogsDatabase",
-        "hostedControlPlaneLogsDatabase",
+        "allAroHcpLogsDatabase",
         "monitoringEventsDatabase",
         "adminGroups",
         "viewerGroups",
@@ -3322,7 +3327,7 @@
         },
         "adxKustoAccessEnabled": {
           "type": "boolean",
-          "description": "Whether Kusto deployment grants the global Grafana identity Viewer access to ServiceLogs."
+          "description": "Whether Kusto deployment grants the global Grafana identity Viewer access to AllAroHcpLogs."
         },
         "adxIntegrationEnabled": {
           "type": "boolean",

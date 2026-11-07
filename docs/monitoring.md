@@ -110,7 +110,7 @@ The global Grafana reconciliation can optionally manage Dashboard resource provi
 
 The Kusto access grant and integration-fabric reconciliation have separate disabled-by-default gates:
 
-- `monitoring.adxKustoAccessEnabled` grants the Grafana workspace system identity database-level `Viewer` access to `ServiceLogs` during a geography rollout.
+- `monitoring.adxKustoAccessEnabled` grants the Grafana workspace system identity database-level `Viewer` access to `AllAroHcpLogs` during a geography rollout.
 - `monitoring.adxIntegrationEnabled` enables integration-fabric reconciliation during a global rollout.
 - `monitoring.adxIntegrationGeographies` is the required complete comma-separated geography short ID set when integration reconciliation is enabled. Matching is case-insensitive and ignores surrounding whitespace.
 
@@ -118,7 +118,7 @@ The integration-fabric resource provider contract still needs nonproduction vali
 
 An empty scenario or target leaves that optional property unmanaged. Clearing a previously configured value does not remove the value already returned by the resource provider.
 
-Before enabling Kusto access in an existing environment, list the `ServiceLogs` database principal assignments and confirm that the Grafana principal does not already have a `Viewer` assignment under another resource name. Kusto rejects duplicate role and principal assignments even when their resource names differ.
+Before enabling Kusto access in an existing environment, list the `AllAroHcpLogs` database principal assignments and confirm that the Grafana principal does not already have a `Viewer` assignment under another resource name. Kusto rejects duplicate role and principal assignments even when their resource names differ.
 
 Use this rollout order:
 

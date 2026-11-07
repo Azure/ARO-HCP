@@ -35,9 +35,9 @@ func TestQueryToDeepLink(t *testing.T) {
 		{
 			name:          "standard endpoint produces dataexplorer.azure.com link",
 			kustoEndpoint: "https://hcp-stg-uk-2.uksouth.kusto.windows.net",
-			kustoDatabase: "ServiceLogs",
+			kustoDatabase: "AllAroHcpLogs",
 			query:         "traces | take 10",
-			wantURL:       "https://dataexplorer.azure.com/clusters/hcp-stg-uk-2.uksouth/databases/ServiceLogs",
+			wantURL:       "https://dataexplorer.azure.com/clusters/hcp-stg-uk-2.uksouth/databases/AllAroHcpLogs",
 		},
 		{
 			name:          "different cluster and database",

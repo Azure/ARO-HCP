@@ -15,9 +15,7 @@ param grafanaPrincipalId = '__grafanaPrincipalId__'
 
 param manageInstance = {{ .kusto.manageInstance }}
 
-param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
-
-param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
+param allAroHcpLogsDatabase = '{{ .kusto.allAroHcpLogsDatabase }}'
 
 param monitoringEventsDatabase = '{{ .kusto.monitoringEventsDatabase }}'
 

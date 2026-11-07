@@ -2,7 +2,7 @@ using '../templates/maestro-mqtt-data-connection.bicep'
 
 param location = '{{ .kusto.location }}'
 param kustoName = '{{ .kusto.kustoName }}'
-param databaseName = '{{ .kusto.serviceLogsDatabase }}'
+param databaseName = '{{ .kusto.allAroHcpLogsDatabase }}'
 param maestroMqttEventHubId = '__maestroMqttEventHubId__'
 param kustoConsumerGroupName = '{{ .maestroMqttEventHub.kustoConsumerGroupName }}'
 param kustoDataConnectionName = '{{ .maestroMqttEventHub.kustoDataConnectionName }}'

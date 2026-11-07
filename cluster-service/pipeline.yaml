@@ -105,7 +105,7 @@ resourceGroups:
     valuesFile: './values.yaml'
     namespaceFiles:
     - namespace.yaml
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'clustersServiceLogs'
     kustoEndpoint:
       resourceGroup: kusto
@@ -195,7 +195,7 @@ resourceGroups:
     valuesFile: './cs-debug-jobs/values.yaml'
     namespaceFiles:
     - namespace.yaml
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'clustersServiceLogs'
     kustoEndpoint:
       resourceGroup: kusto

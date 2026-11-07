@@ -545,7 +545,7 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 For **create** timeouts, run the following query (grouped by `resource_type`). Adjust `resourceType` or `controller_name` filters to narrow to clusters vs. node pools, etc.:
 
 ```kql
-database('ServiceLogs').table('backendLogs')
+database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between (ago(7d) .. now())
 | where container_name == 'aro-hcp-backend'
 | where log.msg has 'new status'
@@ -575,7 +575,7 @@ database('ServiceLogs').table('backendLogs')
 For **delete** timeouts, run the following query. The key differences from the provisioning query are: `controller_name endswith 'delete'`, start is detected via `log.msg == 'checking operation'`, and end via `log.newStatus == 'Succeeded'`.
 
 ```kql
-database('ServiceLogs').table('backendLogs')
+database('AllAroHcpLogs').table('backendLogs')
 | where timestamp between (ago(7d) .. now())
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name endswith 'delete'

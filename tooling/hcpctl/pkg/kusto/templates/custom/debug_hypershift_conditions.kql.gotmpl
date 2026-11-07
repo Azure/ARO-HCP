@@ -1,13 +1,13 @@
 // HyperShift HostedCluster conditions from the collected control-plane state.
 let _cs_cluster_id = toscalar(
-    database('ServiceLogs').table('clustersServiceLogs')
+    database('AllAroHcpLogs').table('clustersServiceLogs')
     | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
     | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
-database('ServiceLogs').table('clustersServiceLogs')
+database('AllAroHcpLogs').table('clustersServiceLogs')
 | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
 | where resource_id has '{{.ResourceGroupName}}'
 | where msg has 'ManifestWork for cluster'

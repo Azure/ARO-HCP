@@ -10,11 +10,11 @@ param tier string
 @description('Toggle if instance should be created/managed')
 param manageInstance bool
 
-@description('Name of the service logs database.')
-param serviceLogsDatabase string
+@description('Name of the single consolidated logs database (AllAroHcpLogs).')
+param allAroHcpLogsDatabase string = ''
 
-@description('Name of the hosted control plane logs database.')
-param hostedControlPlaneLogsDatabase string
+@description('DEPRECATED, for backward compatibility only. Alias of allAroHcpLogsDatabase, used only as a fallback when allAroHcpLogsDatabase is empty.')
+param serviceLogsDatabase string = ''
 
 @description('Name of the monitoring events database.')
 param monitoringEventsDatabase string
@@ -43,7 +43,7 @@ param kustoName string
 @description('ARO-HCP geography short ID used for global resource discovery')
 param geoShortId string
 
-@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+@description('Whether to grant the global Grafana identity Viewer access to AllAroHcpLogs')
 param enableGrafanaIntegration bool = false
 
 @description('Global Azure Managed Grafana principal ID')
@@ -69,8 +69,8 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     dstsGroups: []
     sku: sku
     tier: tier
+    allAroHcpLogsDatabase: allAroHcpLogsDatabase
     serviceLogsDatabase: serviceLogsDatabase
-    hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     monitoringEventsDatabase: monitoringEventsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups

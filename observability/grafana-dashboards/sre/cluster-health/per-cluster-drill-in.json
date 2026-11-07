@@ -137,7 +137,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Per-Cluster Oncall Drill-in\n\nSingle-cluster health view for oncall triage.\n\n**How to use:** Select a services datasource (env+region), then pick an HCPs datasource for the same region. Choose a namespace to drill into a specific hosted cluster.\n\n**Datasources:** Services AMW for provisioning state and backend metrics. HCPs AMW for KAS, etcd, and control-plane signals.\n\n**Planned:** Kusto/ADX panels for error log volume from ServiceLogs and HostedControlPlaneLogs (pending ADX datasource integration -- no existing dashboards use Kusto today).",
+        "content": "### Per-Cluster Oncall Drill-in\n\nSingle-cluster health view for oncall triage.\n\n**How to use:** Select a services datasource (env+region), then pick an HCPs datasource for the same region. Choose a namespace to drill into a specific hosted cluster.\n\n**Datasources:** Services AMW for provisioning state and backend metrics. HCPs AMW for KAS, etcd, and control-plane signals.\n\n**Planned:** Kusto/ADX panels for error log volume from AllAroHcpLogs and HostedControlPlaneLogs (pending ADX datasource integration -- no existing dashboards use Kusto today).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",

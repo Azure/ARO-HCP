@@ -43,12 +43,13 @@ const (
 )
 
 // containerLogSourceQueries are the container-log queries run per namespace, one
-// per database: pods in management-cluster namespaces log to ServiceLogs, while
-// hosted control plane pods log to HostedControlPlaneLogs. Both are queried and
-// merged so a namespace's logs are captured wherever the forwarder routed them.
+// per table in AllAroHcpLogs: pods in management-cluster namespaces log to the
+// containerLogs table, while hosted control plane (ocm-*) pods log to the
+// hcpContainerLogs table. Both are queried and merged so a namespace's logs are
+// captured wherever the forwarder routed them.
 var containerLogSourceQueries = []string{
-	"ocAdmInspectContainerLogs",          // ServiceLogs
-	"ocAdmInspectHostedControlPlaneLogs", // HostedControlPlaneLogs
+	"ocAdmInspectContainerLogs",          // AllAroHcpLogs.containerLogs
+	"ocAdmInspectHostedControlPlaneLogs", // AllAroHcpLogs.hcpContainerLogs
 }
 
 // ManagementClusterNameMarker is the substring that distinguishes a management
@@ -175,9 +176,9 @@ func (i *Inspector) inspectContainerLogs(ctx context.Context, namespace string) 
 	byContainer := make(map[podContainer][]LogLine)
 
 	var errs []error
-	// Query every container-log source (ServiceLogs + HostedControlPlaneLogs) and
-	// merge, so control-plane pod logs are captured alongside management-cluster
-	// namespace logs.
+	// Query every container-log source (AllAroHcpLogs.containerLogs +
+	// AllAroHcpLogs.hcpContainerLogs) and merge, so control-plane pod logs are
+	// captured alongside management-cluster namespace logs.
 	for _, defName := range containerLogSourceQueries {
 		rows, err := i.runNamespaceQuery(ctx, defName, namespace)
 		if err != nil {

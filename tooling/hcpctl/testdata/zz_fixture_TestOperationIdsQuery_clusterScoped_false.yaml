@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   set notruncation;
   cosmosResourceSnapshots
