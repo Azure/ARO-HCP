@@ -2934,14 +2934,14 @@
   group: kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
     conditions:
-      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
-        path: root/unless:left
+      - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
+        path: root/unless:left/unless:left
         queries:
-          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+          - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
             role: signal
         thresholds:
           - operator: '>'
@@ -3718,6 +3718,23 @@
           - operator: ==
             value: 0
         unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyHCPPrometheusAlertingRules.bicep
+  group: pod-readiness
+  alert: KubePodNotReadyWidespread
+  occurrence: 1
+  input: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+  plan:
+    expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+    conditions:
+      - expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+        path: root
+        queries:
+          - expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800)))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-frontend-path-latency
   alert: FrontendPathLatency
@@ -4163,14 +4180,14 @@
   group: svc-kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
     conditions:
-      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
-        path: root/unless:left
+      - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
+        path: root/unless:left/unless:left
         queries:
-          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+          - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
             role: signal
         thresholds:
           - operator: '>'
@@ -4948,6 +4965,23 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
+  group: svc-pod-readiness
+  alert: KubePodNotReadyWidespread
+  occurrence: 1
+  input: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+  plan:
+    expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+    conditions:
+      - expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+        path: root
+        queries:
+          - expression: count by (cluster, region) (sum by (namespace, cluster, region) ((max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800)))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   group: svc-service-memory-resources-rules
   alert: ServiceCPUDrift
   occurrence: 1
@@ -5296,14 +5330,14 @@
   group: msft-kubernetes-apps
   alert: KubePodNotReady
   occurrence: 1
-  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"}
+  input: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"} unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
   plan:
-    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"}
+    expression: sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"} unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
     conditions:
-      - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})
-        path: root/unless:left
+      - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
+        path: root/unless:left/unless:left
         queries:
-          - expression: (sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})
+          - expression: ((sum by (namespace, pod, cluster, region) (max by (namespace, pod, cluster, region) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster, region) (1, max by (namespace, pod, owner_kind, cluster, region) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp{namespace=~"billing|credential-refresher"})) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
             role: signal
         thresholds:
           - operator: '>'
@@ -10637,13 +10671,18 @@
       )
     ) > 0
     unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
+    unless on(namespace, cluster) (
+      max without (prometheus_replica) (
+        kube_namespace_created{job="kube-state-metrics", namespace=~"ocm-.*"}
+      ) > time() - 1800
+    )
   plan:
-    expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp
+    expression: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800)
     conditions:
-      - expression: (sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
-        path: root/unless:left
+      - expression: ((sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
+        path: root/unless:left/unless:left
         queries:
-          - expression: (sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)
+          - expression: ((sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"})))) unless on (namespace, pod, cluster) (kube_pod_deletion_timestamp)) unless on (namespace, cluster) ((max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics",namespace=~"ocm-.*"}) > time() - 1800))
             role: signal
         thresholds:
           - operator: '>'
@@ -12001,6 +12040,40 @@
         thresholds:
           - operator: '>'
             value: 0.15
+        unsupported: ""
+- source: observability/alerts/podReadinessWidespread-prometheusRule.yaml
+  group: pod-readiness
+  alert: KubePodNotReadyWidespread
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      sum by (namespace, cluster) (
+        (
+          max by(namespace, pod, cluster) (
+            kube_pod_status_phase{job="kube-state-metrics", prometheus="prometheus/prometheus", phase=~"Pending|Unknown|Failed", namespace!~"klusterlet-.*"}
+          ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) (
+            1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{prometheus="prometheus/prometheus", owner_kind!="Job"})
+          )
+        ) > 0
+        unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
+        unless on(namespace, cluster) (
+          max without (prometheus_replica) (
+            kube_namespace_created{job="kube-state-metrics"}
+          ) > time() - 1800
+        )
+      )
+    ) >= 3
+  plan:
+    expression: count by (cluster) (sum by (namespace, cluster) ((max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+    conditions:
+      - expression: count by (cluster) (sum by (namespace, cluster) ((max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800))) >= 3
+        path: root
+        queries:
+          - expression: count by (cluster) (sum by (namespace, cluster) ((max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0 unless on (namespace, pod, cluster) kube_pod_deletion_timestamp unless on (namespace, cluster) (max without (prometheus_replica) (kube_namespace_created{job="kube-state-metrics"}) > time() - 1800)))
+            role: signal
+        thresholds:
+          - operator: '>='
+            value: 3
         unsupported: ""
 - source: observability/alerts/prometheus-prometheusRule.yaml
   group: prometheus-operator-rules

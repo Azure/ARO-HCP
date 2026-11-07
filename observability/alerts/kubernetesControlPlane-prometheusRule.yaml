@@ -26,7 +26,7 @@ spec:
         severity: warning
     - alert: KubePodNotReady
       annotations:
-        description: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.
+        description: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes. Hosted control plane namespaces (ocm-*) are exempt during their first 30 minutes while the control plane bootstraps.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
         summary: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.
       expr: |
@@ -38,6 +38,11 @@ spec:
           )
         ) > 0
         unless on(namespace, pod, cluster) kube_pod_deletion_timestamp
+        unless on(namespace, cluster) (
+          max without (prometheus_replica) (
+            kube_namespace_created{job="kube-state-metrics", namespace=~"ocm-.*"}
+          ) > time() - 1800
+        )
       for: 5m
       labels:
         severity: warning
