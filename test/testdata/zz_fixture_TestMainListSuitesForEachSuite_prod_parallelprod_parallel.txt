@@ -113,5 +113,6 @@ Customer should downgrade a nodepool to a lower minor version from 4.22.zLatest 
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should be able to list available HCP Operator Identity Role Sets and validate response content
 Customer should be able to get a specific HCP Operator Identity Role Set by version
+ARO-HCP should complete a TLS 1.3 handshake using the runtime image's kubectl
 Customer should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings
 Customer should not be able to perform various invalid operations on cluster resources
