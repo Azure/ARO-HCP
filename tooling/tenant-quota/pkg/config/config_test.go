@@ -28,9 +28,9 @@ import (
 // minimalValidTenant returns a TenantConfig with all required fields set.
 func minimalValidTenant() TenantConfig {
 	return TenantConfig{
-		TenantID:                 "tenant-id-1",
-		ServicePrincipalClientId: "sp-client-id",
-		KeyVaultSecretName:       "kv-secret",
+		TenantID:                       "tenant-id-1",
+		ClientIDKeyVaultSecretName:     "sp-client-id",
+		ClientSecretKeyVaultSecretName: "kv-secret",
 	}
 }
 
@@ -234,28 +234,28 @@ func TestConfigValidate(t *testing.T) {
 			name: "missing tenantId",
 			cfg: Config{
 				Tenants: []TenantConfig{
-					{ServicePrincipalClientId: "sp", KeyVaultSecretName: "kv"},
+					{ClientIDKeyVaultSecretName: "sp", ClientSecretKeyVaultSecretName: "kv"},
 				},
 			},
 			wantErrSub: "tenant[0]: tenantId is required",
 		},
 		{
-			name: "missing servicePrincipalClientId",
+			name: "missing clientIdKeyVaultSecretName",
 			cfg: Config{
 				Tenants: []TenantConfig{
-					{TenantID: "tid", KeyVaultSecretName: "kv"},
+					{TenantID: "tid", ClientSecretKeyVaultSecretName: "kv"},
 				},
 			},
-			wantErrSub: "tenant[0]: servicePrincipalClientId is required",
+			wantErrSub: "tenant[0]: clientIdKeyVaultSecretName is required",
 		},
 		{
-			name: "missing keyVaultSecretName",
+			name: "missing clientSecretKeyVaultSecretName",
 			cfg: Config{
 				Tenants: []TenantConfig{
-					{TenantID: "tid", ServicePrincipalClientId: "sp"},
+					{TenantID: "tid", ClientIDKeyVaultSecretName: "sp"},
 				},
 			},
-			wantErrSub: "tenant[0]: keyVaultSecretName is required",
+			wantErrSub: "tenant[0]: clientSecretKeyVaultSecretName is required",
 		},
 		{
 			name: "duplicate tenantId",
@@ -372,8 +372,8 @@ prow:
     - "excluded-job"
 tenants:
   - tenantId: "tid-1"
-    servicePrincipalClientId: "sp-id"
-    keyVaultSecretName: "kv-secret"
+    clientIdKeyVaultSecretName: "sp-id"
+    clientSecretKeyVaultSecretName: "kv-secret"
     subscriptions:
       - name: "prod"
         regions:
@@ -435,8 +435,8 @@ tenants:
 				return writeYAML(t, `
 tenants:
   - tenantId: "tid-1"
-    servicePrincipalClientId: "sp-id"
-    keyVaultSecretName: "kv-secret"
+    clientIdKeyVaultSecretName: "sp-id"
+    clientSecretKeyVaultSecretName: "kv-secret"
     subscriptions:
       - name: "prod"
         roleAssignmentLimit: 8000
@@ -834,6 +834,16 @@ func TestCIJobOutcomesControllerSettingsValidation(t *testing.T) {
 					t.Fatalf("expected validation error for %s, got %v", field, err)
 				}
 			})
+		}
+	}
+}
+
+func TestCredentialReferenceValidation(t *testing.T) {
+	for _, name := range []string{"../escape", "/absolute", "with space", "with_underscore", strings.Repeat("a", 128), "kv-secret"} {
+		cfg := minimalValidConfig()
+		cfg.Tenants[0].ClientIDKeyVaultSecretName = name
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("accepted invalid reference %q", name)
 		}
 	}
 }

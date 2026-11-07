@@ -547,14 +547,15 @@
       }
     },
     "TenantQuotaConfig": {
+      "additionalProperties": false,
       "type": "object",
       "description": "Configuration for monitoring a single Azure AD tenant. Subscriptions are either inferred from ci.<env> (when neither subscriptionName nor regions is set) or given explicitly via subscriptionName + regions",
       "properties": {
         "tenantId": { "type": "string", "description": "Azure AD tenant ID" },
         "tenantName": { "type": "string", "description": "Display name for metrics labels" },
         "applicationName": { "type": "string", "description": "Display name of the Entra application when it is managed declaratively by the privileged dev-ci entrypoint (redHat0 only); lowercased as the application uniqueName" },
-        "servicePrincipalClientId": { "type": "string", "description": "App ID of the service principal" },
-        "keyVaultSecretName": { "type": "string", "description": "Key Vault secret name holding the SP client secret" },
+        "clientIdKeyVaultSecretName": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,127}$", "description": "Key Vault secret name holding the SP client ID" },
+        "clientSecretKeyVaultSecretName": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,127}$", "description": "Key Vault secret name holding the SP client secret" },
         "directoryQuota": { "type": "boolean", "description": "Enable directory (Azure AD) quota monitoring" },
         "subscriptionName": { "type": "string", "description": "Display name of the single subscription to monitor (tenants whose subscriptions are not inferred from ci.<env>)" },
         "regions": {
@@ -563,7 +564,7 @@
           "pattern": "^[a-z0-9]+(,[a-z0-9]+)*$"
         }
       },
-      "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+      "required": ["tenantId", "tenantName", "clientIdKeyVaultSecretName", "clientSecretKeyVaultSecretName"]
     },
     "CIJobOutcomesConfig": {
       "type": "object",

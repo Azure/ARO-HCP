@@ -94,7 +94,7 @@ resourceGroups:
     - name: APP_NAME
       configRef: opstool.tenantQuota.tenants.redHat0.applicationName
     - name: SECRET_NAME
-      configRef: opstool.tenantQuota.tenants.redHat0.keyVaultSecretName
+      configRef: opstool.tenantQuota.tenants.redHat0.clientSecretKeyVaultSecretName
     dependsOn:
     - resourceGroup: tenant-quota
       step: tenant-quota-identity

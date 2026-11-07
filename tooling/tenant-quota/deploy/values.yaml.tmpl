@@ -53,14 +53,14 @@ tenants:
   redHat0:
     tenantId: "{{ .opstool.tenantQuota.tenants.redHat0.tenantId }}"
     tenantName: "{{ .opstool.tenantQuota.tenants.redHat0.tenantName }}"
-    servicePrincipalClientId: "{{ .opstool.tenantQuota.tenants.redHat0.servicePrincipalClientId }}"
-    keyVaultSecretName: "{{ .opstool.tenantQuota.tenants.redHat0.keyVaultSecretName }}"
+    clientIdKeyVaultSecretName: "{{ .opstool.tenantQuota.tenants.redHat0.clientIdKeyVaultSecretName }}"
+    clientSecretKeyVaultSecretName: "{{ .opstool.tenantQuota.tenants.redHat0.clientSecretKeyVaultSecretName }}"
     directoryQuota: {{ .opstool.tenantQuota.tenants.redHat0.directoryQuota }}
   testTestAro:
     tenantId: "{{ .opstool.tenantQuota.tenants.testTestAro.tenantId }}"
     tenantName: "{{ .opstool.tenantQuota.tenants.testTestAro.tenantName }}"
-    servicePrincipalClientId: "{{ .opstool.tenantQuota.tenants.testTestAro.servicePrincipalClientId }}"
-    keyVaultSecretName: "{{ .opstool.tenantQuota.tenants.testTestAro.keyVaultSecretName }}"
+    clientIdKeyVaultSecretName: "{{ .opstool.tenantQuota.tenants.testTestAro.clientIdKeyVaultSecretName }}"
+    clientSecretKeyVaultSecretName: "{{ .opstool.tenantQuota.tenants.testTestAro.clientSecretKeyVaultSecretName }}"
     directoryQuota: {{ .opstool.tenantQuota.tenants.testTestAro.directoryQuota }}
     subscriptionName: "{{ .opstool.tenantQuota.tenants.testTestAro.subscriptionName }}"
     regions: "{{ .opstool.tenantQuota.tenants.testTestAro.regions }}"
