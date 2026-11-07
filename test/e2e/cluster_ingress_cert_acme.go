@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -66,16 +66,15 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// Let's Encrypt staging root CAs from https://letsencrypt.org/docs/staging-environment/
-//
-//go:embed letsencrypt-stg-cas/*.crt
-var letsEncryptStagingCAs embed.FS
+// ingressCertificateIssuerName is the cert-manager ClusterIssuer backed by the
+// in-cluster Pebble ACME server (see test/util/framework/pebble.go).
+const ingressCertificateIssuerName = "pebble"
 
 // Pinned upstream cert-manager release. Bump deliberately; do not float to :latest.
 const certManagerManifestURL = "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml"
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges",
+	DescribeTable("should be able to issue the default ingress serving certificate from an in-cluster Pebble ACME server using cert-manager with DNS-01 challenges",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -84,15 +83,14 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			const (
-				customerClusterName  = "ingress-cert-le"
+				customerClusterName  = "ingress-cert-pebble"
 				customerNodePoolName = "np-1"
 				certManagerNamespace = "cert-manager"
 				certManagerSAName    = "cert-manager"
-				ingressSecretName    = "letsencrypt-ingress-secret"
+				ingressSecretName    = "acme-ingress-secret"
 				ingressNamespace     = "openshift-ingress"
-				issuerName           = "letsencrypt-staging" // we're using staging as prod has strict limits on cert signing
+				issuerName           = ingressCertificateIssuerName
 				acmeEmail            = "noreply@redhat.com"
-				acmeServer           = "https://acme-staging-v02.api.letsencrypt.org/directory"
 			)
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
@@ -101,7 +99,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "ingress-cert-le", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "ingress-cert-pebble", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters")
@@ -217,22 +215,19 @@ var _ = Describe("Customer", func() {
 			)
 			GinkgoLogr.Info("derived DNS zone", "zone", delegatedDomain, "resourceGroup", managedResourceGroupName, "resourceID", dnsZoneResourceID)
 
-			By("creating a CAA record to authorize Let's Encrypt to issue certificates for the zone")
-			recordSetsClient, err := armdns.NewRecordSetsClient(subscriptionID, cred, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create DNS record sets client")
-			_, err = recordSetsClient.CreateOrUpdate(ctx, managedResourceGroupName, delegatedDomain, "@", armdns.RecordTypeCAA, armdns.RecordSet{
-				Properties: &armdns.RecordSetProperties{
-					TTL: to.Ptr[int64](3600),
-					CaaRecords: []*armdns.CaaRecord{
-						{
-							Flags: to.Ptr[int32](0),
-							Tag:   to.Ptr("issue"),
-							Value: to.Ptr("letsencrypt.org"),
-						},
-					},
-				},
-			}, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create CAA record authorizing letsencrypt.org")
+			By("reading the delegated zone's authoritative nameservers")
+			zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create DNS zones client")
+			zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for the delegated zone")
+			Expect(zone.Properties).NotTo(BeNil(), "delegated zone properties was nil")
+			Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "delegated zone must have authoritative nameservers")
+			var nameservers []string
+			for _, nameserver := range zone.Properties.NameServers {
+				Expect(nameserver).NotTo(BeNil(), "delegated zone nameserver was nil")
+				nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
+			}
+			slices.Sort(nameservers)
 
 			By("creating a UAMI for cert-manager and federating it to the in-cluster ServiceAccount")
 			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
@@ -294,6 +289,11 @@ var _ = Describe("Customer", func() {
 			mapper := newDiscoveryMapper(adminRESTConfig)
 
 			Expect(applyManifestFromURL(ctx, dynClient, mapper, certManagerManifestURL)).To(Succeed(), "failed to install cert-manager manifests")
+
+			By("deploying the Pebble ACME test server from the OCP ACR, validating DNS-01 against the zone's authoritative nameserver")
+			pebbleCABundle, pebbleImage, err := framework.DeployPebble(ctx, kubeClient, configClient, nameservers[0])
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy Pebble ACME test server")
+			GinkgoLogr.Info("deployed Pebble ACME test server", "image", pebbleImage, "dnsServer", nameservers[0])
 
 			By("waiting for the cert-manager controller deployment to become Available")
 			var lastDeployErr string
@@ -367,16 +367,26 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"cert-manager deployment should complete rollout with workload identity")
 
+			By("waiting for the Pebble ACME test server to become ready")
+			var lastPebbleErr string
+			Eventually(func() error {
+				err := framework.CheckPebbleReady(ctx, kubeClient)
+				if err != nil && err.Error() != lastPebbleErr {
+					GinkgoLogr.Info("waiting for Pebble", "status", err.Error())
+					lastPebbleErr = err.Error()
+				}
+				return err
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"Pebble deployment should become ready")
+
 			By("waiting for guest DNS readiness and in-cluster ACME hostname resolution")
-			acmeHostname, err := framework.HostnameFromURL(acmeServer)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse ACME hostname")
 			Expect(waitForIngressCertificateDNS(ctx, kubeClient, configClient, certManagerNamespace,
-				acmeHostname, 10*time.Minute, 10*time.Second)).To(Succeed(),
+				framework.PebbleServiceHost, 10*time.Minute, 10*time.Second)).To(Succeed(),
 				"guest DNS must be ready before ACME account registration")
 
 			By("creating a ClusterIssuer with ACME DNS-01 solver targeting the DNS zone in the managed resource group")
 			issuerObj := unstructuredClusterIssuer(
-				issuerName, acmeEmail, acmeServer,
+				issuerName, acmeEmail, framework.PebbleDirectoryURL, pebbleCABundle,
 				delegatedDomain, managedResourceGroupName, subscriptionID, uamiClientID,
 			)
 			issuerGVR := schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}
@@ -409,18 +419,6 @@ var _ = Describe("Customer", func() {
 				"ClusterIssuer should become Ready (ACME account registered)")
 
 			By("allowing DNS propagation headroom before requesting a certificate")
-			zonesClient, err := armdns.NewZonesClient(subscriptionID, cred, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create DNS zones client")
-			zone, err := zonesClient.Get(ctx, managedResourceGroupName, delegatedDomain, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to get authoritative nameservers for the delegated zone")
-			Expect(zone.Properties).NotTo(BeNil(), "delegated zone properties was nil")
-			Expect(zone.Properties.NameServers).NotTo(BeEmpty(), "delegated zone must have authoritative nameservers")
-			var nameservers []string
-			for _, nameserver := range zone.Properties.NameServers {
-				Expect(nameserver).NotTo(BeNil(), "delegated zone nameserver was nil")
-				nameservers = append(nameservers, strings.ToLower(strings.TrimSuffix(*nameserver, "."))+".")
-			}
-			slices.Sort(nameservers)
 			nameserverAddresses := map[string]string{}
 			lastDNSStatus := ""
 			logDNSReadback := func(err error) error {
@@ -516,11 +514,15 @@ var _ = Describe("Customer", func() {
 				}
 				return nil
 			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
-				"Certificate should be issued by Let's Encrypt staging via ACME DNS-01")
+				"Certificate should be issued by Pebble via ACME DNS-01")
+
+			By("reading the root CA Pebble issued the certificate from")
+			roots, err := framework.FetchPebbleIssuanceRoots(ctx, kubeClient)
+			Expect(err).NotTo(HaveOccurred(), "failed to read Pebble's issuance root CA")
 
 			By("verifying the TLS Secret contains a valid certificate with the correct SAN")
-			err = expectTLSSecretIssuedByLetsEncrypt(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Let's Encrypt staging with SAN %s", appsWildcard))
+			err = expectTLSSecretIssuedByACMECA(ctx, kubeClient, ingressNamespace, ingressSecretName, appsWildcard, roots)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("TLS Secret should contain a valid cert issued by Pebble with SAN %s", appsWildcard))
 
 			By("deploying a sample application before verifying the default ingress certificate")
 			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
@@ -535,7 +537,7 @@ var _ = Describe("Customer", func() {
 			By("verifying ACM's ingress certificate must not be created")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM must not create its ingress certificate secret")
 
-			By("pointing IngressController/default at the customer's Let's Encrypt certificate")
+			By("pointing IngressController/default at the customer's ACME-issued certificate")
 			icPatch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
 			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
 			_, err = dynClient.Resource(icGVR).Namespace("openshift-ingress-operator").Patch(ctx, "default", types.MergePatchType, icPatch, metav1.PatchOptions{})
@@ -546,11 +548,9 @@ var _ = Describe("Customer", func() {
 			Expect(certificateBlock).NotTo(BeNil(), "customer TLS secret must contain a PEM certificate")
 			customerCertificate, err := x509.ParseCertificate(certificateBlock.Bytes)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse the customer's certificate")
-			roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
-			Expect(err).NotTo(HaveOccurred(), "failed to load Let's Encrypt staging roots")
 
-			By("verifying the sample application serves the exact customer-specified certificate with a valid Let's Encrypt chain")
-			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid Let's Encrypt chain")
+			By("verifying the sample application serves the exact customer-specified certificate with a valid chain to Pebble's root")
+			Expect(verifiers.VerifyCustomIngressCertificate(sampleApp.RouteHost, appsWildcard, customerCertificate, roots, 10*time.Minute).Verify(ctx, adminRESTConfig)).To(Succeed(), "sample application must serve the exact customer-specified certificate with a valid chain to Pebble's root")
 
 			By("verifying ACM's ingress certificate must remain absent after the customer's override")
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
@@ -638,16 +638,18 @@ func readbackIngressDNS(ctx context.Context, zone string, nameservers []string, 
 }
 
 // unstructuredClusterIssuer builds a cert-manager.io/v1 ClusterIssuer that uses
-// ACME DNS-01 challenges with the Azure DNS solver.
-func unstructuredClusterIssuer(name, email, server, hostedZoneName, resourceGroupName, subscriptionID, uamiClientID string) *unstructured.Unstructured {
+// ACME DNS-01 challenges with the Azure DNS solver. caBundle is the PEM CA that
+// signs the ACME server's own HTTPS certificate.
+func unstructuredClusterIssuer(name, email, server string, caBundle []byte, hostedZoneName, resourceGroupName, subscriptionID, uamiClientID string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "cert-manager.io/v1",
 		"kind":       "ClusterIssuer",
 		"metadata":   map[string]interface{}{"name": name},
 		"spec": map[string]interface{}{
 			"acme": map[string]interface{}{
-				"email":  email,
-				"server": server,
+				"email":    email,
+				"server":   server,
+				"caBundle": base64.StdEncoding.EncodeToString(caBundle),
 				"privateKeySecretRef": map[string]interface{}{
 					"name": name + "-account-key",
 				},
@@ -763,18 +765,20 @@ func dumpCertManagerIssuanceDiagnostics(ctx context.Context, dynClient dynamic.I
 		}
 	}
 
-	pods, err := kubeClient.CoreV1().Pods(certManagerNamespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		GinkgoWriter.Printf("failed to list pods in namespace %s: %v\n", certManagerNamespace, err)
-		return
-	}
-	for _, pod := range pods.Items {
-		logs, err := kubeClient.CoreV1().Pods(certManagerNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{TailLines: to.Ptr(int64(200))}).Do(ctx).Raw()
+	for _, namespace := range []string{certManagerNamespace, framework.PebbleNamespace} {
+		pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			GinkgoWriter.Printf("failed to get logs for pod %s/%s: %v\n", certManagerNamespace, pod.Name, err)
+			GinkgoWriter.Printf("failed to list pods in namespace %s: %v\n", namespace, err)
 			continue
 		}
-		GinkgoWriter.Printf("--- pod %s/%s logs (last 200 lines) ---\n%s\n", certManagerNamespace, pod.Name, string(logs))
+		for _, pod := range pods.Items {
+			logs, err := kubeClient.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{TailLines: to.Ptr(int64(200))}).Do(ctx).Raw()
+			if err != nil {
+				GinkgoWriter.Printf("failed to get logs for pod %s/%s: %v\n", namespace, pod.Name, err)
+				continue
+			}
+			GinkgoWriter.Printf("--- pod %s/%s logs (last 200 lines) ---\n%s\n", namespace, pod.Name, string(logs))
+		}
 	}
 }
 
@@ -790,10 +794,10 @@ func printUnstructuredStatus(obj *unstructured.Unstructured, label string) {
 	GinkgoWriter.Printf("--- %s status ---\n%s\n", label, string(b))
 }
 
-// expectTLSSecretIssuedByLetsEncrypt verifies that the named Secret exists, is
+// expectTLSSecretIssuedByACMECA verifies that the named Secret exists, is
 // of type kubernetes.io/tls, has a leaf cert whose SAN matches expectedSAN,
-// and that the certificate chain validates up to a Let's Encrypt staging root CA.
-func expectTLSSecretIssuedByLetsEncrypt(ctx context.Context, kubeClient kubernetes.Interface, ns, name, expectedSAN string) error {
+// and that the certificate chain validates up to one of roots.
+func expectTLSSecretIssuedByACMECA(ctx context.Context, kubeClient kubernetes.Interface, ns, name, expectedSAN string, roots *x509.CertPool) error {
 	s, err := kubeClient.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("getting secret %s/%s: %w", ns, name, err)
@@ -836,16 +840,11 @@ func expectTLSSecretIssuedByLetsEncrypt(ctx context.Context, kubeClient kubernet
 		return fmt.Errorf("leaf cert SANs %v do not include expected %q", leaf.DNSNames, expectedSAN)
 	}
 
-	roots, err := loadEmbeddedCAs(letsEncryptStagingCAs, "letsencrypt-stg-cas")
-	if err != nil {
-		return fmt.Errorf("loading Let's Encrypt staging root CAs: %w", err)
-	}
-
 	if err := verifyCertChain(certs, roots); err != nil {
-		return fmt.Errorf("certificate chain verification against Let's Encrypt staging roots failed: %w", err)
+		return fmt.Errorf("certificate chain verification against the ACME CA root failed: %w", err)
 	}
 
-	GinkgoLogr.Info("verified TLS Secret certificate chain to Let's Encrypt staging root",
+	GinkgoLogr.Info("verified TLS Secret certificate chain to the ACME CA root",
 		"secret", fmt.Sprintf("%s/%s", ns, name),
 		"san", leaf.DNSNames,
 		"issuerCN", leaf.Issuer.CommonName,

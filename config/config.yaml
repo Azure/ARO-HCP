@@ -1311,6 +1311,13 @@ defaults:
       prowJobName: ""
       gatePromotion: true
       allowedSubscriptions: ""
+    # Let's Encrypt's ACME test server, used by the ingress certificate e2e.
+    # Mirrored to the OCP ACR by test/e2e-pipeline.yaml, where guest clusters can
+    # pull it. Must match pebbleSourceRepository/pebbleDigest in test/util/framework/pebble.go.
+    pebbleImage:
+      registry: ghcr.io
+      repository: letsencrypt/pebble
+      digest: sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199 # v2.10.1
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
