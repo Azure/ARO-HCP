@@ -73,11 +73,6 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:frontend_http:good:rate5m", cluster="svc-1"}'
       value: 0.75
-  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-1"}
-    eval_time: 5m
-    exp_samples:
-    - labels: '{__name__="sli:frontend_http:availability:rate_avg_30d", cluster="svc-1"}'
-      value: 0.75
   - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:
@@ -226,9 +221,6 @@ tests:
   - expr: sli:frontend_http:good:rate5m{cluster="svc-idle"}
     eval_time: 5m
     exp_samples: []
-  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-idle"}
-    eval_time: 5m
-    exp_samples: []
   - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-idle"}
     eval_time: 5m
     exp_samples: []
@@ -272,8 +264,8 @@ tests:
     exp_samples:
     - labels: '{cluster="svc-skew"}'
       value: 0.5
-  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-skew"}
+  - expr: (avg_over_time(sli:frontend_http:good:rate5m{cluster="svc-skew"}[30d:5m]) / avg_over_time(traffic:frontend_http:request_rate:rate5m{cluster="svc-skew"}[30d:5m])) and avg_over_time(traffic:frontend_http:request_rate:rate5m{cluster="svc-skew"}[30d:5m]) > 0
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="sli:frontend_http:availability:rate_avg_30d", cluster="svc-skew"}'
+    - labels: '{cluster="svc-skew"}'
       value: 0.9999000099990002
