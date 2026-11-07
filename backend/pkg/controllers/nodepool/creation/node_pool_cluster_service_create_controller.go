@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -40,10 +42,11 @@ import (
 const NodePoolClusterServiceCreateControllerName = "NodePoolClusterServiceCreate"
 
 type nodePoolClusterServiceCreateSyncer struct {
-	resourcesDBClient     corecosmosstorage.ResourcesDBClient
-	nodePoolLister        corelisters.NodePoolLister
-	clusterLister         corelisters.ClusterLister
-	clustersServiceClient ocm.ClusterServiceClientSpec
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	nodePoolLister                corelisters.NodePoolLister
+	clusterLister                 corelisters.ClusterLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	clustersServiceClient         ocm.ClusterServiceClientSpec
 }
 
 func NewNodePoolClusterServiceCreateController(
@@ -54,11 +57,13 @@ func NewNodePoolClusterServiceCreateController(
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, clusterLister := informers.Clusters()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolClusterServiceCreateSyncer{
-		resourcesDBClient:     resourcesDBClient,
-		nodePoolLister:        nodePoolLister,
-		clusterLister:         clusterLister,
-		clustersServiceClient: clustersServiceClient,
+		resourcesDBClient:             resourcesDBClient,
+		nodePoolLister:                nodePoolLister,
+		clusterLister:                 clusterLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		clustersServiceClient:         clustersServiceClient,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -70,13 +75,19 @@ func NewNodePoolClusterServiceCreateController(
 		syncer,
 	)
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 
 	return controller
 }
 
+// Determine if the node pool needs to be processed if:
+// - it's not being deleted
+// - it's in a failed state (prevents auto-provisioning if customer desired version later appears after subsequent operation failed)
+// - if ClusterServiceID is not set (NodePool resource in CS is not yet created)
 func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
+		nodePool.Properties.ProvisioningState != coreapi.ProvisioningStateFailed &&
 		(nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
 
@@ -120,6 +131,44 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
 	}
 	clusterCSInternalID := *cluster.ServiceProviderProperties.ClusterServiceID
+
+	// Wait for NodePoolVersion controller to validate and set DesiredVersion before creating CS resource.
+	// This ensures version validation against Cincinnati completes before we POST to Cluster Service.
+	serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// CreateServiceProviderNodePool will populate it; will be re-enqueued via the ServiceProviderNodePool informer.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+	}
+
+	desiredVersion := serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
+	if desiredVersion == nil {
+		// NodePoolVersion controller has not yet validated and set DesiredVersion.
+		// If validation fails, it will set IntentFailed instead, which the operation controller will detect.
+		// Wait here to avoid creating a CS node pool with an invalid version.
+		logger.Info("waiting for desired version to be set by NodePoolVersion controller")
+		return nil
+	}
+
+	// Verify the resolved version matches the customer's requested version.
+	// This prevents posting a stale validated version when the customer has updated to a new (not yet validated) version.
+	customerDesiredVersion, err := semver.Parse(nodePool.Properties.Version.ID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to parse customer version %q: %w", nodePool.Properties.Version.ID, err))
+	}
+
+	if !customerDesiredVersion.EQ(*desiredVersion) {
+		// The resolved version doesn't match the customer's requested version. This can happen when:
+		// 1. Version validation is still in progress, OR
+		// 2. Customer updated to a new version that hasn't been validated yet, OR
+		// 3. Customer's new version failed validation and SPNP still has the old accepted version
+		logger.Info("desired version does not match customer version, waiting for validation",
+			"customerVersion", customerDesiredVersion.String(),
+			"resolvedVersion", desiredVersion.String())
+		return nil
+	}
 
 	// GET must target the same href POST would use: {clusterHref}/node_pools/{id} where id is
 	// lowercased ARM name (see ocm.BuildCSNodePool). We reconstruct it here:
