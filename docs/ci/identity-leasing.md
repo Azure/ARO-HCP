@@ -44,39 +44,16 @@ Regardless of how CI acquired the pool, the runtime behavior inside the test bin
   - **Pooled mode** (default in CI) is enabled when `POOLED_IDENTITIES=true`. In this mode tests reuse pre-created identity containers, which are resource groups that hold the well-known managed identities for a single HCP cluster.
   - **Non-pooled mode** (`POOLED_IDENTITIES=false`) creates identities directly in the cluster resource group using suffixed names. This is mainly for local or ad-hoc runs.
 - **Per-spec leasing protocol**
-  - The implementation lives in `test/util/framework/identities_helper.go`.
-  - On startup, the test binary reads the `LEASED_MSI_CONTAINERS` environment variable, which contains a space-separated list of resource group names made available to the current job.
-  - Those resource groups are written into a YAML state file as a list of entries, each with a three-state lease lifecycle:
-    - `free`: container is available to any test
-    - `assigned`: container has been reserved for a specific Ginkgo spec but is not yet in use
-    - `busy`: container is actively being used by that spec
-  - Each spec is identified by a stable `specID()`, derived from the Ginkgo spec text and the OS process ID.
-  - At the start of a spec, `AssignIdentityContainers()` atomically reserves the required number of containers by transitioning `free -> assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and retries with backoff until containers become available or the context is cancelled.
-  - When a spec actually needs a container, `ResolveIdentitiesForTemplate()` or `DeployManagedIdentities()` calls `useNextAssigned(specID)`, which transitions a single entry from `assigned -> busy` and returns its resource group name.
-  - During cleanup, `releaseLeasedIdentities()` transitions all containers leased by that spec back to `free` and performs best-effort cleanup of federated identity credentials and role assignments in the identity-container resource group.
+  - The implementation lives in `test/util/framework/identities_helper.go`; the allocation logic lives in `test/util/mipool`.
+  - The `run-suite` parent process reads `LEASED_MSI_CONTAINERS`, a space-separated list of resource group names made available to the current job, and builds an in-memory pool from it.
+  - Before spawning a spec that declares `labels.MIContainers(N)`, the parent allocates N free containers and passes them to the spec's worker process in `ASSIGNED_MI_CONTAINERS`. Specs that declare no demand receive no assignment.
+  - In the worker, `AssignIdentityContainers()` reads N from the spec's `labels.MIContainers(N)` label, consumes `ASSIGNED_MI_CONTAINERS`, validating that every name is listed in `LEASED_MSI_CONTAINERS`. It never waits and fails if the parent assigned fewer containers than requested.
+  - When a spec actually needs a container, `ResolveIdentitiesForTemplate()`, `DeployManagedIdentities()` or `NextLeasedIdentityPool()` hands out the next assigned container from the spec's own test context. Every container-consuming call must therefore go through the same test context that called `AssignIdentityContainers()`.
+  - During cleanup, the worker's `releaseLeasedIdentities()` performs best-effort cleanup of federated identity credentials and role assignments in the leased containers. The parent then returns the containers to the pool; for failed specs it repeats the cleanup and quarantines containers whose cleanup failed. At startup the parent sweeps all containers for residue from crashed runs.
 - **Identity naming**
   - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go`, including names such as `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, and `service`.
   - In pooled mode these canonical names are reused as-is in every identity-container resource group.
   - In non-pooled mode the same base names are suffixed with the cluster name to ensure uniqueness within the cluster resource group.
-
-### Worker Coordination And State Files
-
-The [openshift-tests-extension](https://github.com/openshift-eng/openshift-tests-extension) parallelization model runs a parent test process that spawns multiple OS worker processes for Ginkgo specs.
-
-These workers coordinate identity leases via:
-
-- a shared YAML state file
-- a separate lock file
-
-Each leasing operation follows the same pattern:
-
-1. take the lock
-2. load state from disk
-3. modify it in memory
-4. persist the updated state back to disk
-5. release the lock
-
-The YAML state file is created on first use from `LEASED_MSI_CONTAINERS` and then treated as the single source of truth for the lifetime of the job.
 
 ### How CI Acquires Identity Containers Today
 
@@ -157,7 +134,7 @@ Both set `POOLED_IDENTITIES` with default `"true"`.
 
 In the test framework:
 
-- `true` uses the leased identity containers and the lease state machine
+- `true` uses the identity containers allocated by the parent process
 - `false` skips pooled leasing and creates identities directly in the cluster resource group
 
 ### Pool Sizing And Subscription Constraints
@@ -271,7 +248,7 @@ Three bottlenecks matter:
 
 Concurrency is bounded by the number of available slots across the pools that the job is allowed to consume.
 
-**Bottleneck 2: parallelism within a single run.** Suite parallelism bounds the number of running specs, not the number of HCP clusters. With pooled identities enabled, the resource-aware scheduler uses each spec's `labels.MIContainers` demand and the leased `mi-containers` resource pool to admit only specs whose combined demand fits. A spec requiring two containers consumes two units; zero-container specs consume none. Specs wait for scheduler capacity and run in waves as resources are released. The framework's `AssignIdentityContainers()` reservation and retry protocol remains a backstop. See `hcp-concurrency` above for the corresponding HCP bound; adding more workers does not bypass the identity-container ceiling.
+**Bottleneck 2: parallelism within a single run.** Suite parallelism bounds the number of running specs, not the number of HCP clusters. With pooled identities enabled, the resource-aware scheduler uses each spec's `labels.MIContainers` demand and the leased `mi-containers` resource pool to admit only specs whose combined demand fits. A spec requiring two containers consumes two units; zero-container specs consume none. Specs wait for scheduler capacity and run in waves as resources are released. See `hcp-concurrency` above for the corresponding HCP bound; adding more workers does not bypass the identity-container ceiling.
 
 **Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
 
@@ -421,7 +398,7 @@ the leased identity budget.
 
 ### Operational Notes And Troubleshooting
 
-- when the pool is saturated, specs block inside `AssignIdentityContainers()`
+- when the pool is saturated, the parent cannot allocate containers for a spec, which then fails in `AssignIdentityContainers()`
 - the framework records dedicated timing steps such as `Assign N identity containers`, `Lease identity container`, and `Release leased identities`
 - this lets you separate infra wait time from actual test logic when reviewing artifacts
 - slot-manager logs primary slot acquisition and the start of asset admission;

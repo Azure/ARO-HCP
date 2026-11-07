@@ -52,7 +52,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to discover a GPU VM size")
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers()
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 

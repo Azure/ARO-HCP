@@ -33,71 +33,10 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-type backupTestClusterConfig struct {
-	resourceGroupPrefix string
-	clusterName         string
-	nsgName             string
-	vnetName            string
-	subnetName          string
-}
-
 type backupTestCluster struct {
 	httpClient   *http.Client
 	adminAPIAddr string
 	resourceID   string
-}
-
-func createBackupTestCluster(ctx context.Context, cfg backupTestClusterConfig) backupTestCluster {
-	tc := framework.NewTestContext()
-
-	By("creating a resource group")
-	resourceGroup, err := tc.NewResourceGroup(ctx, cfg.resourceGroupPrefix, tc.Location())
-	Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
-
-	By("creating cluster parameters")
-	clusterParams := framework.NewDefaultClusterParams20251223()
-	clusterParams.Tags[metadataapi.TagClusterBackupScheduleOverride] = to.Ptr(string(coreapi.BackupScheduleStateEnabled))
-	clusterParams.ClusterName = cfg.clusterName
-	managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-	clusterParams.ManagedResourceGroupName = managedResourceGroupName
-
-	By("creating customer resources")
-	clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
-		resourceGroup,
-		clusterParams,
-		map[string]interface{}{
-			"customerNsgName":        cfg.nsgName,
-			"customerVnetName":       cfg.vnetName,
-			"customerVnetSubnetName": cfg.subnetName,
-		},
-		TestArtifactsFS,
-		framework.RBACScopeResourceGroup,
-	)
-	Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
-
-	By("creating the HCP cluster")
-	err = tc.CreateHCPClusterFromParam20251223(
-		ctx,
-		GinkgoLogr,
-		*resourceGroup.Name,
-		clusterParams,
-		nil,
-		framework.ClusterCreationTimeout,
-	)
-	Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
-
-	hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
-		metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, cfg.clusterName)
-
-	By("creating admin API HTTP client")
-	httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
-	Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
-
-	return backupTestCluster{
-		httpClient:   httpClient,
-		adminAPIAddr: adminAPIAddress,
-		resourceID:   hcpResourceID,
-	}
 }
 
 var _ = Describe("SRE", func() {
@@ -114,17 +53,59 @@ var _ = Describe("SRE", func() {
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers()
 				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
-			cluster := createBackupTestCluster(ctx, backupTestClusterConfig{
-				resourceGroupPrefix: "pause-bkp-e2e",
-				clusterName:         "pause-bkp-cluster",
-				nsgName:             "pause-bkp-nsg-name",
-				vnetName:            "pause-bkp-vnet-name",
-				subnetName:          "pause-bkp-vnet-subnet1",
-			})
+			const clusterName = "pause-bkp-cluster"
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "pause-bkp-e2e", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams20251223()
+			clusterParams.Tags[metadataapi.TagClusterBackupScheduleOverride] = to.Ptr(string(coreapi.BackupScheduleStateEnabled))
+			clusterParams.ClusterName = clusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"customerNsgName":        "pause-bkp-nsg-name",
+					"customerVnetName":       "pause-bkp-vnet-name",
+					"customerVnetSubnetName": "pause-bkp-vnet-subnet1",
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam20251223(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				nil,
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
+
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
+				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+
+			By("creating admin API HTTP client")
+			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
+
+			cluster := backupTestCluster{
+				httpClient:   httpClient,
+				adminAPIAddr: adminAPIAddress,
+				resourceID:   hcpResourceID,
+			}
 			By("verifying backup schedules were created and are active")
 			Eventually(func() (bool, error) {
 				resp, err := getBackupScheduleViaAdminAPI(ctx, cluster.httpClient, cluster.adminAPIAddr, cluster.resourceID)

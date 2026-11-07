@@ -47,11 +47,6 @@ const (
 	UpdateHCPClusterTimeout         = 10 * time.Minute
 )
 
-// Identity assignment
-const (
-	IdentityContainerAssignmentRetryInterval = 60 * time.Second
-)
-
 // Operator verifier timeouts
 const (
 	IngressDNSVerifyTimeout         = 10 * time.Minute

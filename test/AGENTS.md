@@ -289,8 +289,8 @@ It("should create cluster successfully",
 ## Pooled Identities
 
 - **Check if enabled**: Use `tc.UsePooledIdentities()` to check if pooled identities are enabled
-- **Assign containers**: Call `tc.AssignIdentityContainers(ctx, count, timeout)` before resource creation
-  - Example: `tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)`
+- **Assign containers**: Call `tc.AssignIdentityContainers()` before resource creation; the count comes from the spec's `labels.MIContainers(N)` label
+  - Example: `tc.AssignIdentityContainers()`
 - **Error handling**: Expect assignment to succeed: `Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")`
 
 ## Error Handling in Negative Tests
