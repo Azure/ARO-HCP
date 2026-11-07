@@ -243,6 +243,7 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
+	failedProbes := []string{}
 	states := []*operationbase.OperationState{}
 
 	if currState, err := clusterServiceDeletionStatus(cluster); err != nil {
@@ -253,24 +254,28 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 
 	if currState, err := c.clusterServiceStatusForDeletion(ctx, cluster); err != nil {
 		errs = append(errs, err)
+		failedProbes = append(failedProbes, "clusterServiceStatus")
 	} else {
 		states = append(states, currState.WithSource("clusterServiceStatus"))
 	}
 
 	if currState, err := c.remainingDescendantResources(ctx, cluster); err != nil {
 		errs = append(errs, err)
+		failedProbes = append(failedProbes, "descendantResources")
 	} else {
 		states = append(states, currState.WithSource("descendantResources"))
 	}
 
 	if currState, err := c.hostedClusterDeletionStatus(ctx, cluster); err != nil {
 		errs = append(errs, err)
+		failedProbes = append(failedProbes, "hostedCluster")
 	} else {
 		states = append(states, currState.WithSource("hostedCluster"))
 	}
 
 	if currState, err := c.applyDesireTeardownStatus(ctx, cluster); err != nil {
 		errs = append(errs, err)
+		failedProbes = append(failedProbes, "resourceTeardown")
 	} else {
 		states = append(states, currState.WithSource("resourceTeardown"))
 	}
@@ -278,22 +283,38 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 	if err := errors.Join(errs...); err != nil {
 		logger.Error(err, "errors building deletion timeout message")
 	}
-	if len(states) == 0 {
-		return "cluster deletion did not complete before the deadline"
-	}
-	slices.SortStableFunc(states, operationbase.CompareOperationState)
+	logger.Info("deletion timeout diagnostics", "states", states)
+	return formatDeletionTimeoutMessage(states, failedProbes)
+}
 
-	picked, err := operationbase.PickWorstOperationState(states)
-	if err != nil {
-		logger.Error(err, "failed to pick worst deletion state")
-		return "cluster deletion did not complete before the deadline"
-	}
+const deletionDeadlinePrefix = "cluster deletion did not complete before the deadline"
 
-	message := picked.Message
-	if len(message) == 0 {
-		return "cluster deletion did not complete before the deadline"
+func formatDeletionTimeoutMessage(states []*operationbase.OperationState, failedProbes []string) string {
+	var details []string
+	for _, state := range states {
+		if state == nil || state.ProvisioningState != coreapi.ProvisioningStateDeleting {
+			continue
+		}
+		switch state.Source {
+		case "clusterServiceDeletion":
+			details = append(details, "[clusterServiceDeletion] cluster deletion is still pending")
+		case "clusterServiceStatus":
+			details = append(details, "[clusterServiceStatus] cluster service cleanup is still pending")
+		case "descendantResources":
+			details = append(details, "[descendantResources] dependent resources still exist")
+		case "hostedCluster":
+			details = append(details, "[hostedCluster] hosted control plane still exists")
+		case "resourceTeardown":
+			details = append(details, "[resourceTeardown] cluster resource cleanup is still pending")
+		}
 	}
-	return fmt.Sprintf("cluster deletion did not complete before the deadline; %s", message)
+	if len(details) > 0 {
+		return fmt.Sprintf("%s; %s", deletionDeadlinePrefix, strings.Join(details, "; "))
+	}
+	if len(failedProbes) == 0 {
+		return deletionDeadlinePrefix
+	}
+	return fmt.Sprintf("%s; diagnostics unavailable (%s)", deletionDeadlinePrefix, strings.Join(failedProbes, ", "))
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
