@@ -429,6 +429,7 @@ defaults:
     name: "aks-auditlogs"
     enabled: true
     sku: "Premium"
+    capacity: 1
     namespace: "hcp-{{ .ctx.environment }}-{{ .ctx.region }}-auditlogs-eh"
     authRuleName: "SendRule"
     kustoConsumerGroupName: "AuditLogsToKusto"
