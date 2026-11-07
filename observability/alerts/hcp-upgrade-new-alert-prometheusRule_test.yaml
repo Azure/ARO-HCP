@@ -1,0 +1,773 @@
+rule_files:
+- hcp-upgrade-new-alert-prometheusRule.yaml
+- hcp-upgrade-recordingRule.yaml
+evaluation_interval: 1m
+group_eval_order:
+- hcp-upgrade
+- hcp-upgrade-new-alert
+tests:
+- name: During and post upgrade alerts fire and clear while pre-upgrade A remains
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.21"}
+    values: 0+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.21"}
+    values: 60+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x1490
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x1480
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="A",alertstate="firing"}
+    values: 1+0x30
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="A"}
+    values: 0+0x30
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="B",alertstate="firing"}
+    values: _x21 1 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="B"}
+    values: _x21 1200 stale
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="C",alertstate="firing"}
+    values: _x11 1+0x11 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="C"}
+    values: _x11 600+0x11 stale
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 22m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 23m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Alert first appearing 12 hours after completion fires and expires at completion plus 24 hours
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.21"}
+    values: 0+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.21"}
+    values: 60+0x1500
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x1490
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x1480
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="AnyName",alertstate="firing"}
+    values: _x740 1+0x760
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="AnyName"}
+    values: _x740 44400+0x760
+  alert_rule_test:
+  - eval_time: 12h19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 12h20m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 24h19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 24h20m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Pending before upgrade is excluded when it fires afterward
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x11 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x8 480+0x13
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Post-upgrade recurrence is detected again
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x15
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x13 1 1 stale _x4 1 1 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x13 780 780 stale _x4 1200 1200 stale
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 16m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 23m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Missing activation excludes an alert until a valid timestamp arrives
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x13 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x15 780+0x8
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+- name: Activation exactly at upgrade start is accepted
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x13 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x13 600+0x10
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+- name: Pending instance cannot supply the activation time for a firing instance
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing",deployment="firing"}
+    values: _x13 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="firing"}
+    values: _x13 540+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="pending",deployment="pending"}
+    values: _x13 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="pending"}
+    values: _x13 780+0x10
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Overlapping objects continue firing after the first resolves
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x15
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing",deployment="a"}
+    values: _x13 1+0x4 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="a"}
+    values: _x13 780+0x4 stale
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing",deployment="b"}
+    values: _x16 1+0x5 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="b"}
+    values: _x16 960+0x5 stale
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 22m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Second upgrade does not hide a problem attributed to the first
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="first"}
+    values: _x12 600+0x20
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="second"}
+    values: _x22 1200+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x13 1+0x20
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x13 780+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: first
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (first)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at first, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/first
+  - eval_time: 25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: first
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (first)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at first, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/first
+- name: One new problem can match five distinct attempts including repeated versions
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="a"}
+    values: _x12 600+0x25
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="b"}
+    values: _x14 720+0x23
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="c"}
+    values: _x16 840+0x21
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="d"}
+    values: _x18 960+0x19
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="e"}
+    values: _x20 1080+0x17
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x22 1+0x15
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x22 1320+0x15
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: a
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (a)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at a, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/a
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: b
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (b)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at b, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/b
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: c
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (c)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at c, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/c
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: d
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (d)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at d, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/d
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: e
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (e)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at e, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/e
+- name: Missing upgrade data excludes attribution
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x2 stale
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x13 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x13 780+0x10
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 16m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Old firing stays excluded after more than 24 hours of quiet
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x20 1200+0x1460
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x10 1 stale _x1438 1+0x30
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x10 600 stale _x1438 87000+0x30
+  alert_rule_test:
+  - eval_time: 24h15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: Baseline includes exactly start minus 24h but excludes older samples
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x1443 86460+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _ 1 stale _x1441 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _ 60 stale _x1441 86640+0x10
+  alert_rule_test:
+  - eval_time: 24h6m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: An observation older than the baseline does not block detection
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x1443 86460+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: 1 stale _x1442 1+0x10
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: 0 stale _x1442 86640+0x10
+  alert_rule_test:
+  - eval_time: 24h6m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+- name: Firing exactly at upgrade start is outside the pre-upgrade baseline
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x10
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x10 1+0x13
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x10 600+0x13
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        version: '4.22'
+        attempt_started_at: upgrade
+        severity: '4'
+        component: hcp
+        hcp_upgrade_new_alert: 'true'
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+- name: Pre-upgrade firing on one object excludes another object of the same alert type
+  interval: 1m
+  input_series:
+  - series: hcp:upgrade_started_timestamp_seconds{resource_id="hcp-id",version="4.22",attempt_started_at="upgrade"}
+    values: _x12 600+0x15
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing",deployment="a"}
+    values: _x5 1+0x12 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="a"}
+    values: _x5 300+0x12 stale
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing",deployment="b"}
+    values: _x16 1+0x5 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",deployment="b"}
+    values: _x16 960+0x5 stale
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 7 - Recent pre-upgrade firing clears and returns soon
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x40
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x40
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x30
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x20
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x5 1 stale _x14 1+0x19
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x5 300 stale _x14 1260+0x19
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 9 - Alert fires and clears entirely before upgrade completion
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x40
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x40
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x30
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x20
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x11 1+0x3 stale
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x11 660+0x3 stale
+  alert_rule_test:
+  - eval_time: 13m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 10 - Pending-only alert never triggers the HCPUpgradeNewAlert
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x40
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x40
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x30
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x20
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="pending"}
+    values: _x11 1+0x29
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x11 660+0x29
+  alert_rule_test:
+  - eval_time: 19m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 14 - First firing after completion plus 24h is excluded
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x1470
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x1470
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x10 600+0x1460
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x20 1200+0x1450
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x1461 1+0x9
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x1461 87660+0x9
+  alert_rule_test:
+  - eval_time: 24h21m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 24h25m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 20 - Same-version attempts expire independently while the alert keeps firing
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x1470
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x1470
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="first",version="4.22"}
+    values: _x10 600+0x1460
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="first",version="4.22"}
+    values: _x12 720+0x1458
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="second",version="4.22"}
+    values: _x20 1200+0x1450
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="second",version="4.22"}
+    values: _x22 1320+0x1448
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _x23 1+0x1447
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _x23 1380+0x1447
+  alert_rule_test:
+  - eval_time: 24m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: first
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (first)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at first, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/first
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: second
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (second)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at second, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/second
+  - eval_time: 24h11m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: first
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (first)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at first, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/first
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: second
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (second)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at second, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/second
+  - eval_time: 24h12m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: second
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (second)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at second, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/second
+  - eval_time: 24h22m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 22 - A 24h upgrade detects alerts until completion plus 24h with 72h history
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x4322
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x4322
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x1441 86460+0x2881
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x2881 172860+0x1441
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: 1 stale _x2880 1+0x1440
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: 0 stale _x2880 172920+0x1440
+  alert_rule_test:
+  - eval_time: 48h2m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 72h
+    alertname: HCPUpgradeNewAlert
+    exp_alerts:
+    - exp_labels:
+        resource_id: hcp-id
+        severity: '4'
+        hcp_upgrade_new_alert: 'true'
+        component: hcp
+        version: '4.22'
+        attempt_started_at: upgrade
+      exp_annotations:
+        summary: 'hcp-id: new control-plane alert after upgrade to 4.22 (upgrade)'
+        description: HCP hcp-id has a firing namespace-level alert type activated at or after the upgrade to 4.22 started at upgrade, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.
+        correlationId: HCPUpgradeNewAlert/hcp-id/4.22/upgrade
+  - eval_time: 72h1m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+- name: HTML 22 - Baseline-edge firing still excludes recurrence near the 72h history limit
+  interval: 1m
+  input_series:
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 0+0x4322
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="install",version="4.22"}
+    values: 60+0x4322
+  - series: hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x1441 86460+0x2881
+  - series: hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id="hcp-id",attempt_started_at="upgrade",version="4.22"}
+    values: _x2881 172860+0x1441
+  - series: hcp:alerts{namespace="hcp-test",resource_id="hcp-id",alertname="Problem",alertstate="firing"}
+    values: _ 1 stale _x2879 1+0x1440
+  - series: hcp:alerts_for_state{namespace="hcp-test",resource_id="hcp-id",alertname="Problem"}
+    values: _ 60 stale _x2879 172920+0x1440
+  alert_rule_test:
+  - eval_time: 48h2m
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []
+  - eval_time: 72h
+    alertname: HCPUpgradeNewAlert
+    exp_alerts: []

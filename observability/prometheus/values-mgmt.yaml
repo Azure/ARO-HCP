@@ -75,6 +75,8 @@ kube-prometheus-stack:
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
   kube-state-metrics:
+    metricAnnotationsAllowList:
+    - namespaces=[azure.microsoft.com/hcp-cluster-azure-resource-id]
     metricLabelsAllowlist:
     - nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
     prometheus:
@@ -158,6 +160,131 @@ kube-prometheus-stack:
                 gauge:
                   path: [metadata, deletionTimestamp]
                   nilIsZero: true
+            # Fixed extraction slots bound control-plane history to the latest five
+            # entries (newest first). A slot is not a persistent upgrade identity.
+            # Definitions share metric names; attempt_started_at distinguishes entries.
+            # Optional slots/completion fields must not emit zero timestamps.
+            # Missing paths are normal; log lookup errors only at verbose levels.
+            - name: "control_plane_version_history_started_timestamp_seconds"
+              help: "Control-plane update started timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "0", startedTime]
+                version: [status, controlPlaneVersion, history, "0", version]
+                image: [status, controlPlaneVersion, history, "0", image]
+                state: [status, controlPlaneVersion, history, "0", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "0", startedTime]
+            - name: "control_plane_version_history_completed_timestamp_seconds"
+              help: "Control-plane update completed timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "0", startedTime]
+                version: [status, controlPlaneVersion, history, "0", version]
+                image: [status, controlPlaneVersion, history, "0", image]
+                state: [status, controlPlaneVersion, history, "0", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "0", completionTime]
+            - name: "control_plane_version_history_started_timestamp_seconds"
+              help: "Control-plane update started timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "1", startedTime]
+                version: [status, controlPlaneVersion, history, "1", version]
+                image: [status, controlPlaneVersion, history, "1", image]
+                state: [status, controlPlaneVersion, history, "1", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "1", startedTime]
+            - name: "control_plane_version_history_completed_timestamp_seconds"
+              help: "Control-plane update completed timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "1", startedTime]
+                version: [status, controlPlaneVersion, history, "1", version]
+                image: [status, controlPlaneVersion, history, "1", image]
+                state: [status, controlPlaneVersion, history, "1", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "1", completionTime]
+            - name: "control_plane_version_history_started_timestamp_seconds"
+              help: "Control-plane update started timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "2", startedTime]
+                version: [status, controlPlaneVersion, history, "2", version]
+                image: [status, controlPlaneVersion, history, "2", image]
+                state: [status, controlPlaneVersion, history, "2", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "2", startedTime]
+            - name: "control_plane_version_history_completed_timestamp_seconds"
+              help: "Control-plane update completed timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "2", startedTime]
+                version: [status, controlPlaneVersion, history, "2", version]
+                image: [status, controlPlaneVersion, history, "2", image]
+                state: [status, controlPlaneVersion, history, "2", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "2", completionTime]
+            - name: "control_plane_version_history_started_timestamp_seconds"
+              help: "Control-plane update started timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "3", startedTime]
+                version: [status, controlPlaneVersion, history, "3", version]
+                image: [status, controlPlaneVersion, history, "3", image]
+                state: [status, controlPlaneVersion, history, "3", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "3", startedTime]
+            - name: "control_plane_version_history_completed_timestamp_seconds"
+              help: "Control-plane update completed timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "3", startedTime]
+                version: [status, controlPlaneVersion, history, "3", version]
+                image: [status, controlPlaneVersion, history, "3", image]
+                state: [status, controlPlaneVersion, history, "3", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "3", completionTime]
+            - name: "control_plane_version_history_started_timestamp_seconds"
+              help: "Control-plane update started timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "4", startedTime]
+                version: [status, controlPlaneVersion, history, "4", version]
+                image: [status, controlPlaneVersion, history, "4", image]
+                state: [status, controlPlaneVersion, history, "4", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "4", startedTime]
+            - name: "control_plane_version_history_completed_timestamp_seconds"
+              help: "Control-plane update completed timestamp in Unix seconds."
+              errorLogV: 10
+              labelsFromPath:
+                attempt_started_at: [status, controlPlaneVersion, history, "4", startedTime]
+                version: [status, controlPlaneVersion, history, "4", version]
+                image: [status, controlPlaneVersion, history, "4", image]
+                state: [status, controlPlaneVersion, history, "4", state]
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, controlPlaneVersion, history, "4", completionTime]
           - groupVersionKind:
               group: velero.io
               kind: "Backup"

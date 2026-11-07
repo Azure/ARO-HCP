@@ -10,6 +10,44 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
+resource hcpUpgradeNewAlert 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-upgrade-new-alert'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'HCPUpgradeNewAlert'
+        enabled: true
+        labels: {
+          component: 'hcp'
+          hcp_upgrade_new_alert: 'true'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'HCPUpgradeNewAlert/{{ $labels.resource_id }}/{{ $labels.version }}/{{ $labels.attempt_started_at }}'
+          description: 'HCP {{ $labels.resource_id }} has a firing namespace-level alert type activated at or after the upgrade to {{ $labels.version }} started at {{ $labels.attempt_started_at }}, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.'
+          info: 'HCP {{ $labels.resource_id }} has a firing namespace-level alert type activated at or after the upgrade to {{ $labels.version }} started at {{ $labels.attempt_started_at }}, with no observed firing in the 24 hours before that upgrade started. The upgrade completed within 24 hours and lasted at most 24 hours. Timing is evidence for investigation, not proof of causation.'
+          summary: '{{ $labels.resource_id }}: new control-plane alert after upgrade to {{ $labels.version }} ({{ $labels.attempt_started_at }})'
+          title: '{{ $labels.resource_id }}: new control-plane alert after upgrade to {{ $labels.version }} ({{ $labels.attempt_started_at }})'
+        }
+        expression: 'max by (resource_id, version, attempt_started_at, region) (((max by (namespace, alertname, resource_id, region) (hcp:alerts_for_state and ignoring (alertstate) hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) >= on (resource_id) group_left (version, attempt_started_at) topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds)) unless on (namespace, alertname, resource_id, attempt_started_at) max by (namespace, alertname, resource_id, attempt_started_at, region) (max_over_time(((timestamp(hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) < on (resource_id) group_left (attempt_started_at) topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds @ end())) >= on (resource_id, attempt_started_at) group_left () (topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds @ end()) - 86400))[3d:1m]))) or ((max by (namespace, alertname, resource_id, region) (hcp:alerts_for_state and ignoring (alertstate) hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) >= on (resource_id) group_left (version, attempt_started_at) (topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds))) unless on (namespace, alertname, resource_id, attempt_started_at) max by (namespace, alertname, resource_id, attempt_started_at, region) (max_over_time(((timestamp(hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) < on (resource_id) group_left (attempt_started_at) (topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds @ end()))) >= on (resource_id, attempt_started_at) group_left () ((topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (1, hcp:upgrade_started_timestamp_seconds @ end())) - 86400))[3d:1m]))) or ((max by (namespace, alertname, resource_id, region) (hcp:alerts_for_state and ignoring (alertstate) hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) >= on (resource_id) group_left (version, attempt_started_at) (topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds))) unless on (namespace, alertname, resource_id, attempt_started_at) max by (namespace, alertname, resource_id, attempt_started_at, region) (max_over_time(((timestamp(hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) < on (resource_id) group_left (attempt_started_at) (topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds @ end()))) >= on (resource_id, attempt_started_at) group_left () ((topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (2, hcp:upgrade_started_timestamp_seconds @ end())) - 86400))[3d:1m]))) or ((max by (namespace, alertname, resource_id, region) (hcp:alerts_for_state and ignoring (alertstate) hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) >= on (resource_id) group_left (version, attempt_started_at) (topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds))) unless on (namespace, alertname, resource_id, attempt_started_at) max by (namespace, alertname, resource_id, attempt_started_at, region) (max_over_time(((timestamp(hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) < on (resource_id) group_left (attempt_started_at) (topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds @ end()))) >= on (resource_id, attempt_started_at) group_left () ((topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (3, hcp:upgrade_started_timestamp_seconds @ end())) - 86400))[3d:1m]))) or ((max by (namespace, alertname, resource_id, region) (hcp:alerts_for_state and ignoring (alertstate) hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) >= on (resource_id) group_left (version, attempt_started_at) (topk by (resource_id, region) (5, hcp:upgrade_started_timestamp_seconds) unless topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds))) unless on (namespace, alertname, resource_id, attempt_started_at) max by (namespace, alertname, resource_id, attempt_started_at, region) (max_over_time(((timestamp(hcp:alerts{alertstate="firing",hcp_upgrade_new_alert!="true",namespace!="",resource_id!=""}) < on (resource_id) group_left (attempt_started_at) (topk by (resource_id, region) (5, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds @ end()))) >= on (resource_id, attempt_started_at) group_left () ((topk by (resource_id, region) (5, hcp:upgrade_started_timestamp_seconds @ end()) unless topk by (resource_id, region) (4, hcp:upgrade_started_timestamp_seconds @ end())) - 86400))[3d:1m]))))'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-userjourney-kas-availability-monitor-rules'
   location: location
@@ -17,15 +55,13 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability1h5m'
         enabled: true
         labels: {
@@ -54,15 +90,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability6h30m'
         enabled: true
         labels: {
@@ -91,15 +125,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability3d6h'
         enabled: true
         labels: {
@@ -141,15 +173,13 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'hypershiftCPODown'
         enabled: true
         labels: {

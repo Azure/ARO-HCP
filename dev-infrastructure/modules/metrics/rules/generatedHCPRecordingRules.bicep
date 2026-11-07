@@ -1,6 +1,47 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
+
+resource hcpAlertIdentity 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-alert-identity'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hcp:alerts'
+        expression: 'ALERTS{hostedcontrolplane="",resource_id=~"(?i)/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft[.]RedHatOpenShift/hcpOpenShiftClusters/[^/]+"} or (ALERTS{cluster!="",hostedcontrolplane="",namespace!="",region!="",resource_id=""} * on (cluster, region, namespace) group_left (resource_id) max by (cluster, region, namespace, resource_id) (label_replace(kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",cluster!="",namespace!="",region!=""}, "resource_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.+)")))'
+      }
+      {
+        record: 'hcp:alerts_for_state'
+        expression: 'ALERTS_FOR_STATE{hostedcontrolplane="",resource_id=~"(?i)/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft[.]RedHatOpenShift/hcpOpenShiftClusters/[^/]+"} or (ALERTS_FOR_STATE{cluster!="",hostedcontrolplane="",namespace!="",region!="",resource_id=""} * on (cluster, region, namespace) group_left (resource_id) max by (cluster, region, namespace, resource_id) (label_replace(kube_namespace_annotations{annotation_azure_microsoft_com_hcp_cluster_azure_resource_id!="",cluster!="",namespace!="",region!=""}, "resource_id", "$1", "annotation_azure_microsoft_com_hcp_cluster_azure_resource_id", "(.+)")))'
+      }
+    ]
+  }
+}
+
+resource hcpUpgrade 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-upgrade'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hcp:upgrade_started_timestamp_seconds'
+        expression: '(max by (resource_id, version, attempt_started_at, region) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{attempt_started_at!="",resource_id!="",version!=""}) > on (resource_id) group_left () min by (resource_id, region) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{resource_id!=""})) and on (resource_id, attempt_started_at) (max by (resource_id, attempt_started_at, region) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{attempt_started_at!="",resource_id!=""}) > time() - 86400) and on (resource_id, attempt_started_at) ((max by (resource_id, attempt_started_at, region) (hostedClusterAPI_control_plane_version_history_completed_timestamp_seconds{attempt_started_at!="",resource_id!=""}) - on (resource_id, attempt_started_at) max by (resource_id, attempt_started_at, region) (hostedClusterAPI_control_plane_version_history_started_timestamp_seconds{attempt_started_at!="",resource_id!=""})) >= 0 <= 86400)'
+      }
+    ]
+  }
+}
 
 resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'hcp-kms-recording-rules'

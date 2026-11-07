@@ -67737,6 +67737,376 @@ data:
           help: HostedCluster deletion timestamp in Unix seconds, or zero when deletion
             has not been requested.
           name: deletion_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "0"
+              - startedTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update started timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - version
+          name: control_plane_version_history_started_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "0"
+              - completionTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update completed timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "0"
+            - version
+          name: control_plane_version_history_completed_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "1"
+              - startedTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update started timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - version
+          name: control_plane_version_history_started_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "1"
+              - completionTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update completed timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "1"
+            - version
+          name: control_plane_version_history_completed_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "2"
+              - startedTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update started timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - version
+          name: control_plane_version_history_started_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "2"
+              - completionTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update completed timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "2"
+            - version
+          name: control_plane_version_history_completed_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "3"
+              - startedTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update started timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - version
+          name: control_plane_version_history_started_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "3"
+              - completionTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update completed timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "3"
+            - version
+          name: control_plane_version_history_completed_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "4"
+              - startedTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update started timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - version
+          name: control_plane_version_history_started_timestamp_seconds
+        - each:
+            gauge:
+              path:
+              - status
+              - controlPlaneVersion
+              - history
+              - "4"
+              - completionTime
+            type: Gauge
+          errorLogV: 10
+          help: Control-plane update completed timestamp in Unix seconds.
+          labelsFromPath:
+            attempt_started_at:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - startedTime
+            image:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - image
+            state:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - state
+            version:
+            - status
+            - controlPlaneVersion
+            - history
+            - "4"
+            - version
+          name: control_plane_version_history_completed_timestamp_seconds
       - groupVersionKind:
           group: velero.io
           kind: Backup
@@ -68336,6 +68706,7 @@ spec:
         - --port=8080
         - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
         - --metric-labels-allowlist=nodes=[node.kubernetes.io/instance-type,kubernetes.azure.com/agentpool]
+        - --metric-annotations-allowlist=namespaces=[azure.microsoft.com/hcp-cluster-azure-resource-id]
         - --custom-resource-state-config-file=/etc/customresourcestate/config.yaml
         volumeMounts:
         - name: customresourcestate-config

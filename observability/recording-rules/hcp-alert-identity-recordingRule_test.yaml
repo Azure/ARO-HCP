@@ -1,0 +1,135 @@
+rule_files:
+- hcp-alert-identity-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+- name: Enrichment preserves alert state labels and pending start while deduplicating collectors
+  interval: 1m
+  input_series:
+  - series: 'kube_namespace_annotations{cluster="mc",region="west",namespace="ocm-hcp",instance="ksm-a",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+    values: '1+0x2'
+  - series: 'kube_namespace_annotations{cluster="mc",region="west",namespace="ocm-hcp",instance="ksm-b",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+    values: '1+0x2'
+  - series: 'ALERTS{alertname="ControlPlaneHealth",alertstate="pending",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics"}'
+    values: '1 stale'
+  - series: 'ALERTS{alertname="ControlPlaneHealth",alertstate="firing",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics"}'
+    values: '_ 1 1'
+  - series: 'ALERTS_FOR_STATE{alertname="ControlPlaneHealth",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics"}'
+    values: '42+0x2'
+  promql_expr_test:
+  - expr: hcp:alerts
+    eval_time: 0m
+    exp_samples:
+    - labels: 'hcp:alerts{alertname="ControlPlaneHealth",alertstate="pending",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+      value: 1
+  - expr: hcp:alerts
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hcp:alerts{alertname="ControlPlaneHealth",alertstate="firing",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+      value: 1
+  - expr: hcp:alerts_for_state
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hcp:alerts_for_state{alertname="ControlPlaneHealth",cluster="mc",region="west",namespace="ocm-hcp",severity="warning",job="kube-state-metrics",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+      value: 42
+- name: Missing namespace ownership remains unenriched
+  interval: 1m
+  input_series:
+  - series: 'kube_namespace_annotations{cluster="mc",region="west",namespace="missing"}'
+    values: '1'
+  - series: 'ALERTS{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="mc",region="west",namespace="missing",deployment="kube-apiserver"}'
+    values: '1'
+  - series: 'ALERTS_FOR_STATE{alertname="KubeDeploymentReplicasMismatch",cluster="mc",region="west",namespace="missing",deployment="kube-apiserver"}'
+    values: '42'
+  promql_expr_test:
+  - expr: hcp:alerts
+    eval_time: 0m
+    exp_samples: []
+  - expr: hcp:alerts_for_state
+    eval_time: 0m
+    exp_samples: []
+  - expr: count(ALERTS)
+    eval_time: 0m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+- name: Enrichment is scoped to the source cluster region and current mapping
+  interval: 1m
+  input_series:
+  - series: 'kube_namespace_annotations{cluster="mc",region="west",namespace="ocm-hcp",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+    values: '1 stale'
+  - series: 'ALERTS{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '1 1'
+  - series: 'ALERTS_FOR_STATE{alertname="KubeDeploymentReplicasMismatch",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '42 42'
+  - series: 'ALERTS{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="other",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '1 1'
+  - series: 'ALERTS_FOR_STATE{alertname="KubeDeploymentReplicasMismatch",cluster="other",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '42 42'
+  - series: 'ALERTS{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="mc",region="east",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '1 1'
+  - series: 'ALERTS_FOR_STATE{alertname="KubeDeploymentReplicasMismatch",cluster="mc",region="east",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '42 42'
+  - series: 'ALERTS{alertname="GuestAlert",hostedcontrolplane="ocm-hcp",alertstate="firing",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '1 1'
+  - series: 'ALERTS_FOR_STATE{alertname="GuestAlert",hostedcontrolplane="ocm-hcp",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver"}'
+    values: '42 42'
+  promql_expr_test:
+  - expr: hcp:alerts
+    eval_time: 0m
+    exp_samples:
+    - labels: 'hcp:alerts{alertname="KubeDeploymentReplicasMismatch",alertstate="firing",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+      value: 1
+  - expr: hcp:alerts_for_state
+    eval_time: 0m
+    exp_samples:
+    - labels: 'hcp:alerts_for_state{alertname="KubeDeploymentReplicasMismatch",cluster="mc",region="west",namespace="ocm-hcp",deployment="kube-apiserver",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp"}'
+      value: 42
+  - expr: hcp:alerts
+    eval_time: 1m
+    exp_samples: []
+  - expr: hcp:alerts_for_state
+    eval_time: 1m
+    exp_samples: []
+  - expr: count(ALERTS)
+    eval_time: 1m
+    exp_samples:
+    - labels: '{}'
+      value: 4
+- name: Existing HCP identity is preserved while guest and non-HCP identities are excluded
+  interval: 1m
+  input_series:
+  - series: kube_namespace_annotations{cluster="mc",region="west",namespace="ocm-hcp",annotation_azure_microsoft_com_hcp_cluster_azure_resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/namespace-owner"}
+    values: 1 stale
+  - series: ALERTS{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source",alertstate="firing"}
+    values: 1 1
+  - series: ALERTS_FOR_STATE{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source"}
+    values: 42 42
+  - series: ALERTS{alertname="GuestIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source",hostedcontrolplane="ocm-hcp",alertstate="firing"}
+    values: 1 1
+  - series: ALERTS_FOR_STATE{alertname="GuestIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source",hostedcontrolplane="ocm-hcp"}
+    values: 42 42
+  - series: ALERTS{alertname="OtherResource",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc",alertstate="firing"}
+    values: 1 1
+  - series: ALERTS_FOR_STATE{alertname="OtherResource",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"}
+    values: 42 42
+  promql_expr_test:
+  - expr: hcp:alerts
+    eval_time: 0m
+    exp_samples:
+    - labels: hcp:alerts{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source",alertstate="firing"}
+      value: 1
+  - expr: hcp:alerts_for_state
+    eval_time: 0m
+    exp_samples:
+    - labels: hcp:alerts_for_state{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source"}
+      value: 42
+  - expr: hcp:alerts
+    eval_time: 1m
+    exp_samples:
+    - labels: hcp:alerts{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source",alertstate="firing"}
+      value: 1
+  - expr: hcp:alerts_for_state
+    eval_time: 1m
+    exp_samples:
+    - labels: hcp:alerts_for_state{alertname="ExistingIdentity",cluster="mc",region="west",namespace="ocm-hcp",resource_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/source"}
+      value: 42
