@@ -1,0 +1,4 @@
+{
+	"command": ".show functions | project Name, Folder, Parameters, DocString | extend Description = trim(' ', extract(@'^([^|]+)', 1, DocString)) | extend Returns = trim(' ', extract(@'\\| Returns: ([^|]+)', 1, DocString)) | extend Example = trim(' ', extract(@'\\| Example: (.+)$', 1, DocString)) | project Name, Folder, Parameters, Description, Returns, Example | order by Folder asc, Name asc",
+	"database": "ServiceLogs"
+}

@@ -31,7 +31,7 @@ with (docstring = "Staging table for metric alert events ingested from Event Hub
 with (docstring = "Alert events with top-level Common Alert Schema fields extracted")
 
 .create-or-alter function
-with (docstring = 'unpack common alert schema events', skipvalidation = "true")
+with (docstring = 'unpack common alert schema events')
 rawAlertEventsTransform() {
     rawAlertEvents
     | extend essentials = raw.data.essentials
