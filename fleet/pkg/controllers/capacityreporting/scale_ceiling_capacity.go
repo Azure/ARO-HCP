@@ -15,6 +15,9 @@
 package capacityreporting
 
 import (
+	"errors"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -30,91 +33,114 @@ import (
 
 // computeMaxCapacity derives the maximum scheduling capacity from AKS agent
 // pool scaling limits and per-node allocatable data. Per-node allocatable is
-// preferred from the CapacityReport CR (live observation); the SKU cache
-// provides a fallback when no CR sample exists.
-func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool, skuMetadata map[string]*skucache.SKUMetadata) corev1.ResourceList {
-	var nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity
-	if report != nil {
-		nodesBySKU = make(map[string]capacityreportv1alpha1.NodeSKUCapacity, len(report.Status.Nodes))
-		for _, node := range report.Status.Nodes {
-			nodesBySKU[node.SKU] = node
-		}
-	}
-
+// collected from a successfully observed, current CapacityReport. Only absence
+// of a ready-node sample in that report permits SKU bootstrap. Known observed
+// contributions are retained alongside errors describing unavailable inputs.
+func computeMaxCapacity(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool, skuMetadata map[string]*skucache.SKUMetadata) (corev1.ResourceList, error) {
 	max := corev1.ResourceList{}
-
+	var problems []error
+	workers := 0
+	nodes := reportNodesBySKU(report)
 	for _, pool := range pools {
-		if pool.Properties == nil || pool.Properties.VMSize == nil || pool.Properties.Count == nil {
+		if pool.Properties == nil {
+			problems = append(problems, fmt.Errorf("agent pool properties unavailable"))
 			continue
 		}
 		if !agentpools.IsWorkerPool(pool) {
 			continue
 		}
-		vmSize := *pool.Properties.VMSize
-		maxCount := agentpools.PoolMaxCount(pool)
-
-		perNode := perNodeAllocatable(vmSize, nodesBySKU, skuMetadata, pool.Properties.Tags)
-		if len(perNode) == 0 {
+		workers++
+		if pool.Properties.VMSize == nil || pool.Properties.Count == nil {
+			problems = append(problems, fmt.Errorf("worker pool VM size or count unavailable"))
 			continue
 		}
-
+		if report == nil {
+			problems = append(problems, fmt.Errorf("no usable CapacityReport observation"))
+			continue
+		}
+		vmSize := *pool.Properties.VMSize
+		maxCount := agentpools.PoolMaxCount(pool)
+		if maxCount < 0 {
+			problems = append(problems, fmt.Errorf("worker pool %s has negative node ceiling", vmSize))
+			continue
+		}
+		perNode, err := perNodeAllocatable(vmSize, nodes, skuMetadata, pool.Properties.Tags)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("worker pool %s: %w", vmSize, err))
+		}
 		for name, quantity := range perNode {
 			addScaled(max, name, quantity, maxCount)
 		}
 	}
-
-	return max
-}
-
-// perNodeAllocatable returns the per-node scheduling-relevant allocatable
-// resources for vmSize. Returns nil when no data is available.
-//
-// Two data sources, in priority order:
-//  1. CapacityReport CR (live allocatable from ready nodes) — provides cpu,
-//     memory, and swift-nic based on actual node observations. Total
-//     allocatable is divided by the number of ready nodes.
-//  2. Azure SKU cache + pool tags (static specs) — provides cpu and memory
-//     from the VM size's SKU capabilities, and swift-nic from the pool's
-//     aks-nic-secondary-count tag (zero when absent, never the SKU maximum).
-func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity, skuMetadata map[string]*skucache.SKUMetadata, tags map[string]*string) corev1.ResourceList {
-	// Prefer live allocatable from CapacityReport — reflects actual
-	// kubelet-reported resources including system reservations.
-	if node, found := nodesBySKU[vmSize]; found && node.Ready > 0 {
-		result := corev1.ResourceList{}
-		ready := int64(node.Ready)
+	if workers == 0 && len(problems) == 0 {
 		for _, name := range scheduling.Resources() {
-			if quantity, exists := node.Allocatable[name]; exists {
-				result[name] = divideQuantity(quantity, ready)
-			}
-		}
-		if len(result) > 0 {
-			return result
+			max[name] = resource.MustParse("0")
 		}
 	}
+	return max, errors.Join(problems...)
+}
 
-	// Fallback to SKU specs — no ready nodes yet, use theoretical per-VM
-	// capacity from the Azure Resource SKUs API.
+func reportNodesBySKU(report *capacityreportv1alpha1.CapacityReport) map[string]capacityreportv1alpha1.NodeSKUCapacity {
+	nodes := map[string]capacityreportv1alpha1.NodeSKUCapacity{}
+	if report != nil {
+		for _, node := range report.Status.Nodes {
+			nodes[node.SKU] = node
+		}
+	}
+	return nodes
+}
+
+func needsSKUBootstrap(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool) bool {
+	if report == nil {
+		return false
+	}
+	nodes := reportNodesBySKU(report)
+	for _, pool := range pools {
+		if !agentpools.IsWorkerPool(pool) || pool.Properties.VMSize == nil || pool.Properties.Count == nil {
+			continue
+		}
+		node, found := nodes[*pool.Properties.VMSize]
+		if !found || node.Ready == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alpha1.NodeSKUCapacity, skuMetadata map[string]*skucache.SKUMetadata, tags map[string]*string) (corev1.ResourceList, error) {
 	result := corev1.ResourceList{}
-	if meta, found := skuMetadata[vmSize]; found {
-		skuRL := meta.ResourceList()
+	var problems []error
+	if node, found := nodesBySKU[vmSize]; found && node.Ready != 0 {
+		if node.Ready < 0 {
+			return nil, fmt.Errorf("negative ready-node count")
+		}
 		for _, name := range scheduling.Resources() {
-			if name == kuberesources.SwiftNICResourceName {
-				continue
+			if quantity, exists := node.Allocatable[name]; exists && quantity.Sign() >= 0 {
+				result[name] = divideQuantity(quantity, int64(node.Ready))
+			} else {
+				problems = append(problems, fmt.Errorf("observed %s allocatable unavailable", name))
 			}
-			if quantity, exists := skuRL[name]; exists {
+		}
+		return result, errors.Join(problems...)
+	}
+	if metadata := skuMetadata[vmSize]; metadata != nil {
+		for name, quantity := range metadata.ResourceList() {
+			if (name == corev1.ResourceCPU || name == corev1.ResourceMemory) && quantity.Sign() >= 0 {
 				result[name] = quantity
 			}
 		}
 	}
-	// Pool tag alone determines NIC count — our bicep sets the actual
-	// configured secondary NIC count which may differ from the SKU maximum.
-	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); present && err == nil {
+	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		if _, exists := result[name]; !exists {
+			problems = append(problems, fmt.Errorf("SKU %s %s unavailable", vmSize, name))
+		}
+	}
+	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); err != nil {
+		problems = append(problems, err)
+	} else if present {
 		result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(nics, resource.DecimalSI)
 	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
+	return result, errors.Join(problems...)
 }
 
 // divideQuantity divides q by n. For BinarySI quantities (memory), the

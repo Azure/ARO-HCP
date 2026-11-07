@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
@@ -54,6 +56,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 		pools       []armcontainerservice.AgentPool
 		skuMetadata map[string]*skucache.SKUMetadata
 		wantMax     corev1.ResourceList
+		wantError   bool
+		wantPartial bool
 	}{
 		{
 			name: "scales per-node allocatable by max count including CPU",
@@ -91,7 +95,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 			},
 		},
 		{
-			name: "falls back to sku cache when no CR sample, no CPU in fallback",
+			name:      "missing CPU in SKU fallback is unavailable",
+			wantError: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{},
 			},
@@ -116,8 +121,9 @@ func TestComputeMaxCapacity(t *testing.T) {
 			},
 		},
 		{
-			name:   "nil report falls back to sku cache",
-			report: nil,
+			name:      "nil report does not establish bootstrap eligibility",
+			wantError: true,
+			report:    nil,
 			pools: []armcontainerservice.AgentPool{
 				{
 					Properties: &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
@@ -128,14 +134,13 @@ func TestComputeMaxCapacity(t *testing.T) {
 				},
 			},
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryBytes: memoryBytes("32Gi")},
+				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", VCPUs: 8, MemoryBytes: memoryBytes("32Gi")},
 			},
-			wantMax: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("64Gi"),
-			},
+			wantMax: corev1.ResourceList{},
 		},
 		{
-			name: "no matching SKU in CR or cache contributes nothing",
+			name:      "no matching SKU in CR or cache is unavailable",
+			wantError: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{},
 			},
@@ -152,7 +157,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 			wantMax:     corev1.ResourceList{},
 		},
 		{
-			name: "autoscaling without max count falls back to current count",
+			name:        "autoscaling without max count falls back to current count",
+			wantPartial: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
 					Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
@@ -210,14 +216,16 @@ func TestComputeMaxCapacity(t *testing.T) {
 				},
 			},
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", MemoryBytes: memoryBytes("32Gi")},
+				"Standard_D8ds_v5": {Name: "Standard_D8ds_v5", VCPUs: 8, MemoryBytes: memoryBytes("32Gi")},
 			},
 			wantMax: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("16"),
 				corev1.ResourceMemory: resource.MustParse("64Gi"),
 			},
 		},
 		{
-			name: "malformed NIC tag drops NIC contribution but keeps SKU cache memory",
+			name:      "malformed NIC tag diagnoses computation failure",
+			wantError: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{},
 			},
@@ -241,7 +249,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple worker pools accumulate",
+			name:        "multiple worker pools accumulate",
+			wantPartial: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
 					Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
@@ -273,15 +282,16 @@ func TestComputeMaxCapacity(t *testing.T) {
 				},
 			},
 			skuMetadata: map[string]*skucache.SKUMetadata{
-				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", MemoryBytes: memoryBytes("128Gi")},
+				"Standard_D16ds_v5": {Name: "Standard_D16ds_v5", VCPUs: 16, MemoryBytes: memoryBytes("128Gi")},
 			},
 			wantMax: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("16"),
+				corev1.ResourceCPU:    resource.MustParse("32"),
 				corev1.ResourceMemory: resource.MustParse("192Gi"),
 			},
 		},
 		{
-			name: "CPU with millicores preserves precision",
+			name:        "CPU with millicores preserves precision",
+			wantPartial: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
 					Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
@@ -314,7 +324,8 @@ func TestComputeMaxCapacity(t *testing.T) {
 			},
 		},
 		{
-			name: "non-worker pools are excluded",
+			name:        "non-worker pools are excluded",
+			wantPartial: true,
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
 					Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
@@ -373,7 +384,12 @@ func TestComputeMaxCapacity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := computeMaxCapacity(test.report, test.pools, test.skuMetadata)
+			actual, err := computeMaxCapacity(test.report, test.pools, test.skuMetadata)
+			if test.wantError || test.wantPartial {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 			assertResourceListEqual(t, test.wantMax, actual, "Max")
 		})
 	}
@@ -427,7 +443,8 @@ func TestComputeMaxCapacityConfiguredSecondaryNICs(t *testing.T) {
 				wantMax[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(test.wantNICs, resource.DecimalSI)
 			}
 
-			actual := computeMaxCapacity(nil, pools, skuMetadata)
+			actual, err := computeMaxCapacity(&capacityreportv1alpha1.CapacityReport{}, pools, skuMetadata)
+			require.NoError(t, err)
 			assertResourceListEqual(t, wantMax, actual, "configured secondary NIC ceiling")
 		})
 	}
@@ -441,6 +458,7 @@ func TestComputeMaxCapacityPreservesFractionalSKU(t *testing.T) {
 					{
 						Name: ptr.To("Standard_Half"), ResourceType: ptr.To("virtualMachines"),
 						Capabilities: []*armcompute.ResourceSKUCapabilities{
+							{Name: ptr.To("vCPUs"), Value: ptr.To("1")},
 							{Name: ptr.To("MemoryGB"), Value: ptr.To("3.5")},
 						},
 					},
@@ -468,8 +486,10 @@ func TestComputeMaxCapacityPreservesFractionalSKU(t *testing.T) {
 		},
 	}
 
-	actual := computeMaxCapacity(nil, pools, metadata)
+	actual, err := computeMaxCapacity(&capacityreportv1alpha1.CapacityReport{}, pools, metadata)
+	require.NoError(t, err)
 	assertResourceListEqual(t, corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("10"),
 		corev1.ResourceMemory: resource.MustParse("35Gi"),
 	}, actual, "fractional SKU fallback ceiling")
 }

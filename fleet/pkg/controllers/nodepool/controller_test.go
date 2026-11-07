@@ -217,6 +217,10 @@ func TestShadowSyncOnceReadOnly(t *testing.T) {
 		wantSteps   int
 	}{
 		{name: "converged without ownership or baseline tags", wantOutcome: "converged"},
+		{name: "null pool records preserve existing projection", change: func(a *shadowAzure, _ *compute.Profile) {
+			a.pools = append([]*armcontainerservice.AgentPool{nil}, a.pools...)
+			a.pools = append(a.pools, nil)
+		}, wantOutcome: "converged"},
 		{name: "actionable downsize projects without changing ARM", change: func(a *shadowAzure, _ *compute.Profile) { a.pools[0].Properties.MaxCount = ptr.To[int32](3) }, wantOutcome: "converged", wantSteps: 1},
 		{name: "partial desired plan rejects reducing live capacity", change: func(a *shadowAzure, p *compute.Profile) {
 			a.pools[0].Properties.MaxCount = ptr.To[int32](3)

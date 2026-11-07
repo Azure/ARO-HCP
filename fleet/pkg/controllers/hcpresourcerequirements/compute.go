@@ -20,7 +20,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
 	"github.com/Azure/ARO-HCP/fleet/pkg/scheduling"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
 
@@ -28,20 +30,41 @@ import (
 // per ready HCP across all provided CapacityReports. Only scheduling-relevant
 // resources (cpu, memory, swift-nic) are included.
 func computeAverageRequirements(reports []*capacityreportv1alpha1.CapacityReport) (averageUsage, averageRequests corev1.ResourceList, sampleSize int) {
+	return computeConfigurationRequirements(reports, fleetapi.HCPResourceRequirementsResourceName)
+}
+
+func computeConfigurationRequirements(reports []*capacityreportv1alpha1.CapacityReport, configuration string) (averageUsage, averageRequests corev1.ResourceList, sampleSize int) {
 	totalUsage := corev1.ResourceList{}
 	totalRequests := corev1.ResourceList{}
 	var totalReadyHCPs int64
 
 	for _, report := range reports {
-		totalReadyHCPs += int64(len(report.Status.HostedControlPlanes.ReadyResourceIDs))
+		population := report.Status.HostedControlPlanes
+		totals := population.ReadyResources
+		count := int64(len(population.ReadyResourceIDs))
+		if configuration != fleetapi.HCPResourceRequirementsResourceName {
+			totals = nil
+			count = 0
+			for _, bucket := range population.ByClusterSizingConfiguration {
+				if bucket.Size == configuration {
+					totals = &bucket.ReadyResources
+					count = int64(bucket.ReadyCount)
+					break
+				}
+			}
+		}
+		if count <= 0 || !capacityreporting.HasResourceTotals(totals) {
+			continue
+		}
+		totalReadyHCPs += count
 
 		for _, name := range scheduling.Resources() {
-			if quantity, ok := report.Status.Usage[name]; ok {
+			if quantity, ok := totals.Usage[name]; ok {
 				existing := totalUsage[name]
 				existing.Add(quantity)
 				totalUsage[name] = existing
 			}
-			if quantity, ok := report.Status.Requested[name]; ok {
+			if quantity, ok := totals.Requested[name]; ok {
 				existing := totalRequests[name]
 				existing.Add(quantity)
 				totalRequests[name] = existing

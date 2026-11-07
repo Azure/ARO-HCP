@@ -23,6 +23,7 @@ package capacityreporting
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -100,19 +101,9 @@ func NewCapacityReportingController(
 }
 
 func (s *capacityReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	report, err := GetCapacityReport(ctx, s.readDesireLister, key.StampIdentifier)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		logger.V(1).Info("capacity ReadDesire not found, waiting for ensure controller")
-		return nil
-	}
 	if err != nil {
-		return utils.TrackError(err)
-	}
-	if report == nil {
-		logger.V(1).Info("capacity report not mirrored yet, will retry on next change")
-		return nil
+		return s.persistObservedResources(ctx, key.StampIdentifier, fleetapi.ObservedResources{}, nil, nil, observationCondition(err))
 	}
 
 	capacity := ComputeObservedResources(report)
@@ -129,6 +120,9 @@ func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) me
 			Reason:  "ReportNotCurrent",
 			Message: "CapacityReport CR's ReportCurrent condition is not True",
 		}
+	}
+	if !HasResourceTotals(report.Status.HostedControlPlanes.Resources) {
+		return metav1.Condition{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionUnknown, Reason: "MissingResourceTotals", Message: "CPU, memory and Swift NIC usage and requests must all be present"}
 	}
 	return metav1.Condition{
 		Type:   fleetapi.ConditionTypeCapacityDataCurrent,
@@ -147,15 +141,17 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.ObservedResources = observed
-	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
-	// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
-	updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
-	updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
-	// Observation-based cleanup: drop pending reservations that are now observed
-	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
-	// the observed data, so the transient reservation is no longer needed.
-	updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+	if condition.Status == metav1.ConditionTrue {
+		updated.Status.ObservedResources = observed
+		// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
+		// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
+		updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
+		updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
+		// Observation-based cleanup: drop pending reservations that are now observed
+		// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
+		// the observed data, so the transient reservation is no longer needed.
+		updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+	}
 	if !controllerutils.NeedsUpdate(existing, updated) {
 		return nil
 	}
@@ -234,19 +230,51 @@ func parseResourceIDs(ctx context.Context, ids []string) []*azcorearm.ResourceID
 	return parsed
 }
 
-// GetCapacityReport reads and unmarshals the CapacityReport from the
-// ReadDesire lister.
+// GetCapacityReport requires a successful observation with no explicit degradation.
+// Success describes collection, not freshness; failed reads cannot use retained content.
 func GetCapacityReport(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, stampIdentifier string) (*capacityreportv1alpha1.CapacityReport, error) {
 	readDesire, err := readDesireLister.GetForManagementCluster(ctx, stampIdentifier, ReadDesireName)
 	if err != nil {
-		return nil, err
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return nil, &observationError{metav1.ConditionUnknown, "ReadDesireUnavailable", "CapacityReport ReadDesire does not exist"}
+		}
+		return nil, fmt.Errorf("reading CapacityReport ReadDesire: %w", err)
+	}
+	if meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeDegraded) {
+		return nil, &observationError{metav1.ConditionFalse, "ReadDesireDegraded", "CapacityReport reader is degraded"}
+	}
+	if meta.IsStatusConditionFalse(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful) {
+		return nil, &observationError{metav1.ConditionFalse, "ReadDesireFailed", "CapacityReport observation failed"}
+	}
+	if !meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful) {
+		return nil, &observationError{metav1.ConditionUnknown, "ReadDesireUnobserved", "CapacityReport has not been successfully observed"}
 	}
 	if readDesire.Status.KubeContent == nil {
-		return nil, nil
+		return nil, &observationError{metav1.ConditionFalse, "CapacityReportAbsent", "CapacityReport was successfully observed to be absent"}
 	}
-	var report capacityreportv1alpha1.CapacityReport
+	var report *capacityreportv1alpha1.CapacityReport
 	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, &report); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal CapacityReport: %w", err)
+		return nil, &observationError{metav1.ConditionFalse, "MalformedCapacityReport", fmt.Sprintf("failed to unmarshal CapacityReport: %v", err)}
 	}
-	return &report, nil
+	if report == nil || (report.Kind != "" && report.Kind != "CapacityReport") {
+		return nil, &observationError{metav1.ConditionFalse, "MalformedCapacityReport", "expected a CapacityReport object"}
+	}
+	return report, nil
+}
+
+type observationError struct {
+	status  metav1.ConditionStatus
+	reason  string
+	message string
+}
+
+func (err *observationError) Error() string { return err.message }
+
+func observationCondition(err error) metav1.Condition {
+	condition := metav1.Condition{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionFalse, Reason: "ReadDesireError", Message: err.Error()}
+	var observation *observationError
+	if errors.As(err, &observation) {
+		condition.Status, condition.Reason = observation.status, observation.reason
+	}
+	return condition
 }

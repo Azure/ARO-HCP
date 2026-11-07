@@ -24,15 +24,15 @@ import (
 )
 
 const (
-	// ConditionTypeCapacityDataCurrent indicates whether the capacity data
-	// in the scheduling document is up to date. Set by
-	// CapacityReportingController after evaluating the CapacityReport CR's
-	// state.
+	// ConditionTypeCapacityDataCurrent requires successful collection, source
+	// ReportCurrent and complete scheduling-resource usage and requests.
+	// It does not guarantee freshness. Retained observations do not restore
+	// scheduling eligibility while this condition is not True.
 	ConditionTypeCapacityDataCurrent = "CapacityDataCurrent"
 
-	// ConditionTypeScalingDataCurrent indicates whether the scaling data
-	// in the scheduling document is up to date. Set by
-	// ScaleCeilingReportingController after computing max capacity.
+	// ConditionTypeScalingDataCurrent indicates a usable computed ceiling,
+	// including explicit zero, not recent Azure verification. Failed refreshes
+	// retain a previously usable ceiling and its True condition unchanged.
 	ConditionTypeScalingDataCurrent = "ScalingDataCurrent"
 )
 
@@ -141,7 +141,9 @@ type ScaleCeiling struct {
 	// LastReportedAt is the computation time of the last published scaling
 	// result. Unchanged capacity and condition state retain this timestamp;
 	// it is not a heartbeat or the time of every successful poll. It advances
-	// when capacity/condition state changes or an absent timestamp is initialized.
+	// only when capacity/condition state changes. Retained failed refreshes
+	// leave it unchanged; its presence alone does not establish usability.
+	// Written by: ScaleCeilingReportingController.
 	//
 	// +optional
 	LastReportedAt *metav1.Time `json:"lastReportedAt,omitempty"`

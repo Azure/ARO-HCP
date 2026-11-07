@@ -129,6 +129,8 @@ func ListAgentPools(
 		for _, pool := range page.Value {
 			if pool != nil {
 				pools = append(pools, *pool)
+			} else {
+				pools = append(pools, armcontainerservice.AgentPool{})
 			}
 		}
 	}
