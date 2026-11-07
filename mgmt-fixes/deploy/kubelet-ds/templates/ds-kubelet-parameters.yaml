@@ -24,18 +24,17 @@ spec:
     spec:
       nodeSelector:
         aro-hcp.azure.com/role: worker
+      # This pod used to run `nsenter --target 1` out of a floating `alpine`
+      # tag. We now pull a digest-pinned runtime image instead, and that image
+      # ships no nsenter, so the host root is mounted at /host and the script
+      # chroots into it: sh, awk, sed, systemctl and curl all come from the
+      # node. hostPID and hostNetwork supply the two namespaces chroot cannot,
+      # which `nsenter --pid --net` used to provide.
       initContainers:
       - command:
-        - nsenter
-        - --target
-        - "1"
-        - --mount
-        - --uts
-        - --ipc
-        - --net
-        - --pid
-        - --
-        - sh
+        - /usr/sbin/chroot
+        - /host
+        - /bin/sh
         - -c
         - |
 {{ regexReplaceAll "(?m)^ +$" (.Files.Get "files/system-reserved.sh" | indent 10) "" }}
@@ -50,7 +49,13 @@ spec:
              systemctl restart node-exporter
              echo "collector.netclass.netlink parameter has been updated in node-exporter configuration"
           fi
-        image: alpine
+        env:
+        # chroot(1) hands the inherited PATH to the host shell, and the runtime
+        # image ships a malformed one. Pin it so the chrooted script resolves
+        # the node's binaries deterministically.
+        - name: PATH
+          value: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        image: "{{ required "kubelet-ds requires a digest-pinned kubeletParametersImage" .Values.kubeletParametersImage }}"
         imagePullPolicy: IfNotPresent
         name: apply-kubelet-parameters
         resources:
@@ -61,26 +66,33 @@ spec:
             memory: 64Mi
         securityContext:
           privileged: true
+          # chroot(2) and rewriting the node's kubelet EnvironmentFile require
+          # uid 0. The runtime image declares USER 100, so ask for root
+          # explicitly rather than inheriting whatever the image happens to set.
+          runAsUser: 0
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /host
+          name: host-root
+          # The CRI binds hostPath volumes recursively, so the node's nested
+          # /proc, /sys and /run mounts (and with them /run/systemd/private,
+          # which systemctl needs) are already visible under /host. Ask for
+          # rslave anyway so mounts the node makes after this pod starts are
+          # not silently missing from the chroot.
+          mountPropagation: HostToContainer
       containers:
       - name: kubelet-parameters
-        image: alpine
+        image: "{{ required "kubelet-ds requires a digest-pinned kubeletParametersImage" .Values.kubeletParametersImage }}"
         imagePullPolicy: IfNotPresent
-        command: ["sleep", "infinity"]
+        command: ["/bin/sleep", "infinity"]
+        # The pod is on the host network, so the runtime image's own curl can
+        # reach the kubelet healthz endpoint directly. This container therefore
+        # needs neither privileges nor root, unlike the init container.
         readinessProbe:
           exec:
             command:
-            - nsenter
-            - --target
-            - "1"
-            - --mount
-            - --uts
-            - --ipc
-            - --net
-            - --pid
-            - --
-            - curl
+            - /usr/bin/curl
             - --fail
             - --silent
             - --show-error
@@ -98,8 +110,15 @@ spec:
           requests:
             cpu: 10m
         securityContext:
-          privileged: true
-      dnsPolicy: ClusterFirst
+          allowPrivilegeEscalation: false
+      # ClusterFirstWithHostNet rather than ClusterFirst because of hostNetwork;
+      # nothing here resolves cluster DNS, but the pair must stay consistent.
+      dnsPolicy: ClusterFirstWithHostNet
+      # kubelet's healthz listener binds 127.0.0.1 only, so both the init
+      # script's final readiness wait and the probe below need the host netns.
+      hostNetwork: true
+      # Lets systemd resolve the caller over its private socket when the
+      # chrooted script runs systemctl.
       hostPID: true
       restartPolicy: Always
       schedulerName: default-scheduler
@@ -108,6 +127,11 @@ spec:
       tolerations:
       - effect: NoSchedule
         operator: Exists
+      volumes:
+      - hostPath:
+          path: /
+          type: Directory
+        name: host-root
   updateStrategy:
     rollingUpdate:
       maxSurge: 0
