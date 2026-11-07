@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shows the Clusters Service node pool object state over time from the backend csstatedump controller.
+Shows Clusters Service node pool objects observed by the backend client, including GET, create, update, and list results. Every successful observation is logged, even when unchanged. The csstatedump controller supplies a 30-minute backfill through the same client. Historical controller-only snapshots are also included.
 
 ## What to Look For
 
