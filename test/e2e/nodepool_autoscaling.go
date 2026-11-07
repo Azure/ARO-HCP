@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -66,6 +67,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size")
 			availableZones, err := tc.AvailableZones(ctx, workerVMSize)
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve usable availability zones for worker VM size %s", workerVMSize)
+			// HyperShift's Azure NodePool API only accepts availability zones 1-3.
+			availableZones = slices.DeleteFunc(availableZones, func(zone string) bool {
+				return zone != "1" && zone != "2" && zone != "3"
+			})
 			hasAZ := len(availableZones) > 0
 			var availabilityZone string
 			if hasAZ {
@@ -130,7 +135,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			if !hasAZ {
-				By("skipping AZ nodepool creation: no usable availability zones for worker VM size " +
+				By("skipping AZ nodepool creation: no usable HyperShift-supported availability zones for worker VM size " +
 					workerVMSize + " in " + tc.Location())
 			} else {
 				By("creating the AZ nodepool with 500 max replicas in availability zone " + availabilityZone)
