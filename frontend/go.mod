@@ -3,6 +3,7 @@ module github.com/Azure/ARO-HCP/frontend
 go 1.26.0
 
 require (
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/blang/semver/v4 v4.0.0
@@ -53,7 +54,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.29.2 // indirect
 	github.com/go-openapi/swag/typeutils v0.29.2 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
-	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gofiber/fiber/v2 v2.52.14 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
@@ -165,3 +165,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../arohcp-cosmos-client

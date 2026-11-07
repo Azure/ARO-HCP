@@ -28,8 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 type fakeUserAssignedIdentitiesClient struct {

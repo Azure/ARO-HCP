@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 )
 
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.

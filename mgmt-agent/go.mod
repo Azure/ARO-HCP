@@ -31,6 +31,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 // indirect
@@ -101,3 +102,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../arohcp-cosmos-client

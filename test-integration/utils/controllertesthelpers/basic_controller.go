@@ -24,10 +24,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"

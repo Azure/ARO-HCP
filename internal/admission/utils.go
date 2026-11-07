@@ -22,7 +22,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 

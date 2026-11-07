@@ -15,8 +15,8 @@
 package v20240610preview
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 

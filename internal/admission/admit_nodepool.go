@@ -29,8 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )

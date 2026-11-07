@@ -17,7 +17,7 @@ package read_desire_kubernetes
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 )
 
 // safeSecretDataKeys lists the data keys that are safe to mirror into

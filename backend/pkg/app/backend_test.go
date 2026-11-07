@@ -25,10 +25,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 type emptyVersionProfileSource struct{}

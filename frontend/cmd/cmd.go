@@ -39,13 +39,13 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	auditclient "github.com/Azure/ARO-HCP/internal/audit/otelaudit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"

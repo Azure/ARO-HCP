@@ -17,8 +17,8 @@ package v20260901preview
 import (
 	"encoding/json"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview/generated"
 )
 

@@ -19,7 +19,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 )
 
 func ValidateStampCreate(_ context.Context, stamp *fleetapi.Stamp) field.ErrorList {

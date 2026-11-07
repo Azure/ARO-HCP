@@ -17,7 +17,7 @@ package fleetinformers
 import (
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
