@@ -38,7 +38,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -72,7 +72,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -105,7 +105,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ToBeFixed[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -136,14 +136,14 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 			// Subset of E2E tests to be executed as a final step during ARO
 			// HCP Continous Deployment GitHub Action Workflow.
 			// TODO: revisit labels to tweak which tests to select here
-			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0])),
+			fastTestsOnly(fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0], labels.ToBeFixed[0])),
 		},
 		// Only an explicit user override replaces this specialized default.
 		Parallelism:   workers.resolve(20, false),
 		ResourcePools: miPools,
 	})
 
-	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
+	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.ToBeFixed[0])
 
 	if framework.IsDevelopmentEnvironment() {
 		rpApiCompatBaseQualifier = fmt.Sprintf(`%s || labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
@@ -197,5 +197,18 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		},
 		Parallelism: workers.resolve(upgradeInPlaceCount, false),
 		TestTimeout: &upgradeInPlaceTimeout,
+	})
+
+	// to-be-fixed/parallel collects all tests marked ToBeFixed so they can be
+	// run as a group to track fixing progress without polluting other suites.
+	toBeFixedTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "to-be-fixed/parallel",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.ToBeFixed[0]),
+		},
+		Parallelism:   workers.resolve(24, true),
+		TestTimeout:   &toBeFixedTimeout,
+		ResourcePools: miPools,
 	})
 }
