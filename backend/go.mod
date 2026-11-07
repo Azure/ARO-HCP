@@ -36,14 +36,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/sync v0.23.0
-	k8s.io/api v0.37.1
-	k8s.io/apimachinery v0.37.1
-	k8s.io/client-go v0.37.1
-	k8s.io/component-base v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/component-base v0.37.2
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	open-cluster-management.io/api v1.3.0
-	sigs.k8s.io/secrets-store-csi-driver v1.6.0
+	sigs.k8s.io/secrets-store-csi-driver v1.6.1
 	sigs.k8s.io/secrets-store-sync-controller v0.0.5
 	sigs.k8s.io/yaml v1.6.0
 )
