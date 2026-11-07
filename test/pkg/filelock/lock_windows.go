@@ -17,6 +17,7 @@
 package filelock
 
 import (
+	"errors"
 	"fmt"
 
 	"golang.org/x/sys/windows"
@@ -31,11 +32,26 @@ func Lock(fd uintptr) error {
 	return nil
 }
 
+// TryLock acquires the exclusive lock without blocking. It returns ErrLockBusy
+// when another holder currently owns the lock, so callers can poll instead of
+// waiting indefinitely on a possibly stalled holder.
+func TryLock(fd uintptr) error {
+	handle := windows.Handle(fd)
+	var overlapped windows.Overlapped
+	if err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped); err != nil {
+		if errors.Is(err, windows.ERROR_IO_PENDING) || errors.Is(err, windows.ERROR_LOCK_VIOLATION) {
+			return ErrLockBusy
+		}
+		return fmt.Errorf("failed to acquire state file lock: %w", err)
+	}
+	return nil
+}
+
 func Unlock(fd uintptr) error {
 	handle := windows.Handle(fd)
 	var overlapped windows.Overlapped
 	if err := windows.UnlockFileEx(handle, 0, 1, 0, &overlapped); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
+		return fmt.Errorf("failed to release state file lock: %w", err)
 	}
 	return nil
 }
