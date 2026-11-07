@@ -138,6 +138,17 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
+  - name: remove-legacy-kusto-monitoring-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: Geography.kusto-infra.kusto-monitoring
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -150,6 +161,13 @@ resourceGroups:
       - "DeploymentStackInNonTerminalState"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: remove-legacy-kusto-monitoring-stack
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: kusto-infra
+      step: action-groups
     variables:
     - name: kustoClusterId
       input:
@@ -171,11 +189,6 @@ resourceGroups:
         resourceGroup: kusto-infra
         step: action-groups
         name: actionGroupAlertEH
-    dependsOn:
-    - resourceGroup: kusto-infra
-      step: kusto-lookup
-    - resourceGroup: kusto-infra
-      step: action-groups
   - name: entity-groups
     action: KustoEntityGroups
     entityGroups:
