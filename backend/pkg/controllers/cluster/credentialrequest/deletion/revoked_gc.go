@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,8 +37,9 @@ const (
 )
 
 type revokedGC struct {
-	clock             utilsclock.PassiveClock
-	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	clock                   utilsclock.PassiveClock
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	credentialRequestLister corelisters.SystemAdminCredentialRequestLister
 }
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*revokedGC)(nil)
@@ -52,9 +54,12 @@ func NewRevokedGCController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
+	_, credentialRequestLister := backendInformers.SystemAdminCredentialRequests()
+
 	syncer := &revokedGC{
-		clock:             clock,
-		resourcesDBClient: resourcesDBClient,
+		clock:                   clock,
+		resourcesDBClient:       resourcesDBClient,
+		credentialRequestLister: credentialRequestLister,
 	}
 
 	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
@@ -73,13 +78,14 @@ func NewRevokedGCController(
 func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	// Use cached data for the age gate — CreationTimestamp is immutable, and
+	// Delete already tolerates NotFound.
+	cred, err := c.credentialRequestLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.CredentialName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRequest: %w", err))
 	}
 
 	// Delete every credential request once it is older than the retention window,
@@ -93,6 +99,7 @@ func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdmi
 		return nil
 	}
 
+	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
 	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete credential %s: %w", key.CredentialName, err))
 	}

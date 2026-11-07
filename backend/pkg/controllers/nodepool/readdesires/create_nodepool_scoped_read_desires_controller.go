@@ -49,9 +49,10 @@ import (
 type createNodePoolScopedReadDesiresSyncer struct {
 	activeOperationLister corelisters.ActiveOperationLister
 
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	nodePoolLister               corelisters.NodePoolLister
+	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 
 	hostedClusterNamespaceEnvIdentifier string
@@ -73,11 +74,15 @@ func NewCreateNodePoolScopedReadDesiresController(
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
+	_, nodePoolLister := informers.NodePools()
+	_, clusterLister := informers.Clusters()
+
 	syncer := &createNodePoolScopedReadDesiresSyncer{
 		activeOperationLister:               activeOperationLister,
-		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		nodePoolLister:                      nodePoolLister,
+		clusterLister:                       clusterLister,
 		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
@@ -99,18 +104,32 @@ func NewCreateNodePoolScopedReadDesiresController(
 }
 
 func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
-	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
+	// Use cached data only — this controller never mutates the node pool or
+	// cluster documents; it only needs IDs / DNS prefix to ensure ReadDesires.
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached NodePool: %w", err))
 	}
-	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+	if cachedNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
-	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil ||
-		len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if cachedNodePool.ServiceProviderProperties.ClusterServiceID == nil ||
+		len(cachedNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return nil
+	}
+
+	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cached parent Cluster: %w", err))
+	}
+	csClusterDomainPrefix := cachedCluster.CustomerProperties.DNS.BaseDomainPrefix
+	if len(csClusterDomainPrefix) == 0 {
 		return nil
 	}
 
@@ -134,27 +153,12 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		return nil
 	}
 
-	// Pull the parent cluster's domain prefix from cosmos rather than Cluster
-	// Service: the cluster_base_domain_prefix_sync controller already mirrors CS
-	// DomainPrefix into CustomerProperties.DNS.BaseDomainPrefix on the parent
-	// HCPCluster. Skip until that sync has happened; we'll retrigger on relist.
-	parentCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
-	}
-	csClusterDomainPrefix := parentCluster.CustomerProperties.DNS.BaseDomainPrefix
-	if len(csClusterDomainPrefix) == 0 {
-		return nil
-	}
-	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
+	csClusterID := cachedNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
 	// CS lowercases the ARM node pool name for both its internal node pool ID and the
 	// AzureNodePool.ResourceName it derives the Hypershift NodePool object's name from
 	// (see internal/ocm/convert.go's BuildCSNodePool), so the target name here must match.
-	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(existingNodePool.ID.Name))
+	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, strings.ToLower(cachedNodePool.ID.Name))
 
 	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if err != nil {
