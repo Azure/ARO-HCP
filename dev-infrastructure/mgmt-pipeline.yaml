@@ -985,6 +985,8 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    # Give the rollout the same budget the mitigations step already uses. ARO-30377.
+    timeout: 15m
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"
@@ -995,6 +997,9 @@ resourceGroups:
       # Retry when the step's container never starts (empty log, exit code -1).
       # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
       - "Waiting to run"
+      # A retry upgrades the same release and waits again, so a straggler that
+      # recovers late no longer fails the provision run. ARO-30377.
+      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
