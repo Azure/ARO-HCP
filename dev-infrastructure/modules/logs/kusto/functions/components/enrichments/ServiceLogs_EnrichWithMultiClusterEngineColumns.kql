@@ -1,0 +1,18 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a MultiClusterEngine object
+// @returns: T plus phase/currentVersion/desiredVersion/resourceVersion flattened out of the object
+.create-or-alter function
+with (
+  docstring = 'For ASI: HCP Management Cluster. Flattens the fields read off a MultiClusterEngine object\'s status, plus metadata.resourceVersion. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields | Example: kubernetesResourceSnapshots | where objectKind == "MultiClusterEngine" | invoke EnrichWithMultiClusterEngineColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithMultiClusterEngineColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        phase = tostring(object.status.phase),
+        currentVersion = tostring(object.status.currentVersion),
+        desiredVersion = tostring(object.status.desiredVersion),
+        resourceVersion = tostring(object.metadata.resourceVersion)
+}

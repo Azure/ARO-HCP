@@ -1,0 +1,21 @@
+[
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"conditions": [
+			{
+				"status": "True",
+				"type": "Available"
+			}
+		],
+		"generation": 2,
+		"observedGeneration": 2,
+		"resourceVersion": "123456",
+		"resources": [
+			{
+				"kind": "Deployment",
+				"name": "kube-apiserver"
+			}
+		],
+		"version": "4.20.1"
+	}
+]

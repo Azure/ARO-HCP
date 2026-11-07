@@ -1,0 +1,21 @@
+[
+	{
+		"cluster": "isolation-test",
+		"cluster_id": "ISOLATION-TEST",
+		"container_image": "test:latest",
+		"container_name": "test",
+		"container_status_image_id": "",
+		"environment": "test",
+		"host": "node-1",
+		"labels": "",
+		"log": {
+			"msg": "isolation test row"
+		},
+		"namespace_name": "test-ns",
+		"pod_name": "test-pod",
+		"region": "testregion",
+		"resource_group": "TEST-RG",
+		"tag": "test",
+		"timestamp": "2026-01-01T00:00:00Z"
+	}
+]

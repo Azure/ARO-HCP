@@ -1,0 +1,14 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped rows with a 'uid' string column, p_Uid=Kubernetes object UID
+// @returns: T filtered to rows for one object UID
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesResourceSnapshots-shaped rows down to one Kubernetes object UID. For kubernetesEvents, whose UID column is objectUID (not uid), use FilterK8sEventsByUid instead. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByUid("05c4e153-c0e0-467d-a24f-d474dd7162df")',
+  folder = 'Components\\Filters'
+)
+FilterK8sResourceByUid(T: (uid: string), p_Uid: string)
+{
+    T
+    | where uid == p_Uid
+}

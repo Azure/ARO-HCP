@@ -1,0 +1,64 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"status": {
+					"conditions": [
+						{
+							"lastTransitionTime": "2026-06-27T19:02:19.0000000Z",
+							"message": "Registration successful",
+							"reason": "Registered",
+							"status": "True",
+							"type": "MaestroRegistered"
+						},
+						{
+							"lastTransitionTime": "2026-09-21T01:40:29.0000000Z",
+							"message": "All downstream registrations completed successfully",
+							"reason": "AllRegistered",
+							"status": "True",
+							"type": "Ready"
+						}
+					],
+					"userFacingConditions": [
+						{
+							"lastTransitionTime": "2026-09-21T01:40:28.0000000Z",
+							"message": "cluster is ready",
+							"reason": "Completed",
+							"status": "False",
+							"type": "ClusterProvisioning"
+						}
+					]
+				}
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+		"resourceName": "my-cluster",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"status": {}
+			}
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "eastus",
+		"resourceGroup": "my-rg",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/no-conditions-cluster",
+		"resourceName": "no-conditions-cluster",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+		"subscriptionID": "00000000-0000-0000-0000-000000000001",
+		"timestamp": "2026-09-30T12:01:00Z"
+	}
+]

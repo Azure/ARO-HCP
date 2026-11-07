@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | where resourceID has 'my-cluster' and resourceID !has 'no-conditions' | invoke EnrichWithCosmosConditionsColumn('userFacingConditions') | mv-expand c=conditions | project type=tostring(c.type), status=tostring(c.status)"
+}

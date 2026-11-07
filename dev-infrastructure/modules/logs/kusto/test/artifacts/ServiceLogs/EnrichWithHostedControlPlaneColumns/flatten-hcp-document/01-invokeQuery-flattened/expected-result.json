@@ -1,0 +1,17 @@
+[
+	{
+		"created": "2026-09-04T19:03:18Z",
+		"desiredImage": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+		"desiredVersion": "4.20.1",
+		"endpointHost": "api.rawo-bami.example.com",
+		"endpointPort": 6443,
+		"generation": 3,
+		"initialized": true,
+		"nodeCount": 2,
+		"observedGeneration": 3,
+		"ready": true,
+		"releaseImage": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+		"resourceVersion": "654321",
+		"version": "4.20.1"
+	}
+]

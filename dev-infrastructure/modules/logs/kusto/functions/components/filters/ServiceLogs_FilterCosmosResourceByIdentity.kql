@@ -1,0 +1,16 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @params: T=piped cosmosResourceSnapshots-shaped rows, p_ResourceType=ARM resource type (case-insensitive), p_ResourceId=ARM resource ID (case-insensitive)
+// @returns: T filtered to the 'resources' container rows for the given resource type and ID
+.create-or-alter function
+with (
+  docstring = 'Filters piped cosmosResourceSnapshots rows (or any rows with resourceID/resourceType/cosmosContainer columns) down to the resources-container snapshots for one ARM resource. Hardcoded to cosmosContainer == "resources" (the ARM resource\'s own current-state document) rather than taking it as a parameter, since other cosmos containers (e.g. hcpOperationStatuses, fleet) can carry a matching resourceID/resourceType by coincidence but are a different kind of document entirely. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity("Microsoft.RedHatOpenShift/hcpOpenShiftClusters", "/subscriptions/.../hcpOpenShiftClusters/foo")',
+  folder = 'Components\\Filters'
+)
+FilterCosmosResourceByIdentity(T: (resourceID: string, resourceType: string, cosmosContainer: string), p_ResourceType: string, p_ResourceId: string)
+{
+    T
+    | where cosmosContainer == 'resources'
+    | where resourceType =~ p_ResourceType
+    | where resourceID =~ p_ResourceId
+}

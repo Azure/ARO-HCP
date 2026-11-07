@@ -1,3 +1,9 @@
+// This is the editable source for main.bicep. The two Kusto function
+// loadTextContent() lists are rendered from the current .kql function files'
+// dependency order (see tooling/kustoctl/pkg/kqlfunc) rather than
+// hand-maintained, so a function always loads after anything it depends on.
+// Edit this file, then run `make generate` (or `make -C dev-infrastructure
+// generate-kusto-bicep`) to regenerate main.bicep, and commit both.
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
@@ -89,6 +95,47 @@ var allServiceLogsTablesKQL = {
   ciTestResults: loadTextContent('tables/ciTestResults.kql')
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
+
+var allServiceLogsFunctionsKQL = [
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithConditionHistory.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithConditionEpisodes.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithControlPlaneComponentColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithCosmosConditionsColumn.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithDeploymentReplicaColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpExternalAuthStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpNodePoolStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHcpOperationStatusColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedClusterLabelsColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithHostedControlPlaneColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithMachineNodeInfoColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithManagementClusterNodeLabelsColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithManagementClusterStateColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithMultiClusterEngineColumns.kql')
+  loadTextContent('functions/components/enrichments/ServiceLogs_EnrichWithServiceProviderClusterPlacementColumns.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterByLogLevel.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterCosmosResourceByIdentity.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sEventsByUid.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetClusterIdFromInternalId.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetNodePoolNameFromInternalId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sNodePoolByPoolId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sMachinesByNodePool.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByClusterServiceId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByClusterServiceIdSet.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByIdentity.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterK8sResourceByUid.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterOperationsByExternalId.kql')
+  loadTextContent('functions/components/filters/ServiceLogs_FilterOperationsByOperationId.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetARMResourceIDForClustersServiceID.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetClusterServiceIdHistory.kql')
+  loadTextContent('functions/triage/resolvers/ServiceLogs_GetClustersServiceIDForARMResourceID.kql')
+]
+
+var allHostedControlPlaneLogsFunctionsKQL = [
+  loadTextContent('functions/triage/resolvers/HostedControlPlaneLogs_GetARMResourceIDForClustersServiceID.kql')
+  loadTextContent('functions/triage/resolvers/HostedControlPlaneLogs_GetClustersServiceIDForARMResourceID.kql')
+]
 
 var allCustomerLogsTablesKQL = {
   containerlogs: loadTextContent('tables/containerLogs.kql')
@@ -203,6 +250,36 @@ module monitoringEventsTables 'script.bicep' = [
   }
 ]
 
+// 3b. Create Functions (depend on tables)
+// Functions are concatenated into a single script per database to stay within
+// the 50-script-per-cluster limit. Each .kql file is a complete .create-or-alter
+// statement; .execute database script handles multiple statements natively.
+module serviceLogsFunctions 'script.bicep' = {
+  name: 'serviceLogsFunctions'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    scriptName: 'serviceLogsFunctions'
+    scriptContent: join(allServiceLogsFunctionsKQL, '\n')
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [serviceLogsTables]
+}
+
+module hostedControlPlaneLogsFunctions 'script.bicep' = {
+  name: 'hostedControlPlaneLogsFunctions'
+  params: {
+    kustoName: kustoName
+    databaseName: db.hostedControlPlaneLogs
+    scriptName: 'hostedControlPlaneLogsFunctions'
+    scriptContent: join(allHostedControlPlaneLogsFunctionsKQL, '\n')
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [hostedControlPlaneLogsTables]
+}
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -256,7 +333,9 @@ module removePermission 'script.bicep' = [
     dependsOn: [
       databaseUserScripts
       serviceLogsTables
+      serviceLogsFunctions
       hostedControlPlaneLogsTables
+      hostedControlPlaneLogsFunctions
       monitoringEventsTables
       grafanaServiceLogsAccess
     ]

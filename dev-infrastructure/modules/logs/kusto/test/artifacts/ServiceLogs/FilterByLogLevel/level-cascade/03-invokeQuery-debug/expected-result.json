@@ -1,0 +1,14 @@
+[
+	{
+		"level": "error"
+	},
+	{
+		"level": "fatal"
+	},
+	{
+		"level": "info"
+	},
+	{
+		"level": "warn"
+	}
+]

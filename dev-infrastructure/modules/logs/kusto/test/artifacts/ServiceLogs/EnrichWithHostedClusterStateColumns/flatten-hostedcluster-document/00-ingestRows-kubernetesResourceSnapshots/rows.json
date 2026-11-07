@@ -1,0 +1,141 @@
+[
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "h8l0s7l6t0j9u6m",
+		"namespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+		"object": {
+			"metadata": {
+				"generation": 5
+			},
+			"spec": {
+				"autoscaling": {
+					"maxNodeProvisionTime": "15m",
+					"maxNodesTotal": 24,
+					"maxPodGracePeriod": 600,
+					"podPriorityThreshold": -10,
+					"scaling": "Enabled"
+				},
+				"capabilities": {
+					"disabled": [
+						"ImageRegistry"
+					]
+				},
+				"channel": "stable-4.20",
+				"clusterID": "d7f8928b-f9ce-4989-8874-083e1a663aea",
+				"configuration": {
+					"apiServer": {
+						"audit": {
+							"profile": "Default"
+						}
+					},
+					"authentication": {
+						"type": "None"
+					}
+				},
+				"controllerAvailabilityPolicy": "SingleReplica",
+				"dns": {
+					"baseDomain": "example.com",
+					"baseDomainPrefix": "rawo-bami",
+					"publicZoneID": "zone-abc"
+				},
+				"etcd": {
+					"managed": {
+						"storage": {
+							"persistentVolume": {
+								"size": "8Gi"
+							},
+							"type": "PersistentVolume"
+						}
+					},
+					"managementType": "Managed"
+				},
+				"fips": false,
+				"infraID": "h8l0s7l6t0j9u6m",
+				"infrastructureAvailabilityPolicy": "SingleReplica",
+				"issuerURL": "https://rawo-bami.blob.core.windows.net/oidc",
+				"kubeAPIServerDNSName": "",
+				"networking": {
+					"apiServer": {
+						"port": 6443
+					},
+					"clusterNetwork": [
+						{
+							"cidr": "10.128.0.0/14"
+						}
+					],
+					"machineNetwork": [
+						{
+							"cidr": "10.0.0.0/16"
+						}
+					],
+					"networkType": "OVNKubernetes",
+					"serviceNetwork": [
+						{
+							"cidr": "172.30.0.0/16"
+						}
+					]
+				},
+				"platform": {
+					"azure": {
+						"location": "westus3",
+						"private": {
+							"swift": {
+								"podNetworkInstance": "pni-001"
+							},
+							"type": "Swift"
+						},
+						"resourceGroup": "rawo-bami-managed-rg",
+						"securityGroupID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/networkSecurityGroups/customer-nsg",
+						"subnetID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
+						"topology": "HighlyAvailable",
+						"vnetID": "/subscriptions/f495d360-35bc-492e-a7d0-5859b28d05c2/resourceGroups/rawo-bami-billing-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet"
+					}
+				},
+				"release": {
+					"image": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64"
+				},
+				"secretEncryption": {
+					"kms": {
+						"azure": {
+							"activeKey": {
+								"keyName": "etcd-data-kms-encryption-key",
+								"keyVaultName": "cust-kv-tgicshwz7hp4k",
+								"keyVersion": "9f84df6def6d4622aab67ff01445c285"
+							},
+							"keyVaultAccess": "Public"
+						},
+						"provider": "Azure"
+					},
+					"type": "KMS"
+				}
+			},
+			"status": {
+				"controlPlaneEndpoint": "api.rawo-bami.example.com:6443",
+				"controlPlaneVersion": {
+					"desired": {
+						"image": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+						"version": "4.20.1"
+					}
+				},
+				"ignitionEndpoint": "ignition.rawo-bami.example.com",
+				"payloadArch": "AMD64",
+				"version": {
+					"desired": {
+						"channels": [
+							"stable-4.20"
+						],
+						"image": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+						"version": "4.20.1"
+					}
+				}
+			}
+		},
+		"objectKind": "HostedCluster",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "315e8474-2161-4734-a65e-801a4316af26"
+	}
+]

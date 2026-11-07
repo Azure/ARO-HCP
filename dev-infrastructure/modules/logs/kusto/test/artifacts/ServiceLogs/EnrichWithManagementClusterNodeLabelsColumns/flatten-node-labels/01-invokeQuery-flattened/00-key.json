@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithManagementClusterNodeLabelsColumns() | project pool, role, zone, instanceType, providerID"
+}

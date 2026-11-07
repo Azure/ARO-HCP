@@ -1,0 +1,27 @@
+[
+	{
+		"Health": "Healthy",
+		"Tooltip": "AsExpected: all good",
+		"Uid": "p1"
+	},
+	{
+		"Health": "Neutral",
+		"Tooltip": "True",
+		"Uid": "p2"
+	},
+	{
+		"Health": "Degraded",
+		"Tooltip": "True",
+		"Uid": "p3"
+	},
+	{
+		"Health": "Degraded",
+		"Tooltip": "SomeMsg",
+		"Uid": "p4"
+	},
+	{
+		"Health": "Neutral",
+		"Tooltip": "X",
+		"Uid": "p5"
+	}
+]

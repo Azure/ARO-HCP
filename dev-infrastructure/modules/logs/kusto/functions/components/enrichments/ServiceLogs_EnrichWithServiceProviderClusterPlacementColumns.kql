@@ -1,0 +1,17 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for a serviceProviderClusters resource
+// @returns: T plus managementID/hostedNamespace/controlPlaneActiveVersions flattened out of content.properties.status
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens the fields read off a microsoft.redhatopenshift/hcpopenshiftclusters/serviceProviderClusters cosmos document. This is the source of truth for where Clusters Service placed a given cluster (which management cluster resource ID, which hosted cluster namespace), needed to locate its actual k8s objects on the right management cluster. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields | Example: cosmosResourceSnapshots | where resourceType =~ "microsoft.redhatopenshift/hcpopenshiftclusters/serviceProviderClusters" | invoke EnrichWithServiceProviderClusterPlacementColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithServiceProviderClusterPlacementColumns(T: (content: dynamic))
+{
+    T
+    | extend
+        managementID = tostring(content.properties.status.managementClusterResourceID),
+        hostedNamespace = tostring(content.properties.status.hostedClusterNamespace),
+        controlPlaneActiveVersions = content.properties.status.control_plane_version.active_versions
+}

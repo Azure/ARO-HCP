@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "datatable(objectKind:string, namespace:string, name:string, object:dynamic) [\n  'NodePool', 'ocm-abc-123', 'hcinfra1-pool1', dynamic({'metadata':{'labels':{'api.openshift.com/id':'abc-123'}}, 'spec':{'clusterName':'hcinfra1'}}),\n  'NodePool', 'ocm-abc-123', 'hcinfra1-other-pool1', dynamic({'metadata':{'labels':{'api.openshift.com/id':'abc-123'}}, 'spec':{'clusterName':'hcinfra1'}})\n] | invoke FilterK8sNodePoolByPoolId('/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1') | project name"
+}

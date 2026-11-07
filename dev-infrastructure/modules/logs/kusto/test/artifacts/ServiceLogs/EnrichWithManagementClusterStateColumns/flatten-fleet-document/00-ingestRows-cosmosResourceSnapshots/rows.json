@@ -1,0 +1,44 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"cosmosMetadata": {
+					"instanceVersion": 42
+				},
+				"spec": {
+					"schedulingPolicy": "Enabled"
+				},
+				"status": {
+					"aksResourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster-01",
+					"clusterServiceProvisionShardID": "shard-001",
+					"conditions": [
+						{
+							"status": "True",
+							"type": "Ready"
+						}
+					],
+					"hostedClustersManagedIdentitiesKeyVaultURL": "https://mgmt-cluster-01-identities.vault.azure.net/",
+					"hostedClustersSecretsKeyVaultURL": "https://mgmt-cluster-01-secrets.vault.azure.net/",
+					"maestroConsumerName": "mgmt-cluster-01",
+					"publicDNSZoneResourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.Network/dnszones/mgmt-cluster-01.example.com",
+					"sharedIngressIPAddresses": [
+						"10.0.1.4"
+					]
+				}
+			},
+			"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.RedHatOpenShift/stamps/managementclusters/mgmt-cluster-01",
+			"resourceType": "Microsoft.RedHatOpenShift/stamps/managementclusters"
+		},
+		"cosmosContainer": "fleet",
+		"environment": "prod",
+		"region": "westus3",
+		"resourceGroup": "mgmt-cluster-rg",
+		"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.RedHatOpenShift/stamps/managementclusters/mgmt-cluster-01",
+		"resourceName": "mgmt-cluster-01",
+		"resourceType": "Microsoft.RedHatOpenShift/stamps/managementclusters",
+		"subscriptionID": "64f0619f-ebc2-4156-9d91-c4c781de7e54",
+		"timestamp": "2026-09-30T12:00:00Z"
+	}
+]

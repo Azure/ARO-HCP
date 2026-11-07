@@ -1,0 +1,39 @@
+[
+	{
+		"apiVersion": "hypershift.openshift.io/v1beta1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "h8l0s7l6t0j9u6m",
+		"namespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+		"object": {
+			"metadata": {
+				"creationTimestamp": "2026-09-04T19:03:18Z",
+				"generation": 3,
+				"resourceVersion": "654321"
+			},
+			"status": {
+				"controlPlaneEndpoint": {
+					"host": "api.rawo-bami.example.com",
+					"port": 6443
+				},
+				"controlPlaneVersion": {
+					"desired": {
+						"image": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+						"version": "4.20.1"
+					},
+					"observedGeneration": 3
+				},
+				"initialized": true,
+				"nodeCount": 2,
+				"ready": true,
+				"releaseImage": "quay.io/openshift-release-dev/ocp-release:4.20.1-x86_64",
+				"version": "4.20.1"
+			}
+		},
+		"objectKind": "HostedControlPlane",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "6b5a4c3d-2e1f-0987-6543-210fedcba987"
+	}
+]

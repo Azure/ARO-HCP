@@ -1,0 +1,8 @@
+[
+	{
+		"cluster": "mgmt-01",
+		"pod_name": "kube-apiserver-0",
+		"region": "uksouth",
+		"tag": "cross-db-smoke"
+	}
+]

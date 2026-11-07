@@ -1,0 +1,9 @@
+{
+	"args": [
+		"abc123def",
+		"datetime(2020-01-01)",
+		"datetime(2099-01-01)"
+	],
+	"database": "HostedControlPlaneLogs",
+	"function": "GetARMResourceIDForClustersServiceID"
+}

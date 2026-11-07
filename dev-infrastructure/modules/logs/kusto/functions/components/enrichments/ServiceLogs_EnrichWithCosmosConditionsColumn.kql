@@ -1,0 +1,14 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped rows with a 'content' dynamic column (e.g. cosmosResourceSnapshots), p_ConditionsPath='conditions', 'userFacingConditions', or any other array-valued field name under content.properties.status
+// @returns: T plus a flattened 'conditions' dynamic array column
+.create-or-alter function
+with (
+  docstring = 'Flattens an ARM resource\'s condition array (content.properties.status[p_ConditionsPath]) out to a top-level conditions column, so callers never need to reach into the nested ARM document shape themselves, and so the field path itself becomes something this framework\'s tests pin, rather than an assumption left inline in every caller. Use with the invoke operator, typically piped into EnrichWithConditionHistory/EnrichWithConditionEpisodes afterward. | Returns: all of T\'s columns plus conditions (dynamic array, possibly empty) | Example: cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity("Microsoft.RedHatOpenShift/hcpOpenShiftClusters", resourceId) | invoke EnrichWithCosmosConditionsColumn("userFacingConditions")',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithCosmosConditionsColumn(T: (content: dynamic), p_ConditionsPath: string)
+{
+    T
+    | extend conditions = content.properties.status[p_ConditionsPath]
+}

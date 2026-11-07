@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "kubernetesResourceSnapshots | invoke EnrichWithControlPlaneComponentColumns() | project apiVersion, generation, resourceVersion, version, observedGeneration, resources, conditions"
+}

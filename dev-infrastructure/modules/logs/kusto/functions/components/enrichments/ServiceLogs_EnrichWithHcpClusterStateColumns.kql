@@ -1,0 +1,77 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped cosmosResourceSnapshots-shaped rows for an hcpOpenShiftClusters resource
+// @returns: T plus every field the HCP Cluster state page displays (For ASI), flattened out of content.properties
+.create-or-alter function
+with (
+  docstring = 'For ASI: flattens every field the HCP Cluster state page displays out of an hcpOpenShiftClusters cosmos document (content.properties.*), so callers never reach into the nested ARM document shape themselves, and so that shape is pinned by this function\'s own test rather than left as an untested assumption in every caller. Returns more columns than any one caller needs; that is fine. Use with the invoke operator. | Returns: all of T\'s columns plus every flattened field, including derived vnet/subnet/resource-group/subscription names parsed out of swiftSubnetId/nodeSubnetId/networkSecurityGroupId | Example: cosmosResourceSnapshots | invoke FilterCosmosResourceByIdentity("Microsoft.RedHatOpenShift/hcpOpenShiftClusters", resourceId) | invoke EnrichWithHcpClusterStateColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHcpClusterStateColumns(T: (content: dynamic))
+{
+    T
+    | extend clusterDocument = content.properties
+    | extend swiftSubnetId = tostring(clusterDocument.customerProperties.platform.vnetIntegrationSubnetId),
+        nodeSubnetId = tostring(clusterDocument.customerProperties.platform.subnetId)
+    | extend
+        provisioningState = tostring(clusterDocument.serviceProviderProperties.provisioningState),
+        createdAt = todatetime(clusterDocument.systemData.createdAt),
+        lastModifiedAt = todatetime(clusterDocument.systemData.lastModifiedAt),
+        activeOperationId = tostring(clusterDocument.serviceProviderProperties.activeOperationId),
+        createDeadline = todatetime(clusterDocument.serviceProviderProperties.createOperationCompletionDeadline),
+        deletionTimestamp = todatetime(clusterDocument.serviceProviderProperties.deletionTimestamp),
+        deleteDeadline = todatetime(clusterDocument.serviceProviderProperties.deleteOperationCompletionDeadline),
+        version = tostring(clusterDocument.customerProperties.version.id),
+        channelGroup = tostring(clusterDocument.customerProperties.version.channelGroup),
+        apiVisibility = tostring(clusterDocument.customerProperties.api.visibility),
+        ingressType = tostring(clusterDocument.customerProperties.ingress.type),
+        apiUrl = tostring(clusterDocument.serviceProviderProperties.api.url),
+        consoleUrl = tostring(clusterDocument.serviceProviderProperties.console.url),
+        managedResourceGroup = tostring(clusterDocument.customerProperties.platform.managedResourceGroup),
+        baseDomain = tostring(clusterDocument.serviceProviderProperties.dns.baseDomain),
+        clusterUid = tostring(clusterDocument.serviceProviderProperties.clusterUID),
+        networkSecurityGroupId = tostring(clusterDocument.customerProperties.platform.networkSecurityGroupId),
+        outboundType = tostring(clusterDocument.customerProperties.platform.outboundType),
+        networkType = tostring(clusterDocument.customerProperties.network.networkType),
+        machineCidr = tostring(clusterDocument.customerProperties.network.machineCidr),
+        podCidr = tostring(clusterDocument.customerProperties.network.podCidr),
+        serviceCidr = tostring(clusterDocument.customerProperties.network.serviceCidr),
+        hostPrefix = toint(clusterDocument.customerProperties.network.hostPrefix),
+        identityType = tostring(clusterDocument.identity.type),
+        principalId = tostring(clusterDocument.identity.principalId),
+        tenantId = tostring(clusterDocument.identity.tenantId),
+        cryptoRestrictions = tostring(clusterDocument.customerProperties.cryptoRestrictions),
+        etcdKeyManagement = tostring(clusterDocument.customerProperties.etcd.dataEncryption.keyManagementMode),
+        etcdEncryptionType = tostring(clusterDocument.customerProperties.etcd.dataEncryption.customerManaged.encryptionType),
+        etcdKeyVault = tostring(clusterDocument.customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName),
+        maxNodesTotal = toint(clusterDocument.customerProperties.autoscaling.maxNodesTotal),
+        maxNodeProvisionTimeSeconds = toint(clusterDocument.customerProperties.autoscaling.maxNodeProvisionTimeSeconds),
+        maxPodGracePeriodSeconds = toint(clusterDocument.customerProperties.autoscaling.maxPodGracePeriodSeconds),
+        nodeDrainTimeoutMinutes = toint(clusterDocument.customerProperties.nodeDrainTimeoutMinutes),
+        imageRegistryState = tostring(clusterDocument.customerProperties.clusterImageRegistry.state),
+        tags = tostring(clusterDocument.tags),
+        clusterServiceId = tostring(clusterDocument.serviceProviderProperties.clusterServiceID),
+        pendingClusterServiceId = tostring(clusterDocument.serviceProviderProperties.pendingClusterServiceID),
+        clusterServiceDeletionTimestamp = todatetime(clusterDocument.serviceProviderProperties.clusterServiceDeletionTimestamp),
+        baseDomainPrefix = tostring(clusterDocument.customerProperties.dns.baseDomainPrefix),
+        issuerUrl = tostring(clusterDocument.serviceProviderProperties.platform.issuerUrl),
+        etcdKeyName = tostring(clusterDocument.customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name),
+        etcdKeyVersion = tostring(clusterDocument.customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version),
+        etcdKeyVaultVisibility = tostring(clusterDocument.customerProperties.etcd.dataEncryption.customerManaged.kms.visibility),
+        podPriorityThreshold = toint(clusterDocument.customerProperties.autoscaling.podPriorityThreshold),
+        authorizedCidrs = clusterDocument.customerProperties.api.authorizedCidrs,
+        activeVersions = clusterDocument.status.activeVersions,
+        operatorsAuthenticationIdentities = tostring(clusterDocument.customerProperties.platform.operatorsAuthentication.userAssignedIdentities),
+        imageDigestMirrors = clusterDocument.customerProperties.imageDigestMirrors,
+        identityUserAssignedIdentities = clusterDocument.identity.userAssignedIdentities
+    | extend swiftVnetName = extract(@'(?i)/virtualnetworks/([^/]+)/subnets/[^/]+$', 1, swiftSubnetId),
+        swiftSubnetName = extract(@'(?i)/subnets/([^/]+)$', 1, swiftSubnetId),
+        swiftResourceGroup = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, swiftSubnetId),
+        swiftSubscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, swiftSubnetId),
+        nodeVnetName = extract(@'(?i)/virtualnetworks/([^/]+)/subnets/[^/]+$', 1, nodeSubnetId),
+        nodeSubnetName = extract(@'(?i)/subnets/([^/]+)$', 1, nodeSubnetId),
+        nodeResourceGroup = extract(@'(?i)/resourcegroups/([^/]+)/providers/', 1, nodeSubnetId),
+        nodeSubscriptionId = extract(@'(?i)^/subscriptions/([^/]+)/', 1, nodeSubnetId),
+        nsgName = extract(@'(?i)/networksecuritygroups/([^/]+)$', 1, networkSecurityGroupId)
+    | project-away clusterDocument
+}
