@@ -2614,6 +2614,11 @@ func (in *ServiceProviderClusterSpecVersion) DeepCopyInto(out *ServiceProviderCl
 		*out = new(v4.Version)
 		**out = **in
 	}
+	if in.AcceptedVersion != nil {
+		in, out := &in.AcceptedVersion, &out.AcceptedVersion
+		*out = new(v4.Version)
+		**out = **in
+	}
 	if in.DesiredVersionLastTransitionTime != nil {
 		in, out := &in.DesiredVersionLastTransitionTime, &out.DesiredVersionLastTransitionTime
 		*out = (*in).DeepCopy()

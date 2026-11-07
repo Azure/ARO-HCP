@@ -94,7 +94,7 @@ type ServiceProviderClusterSpec struct {
 	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
-	// Written by: IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources
+	// Written by: IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources, Control plane upgrade validation (future)
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
@@ -149,6 +149,14 @@ type ServiceProviderClusterSpecVersion struct {
 	// This is compared on each sync to detect when a new upgrade should be triggered.
 	// Written by: Forced Cluster Desired Version Assignment, Z-stream Progressive Desired Version Rollout, InitialNormalClusterDesiredVersion, MinorUpgradeNormalClusterDesiredVersion
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+
+	// AcceptedVersion is the exact version accepted for application to the
+	// HostedCluster after upgrade validation. It remains unset until a validator
+	// accepts a target, so deploying the release writer alone has no effect.
+	// The validator also supplies the corresponding release image in
+	// Spec.DesiredHostedCluster.Spec.Release.Image.
+	// Written by: Control plane upgrade validation (future)
+	AcceptedVersion *semver.Version `json:"accepted_version,omitempty"`
 
 	// DesiredVersionLastTransitionTime is when DesiredVersion last changed. It is
 	// used to decide when a cluster has been mismatched (desired set but not yet
