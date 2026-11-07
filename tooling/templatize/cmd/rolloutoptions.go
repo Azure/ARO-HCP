@@ -145,7 +145,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 			return nil, fmt.Errorf("failed to load developer settings: %w", err)
 		}
 
-		env, err := devSettings.Resolve(ctx, o.BaseOptions.Cloud, o.DevEnvironment)
+		env, err := devSettings.Resolve(o.BaseOptions.Cloud, o.DevEnvironment)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve developer environment %s: %w", o.DevEnvironment, err)
 		}
