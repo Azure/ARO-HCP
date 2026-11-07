@@ -222,8 +222,9 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*co
 }
 
 // newNodePoolAdmissionContext creates an admission context for node pool operations.
-// Provider cluster state is required from the cache for both CREATE and UPDATE;
-// provider node pool state is required for UPDATE only.
+// Provider cluster state and the cluster's node pool list are required from the
+// cache for both CREATE and UPDATE; provider node pool state is required for
+// UPDATE only.
 func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, subscription *coreapi.Subscription, originalNodePool *coreapi.NodePool, cluster *coreapi.Cluster) (*admission.NodePoolAdmissionContext, error) {
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster is required for admission context")
@@ -236,20 +237,21 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		return nil, fmt.Errorf("cannot load service provider cluster %s for node pool admission: %v", clusterID, err)
 	}
 	var serviceProviderNodePool *coreapi.ServiceProviderNodePool
-	var nodePools []*coreapi.NodePool
 	if op.Type == operation.Update {
 		nodePoolID := originalNodePool.ID
 		serviceProviderNodePool, err = f.serviceProviderNodePoolLister.Get(ctx, nodePoolID.SubscriptionID, nodePoolID.ResourceGroupName, nodePoolID.Parent.Name, nodePoolID.Name)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load service provider node pool %s for node pool admission: %v", nodePoolID, err)
 		}
-		// All node pools for the cluster (including the one being updated) are
-		// needed so admission can enforce the cluster-wide minimum worker-node
-		// floor (prevent downgrading the cluster to zero nodes).
-		nodePools, err = f.nodePoolLister.ListForCluster(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
-		if err != nil {
-			return nil, fmt.Errorf("cannot list node pools for cluster %s for node pool admission: %v", clusterID, err)
-		}
+	}
+	// All node pools for the cluster are needed on both CREATE and UPDATE so
+	// admission can run cluster-wide, cross-node-pool checks. On UPDATE this
+	// includes the node pool being updated (its stored, pre-update state); on
+	// CREATE the node pool being admitted does not exist in storage yet, so it
+	// is never included here.
+	nodePools, err := f.nodePoolLister.ListForCluster(ctx, clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list node pools for cluster %s for node pool admission: %v", clusterID, err)
 	}
 
 	return &admission.NodePoolAdmissionContext{
