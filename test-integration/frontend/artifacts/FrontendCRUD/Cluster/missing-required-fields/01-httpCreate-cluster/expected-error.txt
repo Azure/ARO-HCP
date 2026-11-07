@@ -46,7 +46,7 @@
       {
         "code": "InvalidRequestContent",
         "message": "Unsupported value: \"\": supported values: \"None\", \"SystemAssigned\", \"SystemAssigned,UserAssigned\", \"UserAssigned\"",
-        "target": "identity.state"
+        "target": "identity.type"
       }
       {
         "code": "InvalidRequestContent",
