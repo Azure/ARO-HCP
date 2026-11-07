@@ -21,7 +21,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )

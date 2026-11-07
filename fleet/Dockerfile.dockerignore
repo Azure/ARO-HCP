@@ -5,6 +5,7 @@
 !go.work
 !vendor/**
 !admin/**
+!arohcp-cosmos-client/**
 !backend/**
 !dev-infrastructure/scripts/**
 !fleet/**

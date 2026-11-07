@@ -33,13 +33,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 

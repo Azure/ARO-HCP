@@ -33,8 +33,8 @@ import (
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
