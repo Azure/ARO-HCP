@@ -29,6 +29,12 @@ import (
 //go:embed report.html
 var reportTemplate string
 
+//go:embed report.css
+var reportCSS string
+
+//go:embed report.js
+var reportScript string
+
 //go:embed assets/echarts-5.6.0.min.js
 var echartsRuntime string
 
@@ -88,25 +94,90 @@ type costReport struct {
 	SubscriptionData        template.JS
 	SubscriptionMode        bool
 	License, Notice         string
+	CSS                     template.CSS
+	Script                  template.JS
+}
+
+// formatUSD renders a dollar amount with four decimals and grouped thousands, so
+// a large total reads as $1,263.5800 instead of $1263.5800. Non-finite values
+// keep their plain form.
+func formatUSD(v float64) string {
+	text := fmt.Sprintf("%.4f", v)
+	whole, fraction, ok := strings.Cut(text, ".")
+	if !ok {
+		return "$" + text
+	}
+	sign := ""
+	if strings.HasPrefix(whole, "-") {
+		sign, whole = "-", whole[1:]
+	}
+	var b strings.Builder
+	b.WriteString("$")
+	b.WriteString(sign)
+	for i := 0; i < len(whole); i++ {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			b.WriteString(",")
+		}
+		b.WriteByte(whole[i])
+	}
+	b.WriteString(".")
+	b.WriteString(fraction)
+	return b.String()
 }
 
 // Render writes a self-contained, offline report. Collection diagnostics are
 // report content, not render failures; invalid snapshot data is a render failure.
 func Render(w io.Writer, snapshot *Snapshot) error {
+	view, err := newCostReport(snapshot)
+	if err != nil {
+		return err
+	}
+	view.Runtime, view.CSS, view.Script = template.JS(echartsRuntime), template.CSS(reportCSS), template.JS(reportScript)
+	tmpl, err := template.New("report").Funcs(template.FuncMap{
+		"usd": formatUSD,
+		"utc": func(t time.Time) string {
+			if t.IsZero() {
+				return "Unavailable"
+			}
+			return t.UTC().Format("2006-01-02 15:04:05 UTC")
+		},
+		"known": func(s string) string {
+			if s == "" {
+				return "Unknown"
+			}
+			return s
+		},
+	}).Parse(reportTemplate)
+	if err != nil {
+		return fmt.Errorf("render cost report: parse template: %w", err)
+	}
+	var output bytes.Buffer
+	if err := tmpl.Execute(&output, view); err != nil {
+		return fmt.Errorf("render cost report: execute template: %w", err)
+	}
+	if _, err := output.WriteTo(w); err != nil {
+		return fmt.Errorf("render cost report: write: %w", err)
+	}
+	return nil
+}
+
+// newCostReport validates a snapshot and computes everything a report shows,
+// shared by the HTML and JSON outputs so both carry identical figures.
+func newCostReport(snapshot *Snapshot) (*costReport, error) {
 	if snapshot == nil {
-		return fmt.Errorf("render cost report: nil snapshot")
+		return nil, fmt.Errorf("render cost report: nil snapshot")
 	}
 	if snapshot.Version != SchemaVersion {
-		return fmt.Errorf("render cost report: unsupported snapshot version %d (want %d)", snapshot.Version, SchemaVersion)
+		return nil, fmt.Errorf("render cost report: unsupported snapshot version %d (want %d)", snapshot.Version, SchemaVersion)
 	}
 	if snapshot.Currency != "USD" {
-		return fmt.Errorf("render cost report: unsupported currency %q (want USD)", snapshot.Currency)
+		return nil, fmt.Errorf("render cost report: unsupported currency %q (want USD)", snapshot.Currency)
 	}
 	if snapshot.CostBasis != "" && snapshot.CostBasis != "AmortizedCost" && !strings.EqualFold(snapshot.CostBasis, "amortized") {
-		return fmt.Errorf("render cost report: unsupported cost basis %q", snapshot.CostBasis)
+		return nil, fmt.Errorf("render cost report: unsupported cost basis %q", snapshot.CostBasis)
 	}
 	if snapshot.Mode != "" && snapshot.Mode != "subscriptions" {
-		return fmt.Errorf("render cost report: unsupported mode %q", snapshot.Mode)
+		return nil, fmt.Errorf("render cost report: unsupported mode %q", snapshot.Mode)
 	}
 	view := costReport{Snapshot: snapshot, SubscriptionMode: snapshot.Mode == "subscriptions", License: echartsLicense + "\n\n" + d3License, Notice: echartsNotice}
 	subscriptions := make(map[string]SubscriptionSummary)
@@ -115,7 +186,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	for _, sub := range snapshot.Subscriptions {
 		for _, amount := range []float64{sub.TotalUSD, sub.RetainedUSD, sub.ExcludedUSD} {
 			if math.IsNaN(amount) || math.IsInf(amount, 0) {
-				return fmt.Errorf("render cost report: subscription %q has non-finite cost", sub.ID)
+				return nil, fmt.Errorf("render cost report: subscription %q has non-finite cost", sub.ID)
 			}
 		}
 		if !view.SubscriptionMode {
@@ -123,7 +194,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		}
 		id := strings.ToLower(sub.ID)
 		if _, exists := subscriptions[id]; exists || id == "" {
-			return fmt.Errorf("render cost report: empty or duplicate subscription %q", sub.ID)
+			return nil, fmt.Errorf("render cost report: empty or duplicate subscription %q", sub.ID)
 		}
 		subscriptions[id] = sub
 		switch sub.BillingStatus {
@@ -133,17 +204,17 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		case "", "pending", "partial", "unavailable":
 			view.Incomplete = true
 		default:
-			return fmt.Errorf("render cost report: subscription %q has invalid billing status %q", sub.ID, sub.BillingStatus)
+			return nil, fmt.Errorf("render cost report: subscription %q has invalid billing status %q", sub.ID, sub.BillingStatus)
 		}
 	}
 	for _, group := range snapshot.FilteredGroups {
 		if math.IsNaN(group.CostUSD) || math.IsInf(group.CostUSD, 0) {
-			return fmt.Errorf("render cost report: filtered group %q has non-finite cost", group.Name)
+			return nil, fmt.Errorf("render cost report: filtered group %q has non-finite cost", group.Name)
 		}
 		if view.SubscriptionMode {
 			id := strings.ToLower(group.SubscriptionID)
 			if _, exists := subscriptions[id]; !exists {
-				return fmt.Errorf("render cost report: filtered group %q has unknown subscription %q", group.Name, group.SubscriptionID)
+				return nil, fmt.Errorf("render cost report: filtered group %q has unknown subscription %q", group.Name, group.SubscriptionID)
 			}
 			excluded[id] += group.CostUSD
 			// Recorded exclusions establish a known retained zero even if nothing remains.
@@ -176,11 +247,11 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	}
 	for gi, group := range snapshot.Groups {
 		if (view.SubscriptionMode && group.Category != "Residual") || (!view.SubscriptionMode && group.Category != "Infra" && group.Category != "Tests") {
-			return fmt.Errorf("render cost report: group %q has invalid category %q", group.Name, group.Category)
+			return nil, fmt.Errorf("render cost report: group %q has invalid category %q", group.Name, group.Category)
 		}
 		if view.SubscriptionMode {
 			if _, exists := subscriptions[strings.ToLower(group.SubscriptionID)]; !exists {
-				return fmt.Errorf("render cost report: group %q has unknown subscription %q", group.Name, group.SubscriptionID)
+				return nil, fmt.Errorf("render cost report: group %q has unknown subscription %q", group.Name, group.SubscriptionID)
 			}
 		}
 		switch group.BillingStatus {
@@ -188,7 +259,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 		case "", "pending", "partial", "unavailable":
 			view.Incomplete = true
 		default:
-			return fmt.Errorf("render cost report: group %q has invalid billing status %q", group.Name, group.BillingStatus)
+			return nil, fmt.Errorf("render cost report: group %q has invalid billing status %q", group.Name, group.BillingStatus)
 		}
 		inventory := reportGroup{Group: group}
 		owner := group.Owner
@@ -220,10 +291,10 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 			}
 			for ci, charge := range resource.Charges {
 				if math.IsNaN(charge.CostUSD) || math.IsInf(charge.CostUSD, 0) {
-					return fmt.Errorf("render cost report: group %q resource %q charge %d has non-finite cost", group.Name, resource.Name, ci)
+					return nil, fmt.Errorf("render cost report: group %q resource %q charge %d has non-finite cost", group.Name, resource.Name, ci)
 				}
 				if _, err := time.Parse(time.DateOnly, charge.Day); err != nil {
-					return fmt.Errorf("render cost report: group %q resource %q invalid usage day %q: %w", group.Name, resource.Name, charge.Day, err)
+					return nil, fmt.Errorf("render cost report: group %q resource %q invalid usage day %q: %w", group.Name, resource.Name, charge.Day, err)
 				}
 				row.Net += charge.CostUSD
 				if finishDay != "" && charge.Day > finishDay {
@@ -298,14 +369,14 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 				// Allow floating-point accumulation noise, not missing accounting rows.
 				tolerance := 1e-6 + 1e-9*math.Max(math.Abs(pair[0]), math.Abs(pair[1]))
 				if math.IsNaN(pair[1]) || math.IsInf(pair[1], 0) || math.Abs(pair[0]-pair[1]) > tolerance {
-					return fmt.Errorf("render cost report: subscription %q reconciliation mismatch (%g vs %g)", sub.ID, pair[0], pair[1])
+					return nil, fmt.Errorf("render cost report: subscription %q reconciliation mismatch (%g vs %g)", sub.ID, pair[0], pair[1])
 				}
 			}
 		}
 	}
 	for _, total := range []float64{view.Positive, view.Negative, view.Net, view.PostJobNet} {
 		if math.IsNaN(total) || math.IsInf(total, 0) {
-			return fmt.Errorf("render cost report: cost totals overflow")
+			return nil, fmt.Errorf("render cost report: cost totals overflow")
 		}
 	}
 	job := snapshot.Job
@@ -315,7 +386,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	if !view.SubscriptionMode && view.HasCharges && !job.InfraStartedAt.IsZero() && !job.InfraEndedAt.IsZero() && job.InfraEndedAt.After(job.InfraStartedAt) {
 		rate := view.Net / job.InfraEndedAt.Sub(job.InfraStartedAt).Hours()
 		if !math.IsInf(rate, 0) && !math.IsNaN(rate) {
-			view.InfraRate = fmt.Sprintf("$%.4f", rate)
+			view.InfraRate = formatUSD(rate)
 		}
 	}
 	chart := charts.NewTreeMap()
@@ -332,7 +403,7 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	// trusted configuration; add snapshot strings afterward via encoding/json.
 	var option map[string]any
 	if err := json.Unmarshal([]byte(chart.RenderSnippet().Option), &option); err != nil {
-		return fmt.Errorf("render cost report: decode chart options: %w", err)
+		return nil, fmt.Errorf("render cost report: decode chart options: %w", err)
 	}
 	series := option["series"].([]any)[0].(map[string]any)
 	series["data"] = root.Children
@@ -341,60 +412,34 @@ func Render(w io.Writer, snapshot *Snapshot) error {
 	option["color"] = []string{"#287d8e", "#5967a8", "#709653", "#b88040", "#9e6389"}
 	encoded, err := json.Marshal(option)
 	if err != nil {
-		return fmt.Errorf("render cost report: encode chart options: %w", err)
+		return nil, fmt.Errorf("render cost report: encode chart options: %w", err)
 	}
 	// json.Marshal escapes '<', '>', '&', and JS line separators, including any
 	// user-supplied closing script tag. Only the pinned runtime is trusted code.
 	view.Option = template.JS(encoded)
 	typeData, err := json.Marshal(typesRoot.Children)
 	if err != nil {
-		return fmt.Errorf("render cost report: encode resource types: %w", err)
+		return nil, fmt.Errorf("render cost report: encode resource types: %w", err)
 	}
 	view.TypeData = template.JS(typeData)
 	inventoryData, err := json.Marshal(view.Inventory)
 	if err != nil {
-		return fmt.Errorf("render cost report: encode inventory: %w", err)
+		return nil, fmt.Errorf("render cost report: encode inventory: %w", err)
 	}
 	view.InventoryData = template.JS(inventoryData)
 	if view.SubscriptionMode {
 		filteredData, err := json.Marshal(snapshot.FilteredGroups)
 		if err != nil {
-			return fmt.Errorf("render cost report: encode filtered groups: %w", err)
+			return nil, fmt.Errorf("render cost report: encode filtered groups: %w", err)
 		}
 		view.FilteredData = template.JS(filteredData)
 		subscriptionData, err := json.Marshal(snapshot.Subscriptions)
 		if err != nil {
-			return fmt.Errorf("render cost report: encode subscriptions: %w", err)
+			return nil, fmt.Errorf("render cost report: encode subscriptions: %w", err)
 		}
 		view.SubscriptionData = template.JS(subscriptionData)
 	}
-	view.Runtime = template.JS(echartsRuntime)
-	tmpl, err := template.New("report").Funcs(template.FuncMap{
-		"usd": func(v float64) string { return fmt.Sprintf("$%.4f", v) },
-		"utc": func(t time.Time) string {
-			if t.IsZero() {
-				return "Unavailable"
-			}
-			return t.UTC().Format("2006-01-02 15:04:05 UTC")
-		},
-		"known": func(s string) string {
-			if s == "" {
-				return "Unknown"
-			}
-			return s
-		},
-	}).Parse(reportTemplate)
-	if err != nil {
-		return fmt.Errorf("render cost report: parse template: %w", err)
-	}
-	var output bytes.Buffer
-	if err := tmpl.Execute(&output, view); err != nil {
-		return fmt.Errorf("render cost report: execute template: %w", err)
-	}
-	if _, err := output.WriteTo(w); err != nil {
-		return fmt.Errorf("render cost report: write: %w", err)
-	}
-	return nil
+	return &view, nil
 }
 
 func childCostNode(parent *costNode, name string) *costNode {

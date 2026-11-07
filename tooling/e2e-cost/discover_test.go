@@ -90,8 +90,8 @@ func discoveryFixture() map[string][]byte {
 		"artifacts/ci-operator-metrics.json": []byte(`{"pods":[{"pod_name":"e2e-parallel-aro-hcp-provision-environment","start_time":"2026-09-17T10:59:44Z"},{"pod_name":"e2e-parallel-aro-hcp-deprovision-tracked-resource-groups","completion_time":"2026-09-17T12:34:16Z"},{"pod_name":"e2e-parallel-aro-hcp-deprovision-environment","completion_time":"2026-09-17T12:44:41Z"}]}`),
 		"artifacts/e2e-parallel/aro-hcp-provision-environment/artifacts/config.yaml":      []byte("regionRG: run\nsvc:\n  rg: run-svc\n  subscription: {key: XXXXXXXXXXXXXXXXXXXX}\nmgmt:\n  rg: run-mgmt-1\n  subscription: {key: REDACTED}\nglobal: {rg: global}\nkusto: {rg: shared-kusto}\n"),
 		"artifacts/e2e-parallel/aro-hcp-gather-visualization/artifacts/timing/steps.yaml": []byte("- details:\n    arm:\n      operations:\n      - resource: {resourceGroup: run-mgmt-2, name: aks, resourceType: Microsoft.ContainerService/managedClusters}\n      - resource: {resourceGroup: global, name: shared, resourceType: Microsoft.Storage/storageAccounts}\n"),
-		testArtifactPrefix + "identities-pool-state.yaml":                                 []byte("- resourceGroup: aro-hcp-msi-container-dev-shard0-02-01\n- resourceGroup: arbitrary-shared-pool\n"),
-		testArtifactPrefix + "test-timing/one.yaml":                                       []byte("identifier: [Customer, creates clusters]\nsubscriptionID: " + discoveryTestSub + "\n"),
+		devTestArtifactPrefix + "identities-pool-state.yaml":                              []byte("- resourceGroup: aro-hcp-msi-container-dev-shard0-02-01\n- resourceGroup: arbitrary-shared-pool\n"),
+		devTestArtifactPrefix + "test-timing/one.yaml":                                    []byte("identifier: [Customer, creates clusters]\nsubscriptionID: " + discoveryTestSub + "\n"),
 	}
 }
 
@@ -101,7 +101,7 @@ func discoveryResults(t *testing.T, objects map[string][]byte, results ...map[st
 	if err != nil {
 		t.Fatal(err)
 	}
-	objects[testArtifactPrefix+"extension_test_result_e2e_20260917.json"] = body
+	objects[devTestArtifactPrefix+"extension_test_result_e2e_20260917.json"] = body
 }
 
 func discoveryNow() time.Time {
@@ -141,7 +141,7 @@ deployments:
     - resource: {resourceGroup: unowned, name: unknown, resourceType: Microsoft.Storage/storageAccounts}
 `))
 	_ = w.Close()
-	objects[testArtifactPrefix+"test-timing/one.yaml"] = compressed.Bytes()
+	objects[devTestArtifactPrefix+"test-timing/one.yaml"] = compressed.Bytes()
 	discoveryResults(t, objects,
 		map[string]any{"name": "Customer creates clusters", "result": "failed", "output": `"msg"="creating resource group" "resourceGroup"="Customer-RG"
 "msg"="Starting HCP cluster creation" "resourceGroup"="Customer-RG" "clusterName"="one"
@@ -154,14 +154,14 @@ deployments:
 "msg"="derived DNS zone" "resourceGroup"="dns-managed" "resourceID"="/subscriptions/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/resourceGroups/dns-managed/providers/Microsoft.Network/dnsZones/test.example.com"
 `},
 		map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="customer-rg"`})
-	objects[testArtifactPrefix+"resourcegroups/Customer-RG/deployments.yaml"] = []byte(`- properties:
+	objects[devTestArtifactPrefix+"resourcegroups/Customer-RG/deployments.yaml"] = []byte(`- properties:
     parameters:
       managedResourceGroupName: {value: fourth-managed}
     outputResources:
     - id: /subscriptions/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/resourceGroups/Customer-RG/providers/Microsoft.Network/virtualNetworks/vnet
     - id: /subscriptions/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/resourceGroups/arbitrary-shared-pool/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service
 `)
-	objects[testArtifactPrefix+"resourcegroups/directory-only/deployments.yaml"] = []byte(`- id: /subscriptions/` + discoveryTestSub + `/resourceGroups/directory-only/providers/Microsoft.Compute/virtualMachines/not-owned`)
+	objects[devTestArtifactPrefix+"resourcegroups/directory-only/deployments.yaml"] = []byte(`- id: /subscriptions/` + discoveryTestSub + `/resourceGroups/directory-only/providers/Microsoft.Compute/virtualMachines/not-owned`)
 	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 	if s.QueryStart != "2026-09-17" || s.QueryEnd != "2026-09-18" {
 		t.Fatalf("wrong frozen days: %s %s", s.QueryStart, s.QueryEnd)
@@ -207,7 +207,7 @@ deployments:
 
 func TestDiscoverMissingSubscriptionAndManagedMapping(t *testing.T) {
 	objects := discoveryFixture()
-	objects[testArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n")
+	objects[devTestArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n")
 	// The gathered copy must not repair the original subscription.
 	objects["artifacts/e2e-parallel/aro-hcp-gather-test-visualization/artifacts/test-timing/one.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: " + discoveryTestSub + "\n")
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"
@@ -229,7 +229,7 @@ func TestDiscoverMissingSubscriptionAndManagedMapping(t *testing.T) {
 
 func TestDiscoverOwnershipConflict(t *testing.T) {
 	objects := discoveryFixture()
-	objects[testArtifactPrefix+"test-timing/two.yaml"] = []byte("identifier: [Other, test]\nsubscriptionID: " + strings.ToUpper(discoveryTestSub) + "\n")
+	objects[devTestArtifactPrefix+"test-timing/two.yaml"] = []byte("identifier: [Other, test]\nsubscriptionID: " + strings.ToUpper(discoveryTestSub) + "\n")
 	discoveryResults(t, objects,
 		map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="same-RG"`},
 		map[string]any{"name": "Other test", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="SAME-rg"`})
@@ -260,7 +260,7 @@ func TestDiscoverMalformedArtifactsRetainPartialGroups(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects := discoveryFixture()
-			objects[testArtifactPrefix+"test-timing/broken.yaml"] = tc.body
+			objects[devTestArtifactPrefix+"test-timing/broken.yaml"] = tc.body
 			discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="retained"`})
 			s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 			findDiscoveryGroup(t, s, "retained")
@@ -272,7 +272,7 @@ func TestDiscoverMalformedArtifactsRetainPartialGroups(t *testing.T) {
 }
 
 func TestDiscoverURLValidation(t *testing.T) {
-	for _, input := range []string{"", "https://example.com/" + discoveryTestPrefix, strings.Replace(discoveryTestURL, "e2e-parallel", "e2e", 1), discoveryTestURL + "?foo=bar", discoveryTestURL + "../", strings.Replace(discoveryTestURL, discoveryBucket, "private-bucket", 1)} {
+	for _, input := range []string{"", "https://example.com/" + discoveryTestPrefix, strings.Replace(discoveryTestURL, "e2e-parallel", "unit", 1), discoveryTestURL + "?foo=bar", discoveryTestURL + "../", strings.Replace(discoveryTestURL, discoveryBucket, "private-bucket", 1)} {
 		t.Run(input, func(t *testing.T) {
 			client := &http.Client{Transport: discoveryTransport(func(*http.Request) (*http.Response, error) {
 				t.Fatal("invalid URL performed network request")
@@ -331,11 +331,11 @@ func TestDiscoverSixtySharedGroupsAndClusterParameters(t *testing.T) {
 		excluded = append(excluded, rg)
 		fmt.Fprintf(&pool, "- resourceGroup: %s\n", rg)
 		fmt.Fprintf(&deployments, "- id: /subscriptions/XXXX/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service\n", rg)
-		objects[testArtifactPrefix+"resourcegroups/"+rg+"/deployments.yaml"] = []byte("[]")
+		objects[devTestArtifactPrefix+"resourcegroups/"+rg+"/deployments.yaml"] = []byte("[]")
 	}
-	objects[testArtifactPrefix+"identities-pool-state.yaml"] = []byte(pool.String())
-	objects[testArtifactPrefix+"resourcegroups/test-rg/deployments.yaml"] = []byte(deployments.String())
-	objects[testArtifactPrefix+"Customer_creates_clusters/cluster-params.json"] = []byte(`{"managedResourceGroupName":"nonconventional-managed-name"}`)
+	objects[devTestArtifactPrefix+"identities-pool-state.yaml"] = []byte(pool.String())
+	objects[devTestArtifactPrefix+"resourcegroups/test-rg/deployments.yaml"] = []byte(deployments.String())
+	objects[devTestArtifactPrefix+"Customer_creates_clusters/cluster-params.json"] = []byte(`{"managedResourceGroupName":"nonconventional-managed-name"}`)
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"
 "msg"="Starting HCP cluster creation" "resourceGroup"="test-rg" "clusterName"="one"`})
 	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
@@ -369,15 +369,15 @@ func TestDiscoverParameterDirectoryOwnership(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects := discoveryFixture()
-			delete(objects, testArtifactPrefix+"test-timing/one.yaml")
+			delete(objects, devTestArtifactPrefix+"test-timing/one.yaml")
 			var results []map[string]any
 			for i, owner := range tc.owners {
 				// JSON is also valid YAML, with the exact identifier preserved.
-				objects[fmt.Sprintf("%stest-timing/%d.yaml", testArtifactPrefix, i)], _ = json.Marshal(map[string]any{"identifier": []string{owner}, "subscriptionID": discoveryTestSub})
+				objects[fmt.Sprintf("%stest-timing/%d.yaml", devTestArtifactPrefix, i)], _ = json.Marshal(map[string]any{"identifier": []string{owner}, "subscriptionID": discoveryTestSub})
 				results = append(results, map[string]any{"name": owner, "result": "passed", "output": ""})
 			}
 			discoveryResults(t, objects, results...)
-			objects[testArtifactPrefix+tc.directory+"/cluster-params.json"] = []byte(`{"managedResourceGroupName":"exact-managed"}`)
+			objects[devTestArtifactPrefix+tc.directory+"/cluster-params.json"] = []byte(`{"managedResourceGroupName":"exact-managed"}`)
 			s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 			gotOwner := ""
 			for _, g := range s.Groups {
@@ -394,8 +394,8 @@ func TestDiscoverParameterDirectoryOwnership(t *testing.T) {
 
 func TestDiscoverExportsExclusionsOnPartialAndEarlyReturn(t *testing.T) {
 	objects := discoveryFixture()
-	objects[testArtifactPrefix+"identities-pool-state.yaml"] = []byte("- resourceGroup: MIXED-Shared\n- resourceGroup: mixed-shared\n")
-	objects[testArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [broken")
+	objects[devTestArtifactPrefix+"identities-pool-state.yaml"] = []byte("- resourceGroup: MIXED-Shared\n- resourceGroup: mixed-shared\n")
+	objects[devTestArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [broken")
 	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 	if !slices.Equal(s.ExcludedGroups, []string{"global", "mixed-shared", "shared-kusto"}) || !hasDiscoveryDiagnostic(s, "artifact-format") {
 		t.Fatalf("partial discovery lost sorted, normalized exclusions: %+v", s)
@@ -408,7 +408,7 @@ func TestDiscoverExportsExclusionsOnPartialAndEarlyReturn(t *testing.T) {
 
 func TestDiscoverConflictingTimingSubscriptions(t *testing.T) {
 	objects := discoveryFixture()
-	objects[testArtifactPrefix+"test-timing/duplicate.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: 11111111-1111-1111-1111-111111111111\n")
+	objects[devTestArtifactPrefix+"test-timing/duplicate.yaml"] = []byte("identifier: [Customer, creates clusters]\nsubscriptionID: 11111111-1111-1111-1111-111111111111\n")
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "passed", "output": `"msg"="creating resource group" "resourceGroup"="test-rg"`})
 	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 	if g := findDiscoveryGroup(t, s, "test-rg"); g.SubscriptionID != "" || g.BillingStatus != "unavailable" {
@@ -441,7 +441,7 @@ func TestDiscoverMissingRootsAndMalformedJSON(t *testing.T) {
 	objects := discoveryFixture()
 	delete(objects, "started.json")
 	objects["finished.json"] = []byte(`{"timestamp":"invalid"}`)
-	objects[testArtifactPrefix+"extension_test_result_e2e_bad.json"] = []byte(`[{invalid`)
+	objects[devTestArtifactPrefix+"extension_test_result_e2e_bad.json"] = []byte(`[{invalid`)
 	s := Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
 	findDiscoveryGroup(t, s, "run")
 	if s.QueryStart != "" || !s.Job.StartedAt.IsZero() || !s.Job.FinishedAt.IsZero() {
@@ -498,13 +498,13 @@ func TestDiscoverLive(t *testing.T) {
 func TestDiscoverExactClusterArtifactsAndRejectedCreations(t *testing.T) {
 	objects := discoveryFixture()
 	owner := "Customer creates clusters: two, not three"
-	objects[testArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [Customer, 'creates clusters: two, not three']\nsubscriptionID: " + discoveryTestSub + "\nsteps:\n- name: Deploy HCP cluster customer/one (v20251223preview)\n")
+	objects[devTestArtifactPrefix+"test-timing/one.yaml"] = []byte("identifier: [Customer, 'creates clusters: two, not three']\nsubscriptionID: " + discoveryTestSub + "\nsteps:\n- name: Deploy HCP cluster customer/one (v20251223preview)\n")
 	output := `"msg"="creating resource group" "resourceGroup"="customer"
 "msg"="Starting HCP cluster creation (v20251223preview)" "resourceGroup"="customer" "clusterName"="one"
 "msg"="Starting HCP cluster creation" "resourceGroup"="customer" "clusterName"="two"
 "msg"="Starting HCP cluster creation" "resourceGroup"="customer" "clusterName"="three"`
 	discoveryResults(t, objects, map[string]any{"name": owner, "result": "passed", "output": output})
-	dir := testArtifactPrefix + "Customer_creates_clusters__two,_not_three/"
+	dir := devTestArtifactPrefix + "Customer_creates_clusters__two,_not_three/"
 	objects[dir+"inspect-one/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"] = []byte(`kind: InfrastructureList
 items:
 - apiVersion: config.openshift.io/v1
