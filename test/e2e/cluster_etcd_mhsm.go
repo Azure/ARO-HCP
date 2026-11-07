@@ -38,6 +38,7 @@ import (
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
@@ -164,8 +165,13 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyClient, err := azkeys.NewClient(mhsmURL, cred, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Managed HSM key client")
 
-			createKeyVersion := func() string {
+			createKeyVersion := func(label string) string {
 				var keyID string
+				var operationErr error
+				createStart := time.Now()
+				defer func() {
+					tc.RecordTestOperation(timing.KindDataPlaneKey, fmt.Sprintf("Create Managed HSM key version (%s)", label), createStart, time.Now(), operationErr)
+				}()
 				Eventually(func() error {
 					createKeyResp, createErr := keyClient.CreateKey(ctx, keyName, azkeys.CreateKeyParameters{
 						Kty:     to.Ptr(azkeys.KeyTypeRSAHSM),
@@ -173,12 +179,15 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 						KeyOps:  []*azkeys.KeyOperation{to.Ptr(azkeys.KeyOperationEncrypt), to.Ptr(azkeys.KeyOperationDecrypt), to.Ptr(azkeys.KeyOperationWrapKey), to.Ptr(azkeys.KeyOperationUnwrapKey)},
 					}, nil)
 					if createErr != nil {
+						operationErr = createErr
 						return createErr
 					}
 					if createKeyResp.Key == nil || createKeyResp.Key.KID == nil {
-						return fmt.Errorf("created key response was missing key ID")
+						operationErr = fmt.Errorf("created key response was missing key ID")
+						return operationErr
 					}
 					keyID = string(*createKeyResp.Key.KID)
+					operationErr = nil
 					return nil
 				}, 10*time.Minute, 15*time.Second).Should(Succeed(), "failed to create Managed HSM key version (mHSM RBAC may still be propagating)")
 				Expect(keyID).NotTo(BeEmpty(), "created key ID was empty")
@@ -186,7 +195,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			}
 
 			By("creating the initial key in the Managed HSM")
-			keyID := createKeyVersion()
+			keyID := createKeyVersion("initial")
 			GinkgoLogr.Info("Managed HSM key created",
 				"hsmName", hsmName,
 				"keyName", keyName,
@@ -197,7 +206,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to parse key version from key ID %q", keyID)
 
 			By("creating a second key version in the Managed HSM for the rotation")
-			secondKeyVersion, _, err := parseMHSMKeyIDComponents(createKeyVersion())
+			secondKeyVersion, _, err := parseMHSMKeyIDComponents(createKeyVersion("rotation"))
 			Expect(err).NotTo(HaveOccurred(), "failed to parse second key version")
 			Expect(secondKeyVersion).NotTo(BeEmpty(), "second key version was empty")
 			Expect(secondKeyVersion).NotTo(Equal(keyVersion), "second key version should differ from the initial version")
