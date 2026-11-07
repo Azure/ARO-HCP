@@ -65,17 +65,20 @@ func NewCertificateClient(client azureCertificateClient, options ...CertificateC
 // ErrCertificateNotFound identifies a missing Key Vault certificate.
 var ErrCertificateNotFound = errors.New("certificate not found in Key Vault")
 
-func (c *certificateClient) GetCertificate(ctx context.Context, name string) ([]byte, error) {
+func (c *certificateClient) GetCertificate(ctx context.Context, name string) (Certificate, error) {
 	response, err := c.client.GetCertificate(ctx, name, "", nil)
 	if err == nil {
-		return response.CER, nil
+		if response.Attributes == nil || response.Attributes.Expires == nil {
+			return Certificate{}, fmt.Errorf("certificate %q in Key Vault has no expiry", name)
+		}
+		return Certificate{CER: response.CER, NotAfter: *response.Attributes.Expires}, nil
 	}
 
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("%w: %s", ErrCertificateNotFound, name)
+		return Certificate{}, fmt.Errorf("%w: %s", ErrCertificateNotFound, name)
 	}
-	return nil, fmt.Errorf("get certificate: %w", err)
+	return Certificate{}, fmt.Errorf("get certificate: %w", err)
 }
 
 func (c *certificateClient) CreateCertificate(ctx context.Context, name, dnsName string, previousCertificate []byte) ([]byte, error) {
@@ -105,10 +108,10 @@ func (c *certificateClient) CreateCertificate(ctx context.Context, name, dnsName
 		case err != nil:
 			return false, err
 		}
-		if len(current) == 0 || bytes.Equal(current, previousCertificate) {
+		if len(current.CER) == 0 || bytes.Equal(current.CER, previousCertificate) {
 			return false, nil
 		}
-		certificate = current
+		certificate = current.CER
 		return true, nil
 	})
 	if err != nil {

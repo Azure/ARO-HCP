@@ -54,7 +54,7 @@ have their credentials in Key Vault. For each `--mapping
 'application;<prefix>-client-secret'` it stores three secrets, each only when
 missing: `<prefix>-client-secret` (minted with `addPassword`, valid for two
 years), `<prefix>-client-id` and `<prefix>-tenant-id`. An existing secret is
-never regenerated or overwritten; rotation is a separate, deliberate operation.
+never regenerated or overwritten unless `--rotate` is given.
 
 ```bash
 AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret \
@@ -71,6 +71,60 @@ idempotent, and only warns if consent cannot be granted (it usually needs a
 tenant admin), so the secrets are still reconciled. Use `--dry-run`
 to see what would change.
 
+### Expiry and rotation
+
+Every run checks the stored client secret. Graph never returns secret values,
+only the first three characters (the `hint`), so the tool finds the application
+credential the stored secret was minted from by matching that hint and reads its
+end date:
+
+- expired, or matching no credential of the application (deleted or replaced
+  outside Key Vault): the run **fails**, with or without `--dry-run`. The other
+  secrets and consent of that application are still reconciled first, and the
+  error prints the `--rotate` command for the mapping;
+- expiring within `--expiry-warning` (default 90 days, `0` to only report
+  expired secrets): a `WARNING` is logged and the run succeeds.
+
+`--rotate` mints a new client secret for every `--mapping` and stores it as a
+new Key Vault secret version, even if a valid one exists. The client ID, tenant
+ID and the application's existing credentials are left alone, so the old secret
+keeps working until it expires or is deleted. `--dry-run --rotate` changes
+nothing and never fails on expiry: it reports the current expiry (warning if
+expired or expiring) and that it would rotate, which is the way to check a
+principal without knowing whether it needs rotation.
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret \
+  --vault-url https://example.vault.azure.net \
+  --mapping 'application-name;prefix-client-secret' \
+  --rotate
+```
+
+`pin` applies the same policy to Key Vault certificates, using the expiry Key
+Vault reports: an expired certificate fails the run, one expiring within
+`--expiry-warning` warns, and `--dry-run --rotate` only reports. `--rotate`
+without `--dry-run` replaces the certificate, so no expiry check applies.
+
 The caller needs secret read/write access on the Key Vault and permission to
-add credentials to the applications and, with `--grant-consent`, to grant
+read and add credentials to the applications and, with `--grant-consent`, to grant
 admin consent in the tenant.
+
+## Owner drift check
+
+`check-owners` compares a configured, comma-separated list of owner object IDs
+with the members of an Entra group (nested groups included) and fails when they
+differ. It exists because the Entra owner lists are applied with `replace`
+semantics: an ID that no longer exists (for example a deleted account) makes
+Microsoft Graph reject the whole owner update with an opaque `BadRequest`, and a
+group member missing from the list is silently removed as an owner. The failure
+lists the IDs to remove, with the reason (deleted account, not in the group,
+unknown), and the group members to add.
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials check-owners \
+  --group-id <group-object-id> \
+  --owner-ids <id>,<id>
+```
+
+The caller needs permission to read the group's members and to look up directory
+objects, which every member user has by default.

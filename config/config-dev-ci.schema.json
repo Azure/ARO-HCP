@@ -97,6 +97,11 @@
           "minLength": 1,
           "description": "Comma-separated Entra object IDs that own CI-managed applications and service principals"
         },
+        "entraAppOwnersGroupId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Object ID of the Entra group (aro-hcp-owners) whose members entraAppOwnerIds must list"
+        },
         "global": {
           "type": "object",
           "properties": {
