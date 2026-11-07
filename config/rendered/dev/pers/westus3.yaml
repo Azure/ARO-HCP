@@ -856,6 +856,7 @@ mise:
     digest: ""
     registry: empty-sentinel
     repository: mise-1p-container-image
+  manageEntraApp: true
   sessiongate:
     audience: 6dae42f8-4368-4678-94ff-3960e28e3630
     authorityFQDN: sts.windows.net
