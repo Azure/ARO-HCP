@@ -19,10 +19,10 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 // Retain the existing desire names so ownership transfers in place from ClusterResources.

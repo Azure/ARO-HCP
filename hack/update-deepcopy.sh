@@ -28,11 +28,11 @@ DEEPCOPY_GEN="${DEEPCOPY_GEN:-deepcopy-gen}"
 "${DEEPCOPY_GEN}" \
   --output-file zz_generated.deepcopy.go \
   --go-header-file "${REPO_ROOT}/hack/boilerplate.go.txt" \
-  github.com/Azure/ARO-HCP/internal/api/metadataapi \
-  github.com/Azure/ARO-HCP/internal/api/coreapi \
-  github.com/Azure/ARO-HCP/internal/api/fleetapi \
-  github.com/Azure/ARO-HCP/internal/api/kubeapplierapi \
-  github.com/Azure/ARO-HCP/internal/api/azureresourcesapi
+  github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi \
+  github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi \
+  github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi \
+  github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi \
+  github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/azureresourcesapi
 
 # Post-process generated files.
 #
@@ -47,11 +47,11 @@ DEEPCOPY_GEN="${DEEPCOPY_GEN:-deepcopy-gen}"
 # The "any" interface also gets an erroneous .DeepCopyany() call which we
 # replace with a direct assignment.
 for f in \
-  "${REPO_ROOT}/internal/api/metadataapi/zz_generated.deepcopy.go" \
-  "${REPO_ROOT}/internal/api/coreapi/zz_generated.deepcopy.go" \
-  "${REPO_ROOT}/internal/api/fleetapi/zz_generated.deepcopy.go" \
-  "${REPO_ROOT}/internal/api/kubeapplierapi/zz_generated.deepcopy.go" \
-  "${REPO_ROOT}/internal/api/azureresourcesapi/zz_generated.deepcopy.go"; do
+  "${REPO_ROOT}/arohcp-cosmos-client/api/metadataapi/zz_generated.deepcopy.go" \
+  "${REPO_ROOT}/arohcp-cosmos-client/api/coreapi/zz_generated.deepcopy.go" \
+  "${REPO_ROOT}/arohcp-cosmos-client/api/fleetapi/zz_generated.deepcopy.go" \
+  "${REPO_ROOT}/arohcp-cosmos-client/api/kubeapplierapi/zz_generated.deepcopy.go" \
+  "${REPO_ROOT}/arohcp-cosmos-client/api/azureresourcesapi/zz_generated.deepcopy.go"; do
 
   if [[ ! -f "${f}" ]]; then
     continue

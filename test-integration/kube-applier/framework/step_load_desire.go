@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 

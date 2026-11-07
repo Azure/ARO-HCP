@@ -26,10 +26,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
 )
 
 func TestMockCosmosLoadContent(t *testing.T) {

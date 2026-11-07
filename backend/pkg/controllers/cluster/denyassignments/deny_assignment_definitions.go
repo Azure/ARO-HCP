@@ -17,10 +17,10 @@ package denyassignments
 import (
 	"fmt"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 )
 
 const (

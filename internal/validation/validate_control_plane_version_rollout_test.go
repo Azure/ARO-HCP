@@ -22,9 +22,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 )
 
 func TestValidateControlPlaneVersionRollout(t *testing.T) {

@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
 )
 
 type ContextError struct {

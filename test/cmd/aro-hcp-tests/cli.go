@@ -32,7 +32,7 @@ import (
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	// If using ginkgo, import your tests here
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"

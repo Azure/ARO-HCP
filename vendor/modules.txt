@@ -57,6 +57,8 @@ cloud.google.com/go/storage/internal/apiv2/storagepb
 dario.cat/mergo
 # github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000 => ./admin/server
 ## explicit; go 1.26.0
+# github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000 => ./arohcp-cosmos-client
+## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/backend v0.0.0-20260311085015-c7296038bf8f => ./backend
 ## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58 => ./backend

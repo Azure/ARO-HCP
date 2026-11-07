@@ -39,7 +39,7 @@ Before making any changes, read the codebase to find current registration points
 - **Cross-version test constants**: Search for the previous version's dash-separated string in `test-integration/` test files
 - **Version compliance fixtures**: Find `artifacts/VersionCompliance/` under `test-integration/` and list its `expected/` directories
 - **Defaults consistency test**: Search for `TestEnsureDefaultsConsistency` and find where previous versions are tested
-- **OpenAPI spec path in defaults test**: Search for `openapi.json` in `internal/api/defaults_test.go` or similar
+- **OpenAPI spec path in defaults test**: Search for `openapi.json` in `arohcp-cosmos-client/api/coreapi/defaults_test.go` or similar
 - **E2E framework helpers**: Search for version-suffixed functions like `CreateHCPClusterFromParam` + PREV_PKG in `test/util/framework/`
 - **E2E test files**: Find `cluster_create_` + PREV_PKG files in `test/e2e/`
 - **Import alias rules**: Check `.golangci.yml` for `importas` rules referencing SDK packages

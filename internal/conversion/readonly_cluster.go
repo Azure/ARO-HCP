@@ -14,7 +14,7 @@
 
 package conversion
 
-import "github.com/Azure/ARO-HCP/internal/api/coreapi"
+import "github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 
 func CopyReadOnlyTrackedResourceValues(dest, src *coreapi.TrackedResource) {
 	dest.ID = src.ID

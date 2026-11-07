@@ -28,10 +28,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
-	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/azureresourcesapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 )
 
 const (

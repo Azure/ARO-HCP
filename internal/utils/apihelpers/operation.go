@@ -17,7 +17,7 @@ package apihelpers
 import (
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 // CancelOperation updates relevant fields to indicate the operation is canceled.

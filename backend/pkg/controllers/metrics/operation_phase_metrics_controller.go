@@ -20,7 +20,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 

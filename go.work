@@ -3,6 +3,7 @@ go 1.26.0
 use (
 	./admin/client
 	./admin/server
+	./arohcp-cosmos-client
 	./backend
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/aks-cluster-create

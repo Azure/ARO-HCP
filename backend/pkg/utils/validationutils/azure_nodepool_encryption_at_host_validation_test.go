@@ -28,10 +28,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func newEncryptionAtHostTestNodePool(t *testing.T, enableEncryptionAtHost bool) *coreapi.NodePool {

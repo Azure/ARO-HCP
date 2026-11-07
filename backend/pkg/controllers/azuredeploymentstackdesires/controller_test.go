@@ -44,12 +44,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/azureresourcesapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/azureresourcescosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 )
 

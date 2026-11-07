@@ -24,9 +24,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 

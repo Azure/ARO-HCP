@@ -20,7 +20,7 @@ import (
 
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
