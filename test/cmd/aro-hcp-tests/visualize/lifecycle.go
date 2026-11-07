@@ -190,6 +190,18 @@ func timingColor(kind string) string {
 		return "#d97706"
 	case timing.KindResourceGroupCleanup:
 		return "#db2777"
+	case timing.KindUpdateCluster:
+		return "#7c3aed"
+	case timing.KindUpdateNodePool:
+		return "#6366f1"
+	case timing.KindDeleteResourceGroup:
+		return "#be123c"
+	case timing.KindConvergence:
+		return "#0891b2"
+	case timing.KindDataPlaneKey:
+		return "#4d7c0f"
+	case timing.KindTestStep:
+		return "#94a3b8"
 	case "phase":
 		return "#9333ea"
 	case "gap":
@@ -277,6 +289,11 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 		{Name: timing.KindCreateNodePool, Color: timingColor(timing.KindCreateNodePool)},
 		{Name: timing.KindDeleteCluster, Color: timingColor(timing.KindDeleteCluster)},
 		{Name: timing.KindResourceGroupCleanup, Color: timingColor(timing.KindResourceGroupCleanup)},
+		{Name: timing.KindUpdateCluster, Color: timingColor(timing.KindUpdateCluster)},
+		{Name: timing.KindUpdateNodePool, Color: timingColor(timing.KindUpdateNodePool)},
+		{Name: timing.KindDeleteResourceGroup, Color: timingColor(timing.KindDeleteResourceGroup)},
+		{Name: timing.KindConvergence, Color: timingColor(timing.KindConvergence)},
+		{Name: timing.KindDataPlaneKey, Color: timingColor(timing.KindDataPlaneKey)},
 		{Name: "Full cleanup", Color: timingColor("phase")},
 	}}
 	for _, item := range times {
@@ -301,7 +318,7 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 			summary.Other++
 			continue
 		}
-		for i := range summary.Rows[:4] {
+		for i := range summary.Rows[:len(summary.Rows)-1] {
 			for _, step := range item.Steps {
 				if step.Kind != summary.Rows[i].Name {
 					continue
@@ -332,9 +349,9 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 				}
 			}
 			if incomplete {
-				summary.Rows[4].Incomplete++
+				summary.Rows[len(summary.Rows)-1].Incomplete++
 			} else {
-				summary.Rows[4].add(item.FinishedAt.Sub(item.CleanupStartedAt))
+				summary.Rows[len(summary.Rows)-1].add(item.FinishedAt.Sub(item.CleanupStartedAt))
 			}
 		}
 	}

@@ -30,10 +30,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/types"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
 
@@ -155,6 +157,18 @@ func SetupAzureGlobalLoggerWithLogrLogger(logrLogger logr.Logger) {
 	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
 }
 
+// activeTestContext tracks the spec running in this process so package-level helpers can record spans.
+// Each spec executes in its own process, so a single pointer is unambiguous.
+var activeTestContext atomic.Pointer[perItOrDescribeTestContext]
+
+// RecordOperation records a logical operation span on the running spec, if any.
+// Package-level helpers use it because they do not receive the test context.
+func RecordOperation(kind, name string, startedAt, finishedAt time.Time, operationErr error) {
+	if tc := activeTestContext.Load(); tc != nil {
+		tc.RecordTestOperation(kind, name, startedAt, finishedAt, operationErr)
+	}
+}
+
 // NewTestContext creates a test context and registers its setup and lifecycle cleanup.
 func NewTestContext() *perItOrDescribeTestContext {
 	logDirPath := setupTestLogDir(artifactDir())
@@ -225,6 +239,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 		StartedAt: startedAt.Format(time.RFC3339Nano),
 	}}
 	tc.contextLock.Unlock()
+	activeTestContext.Store(tc)
 
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
 	// first-in-last-out order. This ensures that the framework instance
@@ -492,6 +507,10 @@ func runResourceGroupCleanup(
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.RecordTestStep("Collect debug info", startedAt, time.Now())
+	}()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 	tc.contextLock.RLock()
 	createdResourceGroups := slices.Clone(tc.knownResourceGroups)
@@ -1545,12 +1564,18 @@ func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string,
 
 // RunTimingPhase records a cleanup stage even when Ginkgo interrupts its callback.
 func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, name string, run func(context.Context)) {
-	startedAt := time.Now().Format(time.RFC3339Nano)
 	tc.contextLock.Lock()
+	startedAt := time.Now().Format(time.RFC3339Nano)
 	for i := range tc.timingMetadata.Phases {
 		if tc.timingMetadata.Phases[i].FinishedAt == "" {
 			tc.timingMetadata.Phases[i].FinishedAt = startedAt
 			tc.timingMetadata.Phases[i].Incomplete = true
+		}
+	}
+	// Chain phases so the framework's own dispatch overhead is not reported as uncovered time.
+	if len(tc.timingMetadata.Phases) > 0 {
+		if previous := tc.timingMetadata.Phases[len(tc.timingMetadata.Phases)-1].FinishedAt; previous != "" {
+			startedAt = previous
 		}
 	}
 	index := len(tc.timingMetadata.Phases)
@@ -1568,8 +1593,22 @@ func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, 
 		if tc.timingFinalized || tc.timingMetadata.Phases[index].FinishedAt != "" {
 			return
 		}
-		tc.timingMetadata.Phases[index].FinishedAt = time.Now().Format(time.RFC3339Nano)
-		tc.timingMetadata.Phases[index].Incomplete = !completed || ctx.Err() != nil
+		finishedAt := time.Now().Format(time.RFC3339Nano)
+		incomplete := !completed || ctx.Err() != nil
+		tc.timingMetadata.Phases[index].FinishedAt = finishedAt
+		tc.timingMetadata.Phases[index].Incomplete = incomplete
+		// The phase itself is harness work, so it is attributed rather than left uncovered.
+		phaseStep := timing.StepTimingMetadata{
+			Kind:       timing.KindTestStep,
+			Name:       name,
+			StartedAt:  tc.timingMetadata.Phases[index].StartedAt,
+			FinishedAt: finishedAt,
+			Incomplete: incomplete,
+		}
+		if !incomplete {
+			phaseStep.Outcome = timing.OutcomeSucceeded
+		}
+		tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, phaseStep)
 	}()
 	run(ctx)
 	completed = true
@@ -1577,6 +1616,10 @@ func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, 
 
 // HarvestDeploymentOperations fetches ARM evidence while deployment resources still exist.
 func (tc *perItOrDescribeTestContext) harvestDeploymentOperations(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.RecordTestStep("Harvest deployment operations", startedAt, time.Now())
+	}()
 	tc.contextLock.RLock()
 	deployments := slices.Clone(tc.knownDeployments)
 	tc.contextLock.RUnlock()
@@ -1616,13 +1659,54 @@ func (tc *perItOrDescribeTestContext) harvestDeploymentOperations(ctx context.Co
 	}
 }
 
+// recordTestStepSpans attributes every ginkgo By step and the framework setup to the test-work phase.
+func (tc *perItOrDescribeTestContext) recordTestStepSpans(report types.SpecReport) {
+	tc.contextLock.RLock()
+	phaseStart, startErr := time.Parse(time.RFC3339Nano, tc.timingMetadata.StartedAt)
+	phaseEnd := report.StartTime.Add(report.RunTime)
+	if len(tc.timingMetadata.Phases) > 0 {
+		if encoded := tc.timingMetadata.Phases[0].FinishedAt; encoded != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339Nano, encoded); parseErr == nil {
+				phaseEnd = parsed
+			}
+		}
+	}
+	tc.contextLock.RUnlock()
+	if startErr != nil || !phaseEnd.After(phaseStart) {
+		return
+	}
+	for _, span := range deriveTestStepSpans(report, phaseStart, phaseEnd) {
+		tc.RecordTestStep(span.name, span.startedAt, span.finishedAt)
+	}
+}
+
+// recordFinalizeSpan attributes the interval between the last phase and serialization to this function.
+func (tc *perItOrDescribeTestContext) recordFinalizeSpan(finishedAt time.Time) {
+	tc.contextLock.RLock()
+	startedAt := time.Time{}
+	for _, phase := range tc.timingMetadata.Phases {
+		if parsed, err := time.Parse(time.RFC3339Nano, phase.FinishedAt); err == nil && parsed.After(startedAt) {
+			startedAt = parsed
+		}
+	}
+	tc.contextLock.RUnlock()
+	if finishedAt.After(startedAt) {
+		tc.RecordTestStep("Finalize timing metadata", startedAt, finishedAt)
+	}
+}
+
 // CommitTimingMetadata serializes the final lifecycle using only cached, local state.
 func (tc *perItOrDescribeTestContext) commitTimingMetadata() {
 	ginkgo.GinkgoLogr.Info("Committing final timing metadata.")
+	report := ginkgo.CurrentSpecReport()
+	tc.recordTestStepSpans(report)
+	serializedAt := time.Now()
+	tc.recordFinalizeSpan(serializedAt)
+	activeTestContext.CompareAndSwap(tc, nil)
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()
 	tc.timingFinalized = true
-	finishedAt := time.Now().Format(time.RFC3339Nano)
+	finishedAt := serializedAt.Format(time.RFC3339Nano)
 	for i := range tc.timingMetadata.Phases {
 		if tc.timingMetadata.Phases[i].FinishedAt == "" {
 			tc.timingMetadata.Phases[i].FinishedAt = finishedAt
@@ -1631,7 +1715,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata() {
 	}
 	tc.timingMetadata.SubscriptionID = tc.subscriptionID
 	tc.timingMetadata.FinishedAt = finishedAt
-	tc.timingMetadata.Outcome = ginkgo.CurrentSpecReport().State.String()
+	tc.timingMetadata.Outcome = report.State.String()
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")
