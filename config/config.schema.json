@@ -2308,6 +2308,25 @@
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
+        "costReporting": {
+          "type": "object",
+          "description": "Managed identity used by the KustoCost reporter: Cost Management Reader and Reader on the global subscription, and Viewer on the Kusto databases.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create the identity and grant its access."
+            },
+            "identityName": {
+              "type": "string",
+              "description": "Name of the user-assigned managed identity, created in the global resource group."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "identityName"
+          ]
+        },
         "enableAutoScale": {
           "type": "boolean"
         },

@@ -117,6 +117,14 @@ resourceGroups:
     dependsOn:
     - resourceGroup: kusto-infra
       step: deploy
+  - name: kusto-cost-reporter-access
+    action: ARM
+    template: templates/kusto-cost-reporter-access.bicep
+    parameters: configurations/kusto-cost-reporter-access.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
   - name: action-groups
     action: ARM
     template: templates/geography-actiongroups.bicep
