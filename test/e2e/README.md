@@ -105,6 +105,48 @@ issuer specifications. Artifact-collection errors do not replace the test failur
 Collection is skipped when the per-test artifact directory is empty, including
 local runs without `ARTIFACT_DIR`.
 
+### DigiCert credentials for the Key Vault ingress-certificate test
+
+The Key Vault ingress-certificate test reads three files from `/var/run/digicert`:
+`account-id`, `api-key`, and `organization-id`. The API key is used as the Key Vault
+issuer password and for CertCentral domain validation. The organization ID must
+be a positive integer, and the organization must already be OV validated.
+
+Set `ARO_HCP_DIGICERT_CREDENTIALS_PATH` to use another directory for local runs.
+The test skips before provisioning resources if a credential file is missing.
+Unreadable or empty files, and invalid organization IDs, fail before provisioning.
+Trailing and leading whitespace is removed from each value.
+
+The DigiCert DNS precheck uses the runner's configured recursive resolver to
+verify the expected zone delegation and validation TXT token. CertCentral then
+performs the public DCV check before Key Vault requests the certificate. This
+allows local runs on networks that permit DNS through their configured resolver
+but block direct queries to external DNS servers on port 53.
+
+The test uses the pinned DigiCert root in `digicert-cas/` for both TLS Secret
+validation and HTTPS application probes, independent of the runner's CA bundle.
+The root's SHA-256 is checked against [DigiCert's published fingerprint](https://knowledge.digicert.com/general-information/digicert-trusted-root-authority-certificates)
+by a unit test. The current Key Vault integration issues through the legacy
+`DigiCert High Assurance EV Root CA`, removed from Mozilla and Chrome trust stores
+in April 2026. These checks validate DigiCert issuance, certificate delivery, and
+rotation; they do not establish public browser trust. For public trust, configure
+the CertCentral product to issue through a current chain and update the pinned
+test roots to match. See [DigiCert's chain selection guide](https://knowledge.digicert.com/general-information/digicert-g5-root-and-intermediate-ca-certificate-update).
+
+For CI, store each value as a separate field in a `digicert` group and add this
+entry to the `credentials` list of the step running `aro-hcp-tests` in
+`openshift/release`, replacing `YOUR_COLLECTION` with the team's collection:
+
+```yaml
+credentials:
+- collection: YOUR_COLLECTION
+  group: digicert
+  mount_path: /var/run/digicert
+```
+
+See [Adding a New Secret to CI](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/)
+for creating the fields and configuring the credential mount.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
