@@ -1,0 +1,22 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where objectKind == 'Backup'
+| where namespace == 'velero'
+| where tostring(object.metadata.annotations['azure.microsoft.com/hcp-cluster-azure-resource-id']) =~ '{{ .ClusterResourceID }}'
+| extend
+    backup = name,
+    schedule = tostring(object.metadata.labels['velero.io/schedule-name']),
+    phase = tostring(object.status.phase),
+    startTimestamp = todatetime(object.status.startTimestamp),
+    completionTimestamp = todatetime(object.status.completionTimestamp),
+    expiration = todatetime(object.status.expiration),
+    errors = toint(object.status.errors),
+    warnings = toint(object.status.warnings),
+    failureReason = tostring(object.status.failureReason),
+    validationErrors = object.status.validationErrors
+| extend isFailed = phase in ('Failed', 'PartiallyFailed', 'FailedValidation', 'WaitingForPluginOperationsPartiallyFailed', 'FinalizingPartiallyFailed')
+| project timestamp, event, cluster, backup, schedule, phase, isFailed, startTimestamp, completionTimestamp, expiration, errors, warnings, failureReason, validationErrors
+| order by timestamp asc
