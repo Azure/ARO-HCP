@@ -18,9 +18,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // AzureVMSizeSupportsEphemeralOSDiskValidation validates that a node pool requesting

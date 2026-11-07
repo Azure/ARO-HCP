@@ -19,7 +19,7 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 

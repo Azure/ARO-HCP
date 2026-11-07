@@ -17,7 +17,7 @@ package validationutils
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 // AlwaysSuccessValidation is a validation that always succeeds. This is,

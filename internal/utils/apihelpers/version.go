@@ -17,7 +17,7 @@ package apihelpers
 import (
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 // FindLowestAndHighestClusterVersion returns (lowest, highest) *semver.Version from activeVersions.

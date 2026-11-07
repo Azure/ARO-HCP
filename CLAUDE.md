@@ -141,7 +141,7 @@ The github.com/Azure/ARO-Tools repo is also a dependency and changes can be sugg
 ### Go Workspace
 The project uses Go workspaces (see `go.work` for the Go version and full module list):
 - Services: `admin/client`, `admin/server`, `backend`, `frontend`, `fleet`, `kube-applier`, `mgmt-agent`, `sessiongate`
-- Libraries: `internal`, `test`, `test-integration`
+- Libraries: `internal`, `arohcp-cosmos-client` (API types and Cosmos storage that other repositories can import), `test`, `test-integration`
 - Tooling: `tooling/hcpctl`, `tooling/templatize`, `tooling/secret-sync`, etc.
 - Infrastructure scripts: `dev-infrastructure/scripts/`
 
@@ -205,7 +205,7 @@ Each service follows consistent patterns:
 - **Worker loops seed per-key logger via `utils.AddLoggerValues`.** Every controller's `processNext` (or equivalent) must call `logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)` and `ctx = utils.ContextWithLogger(ctx, logger)` after pulling a key off the queue but before invoking `SyncOnce`. The backend's `genericWatchingController` does this once; kube-applier controllers, which run their own worker loops, must do it themselves.
 
 ### API Versioning
-ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
+ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `arohcp-cosmos-client/api/`.
 
 ### E2E Tests
 E2E tests live in `test/e2e/` and use Ginkgo/Gomega. Key conventions:
@@ -265,11 +265,11 @@ to update `docs/generated/service-provider-control-flow.md` when source changes 
 - `frontend/pkg/frontend/` — any handler that writes to Cosmos
 - Controller implementations or startup registration in backend, fleet, kube-applier, mgmt-agent, sessiongate, or shared informer management — including controllers without Cosmos writes
 - Azure/Cluster Service/Kubernetes effects, reconciliation gates, or resource lifecycle dependencies
-- `internal/api/` — any struct field that is stored in Cosmos
-- `internal/database/` — any change to CRUD operations or precondition logic
+- `arohcp-cosmos-client/api/` — any struct field that is stored in Cosmos
+- `arohcp-cosmos-client/storage/` and `internal/database/` — any change to CRUD operations or precondition logic
 
 ### Field-level writer annotations
-Every leaf struct field in `internal/api/types_*.go` files (the types stored in Cosmos) must have a `// Written by:` comment listing the actors (frontend endpoints and/or backend controllers) that set it. For example:
+Every leaf struct field in `arohcp-cosmos-client/api/*/types_*.go` files (the types stored in Cosmos) must have a `// Written by:` comment listing the actors (frontend endpoints and/or backend controllers) that set it. For example:
 ```go
 // Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate
 ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
