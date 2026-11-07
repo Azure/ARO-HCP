@@ -1,0 +1,372 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: ingress-availability-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Ingress Availability SLO Alerts
+  # ========================================
+  # True multi-window multi-burn-rate (MWMBR) alerting: each tier ANDs a
+  # short-window condition and a long-window condition, both independently
+  # computed from real accumulated observation counts (see
+  # ingress-availability-slo-recordingRule.yaml), each with its own volume
+  # floor. The short window confirms the burn is still active right now (so a
+  # recovered incident stops paging once the short window clears); the long
+  # window confirms the burn has consumed enough of the error budget to
+  # matter (so a single blip that ages out of the short window alone doesn't
+  # page). `for:` is a short anti-flap debounce on top of that, not the
+  # window computation itself. This mirrors
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml.
+  #
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  # Named *Errors* (not bare *Availability*) and tier suffixes include the
+  # short window (e.g. 3d6h, not 3d) to match the routing the (unpublished)
+  # ingress-tsg.md runbook expects.
+  #
+  # No Grafana dashboard exists yet for this SLO -- on-call has no drill-down
+  # view to open from these alerts. Dashboard work for all user journeys
+  # (not just ingress) is tracked separately in ARO-22171; intentionally out
+  # of scope for this PR.
+  #
+  # SLO: 99.5% ingress canary availability
+  # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Burn rate thresholds:
+  #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
+  #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
+  #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
+  #
+  # Window pairing: fast=1h/5m, medium=6h/30m, slow=3d/6h (6h is reused as
+  # both the medium tier's long window and the slow tier's short window).
+  # Volume floors assume the canary is scraped roughly once per minute per
+  # route; they guard against a near-empty window, not statistical power.
+  #
+  # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
+  #       → icm-action-group-rp (ARO-RP on-call queue)
+  # correlationId includes the alert family (AvailabilityErrors) so the three
+  # burn tiers for the same HCP correlate into one IcM incident (they are
+  # the same underlying breach observed at different burn rates), while
+  # staying distinct per _id (no cross-cluster masking) and distinct from the
+  # Latency family below (a different SLI, a different problem).
+  #
+  # Each alert multiplies its burn-rate condition by
+  # `hostedClusterAPI_kubeapiserver_available` (joined on _id, via
+  # group_left) to attach resource_id for on-call triage -- the canary
+  # metrics themselves never carry resource_id (see the recording rule's
+  # confirmed production label set). This mirrors
+  # UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml,
+  # which already depends on this same metric for its own (higher-severity)
+  # alerting, so this does not introduce a new class of dependency. The `* 0
+  # + 1` neutralizes the joined value so only its resource_id label is
+  # consumed; the join is an inner join, so an _id with no corresponding
+  # HostedCluster record (e.g. already deleted) also won't fire here.
+  #
+  # Fast/medium tiers are Sev 4, not the Sev 3 the ADR's "customer-facing UJ
+  # degraded" category would otherwise call for: the canary's router pods and
+  # load balancer run on the customer's own workers and network, so a
+  # customer scaling their worker pool to zero or changing their own NSG
+  # rules fails the canary exactly like a genuine platform-side
+  # ingress-operator or routing-stack problem would, with no way today to
+  # tell them apart. This is an interim, uniform downgrade to stop
+  # customer-caused failures from paging RP on-call at Sev 3; it also slows
+  # response to genuinely platform-caused failures until that distinction
+  # exists. Tracked in ARO-30462.
+  - name: arohcp_ingress_availability_slo_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
+    # ----------------------------------------
+    - alert: userJourneyIngressAvailabilityErrors1h5m
+      expr: |
+        (
+          (
+            errors:ingress_canary:total_5m >= 3
+            and
+            errors:ingress_canary:error_rate_5m > 0.072
+          )
+          and
+          (
+            errors:ingress_canary:total_1h >= 10
+            and
+            errors:ingress_canary:error_rate_1h > 0.072
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 10m
+      labels:
+        severity: "4"
+        slo: ingress-availability
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Ingress canary availability critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 7.2% of synthetic canary route observations failed in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
+    # ----------------------------------------
+    - alert: userJourneyIngressAvailabilityErrors6h30m
+      expr: |
+        (
+          (
+            errors:ingress_canary:total_30m >= 15
+            and
+            errors:ingress_canary:error_rate_30m > 0.030
+          )
+          and
+          (
+            errors:ingress_canary:total_6h >= 30
+            and
+            errors:ingress_canary:error_rate_6h > 0.030
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 30m
+      labels:
+        severity: "4"
+        slo: ingress-availability
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Ingress canary availability degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 3% of synthetic canary route observations failed in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
+    # ----------------------------------------
+    - alert: userJourneyIngressAvailabilityErrors3d6h
+      expr: |
+        (
+          (
+            errors:ingress_canary:total_6h >= 30
+            and
+            errors:ingress_canary:error_rate_6h > 0.005
+          )
+          and
+          (
+            errors:ingress_canary:total_3d >= 60
+            and
+            errors:ingress_canary:error_rate_3d > 0.005
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 3h
+      labels:
+        severity: "4"
+        slo: ingress-availability
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "Ingress canary availability trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 0.5% of synthetic canary route observations failed in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressAvailabilityErrors/{{ $labels._id }}"
+  # ========================================
+  # Ingress Latency SLO Alerts
+  # ========================================
+  # Same paired short/long window MWMBR design as the availability group
+  # above (see its header comment for the full rationale).
+  #
+  # SLO: 99.5% of synthetic canary route checks complete within 200ms. 99.5%
+  # is closer to a P99 latency objective than a P95 one, so this SLI's
+  # alerts are named LatencyP99 rather than bare Latency.
+  # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Burn rate thresholds:
+  #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
+  #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
+  #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
+  #
+  # A breach means the ingress data path is slow end to end (DNS, load
+  # balancer, routing, or router pods), not a single component.
+  #
+  # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
+  #       → icm-action-group-rp (ARO-RP on-call queue)
+  # correlationId uses the LatencyP99Errors family so it stays distinct from
+  # the Availability family above (different SLI, different problem) while
+  # still correlating this family's own three burn tiers per _id.
+  #
+  # Same resource_id enrichment via hostedClusterAPI_kubeapiserver_available
+  # as the availability group above -- see its header comment for the full
+  # rationale. Same interim Sev 4 downgrade on the fast/medium tiers too,
+  # same reasoning (ARO-30462): the canary can't distinguish a customer-caused
+  # failure from a platform-caused one.
+  - name: arohcp_ingress_latency_slo_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
+    # ----------------------------------------
+    - alert: userJourneyIngressLatencyP99Errors1h5m
+      expr: |
+        (
+          (
+            errors:ingress_canary_latency:total_5m >= 3
+            and
+            errors:ingress_canary_latency:error_rate_5m > 0.072
+          )
+          and
+          (
+            errors:ingress_canary_latency:total_1h >= 10
+            and
+            errors:ingress_canary_latency:error_rate_1h > 0.072
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 10m
+      labels:
+        severity: "4"
+        slo: ingress-latency
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Ingress canary latency critically degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 7.2% of synthetic canary route checks exceeded 200ms in both the last 5 minutes and the last hour for HCP cluster {{ $labels._id }}, indicating an active fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 4 — see ARO-30462 for why this isn't Sev 3)
+    # ----------------------------------------
+    - alert: userJourneyIngressLatencyP99Errors6h30m
+      expr: |
+        (
+          (
+            errors:ingress_canary_latency:total_30m >= 15
+            and
+            errors:ingress_canary_latency:error_rate_30m > 0.030
+          )
+          and
+          (
+            errors:ingress_canary_latency:total_6h >= 30
+            and
+            errors:ingress_canary_latency:error_rate_6h > 0.030
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 30m
+      labels:
+        severity: "4"
+        slo: ingress-latency
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Ingress canary latency degraded for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 3% of synthetic canary route checks exceeded 200ms in both the last 30 minutes and the last 6 hours for HCP cluster {{ $labels._id }}, indicating an active medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
+    # ----------------------------------------
+    - alert: userJourneyIngressLatencyP99Errors3d6h
+      expr: |
+        (
+          (
+            errors:ingress_canary_latency:total_6h >= 30
+            and
+            errors:ingress_canary_latency:error_rate_6h > 0.005
+          )
+          and
+          (
+            errors:ingress_canary_latency:total_3d >= 60
+            and
+            errors:ingress_canary_latency:error_rate_3d > 0.005
+          )
+        )
+        * on (_id) group_left(resource_id)
+        group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+      for: 3h
+      labels:
+        severity: "4"
+        slo: ingress-latency
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "Ingress canary latency trending below SLO for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          More than 0.5% of synthetic canary route checks exceeded 200ms in both the last 6 hours and the last 3 days for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressLatencyP99Errors/{{ $labels._id }}"
+  # ========================================
+  # Ingress Canary Liveness Alert
+  # ========================================
+  # None of the burn-rate tiers above can fire when an HCP's canary series
+  # disappears entirely: sum/count-based ratios return empty (no series),
+  # not a high error rate, so a canary that stops reporting looks the same
+  # as a perfectly healthy one to every tier. This alert detects that case
+  # directly against the raw metric: an (_id, cluster, region) seen at some
+  # point in the last 7d but not in the last 10 minutes has gone silent.
+  # The 7d reference window (rather than an `offset`-shifted comparison of
+  # the same short window) keeps firing for the whole outage instead of
+  # self-clearing once the last known-good sample ages out of a narrower
+  # historical comparison window. 7d was chosen (over the original 24h) so a
+  # multi-day outage doesn't silently self-resolve this alert before on-call
+  # or the underlying issue has had a realistic chance to be addressed.
+  #
+  # The 7d window alone is still, by construction, bounded -- an HCP silent
+  # for longer than 7d straight would drop out of the reference side and
+  # this alert would clear even though reporting never recovered. Joining
+  # the reference side on _id against hostedClusterAPI_kubeapiserver_available
+  # (the same metric UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-
+  # KSM.yaml already depends on) closes that gap for the common case: once
+  # an HCP is actually deleted, its HostedCluster record disappears from
+  # that metric too, so the join drops it immediately rather than waiting
+  # out the full 7d. It does not close the gap for an HCP that still exists
+  # but is silent for longer than 7d straight -- that residual case would
+  # need a reference with no time window at all, which doesn't fit this
+  # metric's semantics. The join also attaches resource_id for on-call
+  # triage, which the canary metric itself never carries. Sev 4: loss of the
+  # canary signal is not itself confirmed customer impact, but on-call has
+  # lost all visibility into this HCP's ingress health and needs to
+  # investigate.
+  - name: arohcp_ingress_canary_liveness_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyIngressCanaryAbsent
+      expr: |
+        (
+          count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[7d]))
+          * on (_id) group_left(resource_id)
+          group by (_id, resource_id) (hostedClusterAPI_kubeapiserver_available * 0 + 1)
+        )
+        unless on (_id, cluster, region)
+        count by (_id, cluster, region) (max_over_time(ingress_canary_route_reachable[10m]))
+      for: 10m
+      labels:
+        severity: "4"
+        slo: ingress-availability
+      annotations:
+        summary: "Ingress canary has stopped reporting for {{ $labels._id }} (resource_id: {{ $labels.resource_id }})"
+        description: |
+          HCP cluster {{ $labels._id }} was emitting synthetic canary route observations but has reported none in the last 10 minutes. This is a loss of the ingress availability/latency signal, not a confirmed failure -- investigate whether ingress-operator or the canary route itself is down.
+          Resource ID: {{ $labels.resource_id }}
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "userJourneyIngressCanaryAbsent/{{ $labels._id }}"
