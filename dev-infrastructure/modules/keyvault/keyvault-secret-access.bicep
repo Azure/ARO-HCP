@@ -19,6 +19,14 @@ param roleName string
 @description('The principal ids of the managed identity that will be assigned access to the secret in KV')
 param managedIdentityPrincipalIds array
 
+@description('The type of the principals being assigned access. Defaults to ServicePrincipal, which is correct for managed identities. Dev tooling that grants access to a signed-in human must pass User.')
+@allowed([
+  'User'
+  'Group'
+  'ServicePrincipal'
+])
+param principalType string = 'ServicePrincipal'
+
 @description('Roles used for EV2 KeyVault access, i.e. geneva log access')
 param kvCertAccessRoleId string = ''
 
@@ -76,7 +84,7 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
     properties: {
       roleDefinitionId: roleResourceIds[roleName]
       principalId: managedIdentityPrincipalId
-      principalType: 'ServicePrincipal'
+      principalType: principalType
     }
   }
 ]
@@ -88,7 +96,7 @@ resource keyVaultAccessPermission 'Microsoft.Authorization/roleAssignments@2022-
     properties: {
       roleDefinitionId: roleResourceIds[roleName]
       principalId: managedIdentityPrincipalId
-      principalType: 'ServicePrincipal'
+      principalType: principalType
     }
   }
 ]
