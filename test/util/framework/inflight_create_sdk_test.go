@@ -17,12 +17,14 @@ package framework
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/utils/ptr"
 
@@ -35,9 +37,190 @@ import (
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpfake20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/fake"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 const fakeSubscriptionID = "00000000-0000-0000-0000-000000000000"
+
+func clusterCreationDiagnosticPoller(t *testing.T, transport *fakeTransport) *runtime.Poller[hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse] {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodPut, "https://example.com/cluster", nil)
+	require.NoError(t, err)
+	response := clusterCreationDiagnosticResponse(request, `{"properties":{"provisioningState":"Accepted"}}`)
+	response.StatusCode = http.StatusCreated
+	response.Header.Set("Azure-AsyncOperation", "https://example.com/operation")
+	pipeline := runtime.NewPipeline("test", "v0.0.0", runtime.PipelineOptions{}, &policy.ClientOptions{
+		Transport: transport,
+		Retry:     policy.RetryOptions{MaxRetries: -1},
+	})
+	poller, err := runtime.NewPoller(response, pipeline, &runtime.NewPollerOptions[hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse]{
+		FinalStateVia: runtime.FinalStateViaAzureAsyncOp,
+	})
+	require.NoError(t, err)
+	return poller
+}
+
+func clusterCreationDiagnosticResponse(request *http.Request, body string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    request,
+	}
+}
+
+func TestClusterCreationOperationErrors20251223(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		body string
+		code string
+		want string
+	}{
+		{
+			name: "nested validation detail",
+			body: `{"status":"Failed","error":{"code":"InvalidResource","message":"validation failed","details":[{"code":"MissingPermissions","message":"role assignments may still be propagating","details":[{"code":"Permission","message":"required grant is missing"}]}]}}`,
+			code: "InvalidResource",
+			want: "required grant is missing",
+		},
+		{
+			name: "deadline with validation code",
+			body: `{"status":"Failed","error":{"code":"InvalidResource","message":"cluster creation did not complete before the deadline: validation pending"}}`,
+			code: "InvalidResource",
+			want: "cluster creation did not complete before the deadline: validation pending",
+		},
+		{
+			name: "deadline",
+			body: `{"status":"Failed","error":{"code":"DeadlineExceeded","message":"cluster creation did not complete before the deadline"}}`,
+			code: "DeadlineExceeded",
+			want: "cluster creation did not complete before the deadline",
+		},
+		{
+			name: "backend cancellation",
+			body: `{"status":"Canceled","error":{"code":"OperationCanceled","message":"operation was canceled"}}`,
+			code: "OperationCanceled",
+			want: "operation was canceled",
+		},
+	} {
+		for _, early := range []bool{false, true} {
+			phase := "completion"
+			if early {
+				phase = "early diagnostics"
+			}
+			t.Run(test.name+"/"+phase, func(t *testing.T) {
+				calls := 0
+				poller := clusterCreationDiagnosticPoller(t, &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
+					calls++
+					require.Equal(t, "/operation", request.URL.Path)
+					return clusterCreationDiagnosticResponse(request, test.body), nil
+				}})
+				var err error
+				if early {
+					primaryErr := errors.New("unexpected terminal resource state during role delay")
+					err = DiagnoseHCPClusterCreation20251223(t.Context(), poller, primaryErr, time.Second)
+					require.ErrorIs(t, err, primaryErr)
+				} else {
+					_, err = poller.PollUntilDone(t.Context(), &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval})
+				}
+				var responseErr *azcore.ResponseError
+				require.ErrorAs(t, err, &responseErr)
+				require.Equal(t, test.code, responseErr.ErrorCode)
+				require.ErrorContains(t, err, test.want)
+				require.Equal(t, 1, calls)
+			})
+		}
+	}
+}
+
+func TestClusterCreationDiagnosticsPreservePrimary20251223(t *testing.T) {
+	secondaryErr := errors.New("diagnostic transport unavailable")
+	for _, test := range []struct {
+		name string
+		body string
+		err  error
+	}{
+		{name: "transport failure", err: secondaryErr},
+		{name: "nonterminal operation", body: `{"status":"InProgress"}`},
+		{name: "successful operation", body: `{"status":"Succeeded"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := 0
+			poller := clusterCreationDiagnosticPoller(t, &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
+				calls++
+				return clusterCreationDiagnosticResponse(request, test.body), test.err
+			}})
+			primaryErr := errors.New("resource entered unexpected terminal state")
+			err := DiagnoseHCPClusterCreation20251223(t.Context(), poller, primaryErr, time.Second)
+			require.ErrorIs(t, err, primaryErr)
+			if test.err != nil {
+				require.ErrorIs(t, err, test.err)
+			}
+			require.LessOrEqual(t, calls, 2)
+		})
+	}
+}
+
+func TestClusterCreationCancellation20251223(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		for _, early := range []bool{false, true} {
+			name := "timeout"
+			if canceled {
+				name = "cancellation"
+			}
+			if early {
+				name += "/diagnostics"
+			}
+			t.Run(name, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				want := context.DeadlineExceeded
+				if canceled {
+					cancel()
+					want = context.Canceled
+				}
+				calls := 0
+				poller := clusterCreationDiagnosticPoller(t, &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
+					calls++
+					<-request.Context().Done()
+					return nil, request.Context().Err()
+				}})
+				var err error
+				if early {
+					primaryErr := errors.New("resource failed during role delay")
+					err = DiagnoseHCPClusterCreation20251223(ctx, poller, primaryErr, 10*time.Millisecond)
+					require.ErrorIs(t, err, primaryErr)
+					if !canceled {
+						require.NoError(t, ctx.Err(), "diagnostic deadline must expire before the parent")
+					}
+				} else {
+					_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval})
+				}
+				require.ErrorIs(t, err, want)
+				require.LessOrEqual(t, calls, 1)
+			})
+		}
+	}
+}
+
+func TestClusterCreationLateSuccess20251223(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	calls := 0
+	poller := clusterCreationDiagnosticPoller(t, &fakeTransport{do: func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.URL.Path == "/operation" {
+			return clusterCreationDiagnosticResponse(request, `{"status":"Succeeded"}`), nil
+		}
+		return clusterCreationDiagnosticResponse(request, `{"properties":{"provisioningState":"Succeeded"}}`), nil
+	}})
+	result, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval})
+	require.NoError(t, err)
+	cancel()
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	require.NotNil(t, result.Properties)
+	require.NotNil(t, result.Properties.ProvisioningState)
+	require.Equal(t, hcpsdk20251223preview.ProvisioningStateSucceeded, *result.Properties.ProvisioningState)
+	require.Equal(t, 2, calls, "verify the returned resource without another GET using the expired context")
+}
 
 // fakeClientOptions mirrors the E2E client options that matter here: the
 // attempt tracker policy and SDK retries, with short delays.
