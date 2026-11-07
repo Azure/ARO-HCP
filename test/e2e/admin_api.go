@@ -470,21 +470,18 @@ var _ = Describe("SRE", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			By("getting services AMW resource ID")
-			servicesAMW, err := tc.GetServicesAMWResourceID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to get services AMW resource ID")
-
 			By("creating an alert processing rule")
 			now := time.Now().UTC()
 			startTime := now.Add(-time.Hour).Format("2006-01-02T15:04:05")
 			endTime := now.Add(time.Hour).Format("2006-01-02T15:04:05")
 
 			createReq := framework.AlertProcessingRuleRequest{
-				AlertRuleName: "TestAlertRule",
-				StartTime:     startTime,
-				EndTime:       endTime,
-				Description:   "Test alert processing rule",
-				Scopes:        []string{servicesAMW},
+				AlertRuleName:     "TestAlertRule",
+				StartTime:         startTime,
+				EndTime:           endTime,
+				Description:       "Test alert processing rule",
+				IncidentReference: "ARO-0000000",
+				AmwScopes:         []string{"services"},
 			}
 			ruleName := fmt.Sprintf("test-apr-%s", rand.String(8))
 			createdRule, err := tc.CreateAlertProcessingRule(ctx, ruleName, createReq, http.StatusOK)
@@ -501,11 +498,12 @@ var _ = Describe("SRE", func() {
 
 			By("updating the alert processing rule")
 			updateReq := framework.AlertProcessingRuleRequest{
-				AlertRuleName: "TestAlertRuleUpdated",
-				StartTime:     startTime,
-				EndTime:       endTime,
-				Description:   "Updated test alert processing rule",
-				Scopes:        []string{servicesAMW},
+				AlertRuleName:     "TestAlertRuleUpdated",
+				StartTime:         startTime,
+				EndTime:           endTime,
+				Description:       "Updated test alert processing rule",
+				IncidentReference: "ARO-0000000",
+				AmwScopes:         []string{"services"},
 			}
 			updatedRule, err := tc.UpdateAlertProcessingRule(ctx, ruleName, updateReq, http.StatusOK)
 			Expect(err).NotTo(HaveOccurred(), "failed to update alert processing rule")

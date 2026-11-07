@@ -70,10 +70,12 @@ sessiongate:
   minSessionTTL: 1m
   maxSessionTTL: 24h
 # Alert processing rules. The admin API exposes the
-# /admin/v1/alertprocessingrules routes against the region's resource group,
-# scoped to the region's HCP and services Azure Monitor Workspaces.
+# /admin/v1/alertprocessingrules routes, managing the rules in a dedicated
+# regional resource group (aprRG) while scoping them to the region's HCP and
+# services Azure Monitor Workspaces, which live in the regional resource group.
 alertProcessingRules:
   subscriptionId: "__subscriptionId__"
-  resourceGroup: "{{ .regionRG }}"
+  resourceGroup: "{{ .aprRG }}"
+  amwResourceGroup: "{{ .regionRG }}"
   svcAmwName: "{{ .monitoring.svcWorkspaceName }}"
   hcpAmwName: "{{ .monitoring.hcpWorkspaceName }}"

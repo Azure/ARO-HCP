@@ -73,6 +73,12 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+# Dedicated resource group for admin-API alert processing rules. The admin
+# API managed identity is granted Monitoring Contributor, scoped to this group.
+- name: apr
+  resourceGroup: '{{ .aprRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
   - name: adminapi-apr-assignment
     action: ARM
     template: templates/adminapi-alert-processing-rule-assignment.bicep
