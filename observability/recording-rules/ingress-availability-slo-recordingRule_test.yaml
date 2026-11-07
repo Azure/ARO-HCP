@@ -158,11 +158,11 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="200"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.1:60000", le="Infinity"}'
     values: "0+1x10"
   - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="200"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", region="uksouth", host="canary.apps.aaa.example.io", instance="10.0.0.2:60000", le="Infinity"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
@@ -184,19 +184,19 @@ tests:
 # ========================================
 # Test 7: Half canary checks slow — latency ratio = 0.5, error rate = 0.5
 # ========================================
-# instance .1: all checks within 200ms (le="200" increments same as le="+Inf")
-# instance .2: all checks above 200ms (le="200" stays 0, le="+Inf" increments)
+# instance .1: all checks within 200ms (le="200" increments same as le="Infinity")
+# instance .2: all checks above 200ms (le="200" stays 0, le="Infinity" increments)
 - interval: 1m
   input_series:
   # instance .1: fast (within 200ms)
   - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="200"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.1:60000", le="Infinity"}'
     values: "0+1x10"
   # instance .2: slow (above 200ms)
   - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="200"}'
     values: "0+0x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", region="uksouth", host="canary.apps.bbb.example.io", instance="10.0.0.2:60000", le="Infinity"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio
@@ -267,11 +267,11 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="a"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+Inf", prometheus_replica="a"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="Infinity", prometheus_replica="a"}'
     values: "0+1x10"
   - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="b"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="+Inf", prometheus_replica="b"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup.example.io", instance="10.0.0.1:60000", le="Infinity", prometheus_replica="b"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: errors:ingress_canary_latency:total_5m
@@ -326,15 +326,15 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200", prometheus_replica="a"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+Inf", prometheus_replica="a"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="Infinity", prometheus_replica="a"}'
     values: "0+1x10"
   - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="200", prometheus_replica="b"}'
     values: "0+1x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="+Inf", prometheus_replica="b"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-a", le="Infinity", prometheus_replica="b"}'
     values: "0+1x10"
   - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="200", prometheus_replica="a"}'
     values: "0+0x10"
-  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="+Inf", prometheus_replica="a"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="dedup-ratio", cluster="mgmt-1", region="uksouth", host="canary.apps.dedup-ratio.example.io", instance="host-b", le="Infinity", prometheus_replica="a"}'
     values: "0+1x10"
   promql_expr_test:
   - expr: latency:ingress_canary:ratio

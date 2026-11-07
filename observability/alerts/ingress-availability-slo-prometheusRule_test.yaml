@@ -305,12 +305,12 @@ tests:
 # ========================================
 # Test 5: Latency normal — all canary checks within 200ms, no alerts
 # ========================================
-# le="200" and le="+Inf" increase at the same rate → ratio 1, error_rate 0.
+# le="200" and le="Infinity" increase at the same rate → ratio 1, error_rate 0.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-ok", namespace="clusters-lat-ok", _id="lat-ok", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-ok"}'
     values: "1+0x400"
@@ -335,7 +335,7 @@ tests:
 # ========================================
 # Test 6: Latency fast burn — 50% of checks exceed 200ms
 # ========================================
-# le="200" increases at half the rate of le="+Inf" → ratio 0.5, error_rate
+# le="200" increases at half the rate of le="Infinity" → ratio 0.5, error_rate
 # 0.5. 5 instances x 2 checks/min combined so every volume floor (short and
 # long window alike) is met almost immediately. 50% > 7.2% (fast) and > 3%
 # (medium).
@@ -343,23 +343,23 @@ tests:
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200"}'
     values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200"}'
     values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200"}'
     values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200"}'
     values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200"}'
     values: "0+1x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="Infinity"}'
     values: "0+2x400"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-bad", namespace="clusters-lat-bad", _id="lat-bad", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-bad"}'
     values: "1+0x400"
@@ -418,14 +418,14 @@ tests:
 # ========================================
 # Test 7: Latency below fast burn — ~5.9% of checks exceed 200ms
 # ========================================
-# le="200" rate / le="+Inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
+# le="200" rate / le="Infinity" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
 # but > 0.5% (slow). Fast must NOT fire; slow fires once both windows clear
 # their floor and for:3h elapses.
 - interval: 1m
   input_series:
   - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200"}'
     values: "0+16x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+Inf"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="Infinity"}'
     values: "0+17x400"
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="lat-slow", namespace="clusters-lat-slow", _id="lat-slow", cluster="mgmt-1", resource_id="/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lat-slow"}'
     values: "1+0x400"
