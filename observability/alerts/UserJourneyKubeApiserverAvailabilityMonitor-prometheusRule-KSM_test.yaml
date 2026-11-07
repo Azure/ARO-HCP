@@ -1,20 +1,24 @@
 rule_files:
 - HCPkasRecord-prometheusRule-KSM.yaml
 - UserJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+- UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml
 - UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
 group_eval_order:
 - hcp-kms-recording-rules
 - userjourney-kubeapiserver-availability-recording-rules
+- userjourney-kubeapiserver-availability-alert-exclusion-recording-rules
 - rp-userjourney-kas-availability-monitor-rules
 evaluation_interval: 1m
 tests:
-# Test 1: Normal operation - KubeAPIServer always available, no alerts should fire
+# Healthy cluster: perfect availability never fires any tier.
 - interval: 1m
   name: "Test 1: Normal operation - perfect availability, no alerts"
   input_series:
+  # A cluster that is up and available for 10 straight hours
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x600" # 10 hours of perfect availability
   alert_rule_test:
+  # No burn-rate tier should ever have anything to alert on
   - eval_time: 600m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: []
@@ -23,57 +27,27 @@ tests:
     exp_alerts: []
   - eval_time: 600m
     alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: [] # sli_count_3d uses [3d:30m]; at 600m only ~20 steps pass offset gate — far below 130 guard
-# Test 2: Fast burn - complete failure triggers userJourneyKubeApiserverAvailability1h5m
-# SLI rules require the series to have existed 15m ago (offset blackout). The binding
-# constraint is the sli_count_1h > 54 guard: with [1h:1m] subquery and data from t=0,
-# the count of gate-passing steps is T-14, which first exceeds 54 at T=69m (55 steps).
-# With for:10m, the fast-burn alert first fires at T=79m.
+    exp_alerts: [] # the 3d tier also needs ~130 sample-gated steps; 10h of data isn't enough for it to even evaluate
+# Fast burn (1h/5m): a continuous outage pages once both windows clear their sample-count gates and the 10m for-timer elapses, around T=79m.
 - interval: 30s
   name: "Test 2: Fast burn - complete failure triggers userJourneyKubeApiserverAvailability1h5m"
   input_series:
+  # KAS unavailable for 100 straight minutes starting at cluster creation
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
   alert_rule_test:
+  # Too early: the cluster hasn't existed long enough for the 15m offset lookback to have data
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # Offset blackout: series has not existed for 15m yet
+    exp_alerts: []
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability6h30m
-    exp_alerts: [] # Offset blackout: series has not existed for 15m yet
+    exp_alerts: []
+  # Burn rate has been over threshold, but the 10m "for" timer has only run 9m
   - eval_time: 78m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # for: timer = 9m, not yet 10m — alert not yet firing
-  - eval_time: 80m # T=79m: for: timer reaches 10m; T=80m: still firing
-    alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts:
-    - exp_labels:
-        component: slo
-        severity: "2"
-        slo: kas-availability
-        long_window: 1h
-        short_window: 5m
-        name: test-cluster
-        namespace: clusters
-        _id: abc-123
-        cluster: mgmt-cluster
-        resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
-      exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
-        description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
-        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
-# Test 3: Medium burn - complete failure triggers both tiers after 6h+
-# The fast-burn (1h/5m) alert fires at T=79m (same binding constraint as Test 2).
-# The medium-burn (6h/30m) alert requires sli_count_6h > 64 guard: with [6h:5m]
-# subquery at 5m step, gate-passing steps first exceed 64 at T=335m (65 steps),
-# and with for:30m fires at T=365m. At eval_time=420m (7 hours), both tiers fire.
-- interval: 30s
-  name: "Test 3: Medium burn - complete failure triggers both tiers after 6h+"
-  input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
-    values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
-  alert_rule_test:
+    exp_alerts: []
+  # "for" timer completes at T=79m and the alert is still firing one minute later
   - eval_time: 80m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
@@ -93,10 +67,40 @@ tests:
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+# Medium burn (6h/30m): same outage as Test 2 carried out to 7.5h; the fast tier fires first at T=80m, the medium tier follows once its own window and for-timer clear around T=365m.
+- interval: 30s
+  name: "Test 3: Medium burn - complete failure triggers both tiers after 6h+"
+  input_series:
+  # KAS unavailable for 7.5 hours straight
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
+    values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
+  alert_rule_test:
+  # Fast tier fires at the same T=80m boundary as Test 2
+  - eval_time: 80m
+    alertname: userJourneyKubeApiserverAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        severity: "2"
+        slo: kas-availability
+        long_window: 1h
+        short_window: 5m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+        resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
+      exp_annotations:
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+  # Medium tier's 30m "for" timer has only run 29m
   - eval_time: 364m
     alertname: userJourneyKubeApiserverAvailability6h30m
-    exp_alerts: [] # for: timer = 29m at T=364m, not yet 30m — alert not yet firing
-  - eval_time: 366m # T=365m: for: timer reaches 30m; T=366m: still firing
+    exp_alerts: []
+  # Medium tier's "for" timer completes at T=365m and is still firing one minute later
+  - eval_time: 366m
     alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts:
     - exp_labels:
@@ -115,7 +119,8 @@ tests:
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
-  - eval_time: 420m # 7 hours — both tiers firing
+  # At 7 hours in, both the fast and medium tiers are firing simultaneously
+  - eval_time: 420m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -153,94 +158,80 @@ tests:
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+  # 7.5 hours of failure still isn't enough history for the slow (3d/6h) tier to evaluate
   - eval_time: 420m
     alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: [] # sli_count_3d guard: only 14 steps at T=420m, need > 130; 3d alert not triggered by 7.5h failure
-# Test 4: Provisioning grace - newly created cluster (< 15m) does NOT trigger alert
-# The offset blackout (hostedClusterAPI_kubeapiserver_available offset 15m) requires
-# the series to have existed 15 minutes ago. A brand-new cluster has no offset data,
-# so the SLI recording rules produce no output and no alert can fire.
+    exp_alerts: []
+# Provisioning grace: a cluster younger than the 15m offset blackout has no SLI data yet, so no tier can alert even though KAS has been down the whole time.
 - interval: 1m
   name: "Test 4: Provisioning grace - new cluster excluded from alerting"
   input_series:
+  # A cluster created 10 minutes ago, unavailable the entire time
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/new-cluster"}'
     values: "0+0x10" # 10 minutes of complete failure (new cluster)
   alert_rule_test:
+  # No tier fires: the 15m offset blackout has no data yet for any of them
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # Offset blackout: no data 15m ago, SLI rules produce no output
+    exp_alerts: []
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
   - eval_time: 10m
     alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: [] # sli_count_3d far below 130 guard at 10m
-# Test 5: Partial failure below threshold - no alert fires
-# One failure at t=21m; at eval_time=400m this falls outside both the 5m (t=395-400m)
-# and 1h (t=340-400m) windows — no burn in either window.
+    exp_alerts: []
+# Transient blip: a single failure that ages out of every window does not page.
 - interval: 1m
   name: "Test 5: Transient failure outside evaluation windows - no alert fires"
   input_series:
+  # One single-minute KAS failure at t=21m, surrounded by healthy samples
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x20 0 1+0x580" # One failure in ~603 samples
   alert_rule_test:
+  # By t=400m the single failure at t=21m is long outside both the 5m and 1h windows
   - eval_time: 400m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: []
   - eval_time: 400m
     alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
-# Test 6: Sample guard behavior - short burst suppressed by minimum-sample guards
-# Failure burst from t=20m to t=41m (22 samples: 0+0x21 = 22 samples).
-# At eval_time=35m:
-#   - sli_count_1h uses [1h:1m] with offset 15m gate; gate passes samples from t>=15m.
-#     At t=35m, only t=15..35m = 21 samples are visible → below the > 54 guard.
-#   - Fast-burn alert is suppressed by the sli_count_1h > 54 minimum-sample guard.
-# At eval_time=65m:
-#   - sli_count_6h uses [6h:5m] with offset 15m gate; at t=65m only t=15,20,...,65m
-#     = 11 samples at 5m step → far below the > 64 guard.
-#   - Medium-burn alert is suppressed by the sli_count_6h > 64 minimum-sample guard,
-#     even though the 30m error rate is elevated.
-#   - This is the intended guard behavior: prevent sparse-window false pages.
-# Note: Test 3 covers the scenario where both alerts fire with sufficient data.
+# Minimum-sample guards: a short outage right after creation is suppressed because neither tier's window has enough samples yet to trust the error rate (Test 3 covers the same outage once they do).
 - interval: 1m
   name: "Test 6: Sample guards suppress sparse-window alerts during short burst"
   input_series:
+  # 20m healthy, then a 22-minute outage (t=20..41m), then recovery
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x19 0+0x21 1+0x800" # 20m healthy, 22m failure (t=20..t=41), then recovery
   alert_rule_test:
+  # Fast tier: the 1h window only has ~21 samples at t=35m, below the > 54 guard
   - eval_time: 35m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # sli_count_1h guard: only ~21 samples visible at t=35m, need > 54
+    exp_alerts: []
+  # Medium tier: the 30m "for" timer hasn't run yet and the 6h window has ~5 samples, below the > 64 guard
   - eval_time: 35m
     alertname: userJourneyKubeApiserverAvailability6h30m
-    exp_alerts: [] # for:30m not yet satisfied; sli_count_6h guard also blocks (~5 samples at 5m step, need > 64)
+    exp_alerts: []
+  # Fast tier: the cluster has already recovered by t=65m, so the 5m window is clean regardless of the guard
   - eval_time: 65m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # Fast tier: 5m window (t=61-65) clean; sli_count_1h guard still blocks (~51 samples)
+    exp_alerts: []
+  # Medium tier: the 6h window still only has ~11 samples at t=65m, below the > 64 guard
   - eval_time: 65m
     alertname: userJourneyKubeApiserverAvailability6h30m
-    exp_alerts: [] # sli_count_6h guard blocks: only ~11 samples at 5m step, need > 64
-# Test 7: Near-threshold - minimal failure burst validates for:10m boundary
-# 80m of success (t=0..79m), then 7 failures (t=80..86m), then success.
-# The [5m:1m] subquery at eval time T covers steps (T-5m, T] (exclusive start, 5 steps).
-# At T=80m: 5m window (75,80]={76..80m} has failure at t=80m → error_rate_5m=1/5=20% ✓
-#   sli_count_1h = 60 steps in (20,80], all > 54 ✓, error_rate_1h=1/60≈1.7%>threshold ✓
-#   Condition first becomes true at T=80m (start of for: timer).
-# At T=89m: for: timer = 9m → NOT firing.
-# At T=90m: for: timer = 10m (80+10=90). 5m window (85,90]={86..90m} has failure at
-#   t=86m → error_rate_5m=1/5=20% → condition still true → FIRES.
-# At T=91m: 5m window (86,91]={87..91m} all success → error_rate_5m=0 → condition
-#   false → RESOLVES.
+    exp_alerts: []
+# Near-threshold boundary: a 7-minute outage exercises the exact minute the fast tier's 10m for-timer starts, completes, and resolves.
 - interval: 1m
   name: "Test 7: Near-threshold - minimal burst validates for:10m boundary"
   input_series:
+  # 80m healthy, then a 7-minute outage (t=80..86m), then recovery
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x79 0+0x6 1+0x100" # 80 successes (t=0..79m), 7 failures (t=80..86m), then success
   alert_rule_test:
+  # The outage starts the "for" timer at T=80m, but it has only run 9m
   - eval_time: 89m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # for: timer = 9m, not yet 10m — alert not yet firing
+    exp_alerts: []
+  # The "for" timer completes at T=90m and the outage is still within the 5m lookback window
   - eval_time: 90m
     alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
@@ -260,32 +251,27 @@ tests:
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+  # One minute later the outage has fully exited the 5m window and the alert resolves
   - eval_time: 91m
     alertname: userJourneyKubeApiserverAvailability1h5m
-    exp_alerts: [] # 5m window (86,91]={87..91m} all success → error_rate_5m=0 → alert resolves
-# Test 8: Slow burn - sustained complete failure triggers userJourneyKubeApiserverAvailability3d6h
-# The slow-burn (3d/6h) alert uses sli_count_3d with [3d:30m] subquery (30m step).
-# With interval:1m and data from t=0, the offset gate (offset 15m) requires data at t-15m.
-# At subquery step t=30m: needs data at 15m (exists with 1m data density) → passes.
-# At evaluation T: valid steps in [3d:30m] = T/30 (steps at 30m, 60m, ..., T).
-# sli_count_3d > 130: first satisfied when T/30 > 130 → T > 3900 → T=3930m (131 steps).
-# sli_count_6h > 64: satisfied at T=335m (steps at 5m from 15m to T; floor((T-15)/5)+1 > 64).
-# for:3h timer starts at T=3930m, fires at T=3930m+180m=4110m.
-# Boundary: eval_time=4080m → for:timer=150m → NOT firing.
-#           eval_time=4109m → for:timer=179m → NOT firing (1-minute before threshold).
-#           eval_time=4110m → for:timer=180m=3h → FIRES.
+    exp_alerts: []
+# Slow burn (3d/6h): a sustained outage pages once the 3d window's sample gate clears (T=3930m) and its own 3h for-timer completes (T=4110m).
 - interval: 1m
   name: "Test 8: Slow burn - sustained failure triggers userJourneyKubeApiserverAvailability3d6h"
   input_series:
+  # KAS unavailable continuously for 4110 minutes (68.5 hours)
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x4110" # 4111 samples at 1m interval, t=0 to t=4110m, complete failure
   alert_rule_test:
+  # The "for" timer started at T=3930m (once the 3d window passed its sample guard) and has only run 150m
   - eval_time: 4080m
     alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: [] # for: timer = 150m at T=4080m, not yet 3h — alert not yet firing
+    exp_alerts: []
+  # One minute before the 3h "for" timer completes
   - eval_time: 4109m
     alertname: userJourneyKubeApiserverAvailability3d6h
-    exp_alerts: [] # for: timer = 179m at T=4109m, not yet 3h — alert not yet firing
+    exp_alerts: []
+  # The "for" timer completes at exactly T=4110m and the alert fires
   - eval_time: 4110m
     alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts:
@@ -303,5 +289,135 @@ tests:
       exp_annotations:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (3d/6h) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+# Customer-caused exclusion: replays Test 2, Test 3, and Test 8's outages with a KMS-invalid series added, asserting the burn-rate alert now goes silent where it previously fired.
+# Same outage/timing as Test 2 (1h/5m, would fire at T=80m), plus KMS invalid.
+- interval: 30s
+  name: "Test 9: KMS-caused exclusion silences userJourneyKubeApiserverAvailability1h5m"
+  input_series:
+  # Same 100-minute outage as Test 2
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="kms-excl-1h5m", namespace="clusters", _id="kms-excl-1h5m-id", cluster="mgmt-cluster", resource_id="kms-excl-1h5m-resource"}'
+    values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
+  # The same cluster's BYOK KMS config is invalid for the whole outage
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="kms-excl-1h5m", namespace="clusters", _id="kms-excl-1h5m-id", cluster="mgmt-cluster", resource_id="kms-excl-1h5m-resource"}'
+    values: "1+0x200"
+  alert_rule_test:
+  # Without the KMS exclusion this would fire exactly like Test 2 did at T=80m
+  - eval_time: 80m
+    alertname: userJourneyKubeApiserverAvailability1h5m
+    exp_alerts: [] # excluded samples drop out of sli_sum_1h_excl_known/sli_count_1h_excl_known, so the 1h guard never clears
+# Same outage/timing as Test 3 (1h/5m and 6h/30m), plus KMS invalid.
+- interval: 30s
+  name: "Test 10: KMS-caused exclusion silences userJourneyKubeApiserverAvailability6h30m"
+  input_series:
+  # Same 7.5-hour outage as Test 3
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="kms-excl-6h30m", namespace="clusters", _id="kms-excl-6h30m-id", cluster="mgmt-cluster", resource_id="kms-excl-6h30m-resource"}'
+    values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
+  # The same cluster's BYOK KMS config is invalid for the whole outage
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="kms-excl-6h30m", namespace="clusters", _id="kms-excl-6h30m-id", cluster="mgmt-cluster", resource_id="kms-excl-6h30m-resource"}'
+    values: "1+0x900"
+  alert_rule_test:
+  # Fast tier would also have fired without the exclusion, same as Test 3
+  - eval_time: 80m
+    alertname: userJourneyKubeApiserverAvailability1h5m
+    exp_alerts: []
+  # Medium tier would also have fired without the exclusion, same as Test 3
+  - eval_time: 420m
+    alertname: userJourneyKubeApiserverAvailability6h30m
+    exp_alerts: []
+# Same outage/timing as Test 8 (3d/6h), plus KMS invalid.
+- interval: 1m
+  name: "Test 11: KMS-caused exclusion silences userJourneyKubeApiserverAvailability3d6h"
+  input_series:
+  # Same 68.5-hour outage as Test 8
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="kms-excl-3d6h", namespace="clusters", _id="kms-excl-3d6h-id", cluster="mgmt-cluster", resource_id="kms-excl-3d6h-resource"}'
+    values: "0+0x4110" # 4111 samples at 1m interval, t=0 to t=4110m, complete failure
+  # The same cluster's BYOK KMS config is invalid for the whole outage
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="kms-excl-3d6h", namespace="clusters", _id="kms-excl-3d6h-id", cluster="mgmt-cluster", resource_id="kms-excl-3d6h-resource"}'
+    values: "1+0x4110"
+  alert_rule_test:
+  # Without the KMS exclusion this would fire exactly like Test 8 did at T=4110m
+  - eval_time: 4110m
+    alertname: userJourneyKubeApiserverAvailability3d6h
+    exp_alerts: [] # excluded samples drop out of sli_sum_3d_excl_known/sli_count_3d_excl_known, so the 3d guard never clears
+# Regression guard: Test 2, Test 3, and Test 8 have no KMS series at all and still fire, proving the
+# exclusion never mistakes an absent condition for a match.
+# No blind spot: a cluster that was down for a KMS-caused reason and then stays down for a
+# completely different, unrelated reason must still page for the new cause -- the KMS
+# exclusion only removes the specific excluded instants from sli_sum/sli_count, it does not
+# gate the whole alert for the rest of the window. (A blanket per-cluster `unless` gate keyed
+# on "was this cluster excluded anywhere in the window" would wrongly stay silent here for up
+# to the full 6h/3d window; sample-level exclusion does not have that blind spot.)
+- interval: 1m
+  name: "Test 12: 6h30m still pages for a new, unrelated failure that follows a KMS-caused one"
+  input_series:
+  # KAS is down continuously from T=0, but the *cause* changes: KMS-caused for the first 60m,
+  # then a completely different (non-KMS) outage for the rest.
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="kms-blindspot-6h30m", namespace="clusters", _id="kms-blindspot-6h30m-id", cluster="mgmt-cluster", resource_id="kms-blindspot-6h30m-resource"}'
+    values: "0+0x500" # continuously down, T=0..500m
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="kms-blindspot-6h30m", namespace="clusters", _id="kms-blindspot-6h30m-id", cluster="mgmt-cluster", resource_id="kms-blindspot-6h30m-resource"}'
+    values: "1+0x59 0+0x441" # KMS invalid only for the first 60m (T=0..59), valid for the rest
+  alert_rule_test:
+  # Too early: the unrelated failure has only been running ~30m, nowhere near enough
+  # non-excluded samples in the 6h window yet
+  - eval_time: 90m
+    alertname: userJourneyKubeApiserverAvailability6h30m
+    exp_alerts: []
+  # By T=410m the 30m "for" timer has elapsed and the unrelated failure has supplied well
+  # over an hour of non-excluded downtime in the 6h window -- it still pages here even
+  # though the window (50m, 410m] still contains the KMS-excluded T=55m sample, which is
+  # exactly the case a naive blanket "was this cluster excluded anywhere in the window"
+  # gate would wrongly suppress; sample-level exclusion has no such blind spot.
+  - eval_time: 410m
+    alertname: userJourneyKubeApiserverAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        severity: "2"
+        slo: kas-availability
+        long_window: 6h
+        short_window: 30m
+        name: kms-blindspot-6h30m
+        namespace: clusters
+        _id: kms-blindspot-6h30m-id
+        cluster: mgmt-cluster
+        resource_id: kms-blindspot-6h30m-resource
+      exp_annotations:
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (6h/30m) resource_id:kms-blindspot-6h30m-resource"
+        description: "Resource ID: kms-blindspot-6h30m-resource\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
+# Same proof, scaled to the 3d6h tier's long window.
+- interval: 1m
+  name: "Test 13: 3d6h still pages for a new, unrelated failure that follows a KMS-caused one"
+  input_series:
+  # Same shape as Test 8/11 (continuous failure long enough for the 3d tier), but the cause
+  # changes from KMS to unrelated after the first 60m, same as Test 12
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="kms-blindspot-3d6h", namespace="clusters", _id="kms-blindspot-3d6h-id", cluster="mgmt-cluster", resource_id="kms-blindspot-3d6h-resource"}'
+    values: "0+0x4320" # continuously down, T=0..4320m (a full 3d)
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="False", name="kms-blindspot-3d6h", namespace="clusters", _id="kms-blindspot-3d6h-id", cluster="mgmt-cluster", resource_id="kms-blindspot-3d6h-resource"}'
+    values: "1+0x59 0+0x4261" # KMS invalid only for the first 60m, valid for the rest
+  alert_rule_test:
+  # Comfortably later than Test 8/11's T=4110m, to absorb the extra time the 3d window's
+  # sample guard needs once the handful of 30m-step samples inside the KMS exclusion are
+  # dropped from the count -- still pages for the unrelated remainder of the outage
+  - eval_time: 4320m
+    alertname: userJourneyKubeApiserverAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        component: slo
+        severity: "3"
+        slo: kas-availability
+        long_window: 3d
+        short_window: 6h
+        name: kms-blindspot-3d6h
+        namespace: clusters
+        _id: kms-blindspot-3d6h-id
+        cluster: mgmt-cluster
+        resource_id: kms-blindspot-3d6h-resource
+      exp_annotations:
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (3d/6h) resource_id:kms-blindspot-3d6h-resource"
+        description: "Resource ID: kms-blindspot-3d6h-resource\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"

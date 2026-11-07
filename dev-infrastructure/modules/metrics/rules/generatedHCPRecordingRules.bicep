@@ -85,12 +85,42 @@ resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[6h:5m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_3d'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[3d:30m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_6h_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[6h:5m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_3d'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[3d:30m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_6h_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[6h:5m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+      {
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_3d_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[3d:30m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+      {
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_3d_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[3d:30m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+      }
+    ]
+  }
+}
+
+resource userjourneyKubeapiserverAvailabilityAlertExclusionRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'userjourney-kubeapiserver-availability-alert-exclusion-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:is_customer_caused'
+        expression: 'max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config{status="False"}) == 1 and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_alert_excluded:any'
+        expression: 'hostedClusterAPI_valid_azure_kms_config:is_customer_caused'
       }
     ]
   }
@@ -199,28 +229,28 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
     interval: 'PT1M'
     rules: [
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[5m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[5m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[5m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[5m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_1h'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[1h:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_1h_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[1h:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_1h'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[1h:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_1h_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[1h:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_30m'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[30m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_30m_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[30m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_30m'
-        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[30m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
+        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_30m_excl_known'
+        expression: 'sum by (name, namespace, _id, resource_id, cluster, region) (count_over_time((max by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, resource_id, cluster) max by (name, namespace, _id, resource_id, cluster, region) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) unless on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_alert_excluded:any == 1)[30m:1m])) and on (name, namespace, _id, resource_id, cluster) count by (name, namespace, _id, resource_id, cluster, region) (hostedClusterAPI_kubeapiserver_available)'
       }
     ]
   }

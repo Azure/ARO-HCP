@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-kubeapiserver-availability-alert-exclusion-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: userjourney-kubeapiserver-availability-alert-exclusion-recording-rules
+    rules:
+    # Registry of known inactionable conditions excluded from the individual
+    # cluster alerts. To add one: export it as a KSM metric, add a recording rule
+    # below (same shape as valid_azure_kms_config), and OR it into
+    # hostedClusterAPI_alert_excluded:any.
+
+    # ValidAzureKMSConfig=False isn't purely customer-caused, but SRE can't act
+    # on it per-cluster either way, so it's excluded regardless of root cause
+    # unless the systemic alert says otherwise.
+
+    # --- customer-kms: BYOK Key Vault / key is broken or inaccessible ---
+    # NOTE: This assumes current RP state - that ALL clusters leverage BYO KMS.
+    #   We must tweak this in the future when PlatformManaged KMS is supported.
+    - record: hostedClusterAPI_valid_azure_kms_config:is_customer_caused
+      expr: |
+        max by (name, namespace, _id, resource_id, cluster) (
+          hostedClusterAPI_valid_azure_kms_config{status="False"}
+        ) == 1
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    # --- (future) customer-<next-condition>: add here, same shape ---
+
+    # Union of every exclusion condition. hostedClusterAPI_alert_excluded:any is
+    # instantaneous (1 only while the condition is currently true) by design -- the SLI
+    # recording rules (UserJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml,
+    # HCPkasRecord-prometheusRule-KSM.yaml) apply this per-sample inside their own
+    # sum_over_time/count_over_time subqueries, so each excluded instant is dropped from
+    # the SLI sum and count as if it never happened. That keeps the exclusion sample-level
+    # and self-expiring: a cluster stays excluded only for the samples that were actually
+    # bad, never gating out a genuinely new, unrelated failure on the same cluster. Adding
+    # a condition above and OR-ing it in here is the entire blast radius on the alerting
+    # side -- no separate windowed variant needed.
+    - record: hostedClusterAPI_alert_excluded:any
+      expr: |
+        hostedClusterAPI_valid_azure_kms_config:is_customer_caused
+        # or on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_<next_condition>:is_customer_caused
+        # (use an explicit `or on (...)` with this exact label set, not default label matching)

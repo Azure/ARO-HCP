@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-kubeapiserver-availability-kms-systemic-failure-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: rp-userjourney-kas-kms-systemic-failure-rules
+    labels:
+      component: slo
+    rules:
+    # Closes a gap in the per-cluster KMS exclusion (UserJourneyKubeApiserverAvailabilityAlertExclusions-prometheusRule-KSM.yaml): many clusters failing KMS together is a shared Azure/ARO problem, not a per-customer one, and today nothing notifies anyone of it.
+    # Notify-only, not page-and-fix -- there's no per-cluster remediation, just confirm blast radius and declare an incident if it's real.
+    # Aggregated by management cluster, not fleet-wide, to stay correlatable in ICM and distinguishable from a single customer's bad day.
+    # Ratio + absolute floor together guard against one customer's BYOK failure looking systemic on a management cluster with few clusters.
+    # No status selector: KMS is mandatory for every cluster today, so status="Unknown" is as broken as status="False" for both counts.
+    # Both the failing count and the total count go through the same max by (...) == 1
+    # dedup (matching the is_customer_caused recording rule in the exclusions file) so a
+    # hosted cluster is counted once per side of the ratio regardless of duplicate series.
+    - alert: userJourneyKubeApiserverAvailabilityKmsSystemicFailure
+      expr: |
+        (
+          count by (cluster) (
+            max by (name, namespace, _id, resource_id, cluster) (
+              hostedClusterAPI_valid_azure_kms_config{status!="True"}
+            ) == 1
+          )
+          /
+          count by (cluster) (
+            max by (name, namespace, _id, resource_id, cluster) (
+              hostedClusterAPI_valid_azure_kms_config
+            ) == 1
+          )
+        ) >= 0.5
+        and on (cluster)
+        count by (cluster) (
+          max by (name, namespace, _id, resource_id, cluster) (
+            hostedClusterAPI_valid_azure_kms_config{status!="True"}
+          ) == 1
+        ) >= 3
+      # Rides out a brief reconcile blip without delaying real detection too long
+      for: 10m
+      labels:
+        severity: "3"
+        slo: kas-availability
+        scope: mgmt-cluster
+      annotations:
+        summary: "[HCPKASAvailableKMSSystemic] Azure KMS failing across hosted clusters on {{ $labels.cluster }}"
+        description: "At least half (minimum 3) of the hosted clusters on management cluster {{ $labels.cluster }} are not reporting ValidAzureKMSConfig=True ({{ $value | humanizePercentage }} affected) -- independent customer BYOK failures don't correlate like this, so treat it as a shared Azure dependency failure (management cluster KMS managed identity / IMDS, control-plane-operator rollout, or a regional Key Vault / AAD outage), not a per-customer issue. This is NOT per-cluster actionable: confirm the blast radius and declare an incident if confirmed. Per-cluster KMS failures are already excluded from the userJourneyKubeApiserverAvailability burn-rate alerts; this is the only notification path for the systemic case."
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable-kms-systemic
+        correlationId: "userJourneyKubeApiserverAvailabilityKmsSystemicFailure/{{ $labels.cluster }}"
