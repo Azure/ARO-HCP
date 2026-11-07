@@ -16,12 +16,16 @@ package client
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"time"
 
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
+
+	"github.com/Azure/ARO-HCP/internal/certificate"
 )
 
 // HardcodedIdentity represents the information of an Azure identity
@@ -35,11 +39,12 @@ import (
 type HardcodedIdentity struct {
 	// ClientID is the Client ID of a valid identity.
 	ClientID string
-	// ClientSecret is The base64 encoded bundle
-	// certificate (public + private key) of the identity.
-	// The identity is a valid identity credential associated to the identity
-	// identified by ClientID.
-	ClientSecret string
+	// CertificateBundleReader reads the raw certificate bundle (public + private key,
+	// in PEM or PKCS#12 format) that is used as the identity credential
+	// associated to the identity identified by ClientID. It is read on every
+	// request so that certificate rotation is picked up without restarting
+	// the process.
+	CertificateBundleReader certificate.BundleReader
 	// PrincipalID is the Principal ID of the identity identified by ClientID.
 	// For User-Assigned Managed identities this is the Object (principal) ID
 	// of the Managed Identity. This is, the Object ID of the service principal
@@ -74,6 +79,12 @@ var _ ManagedIdentitiesDataplaneClient = (*hardcodedIdentityManagedIdentitiesDat
 // The returned results will have the stubbed data provided during construction of the client
 // for the client id, client secret and principal id attributes.
 func (c *hardcodedIdentityManagedIdentitiesDataplaneClient) GetUserAssignedIdentitiesCredentials(ctx context.Context, request dataplane.UserAssignedIdentitiesRequest) (*dataplane.ManagedIdentityCredentials, error) {
+	bundle, err := c.hardcodedIdentity.CertificateBundleReader.ReadBundle()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read hardcoded identity certificate bundle: %w", err)
+	}
+	clientSecret := base64.StdEncoding.EncodeToString(bundle)
+
 	now := time.Now().UTC()
 	aHundredYearsFromNow := now.AddDate(100, 0, 0).Format(time.RFC3339)
 	aDayAgo := now.AddDate(0, 0, -1).Format(time.RFC3339)
@@ -90,7 +101,7 @@ func (c *hardcodedIdentityManagedIdentitiesDataplaneClient) GetUserAssignedIdent
 	for i, miResourceID := range request.IdentityIDs {
 		identity := dataplane.UserAssignedIdentityCredentials{
 			ClientID:                   ptr.To(c.hardcodedIdentity.ClientID),
-			ClientSecret:               ptr.To(c.hardcodedIdentity.ClientSecret),
+			ClientSecret:               ptr.To(clientSecret),
 			TenantID:                   ptr.To(c.hardcodedIdentity.TenantID),
 			ResourceID:                 ptr.To(miResourceID),
 			AuthenticationEndpoint:     ptr.To(c.cloudConfiguration.ActiveDirectoryAuthorityHost),

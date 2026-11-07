@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -31,10 +33,23 @@ type WatchingAzureIdentityFileReader struct {
 	reader   *AzureIdentityFileReader
 	filePath string
 
-	mu    sync.RWMutex
-	certs []*x509.Certificate
-	key   crypto.PrivateKey
+	mu sync.RWMutex
+	// bundle, certs and key are all derived from the same read of the
+	// underlying file and are always updated together, under mu, by reload:
+	// bundle is the raw file content (PEM or PKCS#12, whatever format it was
+	// stored in), and certs/key are the certificate chain and private key
+	// obtained by parsing bundle. Keeping all three in sync means ReadBundle
+	// and ReadCertificate never observe a torn combination, e.g. certs/key
+	// from one file revision paired with bundle from another.
+	bundle []byte
+	certs  []*x509.Certificate
+	key    crypto.PrivateKey
 }
+
+var (
+	_ Reader       = (*WatchingAzureIdentityFileReader)(nil)
+	_ BundleReader = (*WatchingAzureIdentityFileReader)(nil)
+)
 
 // NewWatchingAzureIdentityFileReader creates a new watching certificate reader.
 // It loads the initial certificate and starts watching for changes.
@@ -67,24 +82,39 @@ func (w *WatchingAzureIdentityFileReader) Run(ctx context.Context, checkInterval
 	return watcher.Start(ctx)
 }
 
-// ReadCertificate returns the cached certificate.
+// ReadCertificate returns the cached, parsed certificate and private key.
 func (w *WatchingAzureIdentityFileReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.certs, w.key, nil
 }
 
-// reload reads and caches the certificate from the underlying reader.
+// ReadBundle returns the cached, raw certificate bundle bytes, in whatever
+// format (PEM or PKCS#12) they were originally stored in.
+func (w *WatchingAzureIdentityFileReader) ReadBundle() ([]byte, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.bundle, nil
+}
+
+// reload reads and caches the certificate bundle, and its parsed form, from
+// the underlying reader.
 func (w *WatchingAzureIdentityFileReader) reload(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	certs, key, err := w.reader.ReadCertificate()
+	bundle, err := w.reader.ReadBundle()
 	if err != nil {
-		return fmt.Errorf("failed to read certificate: %w", err)
+		return fmt.Errorf("failed to read certificate bundle: %w", err)
+	}
+
+	certs, key, err := azidentity.ParseCertificates(bundle, nil)
+	if err != nil {
+		return fmt.Errorf("failed to parse certificate: %w", err)
 	}
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.bundle = bundle
 	w.certs = certs
 	w.key = key
 
