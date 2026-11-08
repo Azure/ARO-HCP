@@ -128,6 +128,11 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 		{2, 9 * time.Second, 4 * time.Second, 5 * time.Second},
 		{1, 4 * time.Second, 4 * time.Second, 4 * time.Second},
 		{1, 17 * time.Second, 17 * time.Second, 17 * time.Second},
+		{},
+		{},
+		{},
+		{},
+		{},
 		{1, 20 * time.Second, 20 * time.Second, 20 * time.Second},
 	} {
 		got := summary.Rows[i]
@@ -138,11 +143,13 @@ func TestLifecycleSummarySelectsSuccessfulIndependentSamples(t *testing.T) {
 	if summary.Rows[0].Incomplete != 1 {
 		t.Fatalf("incomplete sample selection is incorrect: %+v", summary.Rows[0])
 	}
-	if got := summarizeLifecycle([]TestInfo{{Outcome: "passed"}}).Rows[4]; got.Count != 0 || got.P50() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
+	missingCleanup := summarizeLifecycle([]TestInfo{{Outcome: "passed"}})
+	if got := missingCleanup.Rows[len(missingCleanup.Rows)-1]; got.Count != 0 || got.P50() != "N/A" || got.Minimum() != "N/A" || got.Maximum() != "N/A" {
 		t.Fatalf("missing cleanup boundary cannot become a zero-second sample: %+v", got)
 	}
 	passed.Phases = []StepTimingMetadata{{Name: "cleanup interrupted", StartedAt: start.Add(20 * time.Second), FinishedAt: start.Add(40 * time.Second), Incomplete: true}}
-	if got := summarizeLifecycle([]TestInfo{passed}).Rows[4]; got.Count != 0 || got.Incomplete != 1 {
+	interruptedCleanup := summarizeLifecycle([]TestInfo{passed})
+	if got := interruptedCleanup.Rows[len(interruptedCleanup.Rows)-1]; got.Count != 0 || got.Incomplete != 1 {
 		t.Fatalf("interrupted cleanup cannot be a success sample: %+v", got)
 	}
 }
@@ -199,7 +206,7 @@ func TestLifecycleDurationRangesIncludeZeroAndFullCleanup(t *testing.T) {
 		})
 	}
 	summary := summarizeLifecycle(tests)
-	for _, row := range []durationSummary{summary.Rows[0], summary.Rows[4]} {
+	for _, row := range []durationSummary{summary.Rows[0], summary.Rows[len(summary.Rows)-1]} {
 		if row.Count != 3 || row.Minimum() != "0s" || row.Max == 0 || row.P50() == "N/A" {
 			t.Fatalf("zero duration is a valid sample, not missing data: %+v", row)
 		}
@@ -207,7 +214,7 @@ func TestLifecycleDurationRangesIncludeZeroAndFullCleanup(t *testing.T) {
 	if row := summary.Rows[0]; row.Min != 0 || row.Max != 5*time.Second || row.Total != 7*time.Second {
 		t.Fatalf("incorrect operation range: %+v", row)
 	}
-	if row := summary.Rows[4]; row.Min != 0 || row.Max != 4*time.Second || row.Total != 6*time.Second {
+	if row := summary.Rows[len(summary.Rows)-1]; row.Min != 0 || row.Max != 4*time.Second || row.Total != 6*time.Second {
 		t.Fatalf("incorrect full-cleanup range: %+v", row)
 	}
 }
@@ -223,7 +230,8 @@ func TestLifecycleSummaryExcludesFailedAndUnknownOperationsInPassingTests(t *tes
 			})
 		}
 	}
-	for _, row := range summarizeLifecycle([]TestInfo{item}).Rows[:4] {
+	excluded := summarizeLifecycle([]TestInfo{item})
+	for _, row := range excluded.Rows[:len(excluded.Rows)-1] {
 		if row.Count != 0 || row.Total != 0 || row.P50() != "N/A" || row.Minimum() != "N/A" || row.Maximum() != "N/A" {
 			t.Errorf("unsuccessful or unknown operations became successful samples: %+v", row)
 		}
