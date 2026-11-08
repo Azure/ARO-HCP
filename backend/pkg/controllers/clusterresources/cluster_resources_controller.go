@@ -922,7 +922,9 @@ func ensureHostedClusterApplyDesire(
 	for attempt := 0; attempt < 5; attempt++ {
 		existing, err := crud.Get(ctx, desire.ResourceID.Name)
 		if cosmosstorageutils.IsNotFoundError(err) {
-			_, err = crud.Create(ctx, desire, nil)
+			// Create sets InstanceVersion before the request, even if Cosmos returns a conflict.
+			// Keep the candidate reusable if the next read still reports not found.
+			_, err = crud.Create(ctx, desire.DeepCopy(), nil)
 			if cosmosstorageutils.IsConflictError(err) {
 				continue
 			}

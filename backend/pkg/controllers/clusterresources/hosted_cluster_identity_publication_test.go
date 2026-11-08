@@ -17,6 +17,7 @@ package clusterresources
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -236,6 +238,44 @@ func (c *identityPublicationConflictCRUD) Replace(ctx context.Context, d *kubeap
 	}
 	return c.ResourceCRUD.Replace(ctx, d, o)
 }
+
+// Simulate a Cosmos create conflict after PrepareForCreate mutates the candidate.
+// The next read still reports not found, so publication must retry with version 0.
+type identityPublicationCreateConflictCRUD struct {
+	cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]
+	createCalls int
+}
+
+func (c *identityPublicationCreateConflictCRUD) Create(ctx context.Context, candidate *kubeapplierapi.ApplyDesire, options *azcosmos.ItemOptions) (*kubeapplierapi.ApplyDesire, error) {
+	c.createCalls++
+	if c.createCalls == 1 {
+		if err := cosmosstorageutils.PrepareForCreate(candidate); err != nil {
+			return nil, err
+		}
+		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
+	}
+	return c.ResourceCRUD.Create(ctx, candidate, options)
+}
+
+func TestHostedClusterPublisherRetriesCreateConflict(t *testing.T) {
+	t.Parallel()
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	client := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
+	crud, err := client.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	require.NoError(t, err)
+
+	conflicting := &identityPublicationCreateConflictCRUD{ResourceCRUD: crud}
+	candidate := identityPublicationDesire("10", `{"clientID":"new"}`)
+	require.NoError(t, ensureHostedClusterApplyDesire(ctx, conflicting, candidate))
+	assert.Equal(t, 2, conflicting.createCalls)
+	assert.Zero(t, candidate.InstanceVersion, "the source candidate must remain reusable")
+
+	got, err := crud.Get(ctx, DesireNameHostedCluster)
+	require.NoError(t, err)
+	assert.Equal(t, "10", got.Tags[hostedClusterSourceVersionTag])
+	assert.JSONEq(t, `{"clientID":"new"}`, string(got.Spec.ServerSideApply.KubeContent.Raw))
+}
+
 func TestHostedClusterPublisherRejectsStaleConcurrentWrite(t *testing.T) {
 	t.Parallel()
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))

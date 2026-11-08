@@ -10,7 +10,7 @@ provides the base HostedCluster manifest.
 |---|---|---|
 | `Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` | Frontend cluster creation | Identity resolvers, federation intent controller, identity intent writer |
 | `ServiceProviderCluster.Status.ManagedIdentityDetails[lowercaseResourceID].MetadataFromARMUserAssignedIdentitiesAPI` | `FetchManagedIdentitiesInfo` | Federation intent controller, identity intent writer, legacy principal mirror refresh gate |
-| `Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[identityResourceID, operatorName]` | #6982 federation intent/executor controllers | Identity intent writer |
+| `Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation[identityResourceID, operatorName]` | Federation intent and executor controllers | Identity intent writer |
 | `Status.DataPlaneOperatorsManagedIdentities.Identities[lowercaseResourceID]` | `FetchDataPlaneOperatorsManagedIdentitiesInfo` | Role assignment, deny assignment, identity intent controllers |
 | `Status.AzureResources.RoleAssignments.AzureResources` | Role assignment controller | Identity intent writer |
 | `Status.AzureResources.DenyAssignments.AzureResources[].ExcludedPrincipalIDs` | `ClusterDenyAssignment` after successful Azure reconciliation | Identity intent writer; deny assignment refresh gate |
@@ -110,19 +110,20 @@ identity leaves is the agreed optimization. It is not needed for correctness now
 
 ## Dependency boundary
 
-The preview was prepared against main `6dcc32ab` and #6982 `01d8a696`.
-#6944 is already in main. #6997's remaining dependency on #6982 is its persisted
-per-operator assignment contract and completed-configuration helper.
+The identity writer depends on the persisted per-operator federation
+assignment contract and completed-configuration helper
+`IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured` in main. #7942
+reintroduced this contract from #6982 after its revert. #6944 is also in main.
 
 An ensured stamp is historical confirmation for the target identity instance.
 A failed recheck of an already confirmed FIC can leave it in place. New or known
-outstanding configuration clears it in #6982. Consumer tests must not redefine
-that stamp as a live Azure health signal.
+outstanding configuration clears it in the federation controllers. Consumer
+tests must not redefine that stamp as a live Azure health signal.
 
 FIC creation, repair, delayed deconfiguration, and delete-error policy remain
-owned by #6982. #6997 does not patch those controllers or rely on their test
-fixtures. This feature handles recovery when a configured UAMI is recreated at
-the same resource ID. A future API allowing switching between two live identity
+owned by the federation controllers. #6997 does not patch them or rely on
+their test fixtures. This feature handles recovery when a configured UAMI is
+recreated at the same resource ID. A future API allowing switching between two live identity
 resources needs coordinated draining of old FICs, role assignments, and deny
 exclusions; this PR does not claim that broader migration guarantee.
 
@@ -130,9 +131,10 @@ exclusions; this PR does not claim that broader migration guarantee.
 
 Tests cover operator/instance readiness, per-operator progress, authorization
 prerequisites, bootstrap/deletion/disable guards, preservation of certificate
-intent across ETag conflicts, publisher ordering under a competing write, and
-fail-closed publication. Tests use the in-memory Cosmos CRUD implementation;
-they do not establish production Azure authorization propagation timing.
+intent across ETag conflicts, publisher ordering under a competing write,
+create-conflict retries, and fail-closed publication. Tests use the
+in-memory Cosmos CRUD implementation; they do not establish production Azure
+authorization propagation timing.
 
 Update this document when changing the identity pipeline's persisted fields,
 writers, readiness contract, or concurrency behavior. Verify paths and semantics
