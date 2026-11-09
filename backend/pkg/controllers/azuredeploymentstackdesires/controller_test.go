@@ -209,6 +209,14 @@ func TestDecideDeploymentStackDesire(t *testing.T) {
 			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "InvalidIntent", Message: `{"code":"InvalidTemplate"}`, LastTransitionTime: initialTime},
 		},
 	}
+	observationFailed := apply.DeepCopy()
+	observationFailed.Status = azureresourcesapi.DeploymentStackDesireStatus{
+		Stack: observedDeploymentStack("deploying", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
+		Conditions: []metav1.Condition{
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "RequestFailed", Message: "context deadline exceeded", LastTransitionTime: initialTime},
+			{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: "context deadline exceeded", LastTransitionTime: initialTime},
+		},
+	}
 	supersededPending := pending.DeepCopy()
 	supersededPending.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
 	supersededSuccess := succeeded.DeepCopy()
@@ -446,7 +454,17 @@ func TestDecideDeploymentStackDesire(t *testing.T) {
 			want: decision{kind: decisionKindNoOp},
 		},
 		{
-			name: "GET failure returns error without status", desire: pending, getErr: context.DeadlineExceeded, now: now, wantCalls: 1,
+			name: "GET failure surfaces Degraded and retries", desire: pending, getErr: context.DeadlineExceeded, now: now, wantCalls: 1,
+			want: decision{kind: decisionKindUpdateDesireStatus, err: context.DeadlineExceeded, status: &azureresourcesapi.DeploymentStackDesireStatus{
+				Stack: observedDeploymentStack("deploying", "ours"), ObservedSpecHash: applyHash, ObservedAt: &initialTime,
+				Conditions: []metav1.Condition{
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionFalse, Reason: "RequestFailed", Message: "context deadline exceeded", LastTransitionTime: initialTime},
+					{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: "context deadline exceeded", LastTransitionTime: observationTime},
+				},
+			}},
+		},
+		{
+			name: "GET failure unchanged Degraded only retries", desire: observationFailed, getErr: context.DeadlineExceeded, now: now, wantCalls: 1,
 			want: decision{kind: decisionKindNoOp, err: context.DeadlineExceeded},
 		},
 	} {
@@ -706,8 +724,15 @@ func TestAssociationAndCooldownPrerequisites(t *testing.T) {
 			desire := withApplySubmission(t, newDesire(), observedDeploymentStack("succeeded", "ours"), testNow)
 			test.change(desire)
 			result := checkedDecide(t, desire, nil, context.DeadlineExceeded, testNow.Add(time.Second), 1)
-			if !errors.Is(result.err, context.DeadlineExceeded) || result.status != nil {
-				t.Fatalf("incorrect cooldown or GET error wrote status: %+v", result)
+			if !errors.Is(result.err, context.DeadlineExceeded) {
+				t.Fatalf("GET error must propagate so the workqueue retries: %+v", result)
+			}
+			if result.status == nil {
+				t.Fatalf("GET error must surface a status: %+v", result)
+			}
+			degraded := meta.FindStatusCondition(result.status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded)
+			if degraded == nil || degraded.Status != metav1.ConditionTrue || degraded.Reason != "RequestFailed" {
+				t.Fatalf("GET error must surface a Degraded condition: %+v", result)
 			}
 		})
 	}
@@ -1197,7 +1222,11 @@ func TestSDKImmediateApplyFailure(t *testing.T) {
 	}
 }
 
-func TestSDKTokenFailuresDoNotWrite(t *testing.T) {
+// TestSDKTokenFailures checks that a token failure during the GET (observation)
+// phase surfaces a Degraded condition and writes once while retrying, whereas a
+// token failure during an Apply or Delete submission (a plain error, not an
+// *azcore.ResponseError) returns without writing a status.
+func TestSDKTokenFailures(t *testing.T) {
 	for _, phase := range []string{"GET", "Apply", "Delete"} {
 		t.Run(phase, func(t *testing.T) {
 			controller, storage, _ := setup(t, func(*http.Request) (*http.Response, error) { t.Fatal("default client used"); return nil, nil })
@@ -1224,8 +1253,15 @@ func TestSDKTokenFailuresDoNotWrite(t *testing.T) {
 				}})
 			}}
 			err := controller.SyncOnce(t.Context(), testKey)
-			if !errors.Is(err, tokenErr) || storage.writes != 0 || len(controller.queue.(*recordingQueue).delays) != 0 {
-				t.Fatalf("token failure wrote or polled: writes %d, error %v", storage.writes, err)
+			if phase == "GET" {
+				// A token failure during the observing GET now surfaces a Degraded
+				// condition and writes once, still returning the error for retry.
+				if !errors.Is(err, tokenErr) || storage.writes != 1 || len(controller.queue.(*recordingQueue).delays) != 0 ||
+					!meta.IsStatusConditionTrue(storage.doc.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded) {
+					t.Fatalf("GET token failure did not surface Degraded: writes %d, error %v", storage.writes, err)
+				}
+			} else if !errors.Is(err, tokenErr) || storage.writes != 0 || len(controller.queue.(*recordingQueue).delays) != 0 {
+				t.Fatalf("submission token failure wrote or polled: writes %d, error %v", storage.writes, err)
 			}
 			wantBuilds := 2
 			if phase == "GET" {
@@ -1432,8 +1468,8 @@ func TestOuterErrorsAndOriginalETag(t *testing.T) {
 		concurrent             bool
 		writes                 int
 	}{
-		{name: "GET denied", getCode: 403},
-		{name: "GET transport", transportErr: context.DeadlineExceeded},
+		{name: "GET denied", getCode: 403, writes: 1},
+		{name: "GET transport", transportErr: context.DeadlineExceeded, writes: 1},
 		{name: "ambiguous 400", submitCode: 400, writes: 1},
 		{name: "denied", submitCode: 403, writes: 1},
 		{name: "busy", submitCode: 409, writes: 1},
@@ -1552,8 +1588,22 @@ func TestCredentialBuilderRoutingAndCaching(t *testing.T) {
 				}}
 				err := controller.SyncOnce(t.Context(), testKey)
 				if failBuild != 0 {
-					if !errors.Is(err, context.DeadlineExceeded) || storage.writes != 0 || builds != failBuild || requests != failBuild-1 {
-						t.Fatalf("client failure: builds %d, requests %d, writes %d, err %v", builds, requests, storage.writes, err)
+					if !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("client failure lost error: builds %d, requests %d, writes %d, err %v", builds, requests, storage.writes, err)
+					}
+					if failBuild == 1 {
+						// The first build backs the lazy GET, so failing to build the client is an
+						// observation failure: it now surfaces a Degraded condition and writes once
+						// while still returning the error for a rate-limited retry.
+						if builds != 1 || requests != 0 || storage.writes != 1 ||
+							!meta.IsStatusConditionTrue(storage.doc.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeDegraded) {
+							t.Fatalf("observation build failure did not surface Degraded: builds %d, requests %d, writes %d", builds, requests, storage.writes)
+						}
+						return
+					}
+					// A later build backs the submission; that failure returns before any status write.
+					if storage.writes != 0 || builds != failBuild || requests != failBuild-1 {
+						t.Fatalf("submission build failure wrote status: builds %d, requests %d, writes %d", builds, requests, storage.writes)
 					}
 					return
 				}
