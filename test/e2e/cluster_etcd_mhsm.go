@@ -80,6 +80,44 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve deploying principal identity")
 			Expect(deployerIdentity.ObjectID).NotTo(BeEmpty(), "deploying principal object ID was empty")
 
+			// The customer resources do not depend on the Managed HSM: the cluster network and
+			// identities are separate deployments in the same resource group, and the HSM only
+			// supplies the KMS key. Deploying them alongside the HSM keeps the customer-resources
+			// deployment off the path of the HSM provisioning and activation waits.
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams20261001()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.OpenshiftVersionId = "4.22"
+			// KMS requires VNet integration; DisableSwift=false provides vnetIntegrationSubnetId (see test/e2e/README.md).
+			clusterParams.DisableSwift = false
+
+			By("deploying cluster customer resources alongside the Managed HSM")
+			type customerResourcesResult struct {
+				clusterParams framework.ClusterParams20261001
+				err           error
+			}
+			customerResourcesCtx, cancelCustomerResources := context.WithCancel(ctx)
+			customerResourcesDone := make(chan customerResourcesResult, 1)
+			customerResourcesStopped := make(chan struct{})
+			// Cancel the deployment and wait for its worker before the spec ends, so it cannot
+			// outlive the spec or record deployments and timing spans while framework cleanup runs.
+			defer func() {
+				cancelCustomerResources()
+				<-customerResourcesStopped
+			}()
+			go func() {
+				defer close(customerResourcesStopped)
+				params, deployErr := tc.CreateClusterCustomerResources20261001(customerResourcesCtx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{},
+					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
+				)
+				customerResourcesDone <- customerResourcesResult{clusterParams: params, err: deployErr}
+			}()
+
 			By("deploying an un-activated Managed HSM with the test principal as initial administrator")
 			hsmName := fmt.Sprintf("mhsm-%s", utilrand.String(12))
 			keyName := "etcd-cmk"
@@ -214,23 +252,10 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 				"keyName", keyName,
 				"secondKeyVersion", secondKeyVersion)
 
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = "4.22"
-			// KMS requires VNet integration; DisableSwift=false provides vnetIntegrationSubnetId (see test/e2e/README.md).
-			clusterParams.DisableSwift = false
-
-			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for etcd mHSM cluster")
+			By("waiting for cluster customer resources")
+			customerResources := <-customerResourcesDone
+			Expect(customerResources.err).NotTo(HaveOccurred(), "failed to create customer resources for etcd mHSM cluster")
+			clusterParams = customerResources.clusterParams
 
 			By("granting Managed HSM Crypto User role on the key to the runtime KMS caller(s)")
 			Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil(), "cluster params UserAssignedIdentitiesProfile was nil")

@@ -861,15 +861,10 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	// Deleting the resource group only soft-deletes any Key Vaults it contained;
-	// their globally-unique names stay reserved until purged. Purge them so a
+	// Deleting the resource group only soft-deletes any Key Vaults and Managed HSMs it
+	// contained; their globally-unique names stay reserved until purged. Purge them so a
 	// later run reusing a colliding vault name does not hit VaultAlreadyExists.
-	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
-		tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
-	})
-	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
-		tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
-	})
+	tc.purgeDeletedVaultsInResourceGroup(ctx, resourceGroupName)
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
@@ -930,16 +925,32 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	// Purge any Key Vaults left soft-deleted by the resource group deletion so
-	// their globally-unique names are immediately reusable by later runs.
-	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
-		tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
-	})
-	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
-		tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
-	})
+	// Purge any Key Vaults and Managed HSMs left soft-deleted by the resource group
+	// deletion so their globally-unique names are immediately reusable by later runs.
+	tc.purgeDeletedVaultsInResourceGroup(ctx, resourceGroupName)
 
 	return nil
+}
+
+// purgeDeletedVaultsInResourceGroup purges soft-deleted Key Vaults and Managed HSMs
+// concurrently, recording a best-effort cleanup stage for each. Both purges act on
+// different resource types, so overlapping their control-plane latency shortens teardown.
+func (tc *perItOrDescribeTestContext) purgeDeletedVaultsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	var purgeWG sync.WaitGroup
+	purgeWG.Add(2)
+	go func() {
+		defer purgeWG.Done()
+		tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
+			tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+		})
+	}()
+	go func() {
+		defer purgeWG.Done()
+		tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
+			tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+		})
+	}()
+	purgeWG.Wait()
 }
 
 // purgeDeletedKeyVaultsInResourceGroup purges any soft-deleted Key Vaults that
