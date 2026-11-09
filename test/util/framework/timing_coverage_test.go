@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -257,4 +258,33 @@ func TestOperationRecorderPinsTheStartingSpec(t *testing.T) {
 	reused.timingMetadata.Steps = nil
 	staleRecorder.Record(timing.KindUpdateCluster, "late update", start, start.Add(time.Minute), nil)
 	require.Empty(t, reused.timingMetadata.Steps, "a recorder from a previous spec must not append to a reused context")
+}
+
+// TestRecordCleanupStageRecordsOutcome checks cleanup stages record their result honestly.
+func TestRecordCleanupStageRecordsOutcome(t *testing.T) {
+	tc := &perItOrDescribeTestContext{}
+	sentinel := errors.New("delete failed")
+
+	err := tc.recordCleanupStage("Delete clusters in rg", func() error { return sentinel })
+	require.ErrorIs(t, err, sentinel)
+	require.Len(t, tc.timingMetadata.Steps, 1)
+	require.Equal(t, "Delete clusters in rg", tc.timingMetadata.Steps[0].Name)
+	require.Equal(t, timing.OutcomeFailed, tc.timingMetadata.Steps[0].Outcome)
+	require.Empty(t, tc.timingMetadata.Steps[0].Kind, "cleanup stages stay generic operations")
+
+	require.NoError(t, tc.recordCleanupStage("Delete resource group rg", func() error { return nil }))
+	require.Equal(t, timing.OutcomeSucceeded, tc.timingMetadata.Steps[1].Outcome)
+
+	// A purge helper reports no error, so the stage must not claim success.
+	tc.recordBestEffortCleanupStage("Purge deleted Managed HSMs in rg", func() {})
+	require.Len(t, tc.timingMetadata.Steps, 3)
+	require.Empty(t, tc.timingMetadata.Steps[2].Outcome, "a best-effort purge must not record an outcome")
+
+	// A stage that returns after the context moved to the next spec must not append.
+	before := len(tc.timingMetadata.Steps)
+	require.NoError(t, tc.recordCleanupStage("Wait for managed resource groups in rg", func() error {
+		tc.specGeneration++
+		return nil
+	}))
+	require.Len(t, tc.timingMetadata.Steps, before, "a stage from a previous spec must not append")
 }

@@ -801,7 +801,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := tc.DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete clusters in %s", resourceGroupName), func() error {
+		return tc.DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout)
+	}); err != nil {
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {
@@ -838,7 +840,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 			// waitForManagedResourceGroupsDeletion re-checks deny assignments on every poll and
 			// returns only the deletable (non-locked) groups still present, so the deny-locked
 			// ones never block the wait. A deletable group still present here is a genuine anomaly.
-			stillPendingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+			var stillPendingManagedResourceGroups []string
+			waitErr := tc.recordCleanupStage(fmt.Sprintf("Wait for managed resource groups in %s", resourceGroupName), func() error {
+				var err error
+				stillPendingManagedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+				return err
+			})
 			if waitErr != nil && len(stillPendingManagedResourceGroups) > 0 {
 				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
 			}
@@ -848,15 +855,21 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete resource group %s", resourceGroupName), func() error {
+		return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout)
+	}); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
 	// Deleting the resource group only soft-deletes any Key Vaults it contained;
 	// their globally-unique names stay reserved until purged. Purge them so a
 	// later run reusing a colliding vault name does not hit VaultAlreadyExists.
-	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
-	tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
+		tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	})
+	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
+		tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+	})
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
@@ -892,7 +905,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 	for _, managedRG := range managedResourceGroups {
 		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
-		if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
+		if err := tc.recordCleanupStage(fmt.Sprintf("Delete managed resource group %s", managedRG), func() error {
+			return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout)
+		}); err != nil {
 			if isIgnorableResourceGroupCleanupError(err) {
 				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
 			} else {
@@ -909,14 +924,20 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete resource group %s", resourceGroupName), func() error {
+		return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout)
+	}); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
 	// Purge any Key Vaults left soft-deleted by the resource group deletion so
 	// their globally-unique names are immediately reusable by later runs.
-	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
-	tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
+		tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	})
+	tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
+		tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+	})
 
 	return nil
 }
@@ -1588,18 +1609,51 @@ func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string,
 	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
 }
 
-// recordOperationFromGeneration appends a span only while the spec that began it is still current.
-func (tc *perItOrDescribeTestContext) recordOperationFromGeneration(generation uint64, kind, name string, startTime, finishTime time.Time, operationErr error) {
-	outcome := timing.OutcomeSucceeded
-	if operationErr != nil {
-		outcome = timing.OutcomeFailed
-	}
+// recordCleanupStage runs one cleanup stage and records its span with the stage outcome.
+// The span is pinned to the spec that started the stage, so a stage that returns after
+// Ginkgo's timeout cannot land in the next spec's artifact.
+func (tc *perItOrDescribeTestContext) recordCleanupStage(name string, run func() error) (operationErr error) {
+	startedAt := time.Now()
+	generation := tc.specGenerationNow()
+	defer func() {
+		tc.recordOperationFromGeneration(generation, "", name, startedAt, time.Now(), operationErr)
+	}()
+	return run()
+}
+
+// recordBestEffortCleanupStage runs a stage that reports no error, recording only its duration.
+// Purge helpers log and suppress their failures, so an outcome here would be fabricated.
+func (tc *perItOrDescribeTestContext) recordBestEffortCleanupStage(name string, run func()) {
+	startedAt := time.Now()
+	generation := tc.specGenerationNow()
+	run()
+	tc.recordStageFromGeneration(generation, "", name, "", startedAt, time.Now())
+}
+
+// specGenerationNow reads the current spec generation.
+func (tc *perItOrDescribeTestContext) specGenerationNow() uint64 {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	return tc.specGeneration
+}
+
+// recordStageFromGeneration appends a span only while the spec that began it is still current.
+func (tc *perItOrDescribeTestContext) recordStageFromGeneration(generation uint64, kind, name, outcome string, startTime, finishTime time.Time) {
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()
 	if tc.timingFinalized || tc.specGeneration != generation {
 		return
 	}
 	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
+}
+
+// recordOperationFromGeneration appends a span only while the spec that began it is still current.
+func (tc *perItOrDescribeTestContext) recordOperationFromGeneration(generation uint64, kind, name string, startTime, finishTime time.Time, operationErr error) {
+	outcome := timing.OutcomeSucceeded
+	if operationErr != nil {
+		outcome = timing.OutcomeFailed
+	}
+	tc.recordStageFromGeneration(generation, kind, name, outcome, startTime, finishTime)
 }
 
 // appendTestSpanUnlocked stores one span; the caller holds contextLock.
