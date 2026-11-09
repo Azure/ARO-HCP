@@ -47,6 +47,10 @@ func (c *clusterUpdateValidationCheck) GetSourceName() string {
 
 func (c *clusterUpdateValidationCheck) CalculateOperationStatus(_ context.Context, operation *coreapi.Operation, input clusterUpdateOperationStatusInput) (*operationbase.OperationState, error) {
 	serviceProviderCluster := input.ServiceProviderCluster
+	if serviceProviderCluster == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
+
 	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now()), nil
 }
 
@@ -67,7 +71,12 @@ func (c *clusterUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
+
 	spc := input.ServiceProviderCluster
+	if spc == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
+
 	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -153,11 +162,20 @@ func (c *clusterUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx co
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
+
 	// Deletion may have cleared the ID since SynchronizeOperation read the cluster.
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return nil, utils.TrackError(fmt.Errorf("cluster service ID is no longer available"))
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service ID is not set"), nil
 	}
-	existingCSClusterStatus, clusterServiceID := input.ClusterServiceCluster.Status(), *cluster.ServiceProviderProperties.ClusterServiceID
+	csClusterGetter := input.ClusterServiceOnceGetter
+	csCluster, err := csClusterGetter(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil && ocm.IsOCMErrorStatus404(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service cluster is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service cluster from cluster service: %w", err))
+	}
+	existingCSClusterStatus, clusterServiceID := csCluster.Status(), *cluster.ServiceProviderProperties.ClusterServiceID
 	logger := utils.LoggerFromContext(ctx)
 
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
@@ -192,7 +210,19 @@ func (c *clusterUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx cont
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	csCluster := input.ClusterServiceCluster
+
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service ID is not set"), nil
+	}
+	csClusterGetter := input.ClusterServiceOnceGetter
+	csCluster, err := csClusterGetter(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil && ocm.IsOCMErrorStatus404(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service cluster is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service cluster from cluster service: %w", err))
+	}
+
 	if matches, message := c.clusterServiceClusterSpecMatchesDesired(cluster, csCluster); !matches {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
@@ -216,6 +246,9 @@ func (c *clusterUpdateHostedClusterCheck) CalculateOperationStatus(ctx context.C
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	spc := input.ServiceProviderCluster
+	if spc == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -251,6 +284,9 @@ func (c *clusterUpdateAutoscalerCheck) GetSourceName() string {
 
 func (c *clusterUpdateAutoscalerCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input clusterUpdateOperationStatusInput) (*operationbase.OperationState, error) {
 	spc := input.ServiceProviderCluster
+	if spc == nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
 	logger := utils.LoggerFromContext(ctx)
 
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)

@@ -1786,7 +1786,15 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 			t.Parallel()
 			tt.cluster.ID = operationtesting.NewClusterTestFixture().ClusterResourceID
 			controller := &clusterUpdateClusterServiceSpecCheck{clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}}}
-			state, err := controller.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.cluster.ID}, clusterUpdateOperationStatusInput{ClusterServiceCluster: tt.csCluster})
+			state, err := controller.CalculateOperationStatus(
+				context.Background(),
+				&coreapi.Operation{ExternalID: tt.cluster.ID},
+				clusterUpdateOperationStatusInput{
+					ClusterServiceOnceGetter: func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+						return tt.csCluster, nil
+					},
+				},
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {

@@ -64,7 +64,15 @@ func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
 		// A cleared ID must prevent any further Cluster Service calls.
 		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
 	}
-	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{ClusterServiceCluster: csCluster})
+	state, err := check.CalculateOperationStatus(
+		t.Context(),
+		fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate),
+		clusterUpdateOperationStatusInput{
+			ClusterServiceOnceGetter: func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+				return csCluster, nil
+			},
+		},
+	)
 	require.ErrorContains(t, err, "cluster service ID is no longer available")
 	assert.Nil(t, state)
 }

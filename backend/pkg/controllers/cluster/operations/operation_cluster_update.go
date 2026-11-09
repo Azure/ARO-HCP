@@ -16,6 +16,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -167,24 +168,22 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	// TODO what about this dependency on status input?
-	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-	defer cancel()
+	var inputErrs []error
 
-	csResource, err := c.clusterServiceClient.GetCluster(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
-	}
 	serviceProviderResource, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
+		inputErrs = append(inputErrs, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err)))
 	}
 	input := clusterUpdateOperationStatusInput{
-		ServiceProviderCluster: serviceProviderResource,
-		ClusterServiceCluster:  csResource,
+		ServiceProviderCluster:   serviceProviderResource,
+		ClusterServiceOnceGetter: newClusterServiceClusterOnceGetter(c.clusterServiceClient),
 	}
 
 	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
+	if len(inputErrs) > 0 {
+		logger.Error(err, "failed to build operation status input")
+		observationErr = errors.Join(observationErr, errors.Join(inputErrs...))
+	}
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
@@ -213,6 +212,35 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 // clusterUpdateOperationStatusInput shares one Cluster Service and provider-state
 // observation across all update checks in a reconciliation.
 type clusterUpdateOperationStatusInput struct {
+	// ServiceProviderCluster is the service provider cluster resource from cache. It can be nil if it was not found in the cache
+	// or it failed to be retrieved from the cache.
 	ServiceProviderCluster *coreapi.ServiceProviderCluster
-	ClusterServiceCluster  *arohcpv1alpha1.Cluster
+
+	// ClusterServiceOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+	// has not been attempted before.
+	// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an error.
+	// The function assumes that clusterServiceID is not nil.
+	ClusterServiceOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error)
+}
+
+// newClusterServiceClusterOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+// has not been attempted before.
+// It will return the response from Clusters Service which is the Cluster Service cluster or an error.
+// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+func newClusterServiceClusterOnceGetter(clusterServiceClient ocm.ClusterServiceClientSpec) func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+	var csResource *arohcpv1alpha1.Cluster
+	var err error
+	retrievedOnce := false
+	return func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+		if retrievedOnce {
+			return csResource, err
+		}
+
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		defer cancel()
+		csResource, err = clusterServiceClient.GetCluster(csCtx, *clusterServiceID)
+		retrievedOnce = true
+		return csResource, err
+	}
 }

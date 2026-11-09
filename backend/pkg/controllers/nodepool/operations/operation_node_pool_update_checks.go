@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -128,7 +129,9 @@ func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context
 	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent, intentFailedCondition.Message, nil), nil
 }
 
-type nodePoolUpdateClusterServiceStatusCheck struct{}
+type nodePoolUpdateClusterServiceStatusCheck struct {
+	nodePoolLister corelisters.NodePoolLister
+}
 
 var _ operationbase.OperationStatusCalculator[*nodePoolUpdateOperationStatusInput] = (*nodePoolUpdateClusterServiceStatusCheck)(nil)
 
@@ -137,7 +140,22 @@ func (c *nodePoolUpdateClusterServiceStatusCheck) GetSourceName() string {
 }
 
 func (c *nodePoolUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input *nodePoolUpdateOperationStatusInput) (*operationbase.OperationState, error) {
-	existingCSNodePoolStatus := input.ClusterServiceNodePool.Status()
+	nodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+	}
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "node pool cluster service ID is not set"), nil
+	}
+	csNodePoolGetter := input.ClusterServiceNodePoolOnceGetter
+	csNodePool, err := csNodePoolGetter(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil && ocm.IsOCMErrorStatus404(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service node pool is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service node pool from cluster service: %w", err))
+	}
+	existingCSNodePoolStatus := csNodePool.Status()
 	logger := utils.LoggerFromContext(ctx)
 	newOperationStatus, opError, err := operationbase.ConvertNodePoolStatus(operation, existingCSNodePoolStatus)
 	if err != nil {
@@ -167,7 +185,20 @@ func (c *nodePoolUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx con
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
-	if matches, message := c.clusterServiceNodePoolSpecMatchesDesired(nodePool, input.ClusterServiceNodePool); !matches {
+
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "node pool cluster service ID is not set"), nil
+	}
+	csNodePoolGetter := input.ClusterServiceNodePoolOnceGetter
+	csNodePool, err := csNodePoolGetter(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil && ocm.IsOCMErrorStatus404(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service node pool is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service node pool from cluster service: %w", err))
+	}
+
+	if matches, message := c.clusterServiceNodePoolSpecMatchesDesired(nodePool, csNodePool); !matches {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
@@ -191,6 +222,18 @@ func (c *nodePoolUpdateHypershiftCheck) CalculateOperationStatus(ctx context.Con
 	}
 	logger := utils.LoggerFromContext(ctx)
 
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "node pool cluster service ID is not set"), nil
+	}
+	csNodePoolGetter := input.ClusterServiceNodePoolOnceGetter
+	csNodePool, err := csNodePoolGetter(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil && ocm.IsOCMErrorStatus404(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster service node pool is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster service node pool from cluster service: %w", err))
+	}
+
 	hypershiftNodePool, err := kubeapplierhelpers.GetCachedNodePoolForNodePool(
 		ctx,
 		c.readDesireLister,
@@ -206,7 +249,7 @@ func (c *nodePoolUpdateHypershiftCheck) CalculateOperationStatus(ctx context.Con
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Hypershift NodePool has not been observed yet"), nil
 	}
 
-	if matches, message := c.hypershiftNodePoolSpecMatchesDesired(nodePool, input.ClusterServiceNodePool, hypershiftNodePool); !matches {
+	if matches, message := c.hypershiftNodePoolSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool); !matches {
 		logger.Info("hypershift NodePool spec does not match desired configuration", "message", message)
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}

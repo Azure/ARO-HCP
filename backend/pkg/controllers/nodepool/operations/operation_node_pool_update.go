@@ -99,7 +99,7 @@ func NewOperationNodePoolUpdateController(
 	// The registry is fixed in code; invalid source registrations are startup errors.
 	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
 		&nodePoolUpdateDesiredVersionCheck{nodePoolLister: nodePoolLister, serviceProviderNodePoolLister: serviceProviderNodePoolLister, clock: clock, resourcesDBClient: resourcesDBClient, desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen},
-		&nodePoolUpdateClusterServiceStatusCheck{},
+		&nodePoolUpdateClusterServiceStatusCheck{nodePoolLister: nodePoolLister},
 		&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: nodePoolLister},
 		&nodePoolUpdateHypershiftCheck{nodePoolLister: nodePoolLister, readDesireLister: readDesireLister},
 	))
@@ -161,17 +161,8 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	// TODO is the input building what we want here?
-	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-	defer cancel()
-
-	csResource, err := c.clusterServiceClient.GetNodePool(csCtx, *existingNodePool.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err))
-	}
-
 	input := &nodePoolUpdateOperationStatusInput{
-		ClusterServiceNodePool: csResource,
+		ClusterServiceNodePoolOnceGetter: newClusterServiceNodePoolOnceGetter(c.clusterServiceClient),
 	}
 
 	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
@@ -209,4 +200,32 @@ func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(node
 // observation across all update checks in a reconciliation.
 type nodePoolUpdateOperationStatusInput struct {
 	ClusterServiceNodePool *arohcpv1alpha1.NodePool
+	// ClusterServiceNodePoolOnceGetter returns a function that will retrieve the cluster service node pool resource from cluster service if it
+	// has not been attempted before.
+	// It will return the response from Clusters Service which is the Cluster Service node pool or an error.
+	// If the Cluster Service node pool was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+	// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+	ClusterServiceNodePoolOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error)
+}
+
+// newClusterServiceClusterOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+// has not been attempted before.
+// It will return the response from Clusters Service which is the Cluster Service cluster or an error.
+// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+func newClusterServiceNodePoolOnceGetter(clusterServiceClient ocm.ClusterServiceClientSpec) func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+	var csResource *arohcpv1alpha1.NodePool
+	var err error
+	retrievedOnce := false
+	return func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+		if retrievedOnce {
+			return csResource, err
+		}
+
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		defer cancel()
+		csResource, err = clusterServiceClient.GetNodePool(csCtx, *clusterServiceID)
+		retrievedOnce = true
+		return csResource, err
+	}
 }
