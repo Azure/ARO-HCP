@@ -30,11 +30,38 @@ resourceGroups:
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
+  # Fails before any Entra write when entraAppOwnerIds has drifted from the
+  # members of the owners group (for example a deleted account, which makes
+  # Graph reject the owner update with an opaque BadRequest).
+  - name: check-owners
+    action: Shell
+    command: |
+      ./tooling/entra-app-credentials/entra-app-credentials check-owners \
+        --group-id "${OWNERS_GROUP_ID}" \
+        --owner-ids "${OWNER_IDS}"
+    workingDir: ../../..
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: OWNERS_GROUP_ID
+      configRef: entraAppOwnersGroupId
+    - name: OWNER_IDS
+      configRef: entraAppOwnerIds
   - name: ci-bot-identity
     action: ARM
     template: ../../templates/ci-bot-identity.bicep
     parameters: ../../configurations/ci-bot-identity.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: check-owners
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: ci-bot-secrets
     action: Shell
     command: |
@@ -76,6 +103,14 @@ resourceGroups:
     template: ../../templates/tenant-quota-identity.bicep
     parameters: ../../configurations/tenant-quota-identity.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: check-owners
+    automatedRetry:
+      errorContainsAny:
+      - "UnknownFailure"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: tenant-quota-secret
     action: Shell
     command: |

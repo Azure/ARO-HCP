@@ -61,7 +61,13 @@ type Options struct {
 	// requiredResourceAccess.
 	GrantConsent bool
 	DryRun       bool
-	Timeout      time.Duration
+	// Rotate mints a new client secret even when one is stored. Existing
+	// credentials are left in place.
+	Rotate bool
+	// ExpiryWarning is how long before expiry a stored secret is reported as
+	// expiring; zero reports expiry only.
+	ExpiryWarning time.Duration
+	Timeout       time.Duration
 }
 
 // Access is one entry of an application's requiredResourceAccess.
@@ -76,11 +82,23 @@ type ResourceAccess struct {
 	Access        []Access
 }
 
+// PasswordCredential is a client secret of an application.
+type PasswordCredential struct {
+	// Hint is the first characters of the secret value, as returned by Graph.
+	Hint string
+	End  time.Time
+}
+
 // Application contains the Graph fields used during reconciliation.
 type Application struct {
 	ID                     string
 	AppID                  string
 	RequiredResourceAccess []ResourceAccess
+	// DisplayName is the application's display name, used in operator guidance.
+	DisplayName string
+	// PasswordCredentials are the application's client secrets. Graph never
+	// returns secret values, so they are matched by hint.
+	PasswordCredentials []PasswordCredential
 }
 
 // ServicePrincipal contains the Graph fields used during consent.
@@ -151,7 +169,8 @@ func NewEnsurer(graph GraphClient, store SecretStore, options ...EnsurerOption) 
 }
 
 // Ensure reconciles every binding and returns all failures joined. Existing
-// secrets are never regenerated or overwritten.
+// secrets are only regenerated when rotation is requested; stored ones are
+// never overwritten otherwise.
 func (e *Ensurer) Ensure(ctx context.Context, bindings []Binding, options Options) error {
 	if options.Timeout <= 0 {
 		return fmt.Errorf("timeout must be greater than zero")
@@ -178,7 +197,7 @@ func (e *Ensurer) ensureOne(ctx context.Context, binding Binding, options Option
 	}
 
 	prefix := binding.Prefix()
-	err = e.ensureClientSecret(ctx, logger, application, prefix+ClientSecretSuffix, options.DryRun)
+	problem, err := e.ensureClientSecret(ctx, logger, application, prefix+ClientSecretSuffix, options)
 	if err != nil {
 		return err
 	}
@@ -203,33 +222,53 @@ func (e *Ensurer) ensureOne(ctx context.Context, binding Binding, options Option
 			logger.Info("WARNING: could not grant admin consent; request it from the tenant admins", "error", err.Error())
 		}
 	}
-	return nil
+	return problem
 }
 
-// ensureClientSecret mints and stores a client secret unless one is stored already.
-func (e *Ensurer) ensureClientSecret(ctx context.Context, logger logr.Logger, application *Application, name string, dryRun bool) error {
-	_, found, err := e.store.Get(ctx, name)
-	switch {
-	case err != nil:
-		return fmt.Errorf("check secret %q: %w", name, err)
-	case found:
-		logger.Info("client secret already present", "secret", name)
-		return nil
-	case dryRun:
-		logger.Info("would mint client secret", "secret", name)
-		return nil
+// ensureClientSecret mints and stores a client secret when none is stored or
+// when rotation is requested. A stored secret that is expired, or that no
+// longer matches any credential of the application, is returned as problem
+// rather than err so the remaining reconciliation of the application still
+// runs; with rotation it is only a warning because rotating fixes it.
+func (e *Ensurer) ensureClientSecret(ctx context.Context, logger logr.Logger, application *Application, name string, options Options) (problem, err error) {
+	current, found, err := e.store.Get(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("check secret %q: %w", name, err)
 	}
 
-	logger.Info("minting client secret", "secret", name)
+	if found {
+		problem = e.inspectClientSecret(logger, application, name, current, options.ExpiryWarning)
+		switch {
+		case problem != nil && options.Rotate:
+			logger.Info("WARNING: " + problem.Error())
+			problem = nil
+		case problem != nil:
+			problem = fmt.Errorf("%w; rotate it with ensure-secret --rotate --mapping '%s;%s'", problem, application.DisplayName, name)
+		}
+		if !options.Rotate {
+			return problem, nil
+		}
+	}
+
+	verb, progressive := "mint", "minting"
+	if found {
+		verb, progressive = "rotate", "rotating"
+	}
+	if options.DryRun {
+		logger.Info("would "+verb+" client secret", "secret", name)
+		return nil, nil
+	}
+
+	logger.Info(progressive+" client secret", "secret", name)
 	value, err := e.graph.AddPassword(ctx, application.ID, name+"-managed", e.now().Add(secretLifetime))
 	if err != nil {
-		return fmt.Errorf("mint client secret: %w", err)
+		return nil, fmt.Errorf("mint client secret: %w", err)
 	}
 	err = e.store.Set(ctx, name, value)
 	if err != nil {
-		return fmt.Errorf("store secret %q: %w", name, err)
+		return nil, fmt.Errorf("store secret %q: %w", name, err)
 	}
-	return nil
+	return nil, nil
 }
 
 // ensurePlain stores a non-sensitive derived value unless the secret exists.

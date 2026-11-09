@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/cmd/internal/common"
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/expiry"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/secrets"
 )
 
@@ -34,20 +35,24 @@ const defaultTimeout = 5 * time.Minute
 
 // RawOptions contains the ensure-secret command flags before validation.
 type RawOptions struct {
-	VaultURL     string
-	Mappings     []string
-	GrantConsent bool
-	DryRun       bool
-	Timeout      time.Duration
+	VaultURL      string
+	Mappings      []string
+	GrantConsent  bool
+	DryRun        bool
+	Rotate        bool
+	ExpiryWarning time.Duration
+	Timeout       time.Duration
 }
 
 // ValidatedOptions contains normalized inputs.
 type ValidatedOptions struct {
-	vaultURL     string
-	bindings     []secrets.Binding
-	grantConsent bool
-	dryRun       bool
-	timeout      time.Duration
+	vaultURL      string
+	bindings      []secrets.Binding
+	grantConsent  bool
+	dryRun        bool
+	rotate        bool
+	expiryWarning time.Duration
+	timeout       time.Duration
 }
 
 // Options contains completed runtime dependencies.
@@ -58,7 +63,7 @@ type Options struct {
 
 // DefaultOptions returns the default ensure-secret command options.
 func DefaultOptions() *RawOptions {
-	return &RawOptions{Timeout: defaultTimeout}
+	return &RawOptions{Timeout: defaultTimeout, ExpiryWarning: expiry.DefaultWarning}
 }
 
 // BindOptions binds command-line flags to raw options.
@@ -66,7 +71,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 	cmd.Flags().StringVar(&opts.VaultURL, "vault-url", opts.VaultURL, "Key Vault data-plane URL, for example https://example.vault.azure.net.")
 	cmd.Flags().StringArrayVar(&opts.Mappings, "mapping", opts.Mappings, "Application and client secret name as quoted 'application;<prefix>-client-secret' (repeatable). The client ID and tenant ID are stored as <prefix>-client-id and <prefix>-tenant-id.")
 	cmd.Flags().BoolVar(&opts.GrantConsent, "grant-consent", opts.GrantConsent, "Grant admin consent for each application's declared API permissions.")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Report what would change without modifying Entra or Key Vault.")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Report what would change without modifying Entra or Key Vault. Still fails when a stored client secret is expired.")
+	cmd.Flags().BoolVar(&opts.Rotate, "rotate", opts.Rotate, "Mint a new client secret for every mapping and store it in Key Vault, even if one exists. Existing Entra credentials are kept. With --dry-run, only reports the current expiry.")
+	cmd.Flags().DurationVar(&opts.ExpiryWarning, "expiry-warning", opts.ExpiryWarning, "Warn when a stored client secret expires within this period; 0 only reports expired secrets.")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, "Timeout per application, including Graph propagation retries.")
 }
 
@@ -78,6 +85,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.Timeout <= 0 {
 		return nil, fmt.Errorf("--timeout must be greater than zero")
 	}
+	if o.ExpiryWarning < 0 {
+		return nil, fmt.Errorf("--expiry-warning must not be negative")
+	}
 	if len(o.Mappings) == 0 {
 		return nil, fmt.Errorf("at least one --mapping is required")
 	}
@@ -88,11 +98,13 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}
 
 	return &ValidatedOptions{
-		vaultURL:     vaultURL,
-		bindings:     bindings,
-		grantConsent: o.GrantConsent,
-		dryRun:       o.DryRun,
-		timeout:      o.Timeout,
+		vaultURL:      vaultURL,
+		bindings:      bindings,
+		grantConsent:  o.GrantConsent,
+		dryRun:        o.DryRun,
+		rotate:        o.Rotate,
+		expiryWarning: o.ExpiryWarning,
+		timeout:       o.Timeout,
 	}, nil
 }
 
@@ -161,8 +173,10 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 func (o *Options) Run(ctx context.Context) error {
 	return o.ensurer.Ensure(ctx, o.bindings, secrets.Options{
-		GrantConsent: o.grantConsent,
-		DryRun:       o.dryRun,
-		Timeout:      o.timeout,
+		GrantConsent:  o.grantConsent,
+		DryRun:        o.dryRun,
+		Rotate:        o.rotate,
+		ExpiryWarning: o.expiryWarning,
+		Timeout:       o.timeout,
 	})
 }

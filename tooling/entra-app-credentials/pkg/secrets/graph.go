@@ -72,7 +72,7 @@ func (g *microsoftGraph) FindApplication(ctx context.Context, displayName string
 		response, err := g.client.Applications().Get(ctx, &graphapplications.ApplicationsRequestBuilderGetRequestConfiguration{
 			QueryParameters: &graphapplications.ApplicationsRequestBuilderGetQueryParameters{
 				Filter: ptr.To(fmt.Sprintf("displayName eq '%s'", graph.QuoteFilterValue(displayName))),
-				Select: []string{"id", "appId", "requiredResourceAccess"},
+				Select: []string{"id", "appId", "displayName", "requiredResourceAccess", "passwordCredentials"},
 				Top:    ptr.To(int32(2)),
 			},
 		})
@@ -97,7 +97,16 @@ func convertApplication(application graphmodels.Applicationable) (*Application, 
 		return nil, fmt.Errorf("application returned by Microsoft Graph has no ID")
 	}
 
-	result := &Application{ID: *application.GetId(), AppID: *application.GetAppId()}
+	result := &Application{ID: *application.GetId(), AppID: *application.GetAppId(), DisplayName: ptr.Deref(application.GetDisplayName(), "")}
+	for _, credential := range application.GetPasswordCredentials() {
+		if credential == nil || credential.GetEndDateTime() == nil {
+			continue
+		}
+		result.PasswordCredentials = append(result.PasswordCredentials, PasswordCredential{
+			Hint: ptr.Deref(credential.GetHint(), ""),
+			End:  *credential.GetEndDateTime(),
+		})
+	}
 	for _, resource := range application.GetRequiredResourceAccess() {
 		if resource.GetResourceAppId() == nil {
 			continue
