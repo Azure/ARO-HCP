@@ -467,6 +467,22 @@ func decideDeploymentStackDesire(ctx context.Context, desire *azureresourcesapi.
 	}
 	deploymentStack, err := lazyGET()
 	if err != nil {
+		// Observing Azure failed before any submission: either the client could not
+		// be built (for example an SMI whose identity does not exist, which fails the
+		// Managed Identities Data Plane exchange) or the GET itself was rejected (for
+		// example missing RBAC on the target scope, an HTTP 403). These are retryable,
+		// so the error is still returned to drive a rate-limited requeue, but we also
+		// surface a Degraded condition so an operator can see the controller cannot
+		// currently reach or authorize against Azure rather than seeing only logs.
+		// desiredConditionType is always set here because validation above has already
+		// rejected unsupported actions. Setting the desired condition to False also
+		// keeps the cooldown gate from suppressing the retry, since that gate only
+		// short-circuits settled (True or InvalidIntent) intent.
+		status := deploymentStackDesireStatusForObservationFailure(desire.Status, desiredConditionType, err)
+		if normalized := changedObservationStatus(desire.Status, status, now); normalized != nil {
+			logger.Info("Could not observe the deployment stack; marking Degraded and retrying", "desiredConditionType", desiredConditionType, "desiredSpecHash", hash)
+			return decision{kind: decisionKindUpdateDesireStatus, status: normalized, err: err}
+		}
 		return decision{kind: decisionKindNoOp, err: err}
 	}
 	if deploymentStack == nil {
@@ -776,6 +792,25 @@ func deploymentStackDesireStatusForDeleteSubmission(hash string, err error) (*az
 		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, Status: metav1.ConditionFalse, Reason: "WaitingForDeletion", Message: "Waiting for the deployment stack to disappear"},
 		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionFalse, Reason: "AsExpected", Message: "No stack execution error"},
 	}}, nil
+}
+
+// deploymentStackDesireStatusForObservationFailure builds a retryable failure
+// status for the pre-submission phase, where the controller could neither build
+// the Azure client nor read the stack. Unlike a rejected submission the error is
+// not necessarily an *azcore.ResponseError (a client-build failure is a plain
+// error), so the diagnostic is carried in the condition message rather than in a
+// typed Stack error. It preserves the prior ObservedSpecHash and last observed
+// Stack, because nothing new was observed, and sets both the desired condition
+// and Degraded to RequestFailed so the failure is visible regardless of what the
+// previous attempt recorded. The caller still returns the underlying error, so
+// the workqueue retries with backoff.
+func deploymentStackDesireStatusForObservationFailure(previous azureresourcesapi.DeploymentStackDesireStatus, conditionType string, err error) azureresourcesapi.DeploymentStackDesireStatus {
+	status := previous
+	status.Conditions = []metav1.Condition{
+		{Type: conditionType, Status: metav1.ConditionFalse, Reason: "RequestFailed", Message: err.Error()},
+		{Type: azureresourcesapi.DeploymentStackDesireConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: "RequestFailed", Message: err.Error()},
+	}
+	return status
 }
 
 func deploymentStackDesireStatusForRejectedSubmission(hash, conditionType string, err error) (*azureresourcesapi.DeploymentStackDesireStatus, error) {
