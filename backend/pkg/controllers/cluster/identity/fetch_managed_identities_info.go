@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -406,7 +408,11 @@ func (c *fetchManagedIdentitiesInfoSyncer) collectIdentitiesToResolve(cluster *c
 
 	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
 
-	for controlPlaneOperatorName, controlPlaneOperatorIdentityResourceID := range userAssignedIdentities.ControlPlaneOperators {
+	// Sort control plane operator names for deterministic processing order.
+	sortedControlPlaneOperatorNames := slices.Sorted(maps.Keys(userAssignedIdentities.ControlPlaneOperators))
+
+	for _, controlPlaneOperatorName := range sortedControlPlaneOperatorNames {
+		controlPlaneOperatorIdentityResourceID := userAssignedIdentities.ControlPlaneOperators[controlPlaneOperatorName]
 		if len(controlPlaneOperatorName) == 0 {
 			errs = append(errs, utils.TrackError(fmt.Errorf("unexpected empty operator name for control plane operator")))
 			continue
@@ -427,7 +433,11 @@ func (c *fetchManagedIdentitiesInfoSyncer) collectIdentitiesToResolve(cluster *c
 		existing.isControlPlaneOperatorIdentity = true
 	}
 
-	for dataPlaneOperatorName, dataPlaneOperatorIdentityResourceID := range userAssignedIdentities.DataPlaneOperators {
+	// Sort data plane operator names for deterministic processing order.
+	sortedDataPlaneOperatorNames := slices.Sorted(maps.Keys(userAssignedIdentities.DataPlaneOperators))
+
+	for _, dataPlaneOperatorName := range sortedDataPlaneOperatorNames {
+		dataPlaneOperatorIdentityResourceID := userAssignedIdentities.DataPlaneOperators[dataPlaneOperatorName]
 		if len(dataPlaneOperatorName) == 0 {
 			errs = append(errs, utils.TrackError(fmt.Errorf("unexpected empty operator name for data plane operator")))
 			continue
@@ -498,10 +508,15 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromM
 	cluster *coreapi.Cluster,
 	desiredIdentities map[string]*identityToResolve,
 ) (map[string]*coreapi.IdentityMetadataValue, []error) {
-	var identityResourceIDStrs []string
+
+	// Sort resource ID keys for deterministic processing order.
+	sortedIdentityResourceIDKeys := slices.Sorted(maps.Keys(desiredIdentities))
+
 	// We build the list of identity IDs to query the Managed Identities Data Plane service for.
 	// We only resolve the metadata for the identities that are registered with the Managed Identities Data Plane service (MSI-based identities).
-	for _, identity := range desiredIdentities {
+	var identityResourceIDStrs []string
+	for _, resourceIDKey := range sortedIdentityResourceIDKeys {
+		identity := desiredIdentities[resourceIDKey]
 		if identity.registeredWithManagedIdentitiesDataplane() {
 			identityResourceIDStrs = append(identityResourceIDStrs, identity.resourceID.String())
 		}
@@ -527,6 +542,14 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromM
 	if len(fpaMIDataplaneCredentials.ExplicitIdentities) != len(identityResourceIDStrs) {
 		return nil, []error{utils.TrackError(fmt.Errorf("unexpected number of returned Managed Identities Data Plane Credentials. Expected: %d, Received: %d", len(identityResourceIDStrs), len(fpaMIDataplaneCredentials.ExplicitIdentities)))}
 	}
+
+	// Sort returned credentials by lowercased ResourceID for deterministic processing order.
+	// The MI dataplane service may return credentials in different order than requested.
+	slices.SortFunc(fpaMIDataplaneCredentials.ExplicitIdentities, func(a, b dataplane.UserAssignedIdentityCredentials) int {
+		iID := ptr.Deref(a.ResourceID, "")
+		jID := ptr.Deref(b.ResourceID, "")
+		return strings.Compare(strings.ToLower(iID), strings.ToLower(jID))
+	})
 
 	// Index returned credentials by lowercased Resource ID so later lookups are
 	// case-insensitive. ARM resource IDs are case-insensitive and the MI dataplane may return a different casing than Cosmos, as well as a
@@ -582,14 +605,17 @@ func (c *fetchManagedIdentitiesInfoSyncer) resolveManagedIdentitiesMetadataFromA
 	cluster *coreapi.Cluster,
 	desiredIdentities map[string]*identityToResolve,
 ) (map[string]*coreapi.IdentityMetadataValue, []error) {
-
 	logger := utils.LoggerFromContext(ctx)
+
+	// Sort resource ID keys for deterministic processing order.
+	sortedIdentityResourceIDKeys := slices.Sorted(maps.Keys(desiredIdentities))
 
 	// We build the list of identities to query the ARM User Assigned Identities API for.
 	// Control-plane and data-plane operator identities are queried. SMI-only identities
 	// are skipped because end-users are not asked to grant the SMI read on itself.
 	var armIdentities []*identityToResolve
-	for _, identity := range desiredIdentities {
+	for _, resourceIDKey := range sortedIdentityResourceIDKeys {
+		identity := desiredIdentities[resourceIDKey]
 		if identity.appliesToARMUserAssignedIdentitiesAPI() {
 			armIdentities = append(armIdentities, identity)
 		}
