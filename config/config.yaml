@@ -190,7 +190,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:b308702b6c8aad0e5974f5ff031e79db34b134413ad62e66a262aaec4d50d837 # v5.1.5 (2026-10-21 10:43)
+        digest: sha256:0219a62e42893e2bbb9d8a6da048bed544bd441b7c353fdbf818190f48628103 # v5.2.0 (2026-11-09 12:11)
       resources:
         requests:
           cpu: 250m
@@ -448,7 +448,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c004caedf3aac28cc4f24e2496dca913b3fdc03acbf9e28c168ab34d548e8b2e # 5ce75abb036141a361cf75e923d4c6ace31b3414 (2026-11-07 17:17)
+      digest: sha256:c38ff3036da34de587d7d8985041d985d082f6be3af5ee88e526b9ad0edcf7e3 # b836a4fc3d1c1c27050fb4b3bf8d27a245473354 (2026-11-09 12:21)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -704,7 +704,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710 # v3.16.0 (2026-11-06 11:08)
+          sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe # v3.16.0 (2026-11-09 09:33)
         version: ""
         resources:
           requests:
@@ -843,7 +843,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710 # v3.16.0 (2026-11-06 11:08)
+          sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe # v3.16.0 (2026-11-09 09:33)
         resources:
           requests:
             cpu: NONE

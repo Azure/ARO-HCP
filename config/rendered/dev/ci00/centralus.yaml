@@ -71,7 +71,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:b308702b6c8aad0e5974f5ff031e79db34b134413ad62e66a262aaec4d50d837
+      digest: sha256:0219a62e42893e2bbb9d8a6da048bed544bd441b7c353fdbf818190f48628103
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -493,7 +493,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:c004caedf3aac28cc4f24e2496dca913b3fdc03acbf9e28c168ab34d548e8b2e
+    digest: sha256:c38ff3036da34de587d7d8985041d985d082f6be3af5ee88e526b9ad0edcf7e3
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -745,7 +745,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710
+        sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe
       replicas: 2
       resources:
         limits:
@@ -1126,7 +1126,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8427fde8bff3e730457f50e5610b3dfe2471bbace5f9b7f49d13ee437ee09710
+        sha: b304cb19d173b1be794ffd3c6b93ed649500b8c5e7262dd950234f4b6d6a8dbe
       replicas: 2
       resources:
         limits:
