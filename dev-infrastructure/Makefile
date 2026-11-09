@@ -104,8 +104,24 @@ populate-arm-helper-pool:
 
 .PHONY: populate-arm-helper-pool
 
-frontend-grant-ingress:
-	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
+ARO_HCP_TESTS_BINARY ?= $(abspath ../test/aro-hcp-tests)
+
+$(abspath ../test/aro-hcp-tests): FORCE
+	$(MAKE) -C ../test aro-hcp-tests
+
+frontend-grant-ingress: $(ARO_HCP_TESTS_BINARY)
+	@source_ip="${CI_RP_ALLOWED_SOURCE}"; \
+	if [ -z "$$source_ip" ]; then \
+		source_ip=$$("${ARO_HCP_TESTS_BINARY}" infra discover-public-ip) || exit $$?; \
+	fi; \
+	subscription_id="${INFRA_SUBSCRIPTION_ID}"; \
+	if [ -z "$$subscription_id" ]; then \
+		subscription_id=$$(az account show --query id --output tsv) || exit $$?; \
+	fi; \
+	"${ARO_HCP_TESTS_BINARY}" infra frontend-grant-ingress \
+		--subscription-id "$$subscription_id" \
+		--resource-group "${SVC_RESOURCEGROUP}" \
+		--source-ip "$$source_ip"
 .PHONY: frontend-grant-ingress
 
 #

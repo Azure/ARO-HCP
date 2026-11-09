@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
@@ -159,7 +161,18 @@ func DeleteResourceGroup(
 	resourceGroupName string,
 	force bool,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
+	recorder := beginOperation()
+	// The origin is fixed at start so a deletion that returns during cleanup keeps its span.
+	testBodyDeletion := recorder.testBodyOperation()
+	startTime := time.Now()
+	defer func() {
+		// Framework cleanup has its own spans; this kind stays scoped to test-body deletions.
+		if !testBodyDeletion {
+			return
+		}
+		recorder.Record(timing.KindDeleteResourceGroup, fmt.Sprintf("Delete resource group %s", resourceGroupName), startTime, time.Now(), operationErr)
+	}()
 
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteResourceGroup for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()

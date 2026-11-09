@@ -17,6 +17,7 @@ package coreapi
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -135,12 +136,22 @@ type NodePoolServiceProviderProperties struct {
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 
 	// UpdateOperationCompletionDeadline is the time by which the current node pool update must complete.
-	// Admission resets it on each update to 60 minutes from the request, unless overridden
+	// Admission resets it on each update to 90 minutes from the request, unless overridden
 	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
 	// The update operation controller fails pending operations after this deadline,
 	// including the current pending reasons in the returned error.
 	// Written by: Frontend PUT/PATCH NodePool (via admission)
 	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
+	// DeleteOperationCompletionTimeout is the experimental deletion budget projected
+	// from the node pool's max-deletion-duration tag. Nil selects the default budget.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
+	// DeleteOperationCompletionDeadline is reset from each accepted deletion attempt,
+	// using DeleteOperationCompletionTimeout or the default 50-minute budget.
+	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend DELETE NodePool, Frontend DELETE Cluster/Subscription (cascade)
+	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

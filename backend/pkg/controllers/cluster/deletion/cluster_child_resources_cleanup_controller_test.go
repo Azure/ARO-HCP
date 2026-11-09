@@ -334,9 +334,9 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			name: "when the cluster is not found performs a no-op",
 		},
 		{
-			name:            "when there is a child ServiceProviderCluster without Maestro bundles it deletes it",
+			name:            "when there is a child ServiceProviderCluster it deletes it",
 			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources:  []any{newTestSPC(t, nil)},
+			childResources:  []any{newTestSPC(t)},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -394,37 +394,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				missingClient, missingErr := kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID)
 				require.NoError(t, missingErr)
 				require.Nil(t, missingClient)
-			},
-		},
-		{
-			name:            "when there is a child ServiceProviderCluster with Maestro bundles it does not delete it",
-			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{newTestSPC(t, coreapi.MaestroBundleReferenceList{
-				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-			})},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
-			},
-		},
-		{
-			name:            "when there are children including SPC with Maestro bundles it deletes all except SPC",
-			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{
-				newTestClusterScopedManagementClusterContent("gate-mcc"),
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-				}),
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
-				_, err := mccCRUD.Get(ctx, "gate-mcc")
-				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected MCC to be deleted")
-
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
 			},
 		},
 		{

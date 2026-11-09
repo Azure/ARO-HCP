@@ -174,6 +174,54 @@ func TestRecognizedEnvironmentInputs(t *testing.T) {
 	}
 }
 
+func TestCIRPAllowedSource(t *testing.T) {
+	for _, source := range []string{"", "192.0.2.42"} {
+		t.Run("source="+source, func(t *testing.T) {
+			input, err := InputsFromEnvironment([]string{
+				"DEPLOY_ENV=ci01",
+				"LEASED_MSI_CONTAINERS=leased",
+				"CI_RP_ALLOWED_SOURCE=" + source,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, document := generated(t, input, Paths{})
+			if source == "" {
+				if len(document) != 0 {
+					t.Fatalf("empty source generated overrides: %#v", document)
+				}
+				return
+			}
+			defaults := defaultsAt(t, document, "ci01")
+			encoded := defaults["svc"].(map[string]interface{})["aks"].(map[string]interface{})["additionalIngressRules"].(string)
+			want := "allow-istio-ingress=1000:Tcp:" + source + ":*:443"
+			if encoded != want {
+				t.Fatalf("ingress rules = %q, want %q", encoded, want)
+			}
+		})
+	}
+}
+
+func TestInvalidCIRPAllowedSource(t *testing.T) {
+	for _, source := range []string{"not-an-ip", "192.0.2.1/32", "192.0.2.1 192.0.2.2", " 192.0.2.1", "192.0.2.1\n", "192.000.2.1", "256.0.0.1", "2001:db8::1", "::ffff:192.0.2.1"} {
+		t.Run(source, func(t *testing.T) {
+			input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=ci01", "CI_RP_ALLOWED_SOURCE=" + source})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, candidate := range []Inputs{input, {DeployEnvironment: "ci01", CIRPAllowedSource: source}} {
+				result, err := Generate(candidate, Paths{})
+				if err == nil || !strings.Contains(err.Error(), "CI_RP_ALLOWED_SOURCE") {
+					t.Fatalf("Generate = %#v, %v; want invalid IPv4 source error", result, err)
+				}
+				if result.YAML != nil || result.OCLoginRegistries != "" {
+					t.Fatalf("invalid source returned partial output: %#v", result)
+				}
+			}
+		})
+	}
+}
+
 func TestHealthcheckAndEnvironmentKeys(t *testing.T) {
 	for _, tc := range []struct {
 		name, containers string

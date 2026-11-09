@@ -16,9 +16,16 @@ package admission
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -27,6 +34,70 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestMutateExternalAuthOperationDeadlines(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	oldDeadline := metav1.NewTime(now.Add(-time.Hour))
+	for _, op := range []operation.Type{operation.Create, operation.Update} {
+		for _, existing := range []bool{false, true} {
+			t.Run(fmt.Sprint(op)+"/existing="+fmt.Sprint(existing), func(t *testing.T) {
+				old := &coreapi.ExternalAuth{}
+				if existing {
+					old.ServiceProviderProperties = coreapi.ExternalAuthServiceProviderProperties{
+						CreateOperationCompletionDeadline: &oldDeadline,
+						UpdateOperationCompletionDeadline: &oldDeadline,
+						DeleteOperationCompletionDeadline: &oldDeadline,
+					}
+				}
+				obj := old.DeepCopy()
+				ctx := &ExternalAuthAdmissionContext{Clock: clocktesting.NewFakePassiveClock(now)}
+				require.Empty(t, MutateExternalAuth(t.Context(), ctx, operation.Operation{Type: op}, obj, old))
+				expected := old.ServiceProviderProperties
+				deadline := metav1.NewTime(now.Add(30 * time.Minute))
+				switch op {
+				case operation.Create:
+					expected.CreateOperationCompletionDeadline = &deadline
+				case operation.Update:
+					expected.UpdateOperationCompletionDeadline = &deadline
+				}
+				require.Equal(t, expected, obj.ServiceProviderProperties, "only the accepted operation's deadline should change")
+				if existing {
+					require.Equal(t, oldDeadline, *old.ServiceProviderProperties.CreateOperationCompletionDeadline)
+					require.Equal(t, oldDeadline, *old.ServiceProviderProperties.UpdateOperationCompletionDeadline)
+				}
+			})
+		}
+	}
+}
+
+func TestAdmitExternalAuthNotDeleting(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		op       operation.Type
+		deleting bool
+	}{
+		{name: "create", op: operation.Create},
+		{name: "failed update", op: operation.Update},
+		{name: "failed deletion update", op: operation.Update, deleting: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var oldObj *coreapi.ExternalAuth
+			if tc.op == operation.Update {
+				oldObj = &coreapi.ExternalAuth{Properties: coreapi.ExternalAuthProperties{ProvisioningState: coreapi.ProvisioningStateFailed}}
+				if tc.deleting {
+					oldObj.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				}
+			}
+			// The stored object, not the incoming object, carries deletion intent.
+			errs := AdmitExternalAuth(t.Context(), &ExternalAuthAdmissionContext{}, operation.Operation{Type: tc.op}, &coreapi.ExternalAuth{}, oldObj)
+			if tc.deleting {
+				require.Equal(t, field.ErrorList{field.Forbidden(field.NewPath(""), "external auth is being deleted and cannot be updated")}, errs)
+			} else {
+				require.Empty(t, errs)
+			}
+		})
+	}
+}
 
 func TestAdmitExternalAuth(t *testing.T) {
 	t.Parallel()

@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
+	"github.com/Azure/ARO-HCP/test/pkg/publicip"
 )
 
 // RunCostTagKey tags per-run infrastructure with the Prow job that created it.
@@ -42,6 +43,7 @@ type Inputs struct {
 	DeployEnvironment            string
 	BuildID                      string
 	RunCostTagValue              string
+	CIRPAllowedSource            string
 	Images                       map[string]string
 	OCLoginRegistries            string
 	MSIMockLease                 string
@@ -106,6 +108,8 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.BuildID = value
 		case "RUN_COST_TAG_VALUE":
 			input.RunCostTagValue = value
+		case "CI_RP_ALLOWED_SOURCE":
+			input.CIRPAllowedSource = value
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -181,8 +185,17 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	if len(input.ARMHelperLeases) > 2 {
 		return Result{}, fmt.Errorf("%s must contain at most two lease names, got %d", leaseenv.ARMHelperSP, len(input.ARMHelperLeases))
 	}
+	if input.CIRPAllowedSource != "" {
+		if _, err := publicip.ParseIPv4(input.CIRPAllowedSource); err != nil {
+			return Result{}, fmt.Errorf("CI_RP_ALLOWED_SOURCE must be a single IPv4 address, got %q: %w", input.CIRPAllowedSource, err)
+		}
+	}
 
 	defaults := map[string]interface{}{}
+	if input.CIRPAllowedSource != "" {
+		rule := "allow-istio-ingress=1000:Tcp:" + input.CIRPAllowedSource + ":*:443"
+		setDefault(defaults, rule, "svc", "aks", "additionalIngressRules")
+	}
 	registries, err := applyImageOverrides(defaults, input.Images, input.OCLoginRegistries)
 	if err != nil {
 		return Result{}, err

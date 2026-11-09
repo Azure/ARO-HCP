@@ -308,7 +308,7 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			continue
 		}
 
-		// HyperShift now manages the ingress certificate directly, so stop writing new ACM-path ingress certificate wiring desires (pre-existing ones are left alone; see deleteStaleApplyDesires).
+		// HyperShift now manages the ingress certificate directly, so stop writing ACM-path ingress certificate wiring desires; stale owned desires are removed by deleteStaleApplyDesires.
 		if legacyACMBasedIngressCertificateWiringDesireName(classified.desireName) {
 			continue
 		}
@@ -808,10 +808,6 @@ func (c *clusterResourcesController) deleteStaleApplyDesires(
 
 	for _, desire := range existing {
 		if managedByKubeAPIServerServingCertificate(desire.ResourceID.Name) {
-			continue
-		}
-		// Pre-existing ACM-path ingress certificate wiring desires are no longer reasserted (see processClusterResources), so don't reap them as stale; the full-cluster teardown chain removes them once the cluster is deleted.
-		if legacyACMBasedIngressCertificateWiringDesireName(desire.ResourceID.Name) {
 			continue
 		}
 		if desire.Tags == nil ||

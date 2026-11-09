@@ -354,16 +354,6 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260901(
 	}
 	clusterName := parameters.ClusterName
 
-	startTime := time.Now()
-	defer func() {
-		finishTime := time.Now()
-		kind, format := timing.KindCreateCluster, "Deploy HCP cluster %s/%s (v20260901preview)"
-		if timeout <= 0 {
-			kind, format = timing.KindCreateClusterRequest, "Submit HCP cluster %s/%s (v20260901preview)"
-		}
-		tc.RecordTestOperation(kind, fmt.Sprintf(format, resourceGroupName, clusterName), startTime, finishTime, operationErr)
-	}()
-
 	cluster, err := BuildHCPClusterFromParams20260901(parameters, tc.Location(), imageDigestMirrors)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
@@ -552,12 +542,23 @@ func CreateHCPClusterAndWait20260901(
 	hcpClusterName string,
 	cluster hcpsdk20260901preview.HcpOpenShiftCluster,
 	timeout time.Duration,
-) (*hcpsdk20260901preview.HcpOpenShiftCluster, error) {
-	// Pace the creation start before the per-call timeout is armed (a no-op
-	// when a CreateHCPClusterFromParam wrapper already paced this cluster).
+) (createdCluster *hcpsdk20260901preview.HcpOpenShiftCluster, operationErr error) {
+	// Pace the creation start before the per-call timeout is armed and before
+	// the timing span starts, so the recorded Deploy/Submit interval measures
+	// creation work rather than pacing wait (a no-op when a
+	// CreateHCPClusterFromParam wrapper already paced this cluster).
 	if err := paceHCPClusterCreateStart(ctx, logger, resourceGroupName, hcpClusterName); err != nil {
 		return nil, err
 	}
+	recorder := beginOperation()
+	startTime := time.Now()
+	defer func() {
+		kind, format := timing.KindCreateCluster, "Deploy HCP cluster %s/%s (v20260901preview)"
+		if timeout <= 0*time.Second {
+			kind, format = timing.KindCreateClusterRequest, "Submit HCP cluster %s/%s (v20260901preview)"
+		}
+		recorder.Record(kind, fmt.Sprintf(format, resourceGroupName, hcpClusterName), startTime, time.Now(), operationErr)
+	}()
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20260901AndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
@@ -610,7 +611,12 @@ func UpdateHCPCluster20260901(
 	hcpClusterName string,
 	update hcpsdk20260901preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
-) (*hcpsdk20260901preview.HcpOpenShiftCluster, error) {
+) (hcpOpenShiftCluster *hcpsdk20260901preview.HcpOpenShiftCluster, operationErr error) {
+	recorder := beginOperation()
+	startTime := time.Now()
+	defer func() {
+		recorder.Record(timing.KindUpdateCluster, fmt.Sprintf("Update HCP cluster %s/%s (v20260901preview)", resourceGroupName, hcpClusterName), startTime, time.Now(), operationErr)
+	}()
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20260901 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
@@ -624,7 +630,6 @@ func UpdateHCPCluster20260901(
 	}
 	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
 
-	var hcpOpenShiftCluster *hcpsdk20260901preview.HcpOpenShiftCluster
 	var lastTransientErr error
 	attempt := 0
 

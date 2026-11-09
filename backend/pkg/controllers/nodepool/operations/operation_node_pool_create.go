@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -145,7 +143,8 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, nodePool)
+	operationalState, observationErr := c.determineOperationState(ctx, operation, nodePool)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "node pool creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -155,27 +154,6 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-		message := operationbase.DeadlineExceededMessage(
-			"node pool creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -193,7 +171,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 }
 
 func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
-	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil && nodePool.ServiceProviderProperties.ClusterServiceID != nil
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
@@ -213,26 +191,23 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
 	}
 
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
 	logger.Info("determined node pool create operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
 	}
-	logger.Info("picked node pool create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
+	if id := nodePool.ServiceProviderProperties.ClusterServiceID; id == nil || id.String() == "" {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service node pool creation"), nil
+	}
 	logger := utils.LoggerFromContext(ctx)
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()

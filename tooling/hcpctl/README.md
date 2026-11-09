@@ -38,6 +38,41 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 - `hcpctl hcp list` - List available HCP clusters
 - `hcpctl hcp breakglass <cluster-service-id|azure-resource-id>` - Emergency access to HCP cluster
 
+### CI Failure Patterns (`ci failure-patterns`)
+
+Extract CI failure patterns from Kusto and save the inputs for later analysis:
+
+```bash
+hcpctl ci failure-patterns \
+  --kusto hcp-dev-us-2 --region eastus2 \
+  --since 24h --save-input failures.json > report.json
+```
+
+Live queries use your Azure credentials. The database defaults to `ServiceLogs`; the time window selects jobs by completion time, with an inclusive start and exclusive end. Use `--since 168h` for seven days, or `--from` and `--to` with RFC3339 timestamps for a fixed window.
+
+- `--environment`: select `dev`, `int`, `stg`, `prod`, or `unknown`; defaults to all environments in the selected database.
+- `--source`: select `e2e`, `observability`, `rp-provision`, or `rp-upgrade`; defaults to all sources.
+- `--job-filter`: case-sensitive job-name substring, defaulting to `e2e-parallel`. Use `--job-filter ""` for all jobs.
+- `--timeout`: collection deadline, including active authentication-metadata requests, defaulting to two minutes. SDK-internal waits behind another metadata initialization may outlast an individual caller's deadline.
+
+Replay saved inputs offline to inspect evidence or compare extraction changes:
+
+```bash
+hcpctl ci failure-patterns --input failures.json > replay-report.json
+```
+
+`--save-input` saves a private replay bundle and refuses to overwrite an existing file. Replay retains the saved selection and exact input occurrences.
+
+The JSON report uses schema version **1** and records the extractor version. It contains:
+
+- `summary`: input, finding, pattern-group, distinct affected-run, and per-source input counts.
+- `patterns`: groups by exact environment, source, and finding key, ranked by affected runs and inputs. Each group includes outcome counts, rule IDs, quality reasons, and zero-based `result_indexes` for evidence drilldown.
+- `results`: every original input occurrence with its complete ordered findings and evidence locations. Identical repeated occurrences remain separate.
+
+One input can contribute to several patterns, so pattern counts overlap. Inspect the referenced results when evaluating grouping or evidence selection; findings describe symptoms rather than confirmed root causes.
+
+**Saved inputs and reports contain raw evidence and may contain secrets. Store them securely and review them before sharing.**
+
 ## Example Usage
 
 ### Snapshot Analysis with Claude Code

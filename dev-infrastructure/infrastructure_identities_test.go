@@ -27,6 +27,7 @@ import (
 func TestInfrastructureIdentityDeclarations(t *testing.T) {
 	for _, file := range []string{
 		"templates/svc-cluster.bicep",
+		"templates/svc-cluster-infra.bicep",
 		"templates/mgmt-infra.bicep",
 		"modules/aks-cluster-base.bicep",
 		"modules/aks-cluster-post.bicep",

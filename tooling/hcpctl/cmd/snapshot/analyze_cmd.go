@@ -73,10 +73,11 @@ type RawAnalyzeOptions struct {
 	Provider string
 
 	// Copilot-specific options.
-	AuthMode        string
-	GitHubTokenFile string
-	ModelEndpoint   string
-	ModelDeployment string
+	AuthMode          string
+	GitHubTokenFile   string
+	ModelEndpoint     string
+	ModelDeployment   string
+	ContextWindowSize string
 
 	// Claude-specific options.
 	AnthropicAPIKeyFile string
@@ -122,6 +123,7 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.GitHubTokenFile, "github-token-file", opts.GitHubTokenFile, "Path to file containing GitHub token (required for token auth mode)")
 	cmd.Flags().StringVar(&opts.ModelEndpoint, "model-endpoint", opts.ModelEndpoint, "Azure AI Foundry endpoint URL (required for byok auth mode)")
 	cmd.Flags().StringVar(&opts.ModelDeployment, "model-deployment", opts.ModelDeployment, "Model deployment name (required for byok auth mode)")
+	cmd.Flags().StringVar(&opts.ContextWindowSize, "context-window-size", opts.ContextWindowSize, "Maximum input tokens including instructions, history, and tools (Copilot BYOK only; e.g. 128000, 200k, 900k; k=1000; empty or 0 keeps the runtime default)")
 
 	// Claude-specific flags.
 	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (claude or claude-code; otherwise use environment/CLI authentication)")
@@ -161,6 +163,15 @@ type validatedAnalyzeOptions struct {
 }
 
 func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
+	maxPromptTokens, err := agent.ParseTokenCount(o.ContextWindowSize)
+	if err != nil {
+		return nil, fmt.Errorf("--context-window-size: %w", err)
+	}
+	if o.ContextWindowSize != "" {
+		if (o.Provider != "" && o.Provider != providerCopilot) || o.AuthMode != agent.CopilotAuthModeBYOK {
+			return nil, fmt.Errorf("--context-window-size requires --provider=copilot --auth-mode=byok")
+		}
+	}
 	if o.DataDir == "" {
 		return nil, fmt.Errorf("data-dir argument is required")
 	}
@@ -245,6 +256,7 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 			GitHubTokenFile: o.GitHubTokenFile,
 			ModelEndpoint:   o.ModelEndpoint,
 			ModelDeployment: o.ModelDeployment,
+			MaxPromptTokens: maxPromptTokens,
 			Model:           o.Model,
 			ReasoningEffort: o.ReasoningEffort,
 			MaxRounds:       o.MaxRounds,

@@ -67777,6 +67777,61 @@ data:
             type: StateSet
           help: Backup phase
           name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: Backup CR presence indicator, independent of status.phase - one row per
+            existing CR
+          name: info
+      - groupVersionKind:
+          group: velero.io
+          kind: DeleteBackupRequest
+          version: v1
+        labelsFromPath:
+          backupName:
+          - spec
+          - backupName
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+        metricNamePrefix: veleroDeleteBackupRequest
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - InProgress
+              - Processed
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: DeleteBackupRequest phase
+          name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: DeleteBackupRequest CR presence indicator, independent of status.phase
+            - one row per existing CR
+          name: info
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -67950,6 +68005,13 @@ rules:
   - velero.io
   resources:
   - backups
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
   verbs:
   - list
   - watch
@@ -68659,6 +68721,22 @@ spec:
     # resources where namespace has been promoted to the actual resource namespace
     # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
+      # TRANSITION — REVERT ME (ARO-30517). The velero PodMonitor renames the
+      # schedule-derived Velero series to velero_hcp_* and sets namespace=ocm-*,
+      # routing them to the HCP workspace (and out of services via the drop rules
+      # below). These two rules keep a services-workspace copy under the ORIGINAL
+      # velero_* names so the services-workspace backup SLO alerts keep firing
+      # while the velero_hcp_* series and HCP-workspace alerts are validated in
+      # production. Rename back to velero_*, then reset namespace to "velero" so
+      # the ocm-* drop rule below does not drop them. Remove once validated.
+      - sourceLabels: [__name__]
+        regex: 'velero_hcp_(.+)'
+        targetLabel: __name__
+        replacement: 'velero_${1}'
+      - sourceLabels: [__name__]
+        regex: 'velero_.+'
+        targetLabel: namespace
+        replacement: 'velero'
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
         action: drop

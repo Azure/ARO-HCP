@@ -2,7 +2,7 @@ name: "hcpctl Latest Build"
 on:
   schedule:
   # Check hourly; the "skip if unchanged" step below keeps this a no-op
-  # unless tooling/hcpctl actually changed since the last successful build.
+  # unless hcpctl or its shared failure-pattern library changed since the last build.
   # The build marker is only moved after a successful GoReleaser publish, so
   # a failed run doesn't mask itself as "up to date" for the next check.
   - cron: '0 * * * *'
@@ -26,7 +26,7 @@ jobs:
       run: |
         git fetch origin refs/markers/hcpctl-latest-built:refs/markers/hcpctl-latest-built 2>/dev/null || true
         if git rev-parse -q --verify refs/markers/hcpctl-latest-built >/dev/null && \
-           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl; then
+           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl tooling/cifailurepatterns; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
         else
           echo "changed=true" >> "$GITHUB_OUTPUT"

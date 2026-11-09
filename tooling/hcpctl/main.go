@@ -133,10 +133,10 @@ and hosted control plane services for operational and emergency scenarios.`,
 }
 
 func createLogger(verbosity int) logr.Logger {
-	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+	prettyHandler := prettylog.New(&slog.HandlerOptions{
 		Level:       slog.Level(verbosity * -1),
 		AddSource:   false,
 		ReplaceAttr: nil,
-	})
+	}, prettylog.WithDestinationWriter(os.Stderr), prettylog.WithColor(), prettylog.WithOutputEmptyAttrs())
 	return logr.FromSlogHandler(prettyHandler)
 }

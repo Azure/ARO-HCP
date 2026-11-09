@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	fleetlistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -903,6 +904,101 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		_, err = crud.Get(ctx, "configmaps.ns.gone")
 		assert.Error(t, err, "purged ApplyDesire should no longer exist")
 	})
+}
+
+func TestDeleteStaleLegacyIngressDesires(t *testing.T) {
+	t.Parallel()
+
+	for _, desireName := range []string{
+		DesireNameManagedCluster,
+		DesireNameDefaultIngressConfigMap,
+		DesireNameDefaultIngressWildcardCertSecretSync,
+		DesireNameDefaultIngressWildcardCertSecretProviderClass,
+	} {
+		t.Run(desireName, func(t *testing.T) {
+			t.Parallel()
+			for _, variant := range []string{desireName, strings.ToLower(desireName), strings.ToUpper(desireName)} {
+				require.True(t, legacyACMBasedIngressCertificateWiringDesireName(variant), "creation suppression must recognize %s", variant)
+			}
+			for _, scenario := range []struct {
+				name    string
+				tags    map[string]string
+				current bool
+			}{
+				{name: "owned stale", tags: map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName}},
+				{name: "owned current", tags: map[string]string{kubeapplierapi.TagControllerName: ClusterResourcesControllerName}, current: true},
+				{name: "untagged"},
+				{name: "missing controller tag", tags: map[string]string{"unrelated": "value"}},
+				{name: "other controller", tags: map[string]string{kubeapplierapi.TagControllerName: "OtherController"}},
+			} {
+				t.Run(scenario.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+					desire := newOwnedClusterDesire(desireName)
+					desire.Tags = scenario.tags
+					desire.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue}}
+					fixture := newDestructFixtureWithReadDesires(t, ctx, "nodepool", []*kubeapplierapi.ApplyDesire{desire}, desireName)
+					applyCRUD, err := fixture.mockKubeApplierClient.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+					require.NoError(t, err)
+					readCRUD, err := fixture.mockKubeApplierClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+					require.NoError(t, err)
+					originalRead, err := readCRUD.Get(ctx, desireName)
+					require.NoError(t, err)
+					currentDesired := map[string]bool{}
+					if scenario.current {
+						currentDesired[strings.ToLower(desire.ResourceID.String())] = true
+					}
+					reconcile := func() {
+						t.Helper()
+						require.NoError(t, fixture.controller.deleteStaleApplyDesires(ctx, testKey(), testManagementClusterResourceID, currentDesired))
+					}
+
+					reconcile()
+					actual, err := applyCRUD.Get(ctx, desireName)
+					require.NoError(t, err, "ApplyDesire must remain until deletion completes")
+					if scenario.current || scenario.tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
+						require.Equal(t, desire.Spec, actual.Spec, "protected desire must be unchanged")
+						require.Equal(t, desire.Tags, actual.Tags, "ownership must be unchanged")
+						require.Equal(t, desire.Status, actual.Status, "protected status must be unchanged")
+						actualRead, err := readCRUD.Get(ctx, desireName)
+						require.NoError(t, err)
+						require.Equal(t, originalRead, actualRead, "protected ReadDesire must be unchanged")
+						return
+					}
+					require.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, actual.Spec.Type)
+					require.Nil(t, actual.Spec.ServerSideApply)
+					require.Empty(t, actual.Status.Conditions, "stale completion must not confirm the new delete")
+					require.Equal(t, desire.Spec.TargetItem, actual.Spec.TargetItem, "deletion target must be retained")
+
+					for _, conditions := range [][]metav1.Condition{
+						nil,
+						{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue}},
+					} {
+						actual.Status.Conditions = conditions
+						_, err = applyCRUD.Replace(ctx, actual, nil)
+						require.NoError(t, err)
+						reconcile()
+						actual, err = applyCRUD.Get(ctx, desireName)
+						require.NoError(t, err, "pending deletion must retain ApplyDesire")
+						require.Equal(t, kubeapplierapi.ApplyDesireTypeDelete, actual.Spec.Type)
+						actualRead, err := readCRUD.Get(ctx, desireName)
+						require.NoError(t, err, "pending deletion must retain ReadDesire")
+						require.Equal(t, originalRead, actualRead)
+					}
+
+					actual.Status.Conditions = []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue}}
+					_, err = applyCRUD.Replace(ctx, actual, nil)
+					require.NoError(t, err)
+					reconcile()
+					_, err = applyCRUD.Get(ctx, desireName)
+					require.True(t, cosmosstorageutils.IsNotFoundError(err), "completed ApplyDesire must be purged: %v", err)
+					_, err = readCRUD.Get(ctx, desireName)
+					require.True(t, cosmosstorageutils.IsNotFoundError(err), "corresponding ReadDesire must be purged: %v", err)
+					reconcile()
+				})
+			}
+		})
+	}
 }
 
 func TestClassifyClusterResource(t *testing.T) {

@@ -96,12 +96,12 @@ func (s *upgradeBarrierState) settled(total int) bool {
 // exclusive flock (the same pattern as the identity-pool lease), so it works
 // when parallel Ginkgo workers are separate OS processes.
 //
-// Typical usage inside an It block (call after NewTestContext so barrier
-// DeferCleanups run before tc teardown in FILO order):
+// Typical usage inside an It block — always construct via TestContext so
+// barrier DeferCleanups are registered after NewTestContext and therefore
+// run before tc teardown in FILO order:
 //
 //	tc := framework.NewTestContext()
-//
-//	barrier, err := framework.NewUpgradeBarrier()
+//	barrier, err := tc.NewUpgradeBarrier()
 //	Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 //
 //	// ... provisioning and baseline capture ...
@@ -143,7 +143,7 @@ type UpgradeBarrier struct {
 //
 // ARTIFACT_DIR is optional; when absent the state file falls back to
 // os.TempDir() so local single-spec runs work without CI scaffolding.
-func NewUpgradeBarrier() (*UpgradeBarrier, error) {
+func (*perItOrDescribeTestContext) NewUpgradeBarrier() (*UpgradeBarrier, error) {
 	total := upgradeInPlaceSpecCount
 	if total <= 0 {
 		return nil, fmt.Errorf("NewUpgradeBarrier: spec count not set; " +
@@ -199,10 +199,10 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 	}
 
 	// When constructed inside a running Ginkgo spec, register the two barrier
-	// DeferCleanups so the test body stays free of bookkeeping. The cleanups
-	// are intentionally registered here (after NewTestContext) so they run
-	// before the test-context teardown in FILO order, unblocking other specs
-	// as early as possible.
+	// DeferCleanups so the test body stays free of bookkeeping. Because this
+	// is a TestContext method, callers necessarily registered tc teardown
+	// first; these cleanups therefore run before teardown in FILO order,
+	// unblocking other specs as early as possible.
 	if ginkgo.GetSuite().InRunPhase() {
 		b.registerGinkgoCleanup()
 	}
