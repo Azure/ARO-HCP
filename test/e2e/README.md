@@ -334,6 +334,12 @@ stages. Stages start collapsed; expand a stage to see its operations. Uncovered
 time is labeled **No recorded operation**. It means missing operation coverage,
 not idle time. The elapsed envelope excludes Prow builds and pre/post-job steps.
 
+Every `By` step records a span, as do the framework setup before the first step,
+ARM metadata harvest, debug collection and each cleanup phase. A current report
+therefore has no uncovered interval for a completed test, and **No recorded
+operation** in a fresh report means new work that is not yet instrumented.
+Historical metadata is labeled as-is rather than reconstructed.
+
 The overview chart is sized to 90% of the outer viewport height, with a 640px
 minimum. Embedded reports fall back to 640px when cross-origin restrictions hide
 the viewport. The horizontal slider navigates the full time range. Sort tests by
@@ -343,7 +349,9 @@ full-run summary is unchanged.
 
 The full-run summary reports minimum, mean and maximum durations plus sample counts for
 recorded cluster creation, nodepool creation, cluster deletion, resource-group
-cleanup and full cleanup, truncated to whole seconds. Segment colors match the summary.
+cleanup, cluster update, nodepool update, resource-group deletion, upgrade
+convergence and Key Vault or Managed HSM key creation, plus full cleanup,
+truncated to whole seconds. Segment colors match the summary.
 Only passing tests contribute averages; interrupted spans and failed, timed-out
 or unknown-outcome tests are excluded. Typed resource-operation averages also
 require an explicit successful operation outcome: failed attempts, including

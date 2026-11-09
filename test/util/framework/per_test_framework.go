@@ -30,10 +30,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/types"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
 
@@ -94,9 +96,13 @@ type perItOrDescribeTestContext struct {
 	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
-	LogDirPath       string
-	azureLogFile     *os.File
-	timingMetadata   timing.SpecTimingMetadata
+	LogDirPath     string
+	azureLogFile   *os.File
+	timingMetadata timing.SpecTimingMetadata
+	// phaseSpanIndexes maps each phase to its span in timingMetadata.Steps, or -1 when it has none.
+	phaseSpanIndexes []int
+	// specGeneration increments for every spec that reuses this context.
+	specGeneration   uint64
 	knownDeployments []deploymentInfo
 	timingFinalized  bool
 	hcpAdminConfigs  map[string]*rest.Config
@@ -153,6 +159,43 @@ func SetupAzureGlobalLoggerWithLogrLogger(logrLogger logr.Logger) {
 	})
 	// There are other options to log, but they are really noisy.  If we must we can enable them.
 	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
+}
+
+// activeTestContext tracks the spec running in this process so package-level helpers can record spans.
+// A process runs one spec at a time, so a single pointer is unambiguous.
+var activeTestContext atomic.Pointer[perItOrDescribeTestContext]
+
+// operationRecorder records spans on the spec that started an operation, even if it returns later.
+type operationRecorder struct {
+	tc         *perItOrDescribeTestContext
+	generation uint64
+	testBody   bool
+}
+
+// beginOperation captures the spec running now so a late return cannot attribute work to a later spec.
+func beginOperation() operationRecorder {
+	tc := activeTestContext.Load()
+	if tc == nil {
+		return operationRecorder{}
+	}
+	tc.contextLock.RLock()
+	generation := tc.specGeneration
+	inCleanup := tc.timingMetadata.CleanupStartedAt != ""
+	tc.contextLock.RUnlock()
+	return operationRecorder{tc: tc, generation: generation, testBody: !inCleanup}
+}
+
+// Record records the finished operation on the spec that started it.
+func (r operationRecorder) Record(kind, name string, startedAt, finishedAt time.Time, operationErr error) {
+	if r.tc == nil {
+		return
+	}
+	r.tc.recordOperationFromGeneration(r.generation, kind, name, startedAt, finishedAt, operationErr)
+}
+
+// testBodyOperation reports whether the operation started before framework cleanup.
+func (r operationRecorder) testBodyOperation() bool {
+	return r.testBody
 }
 
 // NewTestContext creates a test context and registers its setup and lifecycle cleanup.
@@ -214,6 +257,8 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 		tc.timingMetadata.Identifier = append(slices.Clone(report.ContainerHierarchyTexts), report.LeafNodeText)
 	}
 	tc.timingFinalized = false
+	// A reused context serves a new spec, so recorders from the previous one must stop appending.
+	tc.specGeneration++
 	tc.timingMetadata.StartedAt = startedAt.Format(time.RFC3339Nano)
 	tc.timingMetadata.FinishedAt = ""
 	tc.timingMetadata.CleanupStartedAt = ""
@@ -224,7 +269,9 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 		Name:      "Setup and test execution",
 		StartedAt: startedAt.Format(time.RFC3339Nano),
 	}}
+	tc.phaseSpanIndexes = []int{-1}
 	tc.contextLock.Unlock()
+	activeTestContext.Store(tc)
 
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
 	// first-in-last-out order. This ensures that the framework instance
@@ -492,6 +539,10 @@ func runResourceGroupCleanup(
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.recordTestSpan(timing.KindTestStep, "Collect debug info", "", startedAt, time.Now())
+	}()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 	tc.contextLock.RLock()
 	createdResourceGroups := slices.Clone(tc.knownResourceGroups)
@@ -1534,6 +1585,25 @@ func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string,
 	if tc.timingFinalized {
 		return
 	}
+	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
+}
+
+// recordOperationFromGeneration appends a span only while the spec that began it is still current.
+func (tc *perItOrDescribeTestContext) recordOperationFromGeneration(generation uint64, kind, name string, startTime, finishTime time.Time, operationErr error) {
+	outcome := timing.OutcomeSucceeded
+	if operationErr != nil {
+		outcome = timing.OutcomeFailed
+	}
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	if tc.timingFinalized || tc.specGeneration != generation {
+		return
+	}
+	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
+}
+
+// appendTestSpanUnlocked stores one span; the caller holds contextLock.
+func (tc *perItOrDescribeTestContext) appendTestSpanUnlocked(kind, name, outcome string, startTime, finishTime time.Time) {
 	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
 		Kind:       kind,
 		Name:       name,
@@ -1545,12 +1615,20 @@ func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string,
 
 // RunTimingPhase records a cleanup stage even when Ginkgo interrupts its callback.
 func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, name string, run func(context.Context)) {
-	startedAt := time.Now().Format(time.RFC3339Nano)
 	tc.contextLock.Lock()
+	startedAt := time.Now().Format(time.RFC3339Nano)
+	// Close interrupted phases, including their spans, before chaining the next one.
 	for i := range tc.timingMetadata.Phases {
 		if tc.timingMetadata.Phases[i].FinishedAt == "" {
 			tc.timingMetadata.Phases[i].FinishedAt = startedAt
 			tc.timingMetadata.Phases[i].Incomplete = true
+			tc.finalizePhaseSpanUnlocked(i, startedAt, true)
+		}
+	}
+	// Chain phases so the framework's own dispatch overhead is not reported as uncovered time.
+	if len(tc.timingMetadata.Phases) > 0 {
+		if previous := tc.timingMetadata.Phases[len(tc.timingMetadata.Phases)-1].FinishedAt; previous != "" {
+			startedAt = previous
 		}
 	}
 	index := len(tc.timingMetadata.Phases)
@@ -1559,6 +1637,13 @@ func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, 
 		Name:      name,
 		StartedAt: startedAt,
 	})
+	// The phase span exists from the start so a callback that never returns still leaves coverage.
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		Kind:      timing.KindTestStep,
+		Name:      name,
+		StartedAt: startedAt,
+	})
+	tc.phaseSpanIndexes = append(tc.phaseSpanIndexes, len(tc.timingMetadata.Steps)-1)
 	tc.contextLock.Unlock()
 	completed := false
 	defer func() {
@@ -1568,15 +1653,55 @@ func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, 
 		if tc.timingFinalized || tc.timingMetadata.Phases[index].FinishedAt != "" {
 			return
 		}
-		tc.timingMetadata.Phases[index].FinishedAt = time.Now().Format(time.RFC3339Nano)
-		tc.timingMetadata.Phases[index].Incomplete = !completed || ctx.Err() != nil
+		finishedAt := time.Now().Format(time.RFC3339Nano)
+		incomplete := !completed || ctx.Err() != nil
+		tc.timingMetadata.Phases[index].FinishedAt = finishedAt
+		tc.timingMetadata.Phases[index].Incomplete = incomplete
+		tc.finalizePhaseSpanUnlocked(index, finishedAt, incomplete)
 	}()
 	run(ctx)
 	completed = true
 }
 
+// finalizePhaseSpanUnlocked closes the open span belonging to a phase.
+func (tc *perItOrDescribeTestContext) finalizePhaseSpanUnlocked(phaseIndex int, finishedAt string, incomplete bool) {
+	if phaseIndex >= 0 && phaseIndex < len(tc.phaseSpanIndexes) {
+		if stepIndex := tc.phaseSpanIndexes[phaseIndex]; stepIndex >= 0 && stepIndex < len(tc.timingMetadata.Steps) {
+			tc.closeTimingSpanUnlocked(stepIndex, finishedAt, incomplete)
+			return
+		}
+	}
+	// Fixtures that build a test context directly carry no index, so fall back to the phase start.
+	startedAt := tc.timingMetadata.Phases[phaseIndex].StartedAt
+	for i := range tc.timingMetadata.Steps {
+		if tc.timingMetadata.Steps[i].FinishedAt == "" && tc.timingMetadata.Steps[i].StartedAt == startedAt {
+			tc.closeTimingSpanUnlocked(i, finishedAt, incomplete)
+			return
+		}
+	}
+}
+
+// closeTimingSpanUnlocked closes one recorded span and records whether it completed.
+func (tc *perItOrDescribeTestContext) closeTimingSpanUnlocked(index int, finishedAt string, incomplete bool) {
+	step := &tc.timingMetadata.Steps[index]
+	if step.FinishedAt != "" {
+		return
+	}
+	step.FinishedAt = finishedAt
+	step.Incomplete = incomplete
+	if incomplete {
+		step.Outcome = ""
+		return
+	}
+	step.Outcome = timing.OutcomeSucceeded
+}
+
 // HarvestDeploymentOperations fetches ARM evidence while deployment resources still exist.
 func (tc *perItOrDescribeTestContext) harvestDeploymentOperations(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.recordTestSpan(timing.KindTestStep, "Harvest deployment operations", "", startedAt, time.Now())
+	}()
 	tc.contextLock.RLock()
 	deployments := slices.Clone(tc.knownDeployments)
 	tc.contextLock.RUnlock()
@@ -1616,22 +1741,75 @@ func (tc *perItOrDescribeTestContext) harvestDeploymentOperations(ctx context.Co
 	}
 }
 
-// CommitTimingMetadata serializes the final lifecycle using only cached, local state.
-func (tc *perItOrDescribeTestContext) commitTimingMetadata() {
-	ginkgo.GinkgoLogr.Info("Committing final timing metadata.")
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-	tc.timingFinalized = true
-	finishedAt := time.Now().Format(time.RFC3339Nano)
+// recordTestStepSpans attributes every ginkgo By step and the framework setup to the test-work phase.
+func (tc *perItOrDescribeTestContext) recordTestStepSpans(report types.SpecReport) {
+	tc.contextLock.RLock()
+	phaseStart, startErr := time.Parse(time.RFC3339Nano, tc.timingMetadata.StartedAt)
+	phaseEnd := report.StartTime.Add(report.RunTime)
+	if len(tc.timingMetadata.Phases) > 0 {
+		if encoded := tc.timingMetadata.Phases[0].FinishedAt; encoded != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339Nano, encoded); parseErr == nil {
+				phaseEnd = parsed
+			}
+		}
+	}
+	tc.contextLock.RUnlock()
+	if startErr != nil || !phaseEnd.After(phaseStart) {
+		return
+	}
+	for _, span := range deriveTestStepSpans(report, phaseStart, phaseEnd) {
+		// A derived step has no per-step result of its own, so its outcome stays unknown.
+		tc.recordTestSpan(timing.KindTestStep, span.name, "", span.startedAt, span.finishedAt)
+	}
+}
+
+// finalizePhasesUnlocked closes every open phase and its span, and reports the latest phase end.
+func (tc *perItOrDescribeTestContext) finalizePhasesUnlocked(finishedAt string) time.Time {
+	latest := time.Time{}
 	for i := range tc.timingMetadata.Phases {
 		if tc.timingMetadata.Phases[i].FinishedAt == "" {
 			tc.timingMetadata.Phases[i].FinishedAt = finishedAt
 			tc.timingMetadata.Phases[i].Incomplete = true
+			tc.finalizePhaseSpanUnlocked(i, finishedAt, true)
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, tc.timingMetadata.Phases[i].FinishedAt); err == nil && parsed.After(latest) {
+			latest = parsed
 		}
 	}
+	return latest
+}
+
+// recordFinalizeSpanUnlocked attributes the interval between the last phase end and serialization.
+func (tc *perItOrDescribeTestContext) recordFinalizeSpanUnlocked(lastPhaseEnd, serializedAt time.Time) {
+	if !serializedAt.After(lastPhaseEnd) {
+		return
+	}
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		Kind:       timing.KindTestStep,
+		Name:       "Finalize timing metadata",
+		StartedAt:  lastPhaseEnd.Format(time.RFC3339Nano),
+		FinishedAt: serializedAt.Format(time.RFC3339Nano),
+		Outcome:    timing.OutcomeSucceeded,
+	})
+}
+
+// CommitTimingMetadata serializes the final lifecycle using only cached, local state.
+func (tc *perItOrDescribeTestContext) commitTimingMetadata() {
+	ginkgo.GinkgoLogr.Info("Committing final timing metadata.")
+	report := ginkgo.CurrentSpecReport()
+	tc.recordTestStepSpans(report)
+	activeTestContext.CompareAndSwap(tc, nil)
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	tc.timingFinalized = true
+	// Taken under the lock so a concurrent callback cannot close a phase after this instant.
+	serializedAt := time.Now()
+	finishedAt := serializedAt.Format(time.RFC3339Nano)
+	lastPhaseEnd := tc.finalizePhasesUnlocked(finishedAt)
+	tc.recordFinalizeSpanUnlocked(lastPhaseEnd, serializedAt)
 	tc.timingMetadata.SubscriptionID = tc.subscriptionID
 	tc.timingMetadata.FinishedAt = finishedAt
-	tc.timingMetadata.Outcome = ginkgo.CurrentSpecReport().State.String()
+	tc.timingMetadata.Outcome = report.State.String()
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")
