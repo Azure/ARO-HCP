@@ -33,7 +33,7 @@ jobs:
         fi
     - name: Set up Go
       if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version-file: 'go.work'
         cache-dependency-path: '**/go.sum'
