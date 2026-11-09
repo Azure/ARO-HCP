@@ -51,7 +51,7 @@ make update
 ./image-updater update --config config.yaml --tags --dry-run
 
 # Update specific components only
-./image-updater update --config config.yaml --tags --components fleet,hypershift
+./image-updater update --config config.yaml --tags --components hypershift,secretSyncController
 
 # Update all images in a group
 ./image-updater update --config config.yaml --tags --groups hypershift-stack
@@ -133,10 +133,10 @@ All registries support anonymous access by default for public images. Private re
 ./image-updater update --config config.yaml --tags --dry-run
 
 # Update only specific components
-./image-updater update --config config.yaml --tags --components fleet,hypershift
+./image-updater update --config config.yaml --tags --components hypershift,secretSyncController
 
 # Exclude certain components
-./image-updater update --config config.yaml --tags --exclude-components fleet
+./image-updater update --config config.yaml --tags --exclude-components secretSyncController
 ```
 
 ### Groups
@@ -151,7 +151,7 @@ Each image belongs to a `group`, allowing you to update logically related images
 ./image-updater update --config config.yaml --tags --groups hypershift-stack,velero
 
 # Combine groups with individual components (union)
-./image-updater update --config config.yaml --tags --components fleet --groups hypershift-stack
+./image-updater update --config config.yaml --tags --components secretSyncController --groups hypershift-stack
 
 # Update a group but exclude specific components
 ./image-updater update --config config.yaml --tags --groups hypershift-stack --exclude-components hypershift-shared-ingress
@@ -239,12 +239,13 @@ make -C config materialize
 ```yaml
 images:
   # Image with tag pattern
-  fleet:
+  secretSyncController:
     source:
-      image: quay.io/app-sre/aro-hcp-fleet
-      tagPattern: "^[a-f0-9]{40}$"  # Match 40-character commit hashes
+      image: registry.k8s.io/secrets-store-sync/controller
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match semantic version tags
+      multiArch: true
     targets:
-    - jsonPath: defaults.fleet.image.digest
+    - jsonPath: defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
 
   # Pinned to specific version
