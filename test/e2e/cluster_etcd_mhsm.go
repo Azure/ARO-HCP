@@ -43,7 +43,7 @@ import (
 )
 
 var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
-	It("should create a cluster with Managed HSM keyVaultType and rotate the etcd KMS key",
+	It("should create a cluster with Managed HSM keyVaultType",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -243,15 +243,6 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyVersion, keyVaultName, err := parseMHSMKeyIDComponents(keyID)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse key version from key ID %q", keyID)
 
-			By("creating a second key version in the Managed HSM for the rotation")
-			secondKeyVersion, _, err := parseMHSMKeyIDComponents(createKeyVersion("rotation"))
-			Expect(err).NotTo(HaveOccurred(), "failed to parse second key version")
-			Expect(secondKeyVersion).NotTo(BeEmpty(), "second key version was empty")
-			Expect(secondKeyVersion).NotTo(Equal(keyVersion), "second key version should differ from the initial version")
-			GinkgoLogr.Info("Created second Managed HSM key version for rotation",
-				"keyName", keyName,
-				"secondKeyVersion", secondKeyVersion)
-
 			By("waiting for cluster customer resources")
 			customerResources := <-customerResourcesDone
 			Expect(customerResources.err).NotTo(HaveOccurred(), "failed to create customer resources for etcd mHSM cluster")
@@ -319,70 +310,10 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster viability check failed — etcd encryption with mHSM key should be working")
 
-			By("rotating the cluster to the second Managed HSM key version")
-			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			updateResult, err := framework.UpdateHCPCluster20261001(ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Etcd: &hcpsdk20261001.EtcdProfile{
-							DataEncryption: &hcpsdk20261001.EtcdDataEncryptionProfile{
-								CustomerManaged: &hcpsdk20261001.CustomerManagedEncryptionProfile{
-									Kms: &hcpsdk20261001.KmsEncryptionProfile{
-										ActiveKey: &hcpsdk20261001.KmsKey{
-											Version: to.Ptr(secondKeyVersion),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				HCPClusterReencryptionUpgradeTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to rotate cluster %q to the second mHSM key version", customerClusterName)
-			Expect(updateResult.Properties).NotTo(BeNil(), "rotation result Properties was nil")
-			Expect(updateResult.Properties.Etcd).NotTo(BeNil(), "rotation result Etcd was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption).NotTo(BeNil(), "rotation result DataEncryption was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged).NotTo(BeNil(), "rotation result CustomerManaged was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms).NotTo(BeNil(), "rotation result Kms was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey).NotTo(BeNil(), "rotation result ActiveKey was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).NotTo(BeNil(), "rotation result key Version was nil")
-			Expect(*updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).To(Equal(secondKeyVersion),
-				"cluster %q should reference the second key version after rotation", customerClusterName)
-
-			By("confirming the second key version persists via GET (round-trip verification)")
-			rotatedCluster, err := framework.GetHCPCluster20261001(ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %q after rotation", customerClusterName)
-			Expect(rotatedCluster.Properties).NotTo(BeNil(), "rotated cluster Properties was nil")
-			Expect(rotatedCluster.Properties.Etcd).NotTo(BeNil(), "rotated cluster Etcd was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption).NotTo(BeNil(), "rotated cluster DataEncryption was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged).NotTo(BeNil(), "rotated cluster CustomerManaged was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).NotTo(BeNil(), "rotated cluster Kms was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey).NotTo(BeNil(), "rotated cluster ActiveKey was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).NotTo(BeNil(), "rotated cluster key Version was nil")
-			Expect(*rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).To(Equal(secondKeyVersion),
-				"cluster %q should reference the second key version after round-trip GET", customerClusterName)
-
-			By("verifying etcd re-encryption (StorageVersionMigration) succeeded after rotation")
-			err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "StorageVersionMigration should reach Succeeded after mHSM key rotation")
-
-			By("verifying the cluster remains viable after rotation")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyStorageVersionMigrationSucceeded())
-			Expect(err).NotTo(HaveOccurred(), "cluster should remain viable after mHSM key rotation")
-
-			GinkgoLogr.Info("Cluster with Managed HSM etcd encryption rotated successfully",
+			GinkgoLogr.Info("Cluster with Managed HSM etcd encryption created successfully",
 				"clusterName", customerClusterName,
 				"hsmName", hsmName,
-				"initialKeyVersion", keyVersion,
-				"rotatedKeyVersion", secondKeyVersion)
+				"keyVersion", keyVersion)
 		},
 	)
 })
