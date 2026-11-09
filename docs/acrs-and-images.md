@@ -14,7 +14,7 @@ Microsoft requires that all ARO HCP images must be pulled from private Azure Con
 
 ### ACR Types
 
-**Service ACR** stores images for ARO HCP service components (RP, cluster-service, maestro, HyperShift). Access is restricted to service and management clusters. Service ACRs follow the naming convention `arohcpsvc${environment}` (e.g., `arohcpsvcstg`).
+**Service ACR** stores images for ARO HCP service components (RP, cluster-service, HyperShift). Access is restricted to service and management clusters. Service ACRs follow the naming convention `arohcpsvc${environment}` (e.g., `arohcpsvcstg`).
 
 **OCP ACR** contains OpenShift release payload images for hosted control planes and data planes. Serves both management clusters and customer-side pulls. OCP ACRs follow the naming convention `arohcpocp${environment}` (e.g., `arohcpocpstg`).
 
@@ -79,7 +79,7 @@ clustersService:
 
 ## Building ARO HCP Images
 
-ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Maestro, Hypershift).
+ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Hypershift).
 
 CI produces two different kinds of image outputs:
 

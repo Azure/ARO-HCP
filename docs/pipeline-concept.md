@@ -347,16 +347,16 @@ In addition, some shared ARO HCP instances are continuously reconciled on each c
 
 The custom pipeline runner can be found in [tooling/templatize](tooling/templatize).
 
-To manually run a pipeline you can use the `make pipeline/` targets, e.g. to deploy `Microsoft.Azure.ARO.HCP.Maestro.Agent` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
+To manually run a pipeline you can use the `make pipeline/` targets, e.g. to deploy `Microsoft.Azure.ARO.HCP.RP.Backend` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
 
 ```sh
-make pipeline/Maestro.Agent DEPLOY_ENV=pers
+make pipeline/RP.Backend DEPLOY_ENV=pers
 ```
 
 The pipeline runner supports a dry-run mode that allows you to simulate the execution of a pipeline without actually deploying any resources. This is useful for verifying the correctness of the pipeline file and the expected behavior of the steps. Add the `DRY_RUN=true` option to the `make` command to enable dry-run mode:
 
 ```sh
-make pipeline/Maestro.Agent DEPLOY_ENV=pers DRY_RUN=true
+make pipeline/RP.Backend DEPLOY_ENV=pers DRY_RUN=true
 ```
 
 > [!IMPORTANT]

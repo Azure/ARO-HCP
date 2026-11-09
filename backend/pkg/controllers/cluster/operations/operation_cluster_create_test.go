@@ -947,9 +947,9 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*coreapi.Cluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
-			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("maestro error")},
+			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("read desire error")},
 			expectError:      true,
-			errContains:      "maestro error",
+			errContains:      "read desire error",
 		},
 		{
 			name:             "both errors → joined error",

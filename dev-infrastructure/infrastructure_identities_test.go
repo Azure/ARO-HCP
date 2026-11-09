@@ -68,7 +68,6 @@ func compileIdentityTemplate(t *testing.T, file string, result any) {
 func TestManagementIdentityMappingIsGuarded(t *testing.T) {
 	for _, file := range []string{
 		"modules/mgmt-agent/mgmt-agent-lookup.bicep",
-		"modules/maestro/maestro-agent-lookup.bicep",
 		"templates/kube-applier-lookup.bicep",
 		"templates/image-puller-lookup.bicep",
 		"templates/output-mgmt-cluster.bicep",

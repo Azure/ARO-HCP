@@ -508,7 +508,7 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 		{"backendLogs", "Backend Logs"},
 		{"frontendLogs", "Frontend Logs"},
 		{"clustersServiceLogs", "Clusters Service Logs"},
-		{"containerLogs", "Maestro Logs"},
+		{"containerLogs", "Container Logs"},
 	}
 	for _, st := range serviceTables {
 		svcTemplateData := kusto.NewTemplateDataFromOptions(svcOpts, kusto.WithTable(st.table))

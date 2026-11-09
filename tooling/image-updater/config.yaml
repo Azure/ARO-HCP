@@ -1,23 +1,4 @@
 images:
-  # Maestro image
-  maestro:
-    group: hypershift-stack
-    source:
-      image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      tagPattern: "^[a-f0-9]{40}$"
-    targets:
-    - jsonPath: defaults.maestro.image.digest
-      filePath: ../../config/config.yaml
-  # Maestro Agent Sidecar image
-  maestro-agent-sidecar:
-    group: hypershift-stack
-    source:
-      image: mcr.microsoft.com/azurelinux/base/nginx
-      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
-      multiArch: true
-    targets:
-    - jsonPath: defaults.maestro.agent.sidecar.image.digest
-      filePath: ../../config/config.yaml
   # Hypershift image
   hypershift:
     group: hypershift-stack

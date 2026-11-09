@@ -30,12 +30,12 @@ clouds:
       dev:
         defaults:
           regionRG: hcp-underlay-{{ .ctx.region }}-dev
-          maestro_helm_chart: ../maestro/deploy/helm/server
-          maestro_image: aro-hcp-dev.azurecr.io/maestro-server:the-new-one
+          backend_helm_chart: ../backend/deploy
+          backend_image: aro-hcp-dev.azurecr.io/arohcpbackend:the-new-one
       int:
         defaults:
-          maestro_helm_chart: oci://aro-hcp-int.azurecr.io/helm/server
-          maestro_image: aro-hcp-int.azurecr.io/maestro-server:the-stable-one
+          backend_helm_chart: oci://aro-hcp-int.azurecr.io/helm/backend
+          backend_image: aro-hcp-int.azurecr.io/arohcpbackend:the-stable-one
         regions:
           uksouth:
             test: uksouth
