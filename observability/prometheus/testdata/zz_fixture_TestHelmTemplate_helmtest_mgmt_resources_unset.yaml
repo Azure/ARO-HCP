@@ -67868,9 +67868,9 @@ data:
             would carry a series. CAVEAT: CAPI does NOT clear nodeDrainStartTime when
             the drain finishes, so on its own this cannot distinguish a wedged drain from
             a Machine whose drain succeeded but whose Azure VM deletion is slow. Prefer
-            the recording rule duration:capiMachine_node_drain_stuck:seconds, which gates
+            the recording rule duration:capiMachine_node_draining:seconds, which gates
             this on deleting_stage{reason="DrainingNode"} and is the supported way to
-            ask how long a node has been stuck draining.'
+            ask how long a node has been draining.'
           name: node_drain_start_time_seconds
         - each:
             gauge:
@@ -67889,8 +67889,8 @@ data:
             NotDeleting, ...). The value is the condition's lastTransitionTime in Unix
             seconds. One series per Machine, since CAPI keeps a Deleting=False/NotDeleting
             condition on idle Machines too. Combined with node_drain_start_time_seconds
-            by the recording rule duration:capiMachine_node_drain_stuck:seconds; also
-            useful on its own to see which deletion stage a Machine is wedged in.
+            by the recording rule duration:capiMachine_node_draining:seconds; also useful
+            on its own to see which deletion stage a Machine is wedged in.
           name: deleting_stage
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml

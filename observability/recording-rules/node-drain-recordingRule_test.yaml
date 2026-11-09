@@ -14,10 +14,10 @@ tests:
   - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1", reason="DrainingNode"}'
     values: "100+0x20"
   promql_expr_test:
-  - expr: duration:capiMachine_node_drain_stuck:seconds
+  - expr: duration:capiMachine_node_draining:seconds
     eval_time: 10m
     exp_samples:
-    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1"}'
+    - labels: 'duration:capiMachine_node_draining:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-aaa", node="np-1-aaa", node_pool="np-1"}'
       value: 500
 # ========================================
 # Test 2: REGRESSION — drain finished, infrastructure deletion is slow
@@ -33,7 +33,7 @@ tests:
   - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-bbb", node="np-1-bbb", node_pool="np-1", reason="WaitingForInfrastructureDeletion"}'
     values: "100+0x20"
   promql_expr_test:
-  - expr: duration:capiMachine_node_drain_stuck:seconds
+  - expr: duration:capiMachine_node_draining:seconds
     eval_time: 10m
     exp_samples: []
 # ========================================
@@ -46,7 +46,7 @@ tests:
   - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ccc", node="np-1-ccc", node_pool="np-1", reason="NotDeleting"}'
     values: "100+0x20"
   promql_expr_test:
-  - expr: duration:capiMachine_node_drain_stuck:seconds
+  - expr: duration:capiMachine_node_draining:seconds
     eval_time: 10m
     exp_samples: []
 # ========================================
@@ -66,10 +66,10 @@ tests:
   - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1", reason="DrainingNode", prometheus_replica="prom-agent-prometheus-1"}'
     values: "100+0x20"
   promql_expr_test:
-  - expr: duration:capiMachine_node_drain_stuck:seconds
+  - expr: duration:capiMachine_node_draining:seconds
     eval_time: 10m
     exp_samples:
-    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1"}'
+    - labels: 'duration:capiMachine_node_draining:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-ddd", node="np-1-ddd", node_pool="np-1"}'
       value: 500
 # ========================================
 # Test 5: Two nodes in the same pool, only one wedged in drain
@@ -85,8 +85,8 @@ tests:
   - series: 'capiMachine_deleting_stage{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-fff", node="np-1-fff", node_pool="np-1", reason="NotDeleting"}'
     values: "100+0x20"
   promql_expr_test:
-  - expr: duration:capiMachine_node_drain_stuck:seconds
+  - expr: duration:capiMachine_node_draining:seconds
     eval_time: 10m
     exp_samples:
-    - labels: 'duration:capiMachine_node_drain_stuck:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-eee", node="np-1-eee", node_pool="np-1"}'
+    - labels: 'duration:capiMachine_node_draining:seconds{cluster="mgmt-1", namespace="ocm-prod-abc-cluster", name="np-1-eee", node="np-1-eee", node_pool="np-1"}'
       value: 500

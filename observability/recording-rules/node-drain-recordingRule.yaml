@@ -20,7 +20,7 @@ spec:
   # series whose VALUE is "how many seconds has this worker node been draining".
   # Consumers should only ever need this record:
   #
-  #   duration:capiMachine_node_drain_stuck:seconds > 1800
+  #   duration:capiMachine_node_draining:seconds > 1800
   #
   # Why this cannot be a single raw metric
   # --------------------------------------
@@ -57,9 +57,10 @@ spec:
     interval: 1m
     rules:
     # Seconds the node behind this Machine has been in the CAPI drain stage.
-    # The series exists only while the drain is actually in progress; "stuck" is
-    # a threshold on the value, not a separate state.
-    - record: duration:capiMachine_node_drain_stuck:seconds
+    # The series exists for EVERY in-progress drain, not just pathological ones;
+    # "stuck" is a threshold on the value, not a separate state, so it is
+    # deliberately absent from the name.
+    - record: duration:capiMachine_node_draining:seconds
       expr: |
         (
           time()
