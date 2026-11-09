@@ -1,8 +1,0 @@
-apiVersion: cluster.open-cluster-management.io/v1beta1
-kind: Placement
-metadata:
-  name: all-hosted-clusters
-  namespace: '{{ .Release.Namespace }}'
-spec:
-  clusterSets:
-  - hypershift-management-clusters
