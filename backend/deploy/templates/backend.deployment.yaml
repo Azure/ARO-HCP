@@ -74,6 +74,7 @@ spec:
         - "--log-verbosity={{ .Values.logVerbosity }}"
        {{- if and .Values.miMock.certName (or .Values.miMock.clientId .Values.miMock.clientIdSecretName) (or .Values.miMock.principalId .Values.miMock.principalIdSecretName) .Values.miMock.tenantId
                   .Values.armPermissionsManagerIdentity.certName .Values.armPermissionsManagerIdentity.clientId .Values.armPermissionsManagerIdentity.tenantId
+                  .Values.armPermissionsManagerIdentity.mockFirstPartyApplicationPrincipalId
         }}
         # MI Mock flags. They should only be set in ARO-HCP environments where Microsoft's Managed Identities Dataplane service is not available.
         - "--insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock"
@@ -102,6 +103,8 @@ spec:
         - "{{ .Values.armPermissionsManagerIdentity.clientId }}"
         - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
         - "{{ .Values.armPermissionsManagerIdentity.tenantId }}"
+        - "--insecure-azure-mock-first-party-application-principal-id"
+        - "{{ .Values.armPermissionsManagerIdentity.mockFirstPartyApplicationPrincipalId }}"
         {{- end }}
         - "--azure-cluster-scoped-identities-role-set-name"
         - "{{ .Values.clusterScopedIdentitiesConfig.roleSetName }}"

@@ -69,6 +69,10 @@ armPermissionsManagerIdentity:
   clientId: "{{ .armHelperClientId }}"
   # The Azure Tenant ID where the ARM Permissions Manager Identity is registered.
   tenantId: "{{ .armHelperTenantId }}"
+  # mockFirstPartyApplicationPrincipalId is the principal ID of the mock First
+  # Party Application (FPA) service principal that the ARM Permissions Manager
+  # Identity grants the Owner role over each cluster's managed resource group.
+  mockFirstPartyApplicationPrincipalId: "{{ .armHelperFPAPrincipalId }}"
 azure:
   cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   # The Azure Tenant ID where backend service is running. In values.yaml we

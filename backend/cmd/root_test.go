@@ -46,6 +46,7 @@ func withManagedMockFlags(f BackendRootCmdFlags) BackendRootCmdFlags {
 	f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath = "/secrets/arm-helper-cert-bundle"
 	f.InsecureAzureARMPermissionsManagerIdentityClientID = "arm-helper-client-id"
 	f.InsecureAzureARMPermissionsManagerIdentityTenantID = "tenant-id"
+	f.InsecureAzureMockFirstPartyApplicationPrincipalID = "mock-fpa-principal-id"
 	return f
 }
 

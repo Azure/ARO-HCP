@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
@@ -84,6 +85,12 @@ type clusterRoleAssignmentsSyncer struct {
 	subscriptionLister           corelisters.SubscriptionLister
 	stackDesireLister            corelisters.StackDesireLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	// hasRealFPA gates the stack on the mock FPA Owner grant. When false (no real
+	// FPA), this controller publishes its FPA-authenticated stack only after the
+	// mock FPA principal holds Owner over the managed resource group, since the
+	// FPA cannot otherwise create role assignments there. When true the gate is
+	// off; a real FPA already has the required permissions.
+	hasRealFPA bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterRoleAssignmentsSyncer)(nil)
@@ -94,6 +101,7 @@ var _ controllerutils.ClusterSyncer = (*clusterRoleAssignmentsSyncer)(nil)
 func NewClusterRoleAssignmentsController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
+	hasRealFPA bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -106,6 +114,7 @@ func NewClusterRoleAssignmentsController(
 		subscriptionLister:           subscriptionLister,
 		stackDesireLister:            stackDesireLister,
 		resourcesDBClient:            resourcesDBClient,
+		hasRealFPA:                   hasRealFPA,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -119,6 +128,9 @@ func NewClusterRoleAssignmentsController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	// Without a real FPA this controller waits for the mock FPA Owner grant, so
+	// requeue when that stack's reconciliation status changes.
+	controller.AddInterestingResource(coreapi.StackDesireResourceType, mockfparoleassignments.MockFPARoleAssignmentsDesireName)
 
 	return controller
 }
@@ -161,9 +173,28 @@ func (s *clusterRoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return s.requestStackDeletion(ctx, key)
 	}
 
+	// Reserving role assignment resource IDs is deterministic local naming (no
+	// Azure call), so it is safe to do regardless of the mock FPA gate below.
 	reservedServiceProviderCluster, err := s.reserveAzureResourceIDs(ctx, existingCluster, existingServiceProviderCluster, scope)
 	if err != nil {
 		return err
+	}
+
+	// Without a real FPA, this stack is authenticated as the mock FPA, which can
+	// only create role assignments over the managed resource group once it holds
+	// Owner there. Wait for the mock FPA Owner grant to be configured and
+	// reconciled before managing the Azure stack (names are already reserved above).
+	if !s.hasRealFPA {
+		mockDesire, err := s.stackDesireLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, mockfparoleassignments.MockFPARoleAssignmentsDesireName)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			mockDesire = nil
+		} else if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments StackDesire: %w", err))
+		}
+		if !coreapihelpers.MockFirstPartyApplicationRoleAssignmentsConfigured(&reservedServiceProviderCluster.Status, mockDesire) {
+			logger.Info("waiting for mock FPA Owner role assignment to be configured before managing the role assignments stack")
+			return nil
+		}
 	}
 
 	subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)

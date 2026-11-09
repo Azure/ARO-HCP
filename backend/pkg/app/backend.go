@@ -96,6 +96,15 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	// InsecureARMPermissionsManagerClientBuilder builds Azure clients authenticated as the
+	// insecure ARM permissions manager ("ARM Helper") identity. It is nil when the
+	// backend runs with a real FPA (HasRealFPA is true).
+	InsecureARMPermissionsManagerClientBuilder azureclient.InsecureARMPermissionsManagerClientBuilder
+	// MockFirstPartyApplicationPrincipalID is the principal ID of the mock FPA
+	// service principal, granted Owner over each cluster's managed resource group
+	// by MockFPARoleAssignments. It is empty when the backend runs with a real FPA
+	// (HasRealFPA is true).
+	MockFirstPartyApplicationPrincipalID string
 }
 
 const backendShutdownTimeout = 31 * time.Second

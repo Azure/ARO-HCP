@@ -88,6 +88,7 @@ func newTestRoleAssignmentsSyncer(resourcesDB *corecosmosstoragetesting.MockReso
 		subscriptionLister:           &corelistertesting.DBSubscriptionLister{ResourcesDBClient: resourcesDB},
 		stackDesireLister:            &corelistertesting.DBStackDesireLister{ResourcesDBClient: resourcesDB},
 		resourcesDBClient:            resourcesDB,
+		hasRealFPA:                   true,
 	}
 }
 

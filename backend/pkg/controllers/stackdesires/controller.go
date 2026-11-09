@@ -70,20 +70,22 @@ func (k Key) AddLoggerValues(logger logr.Logger) logr.Logger {
 }
 
 type controller struct {
-	resourcesDB corecosmosstorage.ResourcesDBClient
-	lister      corelisters.StackDesireLister
-	fpa         azureclient.FirstPartyApplicationClientBuilder
-	smi         azureclient.ServiceManagedIdentityClientBuilder
-	clock       clock.PassiveClock
-	enqueue     controllerutil.AfterEnqueuer
+	resourcesDB                   corecosmosstorage.ResourcesDBClient
+	lister                        corelisters.StackDesireLister
+	fpa                           azureclient.FirstPartyApplicationClientBuilder
+	smi                           azureclient.ServiceManagedIdentityClientBuilder
+	insecureARMPermissionsManager azureclient.InsecureARMPermissionsManagerClientBuilder
+	clock                         clock.PassiveClock
+	enqueue                       controllerutil.AfterEnqueuer
 }
 
 func NewController(resourcesDB corecosmosstorage.ResourcesDBClient, informers coreinformers.BackendInformers,
 	fpa azureclient.FirstPartyApplicationClientBuilder, smi azureclient.ServiceManagedIdentityClientBuilder,
+	insecureARMPermissionsManager azureclient.InsecureARMPermissionsManagerClientBuilder,
 	clk clock.PassiveClock,
 ) controllerutils.Controller {
 	informer, lister := informers.StackDesires()
-	syncer := &controller{resourcesDB: resourcesDB, lister: lister, fpa: fpa, smi: smi, clock: clk}
+	syncer := &controller{resourcesDB: resourcesDB, lister: lister, fpa: fpa, smi: smi, insecureARMPermissionsManager: insecureARMPermissionsManager, clock: clk}
 	watcher := controllerutil.NewGenericWatchingController(StackDesiresControllerName, coreapi.StackDesireResourceType, syncer, controllerutils.ReconcileTotal)
 	syncer.enqueue = watcher
 	if err := watcher.QueueForInformersWithMaxDepth(time.Minute, 0, informer); err != nil {
@@ -176,10 +178,17 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 // stackClient assumes the desire's routing and authentication have been validated.
 func (c *controller) stackClient(ctx context.Context, desire *coreapi.StackDesire) (*armdeploymentstacks.Client, error) {
 	authentication := desire.Spec.Authentication
-	if authentication.Type == coreapi.StackDesireAuthenticationTypeSMI {
+	switch authentication.Type {
+	case coreapi.StackDesireAuthenticationTypeSMI:
 		return c.smi.DeploymentStacksClient(ctx, authentication.ClusterIdentityURL, authentication.SMIResourceID, desire.Spec.TargetResourceID.SubscriptionID)
+	case coreapi.StackDesireAuthenticationTypeInsecureARMPermissionsManager:
+		if c.insecureARMPermissionsManager == nil {
+			return nil, utils.TrackError(fmt.Errorf("ARM permissions manager client builder is not configured; %s authentication is only available without a real FPA", coreapi.StackDesireAuthenticationTypeInsecureARMPermissionsManager))
+		}
+		return c.insecureARMPermissionsManager.DeploymentStacksClient(desire.Spec.TargetResourceID.SubscriptionID)
+	default:
+		return c.fpa.DeploymentStacksClient(authentication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
 	}
-	return c.fpa.DeploymentStacksClient(authentication.TenantID, desire.Spec.TargetResourceID.SubscriptionID)
 }
 
 type action string
@@ -238,7 +247,9 @@ func decideStackDesire(logger logr.Logger, desire *coreapi.StackDesire, now time
 		validationErr = errors.New("stack target must be a Microsoft.Resources/deploymentStacks resource")
 	case desire.Spec.Action != coreapi.StackDesireActionApply && desire.Spec.Action != coreapi.StackDesireActionDelete:
 		validationErr = fmt.Errorf("unsupported stack action %q", desire.Spec.Action)
-	case desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeFPA && desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeSMI:
+	case desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeFPA &&
+		desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeSMI &&
+		desire.Spec.Authentication.Type != coreapi.StackDesireAuthenticationTypeInsecureARMPermissionsManager:
 		validationErr = fmt.Errorf("unsupported stack authentication %q", desire.Spec.Authentication.Type)
 	case desire.Spec.Authentication.Type == coreapi.StackDesireAuthenticationTypeSMI && desire.Spec.Authentication.SMIResourceID == nil:
 		validationErr = errors.New("SMI authentication requires smiResourceID")

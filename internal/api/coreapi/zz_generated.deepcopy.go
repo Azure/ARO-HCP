@@ -2677,6 +2677,21 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			(*out)[key] = outVal
 		}
 	}
+	if in.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup != nil {
+		in, out := &in.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup, &out.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup
+		*out = make(map[RoleAssignmentKey]*RoleAssignmentStatus, len(*in))
+		for key, val := range *in {
+			var outVal *RoleAssignmentStatus
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(RoleAssignmentStatus)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 

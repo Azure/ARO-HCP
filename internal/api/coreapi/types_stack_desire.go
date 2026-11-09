@@ -31,13 +31,19 @@ import (
 )
 
 const (
-	StackDesireActionApply                  = "Apply"
-	StackDesireActionDelete                 = "Delete"
-	StackDesireAuthenticationTypeFPA        = "FPA"
-	StackDesireAuthenticationTypeSMI        = "SMI"
-	StackDesireConditionSuccessfullyApplied = "SuccessfullyApplied"
-	StackDesireConditionSuccessfullyDeleted = "SuccessfullyDeleted"
-	StackDesireConditionDegraded            = "Degraded"
+	StackDesireActionApply           = "Apply"
+	StackDesireActionDelete          = "Delete"
+	StackDesireAuthenticationTypeFPA = "FPA"
+	StackDesireAuthenticationTypeSMI = "SMI"
+	// StackDesireAuthenticationTypeInsecureARMPermissionsManager selects the insecure ARM
+	// permissions manager ("ARM Helper") identity, available only when the backend
+	// runs without a real FPA (HasRealFPA is false). It is used by
+	// MockFPARoleAssignments to grant the mock FPA principal Owner over the managed
+	// resource group.
+	StackDesireAuthenticationTypeInsecureARMPermissionsManager = "InsecureARMPermissionsManager"
+	StackDesireConditionSuccessfullyApplied                    = "SuccessfullyApplied"
+	StackDesireConditionSuccessfullyDeleted                    = "SuccessfullyDeleted"
+	StackDesireConditionDegraded                               = "Degraded"
 )
 
 // StackDesire manages an ARM deployment stack at any Azure scope. The desire
@@ -50,10 +56,10 @@ type StackDesire struct {
 	// CosmosMetadata identifies the stored desire and its owning HCP cluster.
 	// PartitionKey must be set to the lowercased subscription ID of the owning
 	// HCP cluster before creation, independently of the Azure target's scope.
-	// Written by: ClusterRoleAssignments (resource identity and partition), Cosmos storage (persistence metadata)
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments (resource identity and partition), Cosmos storage (persistence metadata)
 	CosmosMetadata `json:"cosmosMetadata"`
 	// Spec describes the Azure stack operation the producer wants reconciled.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	Spec StackDesireSpec `json:"spec"`
 	// Status records the outcome of the controller's latest observation or attempt.
 	// Written by: StackDesires
@@ -63,33 +69,35 @@ type StackDesire struct {
 type StackDesireSpec struct {
 	// TargetResourceID is the full Azure deployment stack ID, including its scope.
 	// Producers must not change it for the lifetime of this desire.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	TargetResourceID *azcorearm.ResourceID `json:"targetResourceID"`
 	// Authentication selects the identity used to manage the target stack.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	Authentication StackDesireAuthentication `json:"authentication"`
 	// Action selects Apply to create or update the stack, or Delete to remove it.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	Action string `json:"action"`
 	// Stack describes the deployment stack for both Apply and Delete. Apply sends
 	// the stack to Azure; Delete uses Properties.ActionOnUnmanage and
 	// Properties.BypassStackOutOfSyncError as its deletion policy.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	Stack *armdeploymentstacks.DeploymentStack `json:"stack"`
 	// ReconcileInterval is the cooldown before reconciling unchanged intent again
 	// after success or an invalid-intent outcome. Non-positive values select the
 	// controller's six-hour default; pending operations and transient failures use
 	// separate polling and retry delays.
-	// Written by: ClusterRoleAssignments
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	ReconcileInterval metav1.Duration `json:"reconcileInterval,omitempty"`
 }
 
 type StackDesireAuthentication struct {
-	// Type selects first-party application (FPA) or service managed identity (SMI) credentials.
-	// Written by: ClusterRoleAssignments
+	// Type selects first-party application (FPA), service managed identity (SMI),
+	// or ARM permissions manager credentials.
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	Type string `json:"type"`
-	// TenantID is the Azure tenant in which the FPA obtains credentials.
-	// Written by: ClusterRoleAssignments
+	// TenantID is the Azure tenant in which the FPA or ARM permissions manager
+	// identity obtains credentials.
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	TenantID string `json:"tenantID,omitempty"`
 	// SMIResourceID identifies the service managed identity used for SMI authentication.
 	// Written by: StackDesire producer (unused by ClusterRoleAssignments)

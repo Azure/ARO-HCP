@@ -58,6 +58,7 @@ type BackendRootCmdFlags struct {
 	InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath                               string
 	InsecureAzureARMPermissionsManagerIdentityClientID                                            string
 	InsecureAzureARMPermissionsManagerIdentityTenantID                                            string
+	InsecureAzureMockFirstPartyApplicationPrincipalID                                             string
 	LogVerbosity                                                                                  int
 	MaestroSourceEnvironmentIdentifier                                                            string
 	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
@@ -121,7 +122,7 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"--insecure-azure-managed-identity-mock-client-id (or --insecure-azure-managed-identity-mock-client-id-path), "+
 			"--insecure-azure-managed-identity-mock-principal-id (or --insecure-azure-managed-identity-mock-principal-id-path), --insecure-azure-managed-identity-mock-tenant-id, "+
 			"--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path, --insecure-azure-arm-permissions-manager-identity-client-id, "+
-			"--insecure-azure-arm-permissions-manager-identity-tenant-id flags must also be set.",
+			"--insecure-azure-arm-permissions-manager-identity-tenant-id, --insecure-azure-mock-first-party-application-principal-id flags must also be set.",
 	)
 
 	cmd.Flags().StringVar(
@@ -225,6 +226,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	)
 
 	cmd.Flags().StringVar(
+		&f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		"insecure-azure-mock-first-party-application-principal-id",
+		f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		"The principal id of the mock First Party Application (FPA) service principal that the ARM Permissions Manager identity grants the Owner role over each cluster's managed resource group. "+
+			"It is only used when a real FPA is not available. When set, it must be set in combination with the ARM Permissions Manager identity flags.",
+	)
+
+	cmd.Flags().StringVar(
 		&f.AzureClusterScopedIdentitiesRoleSetName,
 		"azure-cluster-scoped-identities-role-set-name",
 		f.AzureClusterScopedIdentitiesRoleSetName,
@@ -301,6 +310,9 @@ func (f *BackendRootCmdFlags) validate() error {
 		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must be set"))
 		}
+		if len(f.InsecureAzureMockFirstPartyApplicationPrincipalID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-mock-first-party-application-principal-id must be set"))
+		}
 	} else { // Otherwise we also validate that none of the azure managed identity mock identity nor the ARM Permissions Manager identity related flags are set in that case.
 		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must not be set"))
@@ -328,6 +340,9 @@ func (f *BackendRootCmdFlags) validate() error {
 		}
 		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must not be set"))
+		}
+		if len(f.InsecureAzureMockFirstPartyApplicationPrincipalID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-mock-first-party-application-principal-id must not be set"))
 		}
 	}
 
@@ -449,6 +464,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
 	var hardcodedIdentity *azureclient.HardcodedIdentity
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
+	var insecureARMPermissionsManagerClientBuilder azureclient.InsecureARMPermissionsManagerClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
 		// In ARO-HCP environments where we have a real FPA, we use the FPA identity to create the FPA MI dataplane client builder
 		fpaMIDataplaneClientBuilder = azureclient.NewFPAMIDataplaneClientBuilder(
@@ -483,6 +499,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureARMPermissionsManagerIdentityTokenCredentialRetriever,
 			azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		)
+
+		// Without a real FPA, the ARM Permissions Manager identity is also used to
+		// manage the deployment stack that grants the mock FPA principal Owner over
+		// each cluster's managed resource group (MockFPARoleAssignments).
+		insecureARMPermissionsManagerClientBuilder = azureclient.NewInsecureARMPermissionsManagerClientBuilder(
+			azureARMPermissionsManagerIdentityTokenCredentialRetriever,
+			azureConfig.CloudEnvironment.ARMClientOptions(),
 		)
 
 		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
@@ -557,12 +581,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		HardcodedIdentity:                  hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
-		SMIClientBuilder:              smiClientBuilder,
-		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		CloudEnvironment:              azureConfig.CloudEnvironment,
-		MetricsRegisterer:             legacyregistry.Registerer(),
-		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		SMIClientBuilder:                           smiClientBuilder,
+		CheckAccessV2ClientBuilder:                 checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:              clusterScopedIdentitiesConfig,
+		CloudEnvironment:                           azureConfig.CloudEnvironment,
+		InsecureARMPermissionsManagerClientBuilder: insecureARMPermissionsManagerClientBuilder,
+		MockFirstPartyApplicationPrincipalID:       f.InsecureAzureMockFirstPartyApplicationPrincipalID,
+		MetricsRegisterer:                          legacyregistry.Registerer(),
+		MetricsGatherer:                            legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil

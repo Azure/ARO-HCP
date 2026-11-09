@@ -145,6 +145,181 @@ func TestRoleAssignmentStatusManaged(t *testing.T) {
 	}
 }
 
+// desireWithOutcome builds a StackDesire whose Status.ObservedSpecHash matches
+// its Spec (so it is treated as the current outcome), with the given action,
+// condition, and observed managed resources.
+func desireWithOutcome(t *testing.T, action string, condType string, condStatus metav1.ConditionStatus, managedIDs ...*azcorearm.ResourceID) *coreapi.StackDesire {
+	t.Helper()
+	desire := testManagedStackDesire(managedIDs...)
+	desire.Spec = coreapi.StackDesireSpec{Action: action}
+	hash, err := coreapi.StackDesireSpecHash(desire.Spec)
+	if err != nil {
+		t.Fatalf("failed to hash spec: %v", err)
+	}
+	desire.Status.ObservedSpecHash = hash
+	desire.Status.Conditions = []metav1.Condition{{Type: condType, Status: condStatus}}
+	return desire
+}
+
+func TestRoleAssignmentRemovedAndReconciled(t *testing.T) {
+	reserved := testAzureResource(t)
+
+	staleHashDesire := desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue)
+	staleHashDesire.Status.ObservedSpecHash = "does-not-match"
+
+	tests := []struct {
+		name     string
+		status   *coreapi.RoleAssignmentStatus
+		desire   *coreapi.StackDesire
+		expected bool
+	}{
+		{
+			name:     "nil status is not removed",
+			status:   nil,
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue),
+			expected: false,
+		},
+		{
+			name:     "never reserved means never materialized, so removed",
+			status:   &coreapi.RoleAssignmentStatus{},
+			desire:   nil,
+			expected: true,
+		},
+		{
+			name:     "reserved but no desire yet, not removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   nil,
+			expected: false,
+		},
+		{
+			name:     "observed outcome does not match current spec, not removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   staleHashDesire,
+			expected: false,
+		},
+		{
+			name:     "apply succeeded and reserved no longer managed, removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue),
+			expected: true,
+		},
+		{
+			name:     "apply succeeded but reserved still managed, not removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue, reserved),
+			expected: false,
+		},
+		{
+			name:     "apply not yet successful, not removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionFalse),
+			expected: false,
+		},
+		{
+			name:     "delete confirmed, removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionDelete, coreapi.StackDesireConditionSuccessfullyDeleted, metav1.ConditionTrue),
+			expected: true,
+		},
+		{
+			name:     "delete not yet confirmed, not removed",
+			status:   &coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, coreapi.StackDesireActionDelete, coreapi.StackDesireConditionSuccessfullyDeleted, metav1.ConditionFalse),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, RoleAssignmentRemovedAndReconciled(tt.status, tt.desire))
+		})
+	}
+}
+
+func TestMockFirstPartyApplicationRoleAssignmentsConfigured(t *testing.T) {
+	reserved := testAzureResource(t)
+	mockKey := coreapi.RoleAssignmentKey{PrincipalID: "mock-fpa", RoleDefinitionResourceID: testRoleDefinitionResourceID}
+	statusWith := func(status *coreapi.RoleAssignmentStatus) *coreapi.ServiceProviderClusterStatus {
+		return &coreapi.ServiceProviderClusterStatus{
+			MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.RoleAssignmentStatus{
+				mockKey: status,
+			},
+		}
+	}
+
+	// A current, successful reconciliation that manages the reserved assignment.
+	reconciledManaging := desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue, reserved)
+	// Current and successful, but the assignment is not (yet) managed.
+	reconciledNotManaging := desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue)
+	// Manages the assignment but the observation is for a different (stale) spec.
+	staleManaging := desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionTrue, reserved)
+	staleManaging.Status.ObservedSpecHash = "does-not-match"
+	// Current spec but the apply has not succeeded yet.
+	notAppliedManaging := desireWithOutcome(t, coreapi.StackDesireActionApply, coreapi.StackDesireConditionSuccessfullyApplied, metav1.ConditionFalse, reserved)
+
+	tests := []struct {
+		name     string
+		status   *coreapi.ServiceProviderClusterStatus
+		desire   *coreapi.StackDesire
+		expected bool
+	}{
+		{
+			name:     "nil status is not configured",
+			status:   nil,
+			desire:   reconciledManaging,
+			expected: false,
+		},
+		{
+			name:     "empty map (not filled yet) is not configured",
+			status:   &coreapi.ServiceProviderClusterStatus{},
+			desire:   reconciledManaging,
+			expected: false,
+		},
+		{
+			name:     "nil desire (not published yet) is not configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved}),
+			desire:   nil,
+			expected: false,
+		},
+		{
+			name:     "managed and reconciled against current spec is configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved}),
+			desire:   reconciledManaging,
+			expected: true,
+		},
+		{
+			name:     "reconciled but assignment not yet managed is not configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved}),
+			desire:   reconciledNotManaging,
+			expected: false,
+		},
+		{
+			name:     "managed but observation is stale is not configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved}),
+			desire:   staleManaging,
+			expected: false,
+		},
+		{
+			name:     "current spec but apply not yet successful is not configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved}),
+			desire:   notAppliedManaging,
+			expected: false,
+		},
+		{
+			name:     "draining assignment is not configured",
+			status:   statusWith(&coreapi.RoleAssignmentStatus{ReservedAzureResourceID: reserved, DeconfigureTimestamp: ptrTime(metav1.Now())}),
+			desire:   reconciledManaging,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, MockFirstPartyApplicationRoleAssignmentsConfigured(tt.status, tt.desire))
+		})
+	}
+}
+
 func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testing.T) {
 	tests := []struct {
 		name                              string

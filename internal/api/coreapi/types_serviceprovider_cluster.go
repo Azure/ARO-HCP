@@ -395,6 +395,29 @@ type ServiceProviderClusterStatus struct {
 	// in cascade when that resource group is removed.
 	// Written by: ClusterRoleAssignmentIntent, ClusterRoleAssignments
 	RoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*RoleAssignmentStatus `json:"roleAssignmentsOverManagedResourceGroup,omitempty"`
+
+	// MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup tracks the
+	// managed-resource-group scoped role assignment that grants the mock First
+	// Party Application (FPA) service principal the built-in Owner role. It only
+	// applies in environments without a real FPA (HasRealFPA is false), where the
+	// mock FPA stands in for the real FPA and must hold Owner over the managed
+	// resource group to operate on it. The map key and value reuse the same types
+	// as RoleAssignmentsOverManagedResourceGroup: the key is PrincipalID (the mock
+	// FPA principal ID) and RoleDefinitionResourceID (the Owner role definition),
+	// and the value tracks the reserved Azure resource ID and deconfigure state.
+	// MockFPARoleAssignmentIntent sets the single desired key. MockFPARoleAssignments
+	// reserves ReservedAzureResourceID and renders every non-draining key into one
+	// StackDesire ARM template authenticated as the ARM permissions manager
+	// identity. Unlike RoleAssignmentsOverManagedResourceGroup there is no 24h
+	// deconfigure wait, and a superseded key is removed safely: it is kept
+	// rendered until the desired key is configured in Azure (so the Owner grant is
+	// never lost during an identity replacement), then excluded from the template,
+	// then dropped from this map once the StackDesire reports SuccessfullyApplied
+	// for the new spec that excludes it.
+	// Cluster deletion is a no-op: the assignment is scoped to the managed resource
+	// group, so Azure deletes it in cascade when that resource group is removed.
+	// Written by: MockFPARoleAssignmentIntent, MockFPARoleAssignments
+	MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup map[RoleAssignmentKey]*RoleAssignmentStatus `json:"mockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -692,7 +715,11 @@ type RoleAssignmentStatus struct {
 	// Dropping the key removes it from RoleAssignments rather than clearing this
 	// field in place. Cluster deletion skips this wait because the managed
 	// resource group cascade removes the role assignments.
-	// Written by: ClusterRoleAssignmentIntent
+	//
+	// MockFPARoleAssignmentIntent also writes this field on
+	// MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup, but with
+	// reconciliation-based (not 24h) drop semantics: see that field's doc.
+	// Written by: ClusterRoleAssignmentIntent, MockFPARoleAssignmentIntent
 	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
 	// TargetIdentity is the resource ID, ClientID, TenantID, and PrincipalID that
 	// ClusterRoleAssignmentIntent last targeted for this key. The map key is
@@ -702,8 +729,10 @@ type RoleAssignmentStatus struct {
 	// the key is still desired. A resource path, ClientID, or TenantID change
 	// on the same principal and role definition updates this field without
 	// starting a 24h deconfigure. Draining rows keep the snapshot from when
-	// the key left.
-	// Written by: ClusterRoleAssignmentIntent
+	// the key left. MockFPARoleAssignmentIntent also writes this field on
+	// MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup, setting
+	// only PrincipalID (the mock FPA SP has no managed-identity resource ID).
+	// Written by: ClusterRoleAssignmentIntent, MockFPARoleAssignmentIntent
 	TargetIdentity *RoleAssignmentTargetIdentity `json:"targetIdentity,omitempty"`
 	// ReservedAzureResourceID is the role assignment resource ID reserved for
 	// this key. ClusterRoleAssignments assigns it exactly once, the first time
@@ -711,8 +740,9 @@ type RoleAssignmentStatus struct {
 	// StackDesire template, looking the key up in that StackDesire's observed
 	// Azure state) reads this persisted value rather than recomputing it. This
 	// is what lets the naming scheme change later without orphaning or
-	// duplicating an already-reserved assignment.
-	// Written by: ClusterRoleAssignments
+	// duplicating an already-reserved assignment. MockFPARoleAssignments reserves
+	// it the same way on MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup.
+	// Written by: ClusterRoleAssignments, MockFPARoleAssignments
 	ReservedAzureResourceID *azcorearm.ResourceID `json:"reservedAzureResourceID,omitempty"`
 }
 
@@ -729,8 +759,9 @@ type RoleAssignmentTargetIdentity struct {
 	// Written by: ClusterRoleAssignmentIntent
 	TenantID string `json:"tenantID,omitempty"`
 	// PrincipalID is the Principal ID of the managed identity. It matches
-	// RoleAssignmentKey.PrincipalID.
-	// Written by: ClusterRoleAssignmentIntent
+	// RoleAssignmentKey.PrincipalID. For the mock FPA assignment this is the mock
+	// FPA service principal ID.
+	// Written by: ClusterRoleAssignmentIntent, MockFPARoleAssignmentIntent
 	PrincipalID string `json:"principalID,omitempty"`
 }
 
