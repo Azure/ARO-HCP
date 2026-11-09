@@ -283,8 +283,6 @@ spec:
         )
         and on (cluster, resource_id, subscription_id)
           last_over_time(hosted_control_plane_upgrade:stuck:bool[24h]) == 0
-        and on (cluster, resource_id, subscription_id)
-          last_over_time(hosted_control_plane_upgrade:recovery_observations:count[24h]) >= 5
         and on (cluster)
         max by (cluster) (
           hosted_control_plane_upgrade:inventory_observations_complete:bool == 1
@@ -337,14 +335,26 @@ spec:
           hosted_control_plane_upgrade:retired:info
     - record: hosted_control_plane_upgrade:lifecycle_excluded:info
       expr: |
-        0 * max by (cluster, resource_id, subscription_id) (
-          hosted_control_plane_upgrade:clear_confirmations:count{reason="lifecycle"} >= 3
-        ) + 1
+        (
+          0 * max by (cluster, resource_id, subscription_id) (
+            hosted_control_plane_upgrade:clear_confirmations:count{reason="lifecycle"} >= 3
+          ) + 1
+        )
+        and on (cluster, resource_id, subscription_id)
+        max by (cluster, resource_id, subscription_id) (
+          hosted_control_plane_upgrade:clear_observed:bool{reason="lifecycle"} == 1
+        )
     - record: hosted_control_plane_upgrade:completion_confirmed:info
       expr: |
-        0 * max by (cluster, resource_id, subscription_id) (
-          hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"} >= 3
-        ) + 1
+        (
+          0 * max by (cluster, resource_id, subscription_id) (
+            hosted_control_plane_upgrade:clear_confirmations:count{reason="completed"} >= 3
+          ) + 1
+        )
+        and on (cluster, resource_id, subscription_id)
+        max by (cluster, resource_id, subscription_id) (
+          hosted_control_plane_upgrade:clear_observed:bool{reason="completed"} == 1
+        )
     - record: hosted_control_plane_upgrade:current_condition:bool
       expr: |
         (
@@ -364,67 +374,12 @@ spec:
         )
         and on (cluster, resource_id, subscription_id)
           hosted_control_plane_upgrade:target_observations_complete:bool == 1
-    - record: hosted_control_plane_upgrade:recovery_needed:info
-      # An overdue/missing rule output is an evaluator gap, not a cluster transition.
-
-      expr: |
-        0 *
-        (
-          last_over_time(hosted_control_plane_upgrade:stuck:bool[24h])
-          unless
-          (
-            hosted_control_plane_upgrade:stuck:bool
-            and (time() - timestamp(hosted_control_plane_upgrade:stuck:bool) <= 60)
-          )
-        ) + 1
-    - record: hosted_control_plane_upgrade:recovery_observations:count
-      expr: |
-        (
-          (
-            clamp_max(
-            (
-              (
-                last_over_time(hosted_control_plane_upgrade:recovery_observations:count[24h])
-                unless on (cluster, resource_id, subscription_id)
-                  hosted_control_plane_upgrade:recovery_needed:info
-              )
-              or on (cluster, resource_id, subscription_id)
-                0 * hosted_control_plane_upgrade:recovery_needed:info
-              or on (cluster, resource_id, subscription_id)
-              (
-                0 * max by (cluster, resource_id, subscription_id) (
-                  hosted_control_plane_upgrade:current_condition:bool
-                  or (hosted_control_plane_upgrade:lifecycle_observed:bool == 1)
-                ) + 5
-              )
-            ) + 1,
-            5
-          )
-          and on (cluster, resource_id, subscription_id)
-          max by (cluster, resource_id, subscription_id) (
-            hosted_control_plane_upgrade:current_condition:bool
-            or (hosted_control_plane_upgrade:lifecycle_observed:bool == 1)
-          )
-          )
-          or on (cluster, resource_id, subscription_id)
-            0 * hosted_control_plane_upgrade:recovery_needed:info
-          or on (cluster, resource_id, subscription_id)
-            last_over_time(hosted_control_plane_upgrade:recovery_observations:count[24h])
-        )
-        unless on (cluster, resource_id, subscription_id)
-          hosted_control_plane_upgrade:retired:info
     - record: hosted_control_plane_upgrade:firing:bool
       # Establish once after Pending; a later skipped evaluation does not reset the latch.
 
       expr: |
         (
-          (
-            last_over_time(hosted_control_plane_upgrade:firing:bool[24h])
-            and on (cluster, resource_id, subscription_id)
-              hosted_control_plane_upgrade:recovery_observations:count < 5
-          )
-          or on (cluster, resource_id, subscription_id)
-            0 * hosted_control_plane_upgrade:lifecycle_excluded:info
+          0 * hosted_control_plane_upgrade:lifecycle_excluded:info
           or on (cluster, resource_id, subscription_id)
             0 * hosted_control_plane_upgrade:completion_confirmed:info
           or on (cluster, resource_id, subscription_id)
@@ -453,13 +408,7 @@ spec:
     - record: hosted_control_plane_upgrade:stuck:bool
       expr: |
         (
-          (
-            last_over_time(hosted_control_plane_upgrade:stuck:bool[24h])
-            and on (cluster, resource_id, subscription_id)
-              hosted_control_plane_upgrade:recovery_observations:count < 5
-          )
-          or on (cluster, resource_id, subscription_id)
-            0 * hosted_control_plane_upgrade:lifecycle_excluded:info
+          0 * hosted_control_plane_upgrade:lifecycle_excluded:info
           or on (cluster, resource_id, subscription_id)
             0 * hosted_control_plane_upgrade:completion_confirmed:info
           or on (cluster, resource_id, subscription_id)

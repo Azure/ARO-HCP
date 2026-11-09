@@ -115,27 +115,25 @@ and supports evaluation gaps shorter than 24 hours. Missing history, store data
 loss or an outage beyond that bound is not verified recovery; do not infer that
 an old incident was resolved from a newly initialized value.
 
-| Recovery step | Behavior |
+| Reconciliation after restoring state | Behavior |
 | --- | --- |
-| Evaluation resumes with a previous monitor output more than one interval old | Restore the latest stored `0` or `1`; start the recovery count |
-| Valid recovery observations 1 through 4 | Hold that monitor state, even if current observations suggest a change |
-| Recovery observations unavailable/incomplete | Hold the restored state and pause the recovery count |
-| Fifth valid recovery observation | Reconcile against current evidence; keep firing if still incomplete, or accept confirmed convergence/lifecycle exclusion |
-| New evaluator gap during recovery | Restore the latest state again and restart the five-observation recovery window |
-| No evaluator outage | No extra delay; ordinary three-observation clearing remains unchanged |
-| Resource removal overlaps evaluator recovery | Wait for recovery to finish and publish a clear zero before retiring the monitor series |
+| Fresh state is still incomplete | Keep a restored firing condition active, even for a younger target |
+| Current observations are missing/incomplete | Hold the last monitor state and pause the existing confirmation counters |
+| Desired=current+Completed is observed | Use the normal three-valid-observation completion check; no extra recovery timer |
+| Deletion/uninstallation is observed | Use the normal three-valid-observation lifecycle check; dispatch stops immediately |
+| Old clearing confirmations exist but current evidence is missing | Do not newly clear; a restored count alone is not current confirmation |
+| Resource removal is confirmed | Publish the monitor's clear zero before retiring its series |
 
-`hosted_control_plane_upgrade:recovery_observations:count` accepts a coherent
-current-target assessment or a fresh confirmed lifecycle-exclusion observation.
-An active lifecycle alone is not enough to validate missing target telemetry.
-The recovery window does not replace the three-observation completion/lifecycle
-checks or the alert's five-minute Pending period. A newly detected stall after
-restoring a clear monitor still passes through normal alert Pending.
+There is no separate evaluator-recovery counter or five-observation window.
+The existing completion and lifecycle counters are restored too: missing
+evaluations pause their progress, and valid contrary observations reset them.
+Clearing requires current evidence for the same reason as well as three
+confirming observations. A newly detected stall after restoring a clear monitor
+still passes through the alert's normal five-minute Pending period.
 
-This is an explicit recovery contract for this monitor, not a claim that other
-repository monitors already use the same pattern. Shadow review must check
-history availability, evaluator-outage behavior, and the cost of retained-state
-queries before paging cutover. Backend dispatch guards remain immediate.
+Shadow review must check history availability, evaluator-outage behavior, and
+the cost of retained-state queries before paging cutover. This is not a claim
+that other repository monitors already use the same retained-state pattern.
 
 | Completion edge case | Required treatment |
 | --- | --- |
@@ -254,9 +252,11 @@ raise an IcM.
 | The budget boundary is crossed while observations are missing | Hold an existing clear value; do not create a failure from the missing poll |
 | Reconcile changes targets halfway through collection | The current scrape keeps the old count/rows/states; the next scrape has the new snapshot |
 | Evaluator stops for seven minutes with a firing monitor and resumes with a younger incomplete target | Restore `1`; do not clear because the instant lookback expired |
-| Recovery receives four valid observations then a fifth | Hold the restored value through four; reconcile on five |
+| Evaluation resumes with incomplete current state | Keep a restored firing alert active; no new recovery timer |
+| Normal completion/lifecycle confirmation reaches three after a gap | Clear through the same path used without an outage |
+| Old confirmation counts exist but current clearing evidence is absent | Do not newly clear from stored counts alone |
 | Stored state contains an older `1` followed by a newer `0` | Restore the latest `0`; do not resurrect the old failure |
-| Deletion confirmations reach three before five recovery observations | Keep the firing series; retirement waits until a confirmed zero has been published |
+| Resource removal overlaps evaluator recovery | Retirement waits until a confirmed zero has been published |
 | Retained history approaches or reaches its 24-hour boundary | Recover within the tested bound; do not claim recovery of state that is no longer in the lookup window |
 
 The rule cases live in
