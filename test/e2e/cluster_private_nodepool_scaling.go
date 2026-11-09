@@ -132,9 +132,20 @@ var _ = Describe("Customer", func() {
 			parsedURL, err := url.Parse(apiURL)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse API URL %q", apiURL)
 			apiHost := parsedURL.Hostname()
-			ips, err := net.DefaultResolver.LookupHost(ctx, apiHost)
-			Expect(err).NotTo(HaveOccurred(), "DNS lookup failed for API hostname %q", apiHost)
-			Expect(ips).NotTo(BeEmpty(), "DNS lookup returned no IPs for API hostname %q", apiHost)
+			// Retry transient DNS failures or empty answers for a bounded period.
+			// Once DNS returns addresses, the lbIP check below is strict — a resolved
+			// wrong endpoint fails immediately without retrying.
+			var ips []string
+			Eventually(func(g Gomega) {
+				var lookupErr error
+				ips, lookupErr = net.DefaultResolver.LookupHost(ctx, apiHost)
+				if lookupErr != nil {
+					GinkgoLogr.Info("DNS lookup transient failure, retrying", "hostname", apiHost, "error", lookupErr)
+				}
+				g.Expect(lookupErr).NotTo(HaveOccurred(), "DNS lookup failed for API hostname %q", apiHost)
+				g.Expect(ips).NotTo(BeEmpty(), "DNS lookup returned no IPs for API hostname %q", apiHost)
+			}, 2*time.Minute, 10*time.Second).Should(Succeed(),
+				"DNS lookup for API hostname %q failed or returned no IPs after retries", apiHost)
 			GinkgoLogr.Info("API hostname DNS resolved", "hostname", apiHost, "ips", ips)
 			Expect(ips).To(ContainElement(lbIP),
 				"API hostname %q resolved to %v but expected it to include internal KAS LB IP %s — DNS may be pointing to wrong endpoint (ARO-29270)", apiHost, ips, lbIP)
