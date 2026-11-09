@@ -5,8 +5,8 @@ go 1.26.0
 require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90
 	github.com/Azure/ARO-HCP/tooling/metricscache v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0
 	github.com/go-logr/logr v1.4.4
@@ -19,14 +19,15 @@ require (
 
 require (
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.3 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.13.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.10.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect

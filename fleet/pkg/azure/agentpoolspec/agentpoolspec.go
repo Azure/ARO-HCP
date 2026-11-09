@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
 )
@@ -74,6 +74,9 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 	}
 
 	var taints []*string
+	if pool.Taints != nil {
+		taints = make([]*string, 0, len(pool.Taints))
+	}
 	for _, t := range pool.Taints {
 		taints = append(taints, ptr.To(t))
 	}
@@ -93,12 +96,20 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		zones = append(zones, ptr.To(z))
 	}
 
+	upgradeSettings := pool.UpgradeSettings
+	if upgradeSettings == nil {
+		upgradeSettings = &armcontainerservice.AgentPoolUpgradeSettings{
+			MaxSurge: ptr.To("10%"),
+		}
+	}
+
 	properties := &armcontainerservice.ManagedClusterAgentPoolProfileProperties{
 		VMSize:                 ptr.To(pool.Spec.Size),
 		AvailabilityZones:      zones,
 		OSDiskSizeGB:           ptr.To(pool.OSDiskSizeGB),
 		OSDiskType:             ptr.To(armcontainerservice.OSDiskTypeEphemeral),
 		EnableAutoScaling:      ptr.To(true),
+		Count:                  ptr.To(pool.MinCount),
 		MinCount:               ptr.To(pool.MinCount),
 		MaxCount:               ptr.To(pool.MaxCount),
 		Mode:                   ptr.To(pool.AgentPoolMode),
@@ -110,12 +121,10 @@ func Build(pool compute.Pool, networkConfig compute.NetworkConfig) *armcontainer
 		EnableFIPS:             ptr.To(true),
 		EnableNodePublicIP:     ptr.To(false),
 		MaxPods:                ptr.To(pool.MaxPods),
+		UpgradeSettings:        upgradeSettings,
 		SecurityProfile: &armcontainerservice.AgentPoolSecurityProfile{
 			EnableSecureBoot: ptr.To(false),
 			EnableVTPM:       ptr.To(false),
-		},
-		UpgradeSettings: &armcontainerservice.AgentPoolUpgradeSettings{
-			MaxSurge: ptr.To("10%"),
 		},
 		NodeLabels: labels,
 		NodeTaints: taints,

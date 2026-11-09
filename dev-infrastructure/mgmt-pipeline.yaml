@@ -388,7 +388,7 @@ resourceGroups:
       durationBetweenRetries: 1m
   - name: cluster-create
     action: Shell
-    command: ./aks-cluster-create
+    command: ./aks-cluster-create mgmt-cluster
     workingDir: ./scripts/aks-cluster-create
     shellIdentity:
       input:
@@ -407,8 +407,6 @@ resourceGroups:
       configRef: mgmt.aks.name
     - name: REGION
       configRef: region
-    - name: REGION_AVAILABILITY_ZONE_COUNT
-      configRef: azureRegionAvailabilityZoneCount
     - name: SYSTEM_POOL_NAME
       configRef: mgmt.aks.systemAgentPool.name
     - name: SYSTEM_POOL_VM_SIZE
