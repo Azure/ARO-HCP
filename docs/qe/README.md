@@ -9,6 +9,7 @@ well as people.
 |---|---|
 | [bug-taxonomy.md](bug-taxonomy.md) | Bug categories used in QE analysis and reporting |
 | [bug-reporting.md](bug-reporting.md) | How to report a new bug |
+| [bug-searching.md](bug-searching.md) | How to search for existing bugs |
 
 ### Taxonomy Classification
 

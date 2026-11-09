@@ -14,7 +14,8 @@ suspected to be affected.
 ## What to do before reporting a bug?
 
 To avoid duplication, try to search for already reported bugs in ARO and
-AROSLSRE projects which could cover the problem.
+AROSLSRE projects which could cover the problem, as explained in
+[/docs/qe/bug-searching.md](bug-searching.md) document.
 
 ## What to include in the bug report?
 
