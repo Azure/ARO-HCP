@@ -21,7 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // ToClusterScopedDeploymentStackDesireResourceID returns the resource ID for a DeploymentStackDesire
@@ -34,7 +34,9 @@ func ToClusterScopedDeploymentStackDesireResourceID(subscriptionID, resourceGrou
 // DeploymentStackDesire nested directly under a cluster.
 func ToClusterScopedDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name string) string {
 	return strings.ToLower(path.Join(
-		coreapihelpers.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName),
-		coreapihelpers.LeafTypeName(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType), name,
+		"/subscriptions", subscriptionID,
+		"resourceGroups", resourceGroupName,
+		"providers", coreapi.ClusterResourceType.String(), clusterName,
+		azureresourcesapi.DeploymentStackDesireResourceTypeName, name,
 	))
 }

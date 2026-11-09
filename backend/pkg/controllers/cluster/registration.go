@@ -37,6 +37,7 @@ import (
 	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
+	mockfparoleassignments "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -1166,6 +1167,42 @@ func instantiateIdentityRoleAssignmentsController(controllerContext controllerco
 	), nil
 }
 
+func registerMockFPARoleAssignmentIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Enabled:     func(controllerContext controllerconfig.ControllerContext) bool { return !controllerContext.HasRealFPA },
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMockFPARoleAssignmentsIntentController, false),
+	}
+}
+
+func instantiateMockFPARoleAssignmentsIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return mockfparoleassignments.NewMockFPARoleAssignmentsIntentController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
+		controllerContext.MockFirstPartyApplicationPrincipalID,
+		mockfparoleassignments.OwnerRoleDefinitionResourceID,
+	), nil
+}
+
+func registerMockFPARoleAssignmentsController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Enabled:     func(controllerContext controllerconfig.ControllerContext) bool { return !controllerContext.HasRealFPA },
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateMockFPARoleAssignmentsController, true),
+	}
+}
+
+func instantiateMockFPARoleAssignmentsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return mockfparoleassignments.NewMockFPARoleAssignmentsController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.AzureResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
+	), nil
+}
+
 func registerKeyRotationBackupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1420,5 +1457,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
+	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsIntentControllerName)] = registerMockFPARoleAssignmentIntentController()
+	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsControllerName)] = registerMockFPARoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

@@ -90,6 +90,7 @@ type controller struct {
 	deploymentStackDesireLister         azureresourceslisters.DeploymentStackDesireLister
 	firstPartyApplicationClientBuilder  azureclient.FirstPartyApplicationClientBuilder
 	serviceManagedIdentityClientBuilder azureclient.ServiceManagedIdentityClientBuilder
+	insecureARMPermissionsManager       azureclient.InsecureARMPermissionsManagerClientBuilder
 	clock                               clock.PassiveClock
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -100,6 +101,7 @@ type controller struct {
 // ready-to-Run controller.
 func NewController(crudByParent azureresourcescosmosstorage.AzureResourcesDeploymentStackDesireCRUD, informers azureresourcesinformers.AzureResourcesInformers,
 	firstPartyApplicationClientBuilder azureclient.FirstPartyApplicationClientBuilder, serviceManagedIdentityClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
+	insecureARMPermissionsManager azureclient.InsecureARMPermissionsManagerClientBuilder,
 	clock clock.PassiveClock,
 ) *controller {
 	deploymentStackDesiresInformer, deploymentStackDesiredLister := informers.DeploymentStackDesires()
@@ -109,6 +111,7 @@ func NewController(crudByParent azureresourcescosmosstorage.AzureResourcesDeploy
 		deploymentStackDesireLister:         deploymentStackDesiredLister,
 		firstPartyApplicationClientBuilder:  firstPartyApplicationClientBuilder,
 		serviceManagedIdentityClientBuilder: serviceManagedIdentityClientBuilder,
+		insecureARMPermissionsManager:       insecureARMPermissionsManager,
 		clock:                               clock,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[Key](),
@@ -222,7 +225,10 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 	if err != nil {
 		return err
 	}
-	getDeploymentStacksClient := c.newDeploymentStacksClientGetter(ctx, desire)
+	getDeploymentStacksClient, err := c.newDeploymentStacksClientGetter(ctx, desire)
+	if err != nil {
+		return fmt.Errorf("failed to get deployment stacks client getter: %w", err)
+	}
 	result := decideDeploymentStackDesire(ctx, desire, c.clock.Now(), c.newLazyAzureDeploymentStackGet(ctx, desire, getDeploymentStacksClient))
 	result.validate()
 	status, executionErr := result.status, result.err
@@ -304,15 +310,25 @@ func (c *controller) newLazyAzureDeploymentStackGet(ctx context.Context, desire 
 // validated. The returned function is scoped to a single SyncOnce call: for SMI it caches the
 // built client (and the token fetch behind it) so it is reused across both the lazy GET and the
 // submission path in one reconcile, instead of hitting ClusterIdentityURL twice.
-func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) func() (*armdeploymentstacks.Client, error) {
+func (c *controller) newDeploymentStacksClientGetter(ctx context.Context, desire *azureresourcesapi.DeploymentStackDesire) (func() (*armdeploymentstacks.Client, error), error) {
 	authentication := desire.Spec.Authentication
-	if authentication.Type == azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI {
-		return c.newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx, authentication.ServiceManagedIdentity, desire.Spec.TargetResourceID)
+	switch authentication.Type {
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeSMI:
+		return c.newCachedServiceManagedIdentityDeploymentStacksClientGetter(ctx, authentication.ServiceManagedIdentity, desire.Spec.TargetResourceID), nil
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeFPA:
+		tenantID, subscriptionID := authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID
+		return func() (*armdeploymentstacks.Client, error) {
+			return c.firstPartyApplicationClientBuilder.DeploymentStacksClient(tenantID, subscriptionID)
+		}, nil
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager:
+		subscriptionID := desire.Spec.TargetResourceID.SubscriptionID
+		return func() (*armdeploymentstacks.Client, error) {
+			return c.insecureARMPermissionsManager.DeploymentStacksClient(subscriptionID)
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported authentication type %q", authentication.Type)
 	}
-	tenantID, subscriptionID := authentication.FirstPartyApplication.TenantID, desire.Spec.TargetResourceID.SubscriptionID
-	return func() (*armdeploymentstacks.Client, error) {
-		return c.firstPartyApplicationClientBuilder.DeploymentStacksClient(tenantID, subscriptionID)
-	}
+
 }
 
 // newCachedServiceManagedIdentityDeploymentStacksClientGetter returns a getter that builds the
@@ -428,6 +444,8 @@ func decideDeploymentStackDesire(ctx context.Context, desire *azureresourcesapi.
 		} else if desire.Spec.Authentication.FirstPartyApplication.TenantID == "" {
 			validationErrs = append(validationErrs, errors.New("FPA authentication requires tenantID"))
 		}
+	case azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager:
+		// No validation required for insecure ARM permissions manager authentication as it currently doesn't have attributes associated with it
 	default:
 		validationErrs = append(validationErrs, fmt.Errorf("unsupported stack authentication %q", desire.Spec.Authentication.Type))
 	}

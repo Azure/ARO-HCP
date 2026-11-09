@@ -29,6 +29,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1734,4 +1736,31 @@ func TestOuterDeleteRequiresObservedAbsence(t *testing.T) {
 	if storage.doc.Status.ObservedSpecHash != hash || !reflect.DeepEqual(controller.queue.(*recordingQueue).delays, []time.Duration{pendingInterval}) {
 		t.Fatal("Delete confirmation hash or fixed polling incorrect")
 	}
+}
+
+func stackDesireWithAuth(t *testing.T, authType azureresourcesapi.DeploymentStackDesireAuthenticationType) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	target, err := azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Resources/deploymentStacks/s")
+	require.NoError(t, err)
+	return &azureresourcesapi.DeploymentStackDesire{
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{
+			TargetResourceID: target,
+			Authentication:   azureresourcesapi.DeploymentStackDesireAuthentication{Type: authType},
+		},
+	}
+}
+
+func TestNewDeploymentStacksClientGetterInsecureARMPermissionsManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	builder := azureclient.NewMockInsecureARMPermissionsManagerClientBuilder(ctrl)
+	builder.EXPECT().DeploymentStacksClient("sub-1").Return(nil, nil)
+
+	c := &controller{insecureARMPermissionsManager: builder}
+	desire := stackDesireWithAuth(t, azureresourcesapi.DeploymentStackDesireAuthenticationTypeInsecureARMPermissionsManager)
+
+	getter, err := c.newDeploymentStacksClientGetter(context.Background(), desire)
+	require.NoError(t, err)
+
+	_, err = getter()
+	require.NoError(t, err)
 }

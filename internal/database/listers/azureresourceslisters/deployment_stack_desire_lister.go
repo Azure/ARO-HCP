@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
@@ -33,6 +34,11 @@ type DeploymentStackDesireLister interface {
 	// that derive the key generically (e.g. from a scope/parent resource ID) use
 	// this parent-kind-agnostic accessor.
 	GetByResourceID(ctx context.Context, resourceID string) (*azureresourcesapi.DeploymentStackDesire, error)
+	// GetForCluster fetches a single cluster-scoped DeploymentStackDesire by its
+	// scope components and name, building the informer key for the caller. Prefer
+	// this over hand-building the resource ID and calling GetByResourceID when the
+	// desire is rooted directly under a cluster.
+	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*azureresourcesapi.DeploymentStackDesire, error)
 	// ListForCluster returns every DeploymentStackDesire whose ResourceID is a
 	// direct child of the given Cluster. If in the future we need to match desires at the cluster scope level and below
 	// in a single call, we should create a new index function and index name like for
@@ -54,6 +60,11 @@ func (l *deploymentStackDesireLister) List(ctx context.Context) ([]*azureresourc
 
 func (l *deploymentStackDesireLister) GetByResourceID(ctx context.Context, resourceID string) (*azureresourcesapi.DeploymentStackDesire, error) {
 	return listerutils.GetByKey[azureresourcesapi.DeploymentStackDesire](l.indexer, strings.ToLower(resourceID))
+}
+
+func (l *deploymentStackDesireLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*azureresourcesapi.DeploymentStackDesire, error) {
+	key := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	return listerutils.GetByKey[azureresourcesapi.DeploymentStackDesire](l.indexer, key)
 }
 
 func (l *deploymentStackDesireLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*azureresourcesapi.DeploymentStackDesire, error) {
