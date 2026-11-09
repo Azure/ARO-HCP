@@ -24,17 +24,44 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const discoveryJob = "pull-ci-Azure-ARO-HCP-main-e2e-parallel"
 const discoveryBucket = "test-platform-results-public"
-const testArtifactPrefix = "artifacts/e2e-parallel/aro-hcp-test-local/artifacts/"
+
+// devTestArtifactPrefix is where PR e2e-parallel builds, which provision their
+// own environment, store test artifacts. Builds that test a persistent
+// environment (stage, prod) store the same artifacts under
+// artifacts/<test>/aro-hcp-test-persistent/artifacts/ instead.
+const devTestArtifactPrefix = "artifacts/e2e-parallel/aro-hcp-test-local/artifacts/"
+
+var testArtifactPrefixPattern = regexp.MustCompile(`^(artifacts/[^/]+/aro-hcp-test-(local|persistent)/artifacts/)`)
+
 const maxArtifactBytes = 32 << 20
 
-var discoveryPath = regexp.MustCompile(`^pr-logs/pull/Azure_ARO-HCP/([0-9]+)/` + discoveryJob + `/([0-9]+)/?$`)
+// Supported builds are ARO-HCP e2e-parallel jobs: presubmits under pr-logs, and
+// periodic or postsubmit (branch-ci) jobs under logs.
+var discoveryPRPath = regexp.MustCompile(`^pr-logs/pull/Azure_ARO-HCP/([0-9]+)/(pull-ci-Azure-ARO-HCP-main-[a-z0-9.-]*e2e-parallel[a-z0-9.-]*)/([0-9]+)/?$`)
+var discoveryLogsPath = regexp.MustCompile(`^logs/((?:periodic|branch)-ci-Azure-ARO-HCP-main-[a-z0-9.-]*e2e-parallel[a-z0-9.-]*)/([0-9]+)/?$`)
+
+// discoveryBuild parses a build artifact prefix into job, PR (presubmits
+// only), and build ID.
+func discoveryBuild(prefix string) (job, pr, build string, ok bool) {
+	if m := discoveryPRPath.FindStringSubmatch(prefix); m != nil {
+		return m[2], m[1], m[3], true
+	}
+	if m := discoveryLogsPath.FindStringSubmatch(prefix); m != nil {
+		return m[1], "", m[2], true
+	}
+	return "", "", "", false
+}
+
 var discoveryUUID = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var discoverySHA = regexp.MustCompile(`(?i)^[0-9a-f]{40}$`)
 var discoveryRG = regexp.MustCompile(`^[a-zA-Z0-9_.()-]{1,90}$`)
@@ -93,13 +120,13 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 	case u.Scheme == "gs" && u.Host == discoveryBucket:
 		prefix = strings.TrimPrefix(u.Path, "/")
 	}
-	match := discoveryPath.FindStringSubmatch(prefix)
-	if match == nil {
-		s.Diagnose("error", "invalid-job-url", "job", "Only public Azure/ARO-HCP pull-ci-Azure-ARO-HCP-main-e2e-parallel builds are supported")
+	job, pr, build, ok := discoveryBuild(prefix)
+	if !ok {
+		s.Diagnose("error", "invalid-job-url", "job", "Only public Azure/ARO-HCP e2e-parallel builds are supported")
 		return s
 	}
 	prefix = strings.TrimSuffix(prefix, "/") + "/"
-	s.Job.Name, s.Job.PR, s.Job.BuildID = discoveryJob, match[1], match[2]
+	s.Job.Name, s.Job.PR, s.Job.BuildID = job, pr, build
 	if client == nil {
 		client = &http.Client{Timeout: 60 * time.Second}
 	}
@@ -129,13 +156,12 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 	if !s.Job.StartedAt.IsZero() && (s.Job.StartedAt.After(now) || (!s.Job.FinishedAt.IsZero() && s.Job.FinishedAt.Before(s.Job.StartedAt))) {
 		s.Diagnose("error", "job-timestamp", "job", "Job timestamps are inconsistent with the collection time")
 	}
-	var docs []discoveredArtifact
-	total := 0
+	testArtifactPrefix, provisioned := buildTestArtifactPrefix(s, job, prefix, names)
+	if testArtifactPrefix == "" {
+		return s
+	}
+	var selectedNames []string
 	for _, fullName := range names {
-		if ctx.Err() != nil {
-			s.Diagnose("error", "artifact-read", "job", "Artifact discovery cancelled")
-			break
-		}
 		name := strings.TrimPrefix(fullName, prefix)
 		base := path.Base(name)
 		original := strings.HasPrefix(name, testArtifactPrefix)
@@ -144,10 +170,21 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 			(original && (base == "identities-pool-state.yaml" || strings.HasPrefix(base, "extension_test_result_e2e_") ||
 				strings.Contains(name, "/test-timing/") || strings.Contains(name, "/resourcegroups/") && (base == "deployments.yaml" || strings.HasPrefix(base, "deployment-operations-")) ||
 				strings.Contains(strings.ToLower(base), "params") || base == "infrastructures.yaml" || base == "infrastructure.yaml"))
-		if !selected {
-			continue
+		if selected {
+			selectedNames = append(selectedNames, fullName)
 		}
-		body, err := getDiscoveryArtifact(ctx, client, discoveryObjectURL(fullName))
+	}
+	fetched := fetchDiscoveryArtifacts(ctx, client, selectedNames)
+	var docs []discoveredArtifact
+	total := 0
+	for i, fullName := range selectedNames {
+		if ctx.Err() != nil {
+			s.Diagnose("error", "artifact-read", "job", "Artifact discovery cancelled")
+			break
+		}
+		name := strings.TrimPrefix(fullName, prefix)
+		base := path.Base(name)
+		body, err := fetched[i].body, fetched[i].err
 		if err != nil {
 			s.Diagnose("error", "artifact-read", name, err.Error())
 			continue
@@ -198,6 +235,9 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 						s.Job.Commit = discoveryString(m, "sha")
 					}
 				})
+			}
+			if s.Job.PR == "" && s.Job.Commit == "" {
+				s.Job.Commit = baseRefCommit(doc.data)
 			}
 		case strings.Contains(path.Base(doc.name), "clone-records"):
 			walkDiscovery(doc.data, func(m map[string]any) {
@@ -508,15 +548,23 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 	for _, required := range []struct {
 		count int
 		name  string
-	}{{config, "provision config.yaml"}, {steps, "steps.yaml"}, {results, "extension_test_result_e2e_*.json"}, {timings, "original test-timing/*.yaml"}, {pool, "identities-pool-state.yaml"}} {
-		if required.count == 0 {
+		infra bool
+	}{{config, "provision config.yaml", true}, {steps, "steps.yaml", true}, {results, "extension_test_result_e2e_*.json", false}, {timings, "original test-timing/*.yaml", false}, {pool, "identities-pool-state.yaml", false}} {
+		// Persistent-environment builds provision no infrastructure of their
+		// own; only their test resources are attributable.
+		if required.count == 0 && (provisioned || !required.infra) {
 			s.Diagnose("error", "missing-artifact", required.name, "Required discovery artifact is missing or unreadable")
 		}
 	}
-	if s.Job.Commit == "" {
+	if s.Job.Commit == "" && s.Job.PR != "" {
 		s.Diagnose("error", "missing-commit", "job", "No tested SHA found in Prow or clone records")
+	} else if s.Job.Commit == "" {
+		// Periodic builds record only the branch they test, not its SHA.
+		s.Diagnose("info", "missing-commit", "job", "No tested SHA recorded for this non-PR build; the commit is unknown")
 	}
-	if s.Job.InfraStartedAt.IsZero() || s.Job.InfraEndedAt.IsZero() || !s.Job.InfraEndedAt.After(s.Job.InfraStartedAt) {
+	if !provisioned {
+		s.Diagnose("info", "persistent-environment", "job", "The build tested a persistent environment, whose shared infrastructure is not attributed to runs; only its test resources are reported")
+	} else if s.Job.InfraStartedAt.IsZero() || s.Job.InfraEndedAt.IsZero() || !s.Job.InfraEndedAt.After(s.Job.InfraStartedAt) {
 		s.Diagnose("info", "infra-timing", "job", "Missing or invalid provision start / final deprovision completion timestamps; optional infra hourly rate omitted")
 	}
 	for _, g := range d.groups {
@@ -534,6 +582,85 @@ func Discover(ctx context.Context, client *http.Client, jobURL string, now time.
 		return a.Code+a.Scope+a.Message < b.Code+b.Scope+b.Message
 	})
 	return s
+}
+
+// baseRefCommit returns the ARO-HCP base SHA a non-PR build tested.
+// Postsubmits name it in refs; periodics name the repository in extra_refs,
+// usually without a SHA.
+func baseRefCommit(prowjob any) string {
+	spec := discoveryMap(prowjob, "spec")
+	candidates := []any{spec["refs"]}
+	if extra, ok := spec["extra_refs"].([]any); ok {
+		candidates = append(candidates, extra...)
+	}
+	for _, candidate := range candidates {
+		ref, _ := candidate.(map[string]any)
+		if discoveryString(ref, "org") == "Azure" && discoveryString(ref, "repo") == "ARO-HCP" && discoverySHA.MatchString(discoveryString(ref, "base_sha")) {
+			return discoveryString(ref, "base_sha")
+		}
+	}
+	return ""
+}
+
+// buildTestArtifactPrefix finds the build's test artifact directory from its
+// artifact listing, and whether the build provisioned its own environment.
+// A dev build that never reached its test step keeps the dev prefix, so its
+// missing test artifacts are reported rather than its job rejected.
+func buildTestArtifactPrefix(s *Snapshot, job, prefix string, names []string) (string, bool) {
+	found := map[string]bool{}
+	for _, name := range names {
+		if m := testArtifactPrefixPattern.FindStringSubmatch(strings.TrimPrefix(name, prefix)); m != nil {
+			found[m[1]] = true
+		}
+	}
+	switch len(found) {
+	case 0:
+		if job == discoveryJob {
+			return devTestArtifactPrefix, true
+		}
+		s.Diagnose("error", "unsupported-job", "job", "No aro-hcp-test-local or aro-hcp-test-persistent test artifacts found; this build's test resources cannot be discovered")
+		return "", false
+	case 1:
+		for testPrefix := range found {
+			return testPrefix, strings.Contains(testPrefix, "/aro-hcp-test-local/")
+		}
+	}
+	s.Diagnose("error", "ambiguous-test-step", "job", "Multiple test steps produced artifacts; discovery requires exactly one")
+	return "", false
+}
+
+// discoveryFetchers bounds concurrent artifact downloads. A run selects several
+// hundred small artifacts, and fetching them one at a time dominated discovery.
+const discoveryFetchers = 32
+
+type fetchedArtifact struct {
+	body []byte
+	err  error
+}
+
+// fetchDiscoveryArtifacts downloads objects concurrently and returns results
+// in input order, so diagnostics and parsing stay deterministic.
+func fetchDiscoveryArtifacts(ctx context.Context, client *http.Client, names []string) []fetchedArtifact {
+	results := make([]fetchedArtifact, len(names))
+	work := make(chan int)
+	var wg sync.WaitGroup
+	for range min(discoveryFetchers, len(names)) {
+		wg.Add(1)
+		go func() {
+			defer utilruntime.HandleCrash()
+			defer wg.Done()
+			for i := range work {
+				body, err := getDiscoveryArtifact(ctx, client, discoveryObjectURL(names[i]))
+				results[i] = fetchedArtifact{body: body, err: err}
+			}
+		}()
+	}
+	for i := range names {
+		work <- i
+	}
+	close(work)
+	wg.Wait()
+	return results
 }
 
 func discoveryObjectURL(name string) string {

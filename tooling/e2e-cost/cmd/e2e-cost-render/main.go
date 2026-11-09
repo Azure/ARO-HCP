@@ -11,10 +11,12 @@
 package main
 
 import (
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	cost "github.com/Azure/ARO-HCP/tooling/e2e-cost"
 )
@@ -25,15 +27,28 @@ func main() {
 
 func run() int {
 	input := flag.String("input", "run-data.json", "Render-ready JSON snapshot path")
-	output := flag.String("output", "cost-summary.html", "Self-contained HTML report path")
+	output := flag.String("output", "cost-summary.html", "Report path")
+	format := flag.String("format", "html", "html for a self-contained report; json for the site viewer, gzip-compressed when the output ends in .gz")
 	flag.Parse()
-	if flag.NArg() != 0 || *input == *output {
+	if flag.NArg() != 0 || *input == *output || (*format != "html" && *format != "json") {
 		flag.Usage()
 		return 2
 	}
 	snapshot, err := cost.ReadSnapshot(*input)
 	if err == nil {
-		err = cost.WriteFile(*output, func(w io.Writer) error { return cost.Render(w, snapshot) })
+		err = cost.WriteFile(*output, func(w io.Writer) error {
+			if *format == "html" {
+				return cost.Render(w, snapshot)
+			}
+			if !strings.HasSuffix(*output, ".gz") {
+				return cost.RenderJSON(w, snapshot)
+			}
+			gz := gzip.NewWriter(w)
+			if err := cost.RenderJSON(gz, snapshot); err != nil {
+				return err
+			}
+			return gz.Close()
+		})
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Render: %v\n", err)

@@ -352,38 +352,72 @@ func reconcileResolvedInfraGroups(snapshot *Snapshot, resolved map[string]bool) 
 	snapshot.Groups = groups
 }
 
-func lookupAKSSubscription(ctx context.Context, client *http.Client, credential azcore.TokenCredential, lookup *infraLookup, binding infraBinding, start, end time.Time) (string, error) {
-	if !discoveryRG.MatchString(binding.rg) || !kustoAKSName.MatchString(binding.cluster) {
-		return "", errors.New("kusto lookup unavailable: invalid exact AKS resource group or cluster name")
+// kustoAttempts bounds retries of one lookup. The kubeAudit suffix scan can
+// exceed a minute when several collectors query the cluster at once, so slow,
+// failed, throttled, or unavailable attempts are retried with backoff.
+const kustoAttempts = 3
+
+// kustoRetryBase is the first retry delay; later retries double it.
+var kustoRetryBase = 4 * time.Second
+
+func queryKusto(ctx context.Context, client *http.Client, credential azcore.TokenCredential, endpoint string, body []byte) ([]byte, error) {
+	var lastErr error
+	for attempt := 0; attempt < kustoAttempts; attempt++ {
+		if attempt > 0 {
+			if err := billingWait(ctx, "", kustoRetryBase<<(attempt-1)); err != nil {
+				return nil, errors.New("kusto lookup cancelled or timed out")
+			}
+		}
+		data, retry, err := queryKustoOnce(ctx, client, credential, endpoint, body)
+		if err == nil || !retry {
+			return data, err
+		}
+		lastErr = err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	return nil, lastErr
+}
+
+func queryKustoOnce(ctx context.Context, client *http.Client, credential azcore.TokenCredential, endpoint string, body []byte) ([]byte, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	suffix := strings.ToLower("/resourcegroups/" + binding.rg + "/providers/microsoft.containerservice/managedclusters/" + binding.cluster)
-	literal, _ := json.Marshal(suffix)
-	csl := fmt.Sprintf("kubeAudit | where timestamp between (datetime(%s) .. datetime(%s)) | where resourceId endswith %s | summarize by resourceId", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano), literal)
-	body, _ := json.Marshal(map[string]string{"db": lookup.database, "csl": csl})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, lookup.endpoint+"/v1/rest/query", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/v1/rest/query", bytes.NewReader(body))
 	if err != nil {
-		return "", errors.New("kusto request could not be constructed")
+		return nil, false, errors.New("kusto request could not be constructed")
 	}
 	token, err := credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{"https://kusto.kusto.windows.net/.default"}})
 	if err != nil || token.Token == "" {
-		return "", errors.New("kusto authentication failed; check Azure CLI login and service log database read access (details omitted)")
+		return nil, false, errors.New("kusto authentication failed; check Azure CLI login and service log database read access (details omitted)")
 	}
 	req.Header.Set("Authorization", "Bearer "+token.Token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", errors.New("kusto HTTP request failed or was cancelled (endpoint and response details omitted)")
+		return nil, true, errors.New("kusto HTTP request failed or was cancelled (endpoint and response details omitted)")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("kusto HTTP %d; verify service log database access (response details omitted)", resp.StatusCode)
+		retry := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		return nil, retry, fmt.Errorf("kusto HTTP %d; verify service log database access (response details omitted)", resp.StatusCode)
 	}
 	const limit = 8 << 20
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil || len(data) > limit {
-		return "", errors.New("kusto response unreadable or exceeds 8 MiB; no partial results used")
+		return nil, false, errors.New("kusto response unreadable or exceeds 8 MiB; no partial results used")
+	}
+	return data, false, nil
+}
+
+func lookupAKSSubscription(ctx context.Context, client *http.Client, credential azcore.TokenCredential, lookup *infraLookup, binding infraBinding, start, end time.Time) (string, error) {
+	if !discoveryRG.MatchString(binding.rg) || !kustoAKSName.MatchString(binding.cluster) {
+		return "", errors.New("kusto lookup unavailable: invalid exact AKS resource group or cluster name")
+	}
+	suffix := strings.ToLower("/resourcegroups/" + binding.rg + "/providers/microsoft.containerservice/managedclusters/" + binding.cluster)
+	literal, _ := json.Marshal(suffix)
+	csl := fmt.Sprintf("kubeAudit | where timestamp between (datetime(%s) .. datetime(%s)) | where resourceId endswith %s | summarize by resourceId", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano), literal)
+	body, _ := json.Marshal(map[string]string{"db": lookup.database, "csl": csl})
+	data, err := queryKusto(ctx, client, credential, lookup.endpoint, body)
+	if err != nil {
+		return "", err
 	}
 	ids, err := kustoResourceIDs(data)
 	if err != nil {
