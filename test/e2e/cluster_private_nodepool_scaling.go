@@ -278,6 +278,38 @@ var _ = Describe("Customer", func() {
 			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d nodes should be Ready after scale up", scaledUpReplicas)
 			GinkgoLogr.Info("Scale up verified", "replicas", scaledUpReplicas)
 
+			By("verifying KAS→kubelet path on the newly added node")
+			// The earlier kubectl logs check ran against the original node.
+			// After scale-up, also verify KAS→kubelet connectivity for the new
+			// node by fetching logs from an openshift-dns pod scheduled on it.
+			Eventually(func(g Gomega) {
+				// Get nodes sorted by creation time; the last entry is the newest.
+				nodeOutput, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					"get nodes --sort-by=.metadata.creationTimestamp -o name", 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to list nodes sorted by creation time after scale-up")
+				nodeNames := strings.Split(strings.TrimSpace(nodeOutput), "\n")
+				g.Expect(nodeNames).To(HaveLen(int(scaledUpReplicas)),
+					"expected %d nodes after scale-up, got: %s", scaledUpReplicas, nodeOutput)
+				newNodeName := strings.TrimPrefix(nodeNames[len(nodeNames)-1], "node/")
+				GinkgoLogr.Info("Identified newest node after scale-up", "node", newNodeName)
+
+				// Find a running openshift-dns pod on the new node.
+				podOutput, runErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					fmt.Sprintf("get pods -n openshift-dns -o name --field-selector=status.phase=Running,spec.nodeName=%s", newNodeName),
+					2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to list openshift-dns pods on new node %q", newNodeName)
+				podNames := strings.Split(strings.TrimSpace(podOutput), "\n")
+				g.Expect(podNames[0]).NotTo(BeEmpty(), "no running openshift-dns pod found on new node %q", newNodeName)
+				pod := strings.TrimPrefix(podNames[0], "pod/")
+
+				_, logErr := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					fmt.Sprintf("logs -n openshift-dns %s --tail=1", pod), 2*time.Minute)
+				g.Expect(logErr).NotTo(HaveOccurred(),
+					"kubectl logs should succeed for pod %q on new node %q — KAS→kubelet path must work for newly added nodes", pod, newNodeName)
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(),
+				"KAS→kubelet log path never became reachable for the new node after scale-up")
+			GinkgoLogr.Info("KAS→kubelet path verified for newly added node after scale-up")
+
 			By("scaling down the nodepool from 2 to 1 replica")
 			update = hcpsdk20251223preview.NodePoolUpdate{
 				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
