@@ -90,29 +90,48 @@ func (calculators OperationStatusCalculators[Input]) CalculateOperationStatus(ct
 	states := make([]*OperationState, 0, len(calculators))
 	var errs []error
 	for _, source := range slices.Sorted(maps.Keys(calculators)) {
+		var sourceErrs []error
+		var state *OperationState
+
 		calculator := calculators[source]
 		if isNilOperationStatusCalculator(calculator) || source == "" || calculator.GetSourceName() != source {
-			errs = append(errs, fmt.Errorf("invalid operation status calculator for source %q", source))
-			continue
+			sourceErrs = append(errs, fmt.Errorf("invalid operation status calculator for source %q", source))
 		}
 		state, err := calculator.CalculateOperationStatus(ctx, operation, input)
 		if err != nil {
-			errs = append(errs, utils.TrackError(fmt.Errorf("operation status source %q: %w", source, err)))
-			continue
+			sourceErrs = append(errs, errors.New(utils.ErrorMessageWithoutLineTracking(fmt.Errorf("operation status source %q could not be executed: %w", source, err))))
+		} else if state == nil {
+			sourceErrs = append(errs, fmt.Errorf("operation status source %q: nil operation state", source))
+		} else if state.ProvisioningState == "" {
+			sourceErrs = append(errs, fmt.Errorf("operation status source %q: empty provisioning state", source))
 		}
-		if state == nil {
-			errs = append(errs, fmt.Errorf("operation status source %q: nil operation state", source))
-			continue
+
+		if len(sourceErrs) > 0 {
+			errs = append(errs, sourceErrs...)
+			var desiredPendingOperationState coreapi.ProvisioningState
+			switch operation.Request {
+			case coreapi.OperationRequestCreate:
+				desiredPendingOperationState = coreapi.ProvisioningStateProvisioning
+			case coreapi.OperationRequestUpdate:
+				desiredPendingOperationState = coreapi.ProvisioningStateUpdating
+			case coreapi.OperationRequestDelete:
+				desiredPendingOperationState = coreapi.ProvisioningStateDeleting
+			default:
+				errs = append(errs, fmt.Errorf("operation status source %q: unknown operation request type %q", source, operation.Request))
+			}
+
+			if len(desiredPendingOperationState) > 0 {
+				state = NewOperationState(desiredPendingOperationState, fmt.Sprintf("operation state could not be calculated: %v", errors.Join(sourceErrs...)))
+			}
 		}
-		if state.ProvisioningState == "" {
-			errs = append(errs, fmt.Errorf("operation status source %q: empty provisioning state", source))
-			continue
+
+		if state != nil {
+			// A calculator may return a shared state. Annotate a copy so evaluating
+			// it through another registration never changes the original source.
+			annotated := *state
+			annotated.Source = source
+			states = append(states, &annotated)
 		}
-		// A calculator may return a shared state. Annotate a copy so evaluating
-		// it through another registration never changes the original source.
-		annotated := *state
-		annotated.Source = source
-		states = append(states, &annotated)
 	}
 
 	logger.Info("determined operation status", "operationStates", states)
