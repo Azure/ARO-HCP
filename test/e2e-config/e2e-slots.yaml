@@ -301,7 +301,7 @@ environments:
           allocation: dedicated
           provisioning: unmanaged
           provisioning_region: westus3
-          resource_group_prefix: aro-hcp-msi-container-dev-xs-hypershift
+          resource_group_prefix: aro-hcp-msi-container-hypershift-dev-xs
           resource_group_count: 6
         infrastructure_identities:
           allocation: leased
