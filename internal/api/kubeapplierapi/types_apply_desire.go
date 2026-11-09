@@ -130,7 +130,7 @@ type ApplyDesireSpec struct {
 // FinalizeNamespaceConfig holds fields specific to the FinalizeNamespace
 // variant of ApplyDesire.
 //
-// Both fields are execution preconditions rather than parameters. A ReadDesire
+// These fields are execution preconditions rather than parameters. A ReadDesire
 // observation is not a guaranteed fresh snapshot at the instant a mutation
 // runs, so the decision the backend made from one is re-checked here against
 // the live API immediately before acting.
@@ -153,22 +153,16 @@ type FinalizeNamespaceConfig struct {
 
 	// HostedClusterNamespace and HostedClusterName identify the HostedCluster
 	// associated with the target namespace, so that the controller can re-check
-	// it against the live API immediately before finalizing.
+	// its absence against the live API immediately before finalizing.
 	//
-	// This is the execution-time half of the most important refusal in the
-	// design: finalizing the control plane namespace of a cluster that is still
-	// alive destroys its etcd and kube-apiserver. The backend already refuses
-	// that, but a ReadDesire observation is not a guaranteed fresh snapshot at
-	// the instant the mutation runs, so the check is repeated here against live
-	// data. A HostedCluster that exists with no deletionTimestamp blocks the
-	// finalize.
+	// A HostedCluster may still be releasing Azure resources after its
+	// deletionTimestamp is set. A ReadDesire observation is not guaranteed
+	// fresh at mutation time, so any HostedCluster still present blocks the
+	// namespace finalization here.
 	//
-	// Both empty means no HostedCluster is associated and the check is skipped.
-	// +optional
-	HostedClusterNamespace string `json:"hostedClusterNamespace,omitempty"`
+	HostedClusterNamespace string `json:"hostedClusterNamespace"`
 
-	// +optional
-	HostedClusterName string `json:"hostedClusterName,omitempty"`
+	HostedClusterName string `json:"hostedClusterName"`
 }
 
 // ServerSideApplyConfig holds fields specific to the ServerSideApply variant

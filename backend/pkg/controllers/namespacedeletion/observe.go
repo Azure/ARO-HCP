@@ -75,7 +75,7 @@ func (s *namespaceDeletionSyncer) observeNamespace(
 	request *fleetapi.NamespaceDeletion,
 ) (namespaceObservation, error) {
 	raw, state, err := s.ensureReadDesire(ctx, key,
-		ReadDesireNameFor(key.Name), namespaceTargetFor(request.Spec.NamespaceName))
+		ReadDesireNameFor(key.Name), namespaceTargetFor(request.Spec.HostedClusterNamespaceName))
 	if err != nil {
 		return namespaceObservation{}, err
 	}
@@ -103,9 +103,8 @@ func (s *namespaceDeletionSyncer) observeNamespace(
 
 // namespaceConditions carries the namespace's own status.conditions verbatim.
 //
-// These are the evidence the audit record exists to preserve —
-// NamespaceDeletionDiscoveryFailure, NamespaceContentRemaining and friends —
-// so they are recorded whole rather than summarized into a verdict.
+// These conditions, including NamespaceDeletionDiscoveryFailure and
+// NamespaceContentRemaining, are logged with the cleanup decision.
 func namespaceConditions(obj *unstructured.Unstructured) []metav1.Condition {
 	rawConditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
 	if err != nil || !found {
@@ -165,8 +164,7 @@ func (s *namespaceDeletionSyncer) observeHostedCluster(
 // The gate is deliberately one-directional: it can only ever refuse, never
 // authorize. Absence of these signals is not proof the cluster is dead — a
 // HostedCluster whose status is empty, stale or unreadable simply does not
-// trigger the refusal, and the dwell plus the operator's explicit opt-in carry
-// that decision instead.
+// trigger the refusal. The dwell and ownership gates still apply.
 func hostedClusterLivenessReason(obj *unstructured.Unstructured) string {
 	if conditions := namespaceConditions(obj); apimeta.IsStatusConditionTrue(conditions, string(hyperv1.HostedClusterAvailable)) {
 		return fmt.Sprintf("status condition %q is True", hyperv1.HostedClusterAvailable)

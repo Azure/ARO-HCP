@@ -44,41 +44,35 @@ import (
 // Cosmos data against management-cluster and Kubernetes identity instead of by
 // trusting a caller-supplied ID.
 type NamespaceDeletionCreateRequest struct {
-	NamespaceName     string `json:"namespaceName"`
-	HostedClusterName string `json:"hostedClusterName"`
-	RequestReason     string `json:"requestReason"`
-
-	// DeleteHostedCluster authorizes deleting the HostedCluster when it has no
-	// deletionTimestamp of its own. Absent or false, such a HostedCluster is a
-	// refusal instead. It never overrides the liveness gate.
-	DeleteHostedCluster bool `json:"deleteHostedCluster,omitempty"`
+	HostedClusterNamespaceName string `json:"hostedClusterNamespaceName"`
+	HostedClusterName          string `json:"hostedClusterName"`
+	RequestReason              string `json:"requestReason"`
 }
 
 // NamespaceDeletionCreateResponse names the created (or already existing)
 // request so the caller can poll it with the GET route.
 type NamespaceDeletionCreateResponse struct {
-	Name                string `json:"name"`
-	NamespaceName       string `json:"namespaceName"`
-	HostedClusterName   string `json:"hostedClusterName"`
-	DeleteHostedCluster bool   `json:"deleteHostedCluster"`
-	Created             bool   `json:"created"`
+	Name                       string `json:"name"`
+	ManagementClusterName      string `json:"managementClusterName"`
+	HostedClusterNamespaceName string `json:"hostedClusterNamespaceName"`
+	HostedClusterName          string `json:"hostedClusterName"`
+	Created                    bool   `json:"created"`
 }
 
 // NamespaceDeletionGetResponse reports progress and blockers.
 //
-// It carries conditions and the audit record and nothing else: the controller
-// only needs "do I act or not", and a human needs one good condition string
-// rather than a scattering of individual result fields.
+// It carries the request identity, conditions and the small amount of state
+// needed to track an in-progress deletion.
 type NamespaceDeletionGetResponse struct {
-	Name                string                           `json:"name"`
-	NamespaceName       string                           `json:"namespaceName"`
-	HostedClusterName   string                           `json:"hostedClusterName"`
-	DeleteHostedCluster bool                             `json:"deleteHostedCluster"`
-	NamespaceUID        string                           `json:"namespaceUID,omitempty"`
-	RequestReason       string                           `json:"requestReason,omitempty"`
-	Conditions          []metav1.Condition               `json:"conditions,omitempty"`
-	CompletedAt         *metav1.Time                     `json:"completedAt,omitempty"`
-	Audit               *fleetapi.NamespaceDeletionAudit `json:"audit,omitempty"`
+	Name                        string             `json:"name"`
+	ManagementClusterName       string             `json:"managementClusterName"`
+	HostedClusterNamespaceName  string             `json:"hostedClusterNamespaceName"`
+	HostedClusterName           string             `json:"hostedClusterName"`
+	NamespaceUID                string             `json:"namespaceUID,omitempty"`
+	HostedClusterDeleteIssuedAt *metav1.Time       `json:"hostedClusterDeleteIssuedAt,omitempty"`
+	RequestReason               string             `json:"requestReason,omitempty"`
+	Conditions                  []metav1.Condition `json:"conditions,omitempty"`
+	CompletedAt                 *metav1.Time       `json:"completedAt,omitempty"`
 }
 
 // Cloud error codes specific to this API. They are the stable contract that
@@ -141,7 +135,9 @@ func (h *NamespaceDeletionCreateHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	}
 
 	var body NamespaceDeletionCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
 		return coreapi.NewCloudError(
 			http.StatusBadRequest,
 			coreapi.CloudErrorCodeInvalidRequestContent, "",
@@ -152,23 +148,23 @@ func (h *NamespaceDeletionCreateHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	// The denylist runs first and independently of the grammar below. The
 	// grammar already excludes kube-system and friends, but a bug in the parser
 	// must not be able to put a platform namespace in reach.
-	if namespacedeletiongate.IsProtectedNamespace(body.NamespaceName) {
+	if namespacedeletiongate.IsProtectedNamespace(body.HostedClusterNamespaceName) {
 		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			CloudErrorCodeProtectedNamespace, "namespaceName",
+			CloudErrorCodeProtectedNamespace, "hostedClusterNamespaceName",
 			"Namespace %q is a platform namespace and is never a valid target, whatever its state.",
-			body.NamespaceName,
+			body.HostedClusterNamespaceName,
 		)
 	}
 
 	// Structure only: the admin API does not receive the backend's environment
 	// identifier, so the environment segment is anchored in the backend and
 	// only the shape is enforced here.
-	relationship, err := fleetapihelpers.ClassifyNamespace(body.NamespaceName, body.HostedClusterName, "")
+	relationship, err := fleetapihelpers.RelateHostedClusterNamespace(body.HostedClusterNamespaceName, body.HostedClusterName, "")
 	if err != nil {
 		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			coreapi.CloudErrorCodeInvalidRequestContent, "namespaceName",
+			coreapi.CloudErrorCodeInvalidRequestContent, "hostedClusterNamespaceName",
 			"%v", err,
 		)
 	}
@@ -187,7 +183,7 @@ func (h *NamespaceDeletionCreateHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	// at most 63 characters of [a-z0-9-], which is a valid single ARM path
 	// segment and a valid Cosmos resource name, so a hash would buy nothing and
 	// cost readability.
-	name := strings.ToLower(body.NamespaceName)
+	name := strings.ToLower(body.HostedClusterNamespaceName)
 	requestCRUD := managementClusters.NamespaceDeletions()
 
 	// An ordinary duplicate returns the stored request and never restarts work.
@@ -216,10 +212,10 @@ func (h *NamespaceDeletionCreateHandler) ServeHTTP(w http.ResponseWriter, r *htt
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		Spec: fleetapi.NamespaceDeletionSpec{
-			NamespaceName:       body.NamespaceName,
-			HostedClusterName:   body.HostedClusterName,
-			DeleteHostedCluster: body.DeleteHostedCluster,
-			RequestReason:       body.RequestReason,
+			ManagementClusterName:      managementClusterName,
+			HostedClusterNamespaceName: body.HostedClusterNamespaceName,
+			HostedClusterName:          body.HostedClusterName,
+			RequestReason:              body.RequestReason,
 		},
 	}
 
@@ -269,9 +265,9 @@ func (h *NamespaceDeletionCreateHandler) checkOwnership(
 			// unavailable check, not an absent desire.
 			return coreapi.NewCloudError(
 				http.StatusServiceUnavailable,
-				CloudErrorCodeOwnershipCheckUnavailable, "namespaceName",
+				CloudErrorCodeOwnershipCheckUnavailable, "hostedClusterNamespaceName",
 				"The ownership check for namespace %q could not reach the kube-applier store for management cluster %q: %v. This is not evidence that the namespace is unowned. No NamespaceDeletion request was created.",
-				body.NamespaceName, managementClusterResourceID, err,
+				body.HostedClusterNamespaceName, managementClusterResourceID, err,
 			)
 		}
 		desireLister = kubeApplierClient.Listers().ApplyDesires()
@@ -292,9 +288,9 @@ func (h *NamespaceDeletionCreateHandler) checkOwnership(
 		if len(result.ConflictingDesire) > 0 {
 			return coreapi.NewCloudError(
 				http.StatusConflict,
-				CloudErrorCodeActiveDesirePresent, "namespaceName",
+				CloudErrorCodeActiveDesirePresent, "hostedClusterNamespaceName",
 				"Namespace %q is still maintained by ApplyDesire %q, so another controller is actively asserting it should exist. Resolve that owner first. No NamespaceDeletion request was created.",
-				body.NamespaceName, result.ConflictingDesire,
+				body.HostedClusterNamespaceName, result.ConflictingDesire,
 			)
 		}
 		state := "active"
@@ -303,36 +299,36 @@ func (h *NamespaceDeletionCreateHandler) checkOwnership(
 		}
 		return coreapi.NewCloudError(
 			http.StatusConflict,
-			CloudErrorCodeClusterRecordPresent, "namespaceName",
+			CloudErrorCodeClusterRecordPresent, "hostedClusterNamespaceName",
 			"Namespace %q is still owned by cluster %q (state %s); use the normal cluster deletion flow. No NamespaceDeletion request was created.",
-			body.NamespaceName, result.OwnerResourceID, state,
+			body.HostedClusterNamespaceName, result.OwnerResourceID, state,
 		)
 
 	case namespacedeletiongate.VerdictIndeterminate:
 		return coreapi.NewCloudError(
 			http.StatusConflict,
-			CloudErrorCodeOwnershipIndeterminate, "namespaceName",
+			CloudErrorCodeOwnershipIndeterminate, "hostedClusterNamespaceName",
 			"Ownership of namespace %q could not be decided either way: %s. Investigate before resubmitting. No NamespaceDeletion request was created.",
-			body.NamespaceName, result.Detail,
+			body.HostedClusterNamespaceName, result.Detail,
 		)
 
 	default:
 		return coreapi.NewCloudError(
 			http.StatusServiceUnavailable,
-			CloudErrorCodeOwnershipCheckUnavailable, "namespaceName",
+			CloudErrorCodeOwnershipCheckUnavailable, "hostedClusterNamespaceName",
 			"The ownership check for namespace %q could not complete: %s. This is not evidence that the namespace is unowned. Retry once the database is healthy. No NamespaceDeletion request was created.",
-			body.NamespaceName, result.Detail,
+			body.HostedClusterNamespaceName, result.Detail,
 		)
 	}
 }
 
 func namespaceDeletionCreateResponse(name string, request *fleetapi.NamespaceDeletion, created bool) NamespaceDeletionCreateResponse {
 	return NamespaceDeletionCreateResponse{
-		Name:                name,
-		NamespaceName:       request.Spec.NamespaceName,
-		HostedClusterName:   request.Spec.HostedClusterName,
-		DeleteHostedCluster: request.Spec.DeleteHostedCluster,
-		Created:             created,
+		Name:                       name,
+		ManagementClusterName:      request.Spec.ManagementClusterName,
+		HostedClusterNamespaceName: request.Spec.HostedClusterNamespaceName,
+		HostedClusterName:          request.Spec.HostedClusterName,
+		Created:                    created,
 	}
 }
 
@@ -369,15 +365,15 @@ func (h *NamespaceDeletionGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 	}
 
 	return writeJSON(w, http.StatusOK, NamespaceDeletionGetResponse{
-		Name:                name,
-		NamespaceName:       request.Spec.NamespaceName,
-		HostedClusterName:   request.Spec.HostedClusterName,
-		DeleteHostedCluster: request.Spec.DeleteHostedCluster,
-		NamespaceUID:        request.Spec.NamespaceUID,
-		RequestReason:       request.Spec.RequestReason,
-		Conditions:          request.Status.Conditions,
-		CompletedAt:         request.Status.CompletedAt,
-		Audit:               request.Status.Audit,
+		Name:                        name,
+		ManagementClusterName:       request.Spec.ManagementClusterName,
+		HostedClusterNamespaceName:  request.Spec.HostedClusterNamespaceName,
+		HostedClusterName:           request.Spec.HostedClusterName,
+		NamespaceUID:                request.Status.NamespaceUID,
+		HostedClusterDeleteIssuedAt: request.Status.HostedClusterDeleteIssuedAt,
+		RequestReason:               request.Spec.RequestReason,
+		Conditions:                  request.Status.Conditions,
+		CompletedAt:                 request.Status.CompletedAt,
 	})
 }
 

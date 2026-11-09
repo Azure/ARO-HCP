@@ -17,8 +17,11 @@ package validation
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
@@ -26,9 +29,10 @@ import (
 func validRequest() *fleetapi.NamespaceDeletion {
 	return &fleetapi.NamespaceDeletion{
 		Spec: fleetapi.NamespaceDeletionSpec{
-			NamespaceName:     "ocm-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			HostedClusterName: "hcp1",
-			RequestReason:     "AROSLSRE-2477 sweep",
+			ManagementClusterName:      fleetapi.ManagementClusterResourceName,
+			HostedClusterNamespaceName: "ocm-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			HostedClusterName:          "hcp1",
+			RequestReason:              "AROSLSRE-2477 sweep",
 		},
 	}
 }
@@ -41,14 +45,26 @@ func TestValidateNamespaceDeletionCreate(t *testing.T) {
 	}{
 		{name: "valid", mutate: func(*fleetapi.NamespaceDeletion) {}},
 		{
-			name:    "namespaceName required",
-			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.NamespaceName = "" },
-			wantErr: "spec.namespaceName",
+			name:    "managementClusterName required",
+			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.ManagementClusterName = "" },
+			wantErr: "spec.managementClusterName",
+		},
+		{
+			name:    "hostedClusterNamespaceName required",
+			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.HostedClusterNamespaceName = "" },
+			wantErr: "spec.hostedClusterNamespaceName",
 		},
 		{
 			name:    "hostedClusterName required",
 			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.HostedClusterName = "" },
 			wantErr: "spec.hostedClusterName",
+		},
+		{
+			name: "control plane namespace is not a valid request target",
+			mutate: func(r *fleetapi.NamespaceDeletion) {
+				r.Spec.HostedClusterNamespaceName += "-hcp1"
+			},
+			wantErr: "is a control plane namespace",
 		},
 		{
 			name:    "requestReason required",
@@ -57,14 +73,13 @@ func TestValidateNamespaceDeletionCreate(t *testing.T) {
 		},
 		{
 			name:    "caller cannot pin the UID",
-			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.NamespaceUID = "deadbeef" },
-			wantErr: "spec.namespaceUID",
+			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Status.NamespaceUID = "deadbeef" },
+			wantErr: "status.namespaceUID",
 		},
 		{
-			// The opt-in is a legitimate thing to ask for at creation; it is
-			// only adding it later that is forbidden.
-			name:   "deleteHostedCluster is allowed at creation",
-			mutate: func(r *fleetapi.NamespaceDeletion) { r.Spec.DeleteHostedCluster = true },
+			name:    "caller cannot set delete-issued timestamp",
+			mutate:  func(r *fleetapi.NamespaceDeletion) { now := metav1.Now(); r.Status.HostedClusterDeleteIssuedAt = &now },
+			wantErr: "status.hostedClusterDeleteIssuedAt",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,11 +105,11 @@ func TestValidateNamespaceDeletionUpdateImmutability(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "namespaceName is immutable",
+			name: "hostedClusterNamespaceName is immutable",
 			mutate: func(r *fleetapi.NamespaceDeletion) {
-				r.Spec.NamespaceName = "ocm-production-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+				r.Spec.HostedClusterNamespaceName = "ocm-production-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 			},
-			wantErr: "namespaceName is immutable",
+			wantErr: "hostedClusterNamespaceName is immutable",
 		},
 		{
 			name:    "hostedClusterName is immutable",
@@ -107,12 +122,9 @@ func TestValidateNamespaceDeletionUpdateImmutability(t *testing.T) {
 			wantErr: "requestReason is immutable",
 		},
 		{
-			// This is the important one. deleteHostedCluster authorizes
-			// originating a destructive operation, so it must not be
-			// acquirable after a request has already been accepted without it.
-			name:    "deleteHostedCluster cannot be added after creation",
-			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.DeleteHostedCluster = true },
-			wantErr: "deleteHostedCluster is immutable",
+			name:    "managementClusterName is immutable",
+			mutate:  func(r *fleetapi.NamespaceDeletion) { r.Spec.ManagementClusterName = "other" },
+			wantErr: "managementClusterName is immutable",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,7 +143,7 @@ func TestValidateNamespaceDeletionUpdateImmutability(t *testing.T) {
 func TestValidateNamespaceDeletionUpdateAllowsControllerToPinUID(t *testing.T) {
 	old := validRequest()
 	updated := old.DeepCopy()
-	updated.Spec.NamespaceUID = "11111111-1111-1111-1111-111111111111"
+	updated.Status.NamespaceUID = "11111111-1111-1111-1111-111111111111"
 
 	require.Empty(t, ValidateNamespaceDeletionUpdate(context.Background(), updated, old),
 		"the controller must be able to pin the UID on first observation")
@@ -139,12 +151,24 @@ func TestValidateNamespaceDeletionUpdateAllowsControllerToPinUID(t *testing.T) {
 
 func TestValidateNamespaceDeletionUpdateRejectsRepinnedUID(t *testing.T) {
 	old := validRequest()
-	old.Spec.NamespaceUID = "11111111-1111-1111-1111-111111111111"
+	old.Status.NamespaceUID = "11111111-1111-1111-1111-111111111111"
 	updated := old.DeepCopy()
-	updated.Spec.NamespaceUID = "22222222-2222-2222-2222-222222222222"
+	updated.Status.NamespaceUID = "22222222-2222-2222-2222-222222222222"
 
 	errs := ValidateNamespaceDeletionUpdate(context.Background(), updated, old)
 
 	require.NotEmpty(t, errs, "repointing a pinned UID silently retargets the request and must be rejected")
 	require.Contains(t, errs.ToAggregate().Error(), "namespaceUID is immutable once the controller has pinned it")
+}
+
+func TestValidateNamespaceDeletionUpdateRejectsChangedDeleteIssuedAt(t *testing.T) {
+	old := validRequest()
+	issuedAt := metav1.NewTime(time.Now())
+	old.Status.HostedClusterDeleteIssuedAt = &issuedAt
+	updated := old.DeepCopy()
+	changed := metav1.NewTime(issuedAt.Add(time.Minute))
+	updated.Status.HostedClusterDeleteIssuedAt = &changed
+
+	errs := ValidateNamespaceDeletionUpdate(context.Background(), updated, old)
+	require.Contains(t, errs.ToAggregate().Error(), "hostedClusterDeleteIssuedAt is immutable once set")
 }

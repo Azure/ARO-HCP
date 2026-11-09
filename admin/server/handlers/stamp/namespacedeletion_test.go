@@ -59,9 +59,9 @@ func newMockFleetDBWith(t *testing.T, ctx context.Context, resources []any) *fle
 	return mockFleetDB
 }
 
-func newNamespaceDeletion(t *testing.T, stampIdentifier, namespaceName string) *fleetapi.NamespaceDeletion {
+func newNamespaceDeletion(t *testing.T, stampIdentifier, hostedClusterNamespaceName string) *fleetapi.NamespaceDeletion {
 	t.Helper()
-	resourceID, err := fleetapihelpers.ToNamespaceDeletionResourceID(stampIdentifier, strings.ToLower(namespaceName))
+	resourceID, err := fleetapihelpers.ToNamespaceDeletionResourceID(stampIdentifier, strings.ToLower(hostedClusterNamespaceName))
 	require.NoError(t, err)
 	return &fleetapi.NamespaceDeletion{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -69,9 +69,10 @@ func newNamespaceDeletion(t *testing.T, stampIdentifier, namespaceName string) *
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		Spec: fleetapi.NamespaceDeletionSpec{
-			NamespaceName:     namespaceName,
-			HostedClusterName: testHostedClusterName,
-			RequestReason:     "AROSLSRE-2477 sweep",
+			ManagementClusterName:      fleetapi.ManagementClusterResourceName,
+			HostedClusterNamespaceName: hostedClusterNamespaceName,
+			HostedClusterName:          testHostedClusterName,
+			RequestReason:              "AROSLSRE-2477 sweep",
 		},
 	}
 }
@@ -120,9 +121,23 @@ func TestNamespaceDeletionCreateHandlerRejections(t *testing.T) {
 			wantSubstring: "could not be deserialized",
 		},
 		{
+			name:          "obsolete delete flag",
+			managementCl:  fleetapi.ManagementClusterResourceName,
+			body:          `{"hostedClusterNamespaceName":"` + testHostedClusterNamespace + `","hostedClusterName":"hcp1","requestReason":"r","deleteHostedCluster":true}`,
+			wantStatus:    http.StatusBadRequest,
+			wantSubstring: "unknown field",
+		},
+		{
+			name:          "old namespace field is not accepted",
+			managementCl:  fleetapi.ManagementClusterResourceName,
+			body:          `{"namespaceName":"` + testHostedClusterNamespace + `","hostedClusterName":"hcp1","requestReason":"r"}`,
+			wantStatus:    http.StatusBadRequest,
+			wantSubstring: "unknown field",
+		},
+		{
 			name:          "non-singleton management cluster",
 			managementCl:  "not-default",
-			body:          `{"namespaceName":"` + testHostedClusterNamespace + `","hostedClusterName":"hcp1","requestReason":"r"}`,
+			body:          `{"hostedClusterNamespaceName":"` + testHostedClusterNamespace + `","hostedClusterName":"hcp1","requestReason":"r"}`,
 			wantStatus:    http.StatusBadRequest,
 			wantSubstring: "singleton",
 		},
@@ -132,32 +147,30 @@ func TestNamespaceDeletionCreateHandlerRejections(t *testing.T) {
 			// reach.
 			name:          "protected namespace",
 			managementCl:  fleetapi.ManagementClusterResourceName,
-			body:          `{"namespaceName":"kube-system","hostedClusterName":"hcp1","requestReason":"r"}`,
+			body:          `{"hostedClusterNamespaceName":"kube-system","hostedClusterName":"hcp1","requestReason":"r"}`,
 			wantStatus:    http.StatusBadRequest,
 			wantSubstring: "ProtectedNamespace",
 		},
 		{
 			name:          "protected namespace by prefix",
 			managementCl:  fleetapi.ManagementClusterResourceName,
-			body:          `{"namespaceName":"openshift-monitoring","hostedClusterName":"hcp1","requestReason":"r"}`,
+			body:          `{"hostedClusterNamespaceName":"openshift-monitoring","hostedClusterName":"hcp1","requestReason":"r"}`,
 			wantStatus:    http.StatusBadRequest,
 			wantSubstring: "ProtectedNamespace",
 		},
 		{
 			name:          "namespace does not match the grammar",
 			managementCl:  fleetapi.ManagementClusterResourceName,
-			body:          `{"namespaceName":"some-random-namespace","hostedClusterName":"hcp1","requestReason":"r"}`,
+			body:          `{"hostedClusterNamespaceName":"some-random-namespace","hostedClusterName":"hcp1","requestReason":"r"}`,
 			wantStatus:    http.StatusBadRequest,
-			wantSubstring: "is not the HostedCluster namespace or its control plane namespace",
+			wantSubstring: "is not a HostedCluster namespace",
 		},
 		{
-			// The suffix must be the supplied HostedCluster name, not any
-			// arbitrary trailing segment.
-			name:          "control plane namespace for a different hosted cluster",
+			name:          "control plane namespace is not accepted",
 			managementCl:  fleetapi.ManagementClusterResourceName,
-			body:          `{"namespaceName":"` + testControlPlaneNamespace + `","hostedClusterName":"hcp2","requestReason":"r"}`,
+			body:          `{"hostedClusterNamespaceName":"` + testControlPlaneNamespace + `","hostedClusterName":"hcp1","requestReason":"r"}`,
 			wantStatus:    http.StatusBadRequest,
-			wantSubstring: "is not the HostedCluster namespace or its control plane namespace",
+			wantSubstring: "is a control plane namespace",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -171,30 +184,21 @@ func TestNamespaceDeletionCreateHandlerRejections(t *testing.T) {
 	}
 }
 
-// TestNamespaceDeletionCreateHandlerAcceptsBothNamespaceRoles proves the
-// classifier accepts each of the two namespaces a HostedCluster owns, since
-// the operator submits one request per namespace.
-func TestNamespaceDeletionCreateHandlerAcceptsBothNamespaceRoles(t *testing.T) {
-	for _, namespaceName := range []string{testHostedClusterNamespace, testControlPlaneNamespace} {
-		t.Run(namespaceName, func(t *testing.T) {
-			ctx := newNamespaceDeletionTestContext(t)
-			mockFleetDB := newMockFleetDBWith(t, ctx, nil)
-			body := `{"namespaceName":"` + namespaceName + `","hostedClusterName":"` + testHostedClusterName + `","requestReason":"r"}`
+func TestNamespaceDeletionCreateHandlerAcceptsHostedClusterNamespace(t *testing.T) {
+	ctx := newNamespaceDeletionTestContext(t)
+	mockFleetDB := newMockFleetDBWith(t, ctx, nil)
+	body := `{"hostedClusterNamespaceName":"` + testHostedClusterNamespace + `","hostedClusterName":"` + testHostedClusterName + `","requestReason":"r"}`
 
-			_, err := postNamespaceDeletion(t, ctx, mockFleetDB, testStamp, fleetapi.ManagementClusterResourceName, body)
+	_, err := postNamespaceDeletion(t, ctx, mockFleetDB, testStamp, fleetapi.ManagementClusterResourceName, body)
 
-			// Without a management cluster in the mock the handler stops at the
-			// 404, which is past both the denylist and the grammar — that is
-			// what this asserts.
-			requireCloudError(t, err, http.StatusNotFound, "Management cluster")
-		})
-	}
+	// Without a management cluster in the mock the handler stops at the
+	// 404, which is past both the denylist and the grammar.
+	requireCloudError(t, err, http.StatusNotFound, "Management cluster")
 }
 
 func TestNamespaceDeletionGetHandler(t *testing.T) {
 	ctx := newNamespaceDeletionTestContext(t)
 	request := newNamespaceDeletion(t, testStamp, testHostedClusterNamespace)
-	request.Spec.DeleteHostedCluster = true
 	mockFleetDB := newMockFleetDBWith(t, ctx, []any{request})
 
 	handler := NewNamespaceDeletionGetHandler(mockFleetDB)
@@ -211,9 +215,10 @@ func TestNamespaceDeletionGetHandler(t *testing.T) {
 
 	var response NamespaceDeletionGetResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response), "GET response must be valid JSON")
-	require.Equal(t, testHostedClusterNamespace, response.NamespaceName)
+	require.Equal(t, testHostedClusterNamespace, response.HostedClusterNamespaceName)
 	require.Equal(t, testHostedClusterName, response.HostedClusterName)
-	require.True(t, response.DeleteHostedCluster, "the opt-in must be visible to an operator reading the request back")
+	require.Equal(t, fleetapi.ManagementClusterResourceName, response.ManagementClusterName)
+	require.Empty(t, response.NamespaceUID)
 }
 
 func TestNamespaceDeletionGetHandlerNotFound(t *testing.T) {

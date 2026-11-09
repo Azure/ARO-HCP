@@ -30,7 +30,7 @@ const (
 	// older.
 	defaultMinimumDwell = time.Hour
 
-	// defaultHostedClusterRemovalTimeout bounds the opt-in path's wait for
+	// defaultHostedClusterRemovalTimeout bounds the wait for
 	// HyperShift to finish. Long enough for a healthy deprovision, short enough
 	// that a wedged one is reported the same working day.
 	defaultHostedClusterRemovalTimeout = 30 * time.Minute

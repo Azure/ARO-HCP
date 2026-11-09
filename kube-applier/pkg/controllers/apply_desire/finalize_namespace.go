@@ -89,10 +89,10 @@ func finalizeBlocked(format string, args ...any) deleteEvaluation {
 //  1. the pinned UID still matches — the namespace was not replaced;
 //  2. deletionTimestamp is set and older than MinimumDwell;
 //  3. spec.finalizers holds nothing but "kubernetes";
-//  4. no HostedCluster in the related namespace lacks a deletionTimestamp.
+//  4. the related HostedCluster is absent.
 //
-// Check 4 is the one that protects a live control plane, and it is why this
-// cannot be a flag on Delete: it has no meaning for an ordinary deletion.
+// Check 4 protects HostedCluster teardown, and it is why this cannot be a
+// flag on Delete: it has no meaning for an ordinary deletion.
 func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d *kubeapplierapi.ApplyDesire) deleteEvaluation {
 	target := d.Spec.TargetItem
 	cfg := d.Spec.FinalizeNamespace
@@ -168,8 +168,8 @@ func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d
 			target.Name, specFinalizers, kubernetesNamespaceFinalizer)
 	}
 
-	// 4. No live HostedCluster. This is the check that keeps a working control
-	// plane from being destroyed by a stale decision.
+	// 4. The HostedCluster must be gone. Even a deleting HostedCluster may still
+	// be running its finalizer and releasing Azure resources.
 	if blocked := c.hostedClusterBlocksFinalize(ctx, cfg); blocked != nil {
 		return *blocked
 	}
@@ -205,16 +205,16 @@ func (c *ApplyDesireController) evaluateFinalizeNamespace(ctx context.Context, d
 	return finalizeBlocked("namespace %q still present immediately after finalize; re-checking", target.Name)
 }
 
-// hostedClusterBlocksFinalize returns a blocking evaluation when the associated
-// HostedCluster exists and has not been asked to delete, meaning its Azure
-// infrastructure is still live. A nil return means the check passed or did not
-// apply.
+// hostedClusterBlocksFinalize returns a blocking evaluation while the
+// associated HostedCluster still exists. A nil return means it is absent.
 //
 // A read failure blocks rather than passes. A failed lookup is never evidence
 // of absence, and this is the last gate before an irreversible mutation.
 func (c *ApplyDesireController) hostedClusterBlocksFinalize(ctx context.Context, cfg *kubeapplierapi.FinalizeNamespaceConfig) *deleteEvaluation {
 	if len(cfg.HostedClusterNamespace) == 0 || len(cfg.HostedClusterName) == 0 {
-		return nil
+		blocked := finalizeSettled(conditions.NewPreCheckError(
+			errors.New("spec.finalizeNamespace.hostedClusterNamespace and hostedClusterName are required")))
+		return &blocked
 	}
 
 	hc, err := c.dyn.Resource(hostedClustersGVR).
@@ -225,15 +225,12 @@ func (c *ApplyDesireController) hostedClusterBlocksFinalize(ctx context.Context,
 	}
 	if err != nil {
 		blocked := finalizeBlocked(
-			"could not read HostedCluster %q in namespace %q to confirm it is deleting: %v",
+			"could not read HostedCluster %q in namespace %q to confirm it is absent: %v",
 			cfg.HostedClusterName, cfg.HostedClusterNamespace, err)
 		return &blocked
 	}
-	if hc.GetDeletionTimestamp() == nil {
-		blocked := finalizeBlocked(
-			"HostedCluster %q in namespace %q exists and has not been asked to delete, so its Azure infrastructure is still live; refusing to finalize",
-			cfg.HostedClusterName, cfg.HostedClusterNamespace)
-		return &blocked
-	}
-	return nil
+	blocked := finalizeBlocked(
+		"HostedCluster %q in namespace %q still exists (deletionTimestamp=%v); waiting for its finalizer to finish before namespace finalization",
+		cfg.HostedClusterName, cfg.HostedClusterNamespace, hc.GetDeletionTimestamp())
+	return &blocked
 }

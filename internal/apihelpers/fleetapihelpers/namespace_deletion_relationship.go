@@ -20,23 +20,6 @@ import (
 	"strings"
 )
 
-// NamespaceRole distinguishes the two namespaces a HostedCluster owns.
-//
-// The distinction has to be made from the name alone, because the whole point
-// of a NamespaceDeletion is that neither the HostedCluster nor any customer
-// Cosmos data is reliably there to ask.
-type NamespaceRole string
-
-const (
-	// NamespaceRoleHostedCluster is the namespace holding the HostedCluster CR:
-	// ocm-<envIdentifier>-<clusterID>.
-	NamespaceRoleHostedCluster NamespaceRole = "HostedClusterNamespace"
-
-	// NamespaceRoleControlPlane is the namespace holding the control plane
-	// workloads: ocm-<envIdentifier>-<clusterID>-<hostedClusterName>.
-	NamespaceRoleControlPlane NamespaceRole = "ControlPlaneNamespace"
-)
-
 // clusterIDPattern matches the 32-character segment that Cluster Service
 // historically placed in these namespace names.
 //
@@ -49,23 +32,19 @@ const (
 // already exist, which is the only kind of namespace this API ever acts on.
 var clusterIDPattern = regexp.MustCompile(`^[a-z0-9]{32}$`)
 
-// NamespaceRelationship is the result of classifying a requested namespace
-// against its HostedCluster name.
+// NamespaceRelationship identifies the HostedCluster namespace and its derived
+// control plane namespace.
 type NamespaceRelationship struct {
-	// Role is which of the two namespaces was requested.
-	Role NamespaceRole
-
 	// HostedClusterNamespace is the namespace holding the HostedCluster CR. The
-	// controller reads the HostedCluster from here regardless of which role was
-	// requested, because that is where it lives.
+	// controller reads the HostedCluster from here.
 	HostedClusterNamespace string
 
 	// ControlPlaneNamespace is the namespace holding the control plane.
 	ControlPlaneNamespace string
 }
 
-// ClassifyNamespace determines whether namespaceName is the HostedCluster
-// namespace or its control plane namespace, given the HostedCluster name.
+// RelateHostedClusterNamespace validates the requested HostedCluster namespace
+// and derives its control plane namespace from the HostedCluster name.
 //
 // envIdentifier may be empty, in which case the environment segment is accepted
 // as any non-empty label and only the structure is enforced. The admin API uses
@@ -74,9 +53,9 @@ type NamespaceRelationship struct {
 //
 // Unsupported or ambiguous forms are rejected rather than guessed at. An
 // arbitrary string-prefix match is deliberately not used.
-func ClassifyNamespace(namespaceName, hostedClusterName, envIdentifier string) (*NamespaceRelationship, error) {
-	if len(namespaceName) == 0 {
-		return nil, fmt.Errorf("namespaceName is empty")
+func RelateHostedClusterNamespace(hostedClusterNamespaceName, hostedClusterName, envIdentifier string) (*NamespaceRelationship, error) {
+	if len(hostedClusterNamespaceName) == 0 {
+		return nil, fmt.Errorf("hostedClusterNamespaceName is empty")
 	}
 	if len(hostedClusterName) == 0 {
 		return nil, fmt.Errorf("hostedClusterName is empty")
@@ -88,42 +67,31 @@ func ClassifyNamespace(namespaceName, hostedClusterName, envIdentifier string) (
 	// is a DNS label, but the parser must still apply HyperShift's rule rather
 	// than assume the simpler form.
 	suffix := strings.ReplaceAll(hostedClusterName, ".", "-")
-
-	// Rule 1: the name is itself a HostedCluster namespace.
-	if _, ok := splitHostedClusterNamespace(namespaceName, envIdentifier); ok {
-		return &NamespaceRelationship{
-			Role:                   NamespaceRoleHostedCluster,
-			HostedClusterNamespace: namespaceName,
-			ControlPlaneNamespace:  namespaceName + "-" + suffix,
-		}, nil
-	}
-
-	// Rule 2: the name is a control plane namespace, i.e. a HostedCluster
-	// namespace plus the normalized HostedCluster name. Verified by
-	// reconstruction rather than by parsing, so a HostedCluster name containing
-	// a dash cannot confuse it.
-	if base, ok := strings.CutSuffix(namespaceName, "-"+suffix); ok {
+	// Reject a derived control plane namespace before testing the general
+	// grammar. A 32-character HostedCluster name could otherwise look like the
+	// cluster-ID segment of a HostedCluster namespace.
+	if base, ok := strings.CutSuffix(hostedClusterNamespaceName, "-"+suffix); ok {
 		if _, baseOK := splitHostedClusterNamespace(base, envIdentifier); baseOK {
-			return &NamespaceRelationship{
-				Role:                   NamespaceRoleControlPlane,
-				HostedClusterNamespace: base,
-				ControlPlaneNamespace:  namespaceName,
-			}, nil
+			return nil, fmt.Errorf("hostedClusterNamespaceName %q is a control plane namespace", hostedClusterNamespaceName)
 		}
 	}
 
-	// Rule 3: reject.
+	if _, ok := splitHostedClusterNamespace(hostedClusterNamespaceName, envIdentifier); ok {
+		return &NamespaceRelationship{
+			HostedClusterNamespace: hostedClusterNamespaceName,
+			ControlPlaneNamespace:  hostedClusterNamespaceName + "-" + suffix,
+		}, nil
+	}
+
 	return nil, fmt.Errorf(
-		"namespaceName %q is not the HostedCluster namespace or its control plane namespace for hostedClusterName %q",
-		namespaceName, hostedClusterName)
+		"hostedClusterNamespaceName %q is not a HostedCluster namespace",
+		hostedClusterNamespaceName)
 }
 
 // splitHostedClusterNamespace reports whether name matches
 // ocm-<env>-<32 lowercase alphanumerics>, returning the environment segment.
 //
-// The two classification rules are mutually exclusive because the cluster-ID
-// segment has no dashes while a HostedCluster name is a short DNS label, so a
-// control plane namespace can never satisfy this.
+// The derived control plane namespace is rejected before this parser runs.
 func splitHostedClusterNamespace(name, envIdentifier string) (string, bool) {
 	rest, ok := strings.CutPrefix(name, "ocm-")
 	if !ok {

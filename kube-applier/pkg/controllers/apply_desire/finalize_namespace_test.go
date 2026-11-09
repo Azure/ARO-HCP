@@ -32,10 +32,10 @@ import (
 )
 
 const (
-	finalizeTestNamespace = "ocm-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-hcp1"
+	finalizeTestHCNS      = "ocm-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	finalizeTestNamespace = finalizeTestHCNS
 	finalizeTestUID       = "11111111-1111-1111-1111-111111111111"
 	finalizeTestHCName    = "hcp1"
-	finalizeTestHCNS      = "ocm-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	finalizeTestDwell     = time.Hour
 )
 
@@ -131,17 +131,23 @@ func requireNamespaceSurvives(t *testing.T, desire *kubeapplierapi.ApplyDesire) 
 }
 
 // TestFinalizeNamespaceRefusesLiveHostedCluster is the execution-time half of
-// the most important refusal in this design. Finalizing the control plane
-// namespace of a cluster that is still alive destroys its etcd and
-// kube-apiserver, so a HostedCluster that exists without a deletionTimestamp
-// must block even though the backend already checked.
+// the most important refusal in this design. A HostedCluster that still exists
+// must block finalization even when the backend observed it absent earlier.
 func TestFinalizeNamespaceRefusesLiveHostedCluster(t *testing.T) {
 	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil), hostedCluster(false))
 
 	requireNamespaceSurvives(t, desire)
 	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
-	require.Contains(t, condition.Message, "has not been asked to delete",
+	require.Contains(t, condition.Message, "still exists",
 		"the refusal must name why a live HostedCluster blocks")
+}
+
+func TestFinalizeNamespaceRefusesDeletingHostedCluster(t *testing.T) {
+	desire := runFinalize(t, finalizeDesire(nil), terminatingNamespace(nil), hostedCluster(true))
+	requireNamespaceSurvives(t, desire)
+	condition := apimeta.FindStatusCondition(desire.Status.Conditions, kubeapplierapi.ConditionTypeNamespaceFinalized)
+	require.Contains(t, condition.Message, "still exists",
+		"a deletionTimestamp must not bypass the HostedCluster finalizer")
 }
 
 // TestFinalizeNamespacePreconditions walks every gate that must hold before the
@@ -212,6 +218,13 @@ func TestFinalizeNamespaceRequiresPinnedUID(t *testing.T) {
 	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
 }
 
+func TestFinalizeNamespaceRequiresHostedClusterIdentity(t *testing.T) {
+	desire := runFinalize(t,
+		finalizeDesire(func(cfg *kubeapplierapi.FinalizeNamespaceConfig) { cfg.HostedClusterName = "" }),
+		terminatingNamespace(nil))
+	requireFinalizeCondition(t, desire, metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed)
+}
+
 // TestFinalizeNamespaceAbsentIsSuccess covers the steady state after the
 // finalize lands: the namespace is gone, which must not be reported as an error
 // on every subsequent pass.
@@ -225,7 +238,7 @@ func TestFinalizeNamespaceAbsentIsSuccess(t *testing.T) {
 func TestFinalizeNamespaceClearsFinalizerWhenEveryGateHolds(t *testing.T) {
 	desire := finalizeDesire(nil)
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), finalizeListKinds(), terminatingNamespace(nil), hostedCluster(true))
+		runtime.NewScheme(), finalizeListKinds(), terminatingNamespace(nil))
 	controller := &ApplyDesireController{dyn: dyn}
 
 	evaluation := controller.evaluateFinalizeNamespace(context.Background(), desire)
