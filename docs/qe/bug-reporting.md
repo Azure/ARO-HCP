@@ -15,7 +15,7 @@ suspected to be affected.
 
 To avoid duplication, try to search for already reported bugs in ARO and
 AROSLSRE projects which could cover the problem, as explained in
-[/docs/qe/bug-searching.md](bug-searching.md) document.
+[bug-searching.md](bug-searching.md) document.
 
 ## What to include in the bug report?
 
@@ -26,7 +26,7 @@ The text of a bug report should include the following sections:
     - version of the ARO HCP service (if you have access to this information)
     - version of OpenShift specified for hosted cluster(s)
     - if a testing environment (as explained in
-      [ARO HCP Tenants and Environments](/docs/environments.md)) was used,
+      [ARO HCP Tenants and Environments](../environments.md)) was used,
       list the name of the environment and the subscription used, otherwise
       specify at least a region used
 - How reproducible: eg. 1/10 means that the problem happened once out of 10
