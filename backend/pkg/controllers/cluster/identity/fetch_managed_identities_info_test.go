@@ -17,6 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +32,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
@@ -838,6 +842,7 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 		mockARMUserAssignedIdentitiesClient                *fakeUserAssignedIdentitiesClientByName
 		mockARMUserAssignedIdentitiesClientBuilderErr      error
 		want                                               map[string]*coreapi.IdentityMetadataValue
+		wantRetryAfter                                     time.Duration
 		wantErrorsSubstrs                                  []string
 		wantARMUserAssignedIdentitiesClientBuilderCallsNum int
 	}{
@@ -978,6 +983,32 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 			wantErrorsSubstrs: []string{"Properties is nil"},
 			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
 		},
+		{
+			name:              "throttle stops loop",
+			cluster:           newTestClusterForManagedIdentities(),
+			desiredIdentities: defaultDesiredIdentitiesToResolve,
+			mockARMUserAssignedIdentitiesClient: &fakeUserAssignedIdentitiesClientByName{
+				errByName: map[string]error{
+					strings.ToLower(controlPlaneOperatorName): throttleResponseError("5"),
+				},
+			},
+			wantRetryAfter:    5 * time.Second,
+			wantErrorsSubstrs: []string{"ARM throttled (HTTP 429)"},
+			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
+		},
+		{
+			name:              "throttle without Retry-After falls back to default",
+			cluster:           newTestClusterForManagedIdentities(),
+			desiredIdentities: defaultDesiredIdentitiesToResolve,
+			mockARMUserAssignedIdentitiesClient: &fakeUserAssignedIdentitiesClientByName{
+				errByName: map[string]error{
+					strings.ToLower(controlPlaneOperatorName): throttleResponseError(""),
+				},
+			},
+			wantRetryAfter:    defaultThrottleRetryAfter,
+			wantErrorsSubstrs: []string{"ARM throttled (HTTP 429)"},
+			wantARMUserAssignedIdentitiesClientBuilderCallsNum: 1,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -994,10 +1025,37 @@ func TestFetchManagedIdentitiesInfoSyncer_resolveManagedIdentitiesMetadataFromAR
 			syncer := &fetchManagedIdentitiesInfoSyncer{
 				smiClientBuilder: smiClientBuilder,
 			}
-			got, errs := syncer.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(context.Background(), tc.cluster, tc.desiredIdentities)
+			got, errs, retryAfter := syncer.resolveManagedIdentitiesMetadataFromARMUserAssignedIdentitiesAPI(context.Background(), tc.cluster, tc.desiredIdentities)
 			assertErrorsContainSubstringsInAnyOrder(t, errs, tc.wantErrorsSubstrs)
-			assertIdentityMetadataValues(t, got, tc.want)
+			assert.Equal(t, tc.wantRetryAfter, retryAfter)
+			if tc.want != nil {
+				assertIdentityMetadataValues(t, got, tc.want)
+			}
 		})
+	}
+}
+
+// throttleResponseError returns an *azcore.ResponseError with HTTP 429 and
+// the given Retry-After header value. The RawResponse is fully populated so
+// err.Error() renders without panicking.
+func throttleResponseError(retryAfterSeconds string) *azcore.ResponseError {
+	header := http.Header{}
+	if retryAfterSeconds != "" {
+		header.Set("Retry-After", retryAfterSeconds)
+	}
+	return &azcore.ResponseError{
+		ErrorCode:  "TooManyRequests",
+		StatusCode: http.StatusTooManyRequests,
+		RawResponse: &http.Response{
+			Status:     "429 Too Many Requests",
+			StatusCode: http.StatusTooManyRequests,
+			Header:     header,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"TooManyRequests","message":"Rate limit exceeded."}}`)),
+			Request: &http.Request{
+				Method: http.MethodGet,
+				URL:    &url.URL{Scheme: "https", Host: "management.example.com", Path: "/identity"},
+			},
+		},
 	}
 }
 
