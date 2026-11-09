@@ -3,7 +3,7 @@ FROM registry.ci.openshift.org/ocp/builder:${BUILDER_IMAGE_TAG}
 
 # Tool versions - defaults here must be kept in sync with /versions.mk
 ARG PROMTOOL_VERSION=3.15.1
-ARG BICEP_VERSION=0.48.1
+ARG BICEP_VERSION=0.49.2
 
 USER root
 RUN cat /etc/dnf/dnf.conf || true

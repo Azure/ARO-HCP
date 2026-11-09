@@ -11,4 +11,4 @@
 
 BUILDER_IMAGE_TAG ?= $(shell yq '.build_root_image.tag' ../../.ci-operator.yaml)
 PROMTOOL_VERSION  ?= 3.15.1
-BICEP_VERSION     ?= 0.48.1
+BICEP_VERSION     ?= 0.49.2
