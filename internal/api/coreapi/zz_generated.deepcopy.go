@@ -2333,6 +2333,11 @@ func (in *ServiceProviderClusterControlPlaneOperatorIdentity) DeepCopyInto(out *
 		*out = new(string)
 		**out = **in
 	}
+	if in.RetrievalError != nil {
+		in, out := &in.RetrievalError, &out.RetrievalError
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
@@ -2544,6 +2549,11 @@ func (in *ServiceProviderClusterServiceManagedIdentity) DeepCopyInto(out *Servic
 	}
 	if in.PrincipalID != nil {
 		in, out := &in.PrincipalID, &out.PrincipalID
+		*out = new(string)
+		**out = **in
+	}
+	if in.RetrievalError != nil {
+		in, out := &in.RetrievalError, &out.RetrievalError
 		*out = new(string)
 		**out = **in
 	}

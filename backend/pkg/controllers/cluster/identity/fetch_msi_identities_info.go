@@ -15,7 +15,9 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
@@ -128,11 +131,14 @@ var _ controllerutils.ClusterSyncer = (*fetchMSIIdentitiesInfoSyncer)(nil)
 //  4. Calls the Managed Identities Data Plane (or the fake client implementation
 //     in environments where the real Managed Identities Data Plane service
 //     is not available) once with the set of identities.
+//     Request failures persist RetrievalError and clear resolved IDs for every
+//     requested identity. HTTP 404 is logged and treated as a completed observation;
+//     other request failures are returned for retry after persisting the errors.
 //  5. Matches each returned credential by ResourceID (case-insensitive.
 //     ARM IDs are case-insensitive and response order is not assumed)
 //     and sets ClientID and PrincipalID when the dataplane returns
 //     non-empty values. Resource IDs are stored lowercased in the ServiceProviderCluster.
-//  6. On a fully successful dataplane fetch, it sets this controller's entry in
+//  6. On a successful dataplane fetch or HTTP 404, it sets this controller's entry in
 //     Spec.EarliestRecheckTimesByController on the in-memory replacement to now
 //     plus a long jittered interval.
 //  7. Replaces the ServiceProviderCluster document when the resulting document
@@ -289,7 +295,31 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 	fpaMIDataplaneCredentialsRequest := dataplane.UserAssignedIdentitiesRequest{IdentityIDs: identitiesToSyncResourceIDStrs}
 	fpaMIDataplaneCredentials, err := fpaMIDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, fpaMIDataplaneCredentialsRequest)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Managed Identities Data Plane Credentials: %w", err))
+		// A failed batch request leaves none of the requested identities resolved.
+		// Persist the configured IDs and the failure rather than retaining stale metadata.
+		replacement := existingServiceProviderCluster.DeepCopy()
+		replacement.Status.MSIManagedIdentities = coreapi.ServiceProviderClusterMSIManagedIdentities{
+			ControlPlaneOperatorsIdentities: make(map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity, len(msiBasedIdentitiesToFetch.controlPlaneOperators)),
+			ServiceManagedIdentity: &coreapi.ServiceProviderClusterServiceManagedIdentity{
+				ResourceID:     coreapi.DeepCopyResourceID(msiBasedIdentitiesToFetch.serviceManagedIdentity),
+				RetrievalError: truncateRetrievalError(err.Error()),
+			},
+		}
+		for _, identity := range msiBasedIdentitiesToFetch.controlPlaneOperators {
+			replacement.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(identity.resourceID.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
+				ResourceID:     coreapi.DeepCopyResourceID(identity.resourceID),
+				RetrievalError: truncateRetrievalError(err.Error()),
+			}
+		}
+		syncErr := utils.TrackError(fmt.Errorf("failed to get Managed Identities Data Plane Credentials: %w", err))
+		var responseErr *azcore.ResponseError
+		if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+			utils.LoggerFromContext(ctx).Error(err, "Managed Identities Data Plane credentials not found")
+			// Like the data-plane operator identity controller, not-found is an
+			// observed state, retried at the normal recheck interval rather than hotlooped.
+			syncErr = nil
+		}
+		return c.persistMSIIdentities(ctx, key, existingServiceProviderCluster, replacement, syncErr)
 	}
 
 	if len(fpaMIDataplaneCredentials.ExplicitIdentities) != len(identitiesToSyncResourceIDStrs) {
@@ -351,34 +381,44 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 	replacement.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = replacementControlPlaneOperatorsIdentities
 	replacement.Status.MSIManagedIdentities.ServiceManagedIdentity = replacementServiceManagedIdentity
 
+	return c.persistMSIIdentities(ctx, key, existingServiceProviderCluster, replacement, nil)
+}
+
+// persistMSIIdentities stores the latest observation, including retrieval failures.
+// Only completed observations (successful requests and HTTP 404) get a future recheck.
+func (c *fetchMSIIdentitiesInfoSyncer) persistMSIIdentities(ctx context.Context, key controllerutils.HCPClusterKey, existingServiceProviderCluster, replacement *coreapi.ServiceProviderCluster, syncErr error) error {
+	delete(replacement.Spec.EarliestRecheckTimesByController, FetchMSIIdentitiesInfoControllerName)
+
 	// Set an earliest recheck time for the controller so we do not hit the Managed Identities Data Plane service too often
 	// when the desired identity set is unchanged. needsWork ignores this wait when OperatorsAuthentication diverges from
 	// the identities stored on the ServiceProviderCluster.
-	earliestRecheckAt := metav1.NewTime(c.clock.Now().Add(wait.Jitter(
-		msiIdentitiesRecheckInterval,
-		msiIdentitiesRecheckJitter,
-	)))
-	if replacement.Spec.EarliestRecheckTimesByController == nil {
-		replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+	if syncErr == nil {
+		earliestRecheckAt := metav1.NewTime(c.clock.Now().Add(wait.Jitter(
+			msiIdentitiesRecheckInterval,
+			msiIdentitiesRecheckJitter,
+		)))
+		if replacement.Spec.EarliestRecheckTimesByController == nil {
+			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		}
+		replacement.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName] = &earliestRecheckAt
 	}
-	replacement.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName] = &earliestRecheckAt
 
 	if equality.Semantic.DeepEqual(replacement, existingServiceProviderCluster) {
-		return nil
+		return syncErr
 	}
 
 	serviceProviderClusterCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
+	_, err := serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// Spec (including any new EarliestRecheckTimesByController entry) was not written.
 		// The informer will observe the newer document and requeue.
-		return nil
+		return syncErr
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		return errors.Join(syncErr, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err)))
 	}
 
-	return nil
+	return syncErr
 }
 
 // collectMSIBasedIdentitiesToFetch returns the control-plane operator identities and
