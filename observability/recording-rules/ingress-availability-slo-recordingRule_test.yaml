@@ -342,3 +342,39 @@ tests:
     exp_samples:
     - labels: 'latency:ingress_canary:ratio{_id="dedup-ratio", cluster="mgmt-1", region="uksouth"}'
       value: 0.5
+# ========================================
+# Test 13: HA replicas diverging at different scrape ticks must not be
+# compared as whole-window totals
+# ========================================
+# Both replicas scrape the same instance, but their individual observations
+# disagree at every tick (replica "a" fails on odd ticks where "b" succeeds,
+# and vice versa) -- genuine per-tick divergence, not simple double-counting
+# of an identical observation. At eval_time 5m the counted window is
+# minutes 1-5: replica "a" is 0,1,0,1,0 (sum 2) and replica "b" is 1,0,1,0,1
+# (sum 3). Deduping AFTER sum_over_time (comparing whole-window totals via
+# max(2, 3) = 3) would report 2 of 5 observations failed (error_rate 0.4),
+# even though at every single tick at least one replica saw success.
+# Deduping PER TICK before sum_over_time (this file's actual approach)
+# correctly reports all 5 ticks healthy (error_rate 0).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.divergent.example.io", instance="10.0.0.1:60000", prometheus_replica="a"}'
+    values: "1 0 1 0 1 0 1 0 1 0 1"
+  - series: 'ingress_canary_route_reachable{_id="divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.divergent.example.io", instance="10.0.0.1:60000", prometheus_replica="b"}'
+    values: "0 1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  - expr: errors:ingress_canary:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:total_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:succeeded_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:succeeded_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0
