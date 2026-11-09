@@ -2,6 +2,43 @@ rule_files:
 - hypershiftControlPlaneOperator-recordingRule.yaml
 evaluation_interval: 1m
 tests:
+- interval: 1m
+  name: "CPO eligibility preserves startup grace across scrape gaps and pod rotations"
+  input_series:
+  - series: 'up{namespace="ocm-one", pod="control-plane-operator-old", cluster="mc1", prometheus_replica="a"}'
+    values: "0x2 stale"
+  - series: 'up{namespace="ocm-one", pod="control-plane-operator-old", cluster="mc1", prometheus_replica="b"}'
+    values: "0x2 stale"
+  - series: 'up{namespace="ocm-one", pod="control-plane-operator-new", cluster="mc1"}'
+    values: "_x9 1x10"
+  - series: 'up{namespace="ocm-one", pod="control-plane-operator-new", cluster="mc2"}'
+    values: "_x9 1x10"
+  promql_expr_test:
+  - expr: hypershift:cpo:eligible:info
+    eval_time: 4m
+    exp_samples: []
+  - expr: hypershift:cpo:eligible:info
+    eval_time: 5m
+    exp_samples:
+    - labels: 'hypershift:cpo:eligible:info{cluster="mc1", namespace="ocm-one"}'
+      value: 1
+  - expr: hypershift:cpo:eligible:info
+    eval_time: 9m
+    exp_samples:
+    - labels: 'hypershift:cpo:eligible:info{cluster="mc1", namespace="ocm-one"}'
+      value: 1
+  - expr: hypershift:cpo:eligible:info
+    eval_time: 10m
+    exp_samples:
+    - labels: 'hypershift:cpo:eligible:info{cluster="mc1", namespace="ocm-one"}'
+      value: 1
+  - expr: hypershift:cpo:eligible:info
+    eval_time: 15m
+    exp_samples:
+    - labels: 'hypershift:cpo:eligible:info{cluster="mc1", namespace="ocm-one"}'
+      value: 1
+    - labels: 'hypershift:cpo:eligible:info{cluster="mc2", namespace="ocm-one"}'
+      value: 1
 - interval: 30s
   name: "CPO availability preserves short outages and HCP identity"
   input_series:

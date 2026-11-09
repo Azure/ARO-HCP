@@ -4,27 +4,18 @@ metadata:
   name: hypershift-user-journey-services-alerts
   namespace: prometheus
 spec:
-  # HyperShift Operator threshold alerts - services workspace.
-  # prometheus.yaml remote-write sends inputs from the "hypershift" namespace
-  # here; HCP-namespace-backed alerts live in hypershiftUserJourney-prometheusRule.yaml.
-  # Burn-rate alerts are deferred until the shared recordings are live in
-  # production, stakeholders approve the targets, and an alert-tester report
-  # validates the proposed alerts. Threshold alerts do not depend on those targets.
-  #
-  # summary omits {{ $labels.cluster }}: the RP bicep prefixes the IcM title
-  # with the cluster label.
+  # HyperShift Operator threshold alerts (services workspace).
+  # CPO alerts: hypershiftUserJourney-prometheusRule.yaml.
+  # Burn-rate alerts require production recordings, approved targets, and alert-tester validation.
+  # RP deployment prefixes summaries with the cluster label.
   groups:
   # HyperShift Operator health, one operator per management cluster.
   - name: hypershift-operator-monitor-rules
     labels:
       component: slo
     rules:
-    # Severity is tied to the number of unavailable pods (desired - available)
-    # rather than a burn rate: with only a few replicas a ratio burn rate adds
-    # nothing. max by (cluster) dedupes KSM and HA Prometheus replicas.
-    # Both are Sev 3 (customer-facing journey degraded): per the ARO HCP
-    # alerting ADR, Sev 2 is reserved for direct SLA breach (KAS availability).
-    # PodsDown fires sooner for a larger outage.
+    # Unavailable pods = desired - available; max by (cluster) dedupes KSM/HA replicas.
+    # Both tiers are Sev 3; PodsDown fires sooner for larger outages.
     - alert: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
       expr: |
         max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
@@ -59,11 +50,8 @@ spec:
           Management Cluster: {{ $labels.cluster }}
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "userJourneyHypershiftOperatorAvailabilityPodsDown/{{ $labels.cluster }}"
-    # Zero reconciles for 30m: a live operator always requeues, so a flat zero
-    # means it is wedged. Gated on HostedClusters being present: an empty MC
-    # (last HostedCluster deleted) legitimately has nothing to reconcile. With
-    # no operator pods there is no reconcile series, so this stays quiet and
-    # the pod alerts fire instead.
+    # Require HostedClusters so empty management clusters do not alert.
+    # Missing reconcile telemetry leaves pod outages to the availability alerts.
     - alert: userJourneyHypershiftOperatorTrafficIdle
       expr: |
         hypershift:operator:reconcile:rate5m == 0

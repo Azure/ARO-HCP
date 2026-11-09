@@ -745,7 +745,7 @@ resource hypershiftHostedclusterRecordingRules 'Microsoft.AlertsManagement/prome
     interval: 'PT1M'
     rules: [
       {
-        record: 'hypershift:hostedclusters:unhealthy:ratio'
+        record: 'hypershift:hostedclusters:failure_conditions:ratio'
         expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
       }
     ]

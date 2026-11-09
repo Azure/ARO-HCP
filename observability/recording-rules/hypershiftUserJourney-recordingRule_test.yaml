@@ -141,7 +141,7 @@ tests:
     - labels: 'hypershift:operator:replicas_unavailable:ratio{cluster="mc2"}'
       value: 0
 - interval: 1m
-  name: "HostedCluster unhealthy ratio remains separate from replica availability"
+  name: "HostedCluster failure-condition ratio remains separate from replica availability"
   input_series:
   - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc1", prometheus_replica="r1"}'
     values: "10+0x10"
@@ -166,10 +166,10 @@ tests:
   - series: 'hypershift_hostedclusters{platform="Azure", cluster="mc4"}'
     values: "5+0x10"
   promql_expr_test:
-  - expr: hypershift:hostedclusters:unhealthy:ratio
+  - expr: hypershift:hostedclusters:failure_conditions:ratio
     eval_time: 5m
     exp_samples:
-    - labels: 'hypershift:hostedclusters:unhealthy:ratio{cluster="mc1"}'
+    - labels: 'hypershift:hostedclusters:failure_conditions:ratio{cluster="mc1"}'
       value: 0.2
-    - labels: 'hypershift:hostedclusters:unhealthy:ratio{cluster="mc2"}'
+    - labels: 'hypershift:hostedclusters:failure_conditions:ratio{cluster="mc2"}'
       value: 1

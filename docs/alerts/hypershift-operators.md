@@ -40,9 +40,10 @@ not the exact budget that future burn-rate alerts would consume. Both exclude
 zero-desired replicas and missing deployment inputs; dashboard summaries
 additionally require complete current inventory and expose observation coverage.
 
-The shared `hypershift:hostedclusters:unhealthy:ratio` recording measures
-HostedCluster failure conditions, not operator/CPO replica availability. Keep
-that journey-health signal separate from component availability.
+The shared `hypershift:hostedclusters:failure_conditions:ratio` recording measures
+summed failure conditions per HostedCluster, capped at 1. A cluster can contribute
+multiple conditions, so this is not the fraction of distinct unhealthy clusters.
+Keep this signal separate from operator/CPO replica availability.
 
 Both operator recordings and the alerting reconciliation inputs share
 `hypershiftUserJourney-recordingRule.yaml` and its
@@ -78,10 +79,13 @@ distinction above when adding alerts.
   independent target inventory is absent, coverage is unknown. Explicit zero
   desired replicas remain excluded.
 - CPO reporting, availability, observation coverage, and budgets have a
-  five-minute first-observation grace period. A CPO becomes eligible when its
-  cluster/namespace has an `up` sample at least five minutes old within the
-  30-day lookback. This uses existing telemetry, not a creation timestamp.
-  Historical samples preserve eligibility across pod rotations and scrape gaps.
+  five-minute first-observation grace period. The shared
+  `hypershift:cpo:eligible:info` recording computes the eligible
+  `(cluster, namespace)` inventory once per minute for all CPO panels. A CPO
+  becomes eligible when its cluster/namespace has an `up` sample at least five
+  minutes old within the 30-day lookback. This uses existing telemetry, not a
+  creation timestamp. Historical samples preserve eligibility across pod
+  rotations and scrape gaps.
   New CPOs are excluded from summary inputs and inventory checks; once grace
   expires, a missing recording reduces reporting and makes availability summaries
   **No data**. A fleet containing only new CPOs also remains **No data**, rather

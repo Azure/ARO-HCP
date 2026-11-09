@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +54,27 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 			queries[panel.ID][target.RefID] = target.Expr
 		}
 	}
+
+	rawRules, err := os.ReadFile("../../observability/recording-rules/hypershiftControlPlaneOperator-recordingRule.yaml")
+	require.NoError(t, err)
+	var cpoRules monitoringv1.PrometheusRule
+	require.NoError(t, yaml.Unmarshal(rawRules, &cpoRules))
+	var eligibilityGroups []monitoringv1.RuleGroup
+	for _, group := range cpoRules.Spec.Groups {
+		for _, rule := range group.Rules {
+			if rule.Record == "hypershift:cpo:eligible:info" {
+				group.Rules = []monitoringv1.Rule{rule}
+				eligibilityGroups = append(eligibilityGroups, group)
+			}
+		}
+	}
+	require.Len(t, eligibilityGroups, 1)
+	eligibilityRules, err := yaml.Marshal(struct {
+		Groups []monitoringv1.RuleGroup `json:"groups"`
+	}{Groups: eligibilityGroups})
+	require.NoError(t, err)
+	eligibilityFile := filepath.Join(t.TempDir(), "cpo_eligibility.yaml")
+	require.NoError(t, os.WriteFile(eligibilityFile, eligibilityRules, 0600))
 
 	type inputSeries struct {
 		Series string `json:"series"`
@@ -100,10 +122,12 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 	runQueries := func(t *testing.T, input []inputSeries, expressions []expressionTest) {
 		t.Helper()
 		fixture := struct {
-			Interval string     `json:"evaluation_interval"`
-			Tests    []ruleTest `json:"tests"`
+			RuleFiles []string   `json:"rule_files"`
+			Interval  string     `json:"evaluation_interval"`
+			Tests     []ruleTest `json:"tests"`
 		}{
-			Interval: "1m",
+			RuleFiles: []string{eligibilityFile},
+			Interval:  "1m",
 			Tests: []ruleTest{{
 				Interval: "1m",
 				Input:    input,
@@ -331,6 +355,20 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 				}, testCase.expressions)
 			})
 		}
+	})
+	t.Run("pod capacity excludes retired kubelets", func(t *testing.T) {
+		runQueries(t, []inputSeries{
+			{Series: `kube_node_status_allocatable{cluster="test-mgmt-1",node="node-a",resource="pods"}`, Values: "100x60"},
+			{Series: `kube_node_status_allocatable{cluster="test-mgmt-1",node="node-b",resource="pods"}`, Values: "100x30 stale"},
+			{Series: `kubelet_running_pods{cluster="test-mgmt-1",instance="a:10250"}`, Values: "90x60"},
+			{Series: `kubelet_running_pods{cluster="test-mgmt-1",instance="b:10250"}`, Values: "90x60"},
+			{Series: `kubelet_node_name{cluster="test-mgmt-1",instance="a:10250",node="node-a"}`, Values: "1x60"},
+			{Series: `kubelet_node_name{cluster="test-mgmt-1",instance="b:10250",node="node-b"}`, Values: "1x60"},
+		}, []expressionTest{
+			{Expr: queries[42]["A"], EvalTime: "30m", Expected: []sample{{Labels: "{}", Value: 90}}},
+			{Expr: queries[42]["A"], EvalTime: "31m", Expected: []sample{{Labels: "{}", Value: 90}}},
+			{Expr: queries[42]["A"], EvalTime: "60m", Expected: []sample{{Labels: "{}", Value: 90}}},
+		})
 	})
 	t.Run("CPO startup grace uses existing scrape history", func(t *testing.T) {
 		type observation struct {

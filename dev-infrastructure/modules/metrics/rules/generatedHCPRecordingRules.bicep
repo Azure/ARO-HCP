@@ -311,6 +311,10 @@ resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     interval: 'PT1M'
     rules: [
       {
+        record: 'hypershift:cpo:eligible:info'
+        expression: 'group by (cluster, namespace, region) (count_over_time(up{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[30d] offset 5m))'
+      }
+      {
         record: 'hypershift:cpo:replicas_unavailable:ratio'
         expression: '1 - clamp_max(max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) / (max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0), 1)'
       }

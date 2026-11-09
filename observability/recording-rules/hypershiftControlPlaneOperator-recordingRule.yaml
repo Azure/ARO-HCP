@@ -15,6 +15,12 @@ spec:
   - name: hypershift-cpo-recording-rules
     interval: 1m
     rules:
+    # Five-minute startup grace, retaining eligibility across pod rotations and scrape gaps.
+    - record: hypershift:cpo:eligible:info
+      expr: |
+        group by (cluster, namespace) (
+          count_over_time(up{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30d] offset 5m)
+        )
     # Point-in-time bad fraction used by the component burn-rate alerts.
     # Missing inputs and zero-desired deployments emit no observation.
     - record: hypershift:cpo:replicas_unavailable:ratio

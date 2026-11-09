@@ -38,7 +38,7 @@
   "panels": [
     {
       "gridPos": {
-        "h": 7,
+        "h": 11,
         "w": 24,
         "x": 0,
         "y": 0
@@ -57,7 +57,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 11
       },
       "id": 49,
       "title": "SLO Overview - provisional component objectives; inspect telemetry coverage",
@@ -122,7 +122,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "id": 34,
       "options": {
@@ -159,7 +159,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * min(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "100 * min(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": true,
           "legendFormat": "Control Plane Operator",
           "range": false,
@@ -228,7 +228,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 8
+        "y": 12
       },
       "id": 4,
       "options": {
@@ -321,7 +321,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 8
+        "y": 12
       },
       "id": 5,
       "options": {
@@ -416,7 +416,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 8
+        "y": 12
       },
       "id": 48,
       "options": {
@@ -453,7 +453,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) or 0 * count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))) / (count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) > 0) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "100 * (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) or 0 * count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)) / (count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info) > 0) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": true,
           "legendFormat": "Control Plane Operator",
           "range": false,
@@ -522,7 +522,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 14
+        "y": 18
       },
       "id": 35,
       "options": {
@@ -559,7 +559,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * (1 - (1 - (min(avg_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))))) / (1 - 0.9995)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "100 * (1 - (1 - (min(avg_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)))) / (1 - 0.9995)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": true,
           "legendFormat": "Control Plane Operator",
           "range": false,
@@ -628,7 +628,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 14
+        "y": 18
       },
       "id": 46,
       "options": {
@@ -722,7 +722,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 14
+        "y": 18
       },
       "id": 47,
       "options": {
@@ -808,7 +808,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 14
+        "y": 18
       },
       "id": 44,
       "options": {
@@ -845,7 +845,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * min(count_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) / 43200 and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "100 * min(count_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) / 43200 and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": true,
           "legendFormat": "Control Plane Operator",
           "range": false,
@@ -861,7 +861,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "id": 2,
       "title": "Journey SLIs \u2014 HyperShift creates and maintains a usable hosted control plane",
@@ -918,7 +918,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 21
+        "y": 25
       },
       "id": 6,
       "options": {
@@ -1017,7 +1017,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 21
+        "y": 25
       },
       "id": 11,
       "options": {
@@ -1101,7 +1101,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 21
+        "y": 25
       },
       "id": 12,
       "options": {
@@ -1181,7 +1181,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 31
       },
       "id": 8,
       "options": {
@@ -1257,7 +1257,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 31
       },
       "id": 9,
       "options": {
@@ -1314,7 +1314,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 39
       },
       "id": 10,
       "options": {
@@ -1392,7 +1392,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 39
       },
       "id": 13,
       "options": {
@@ -1465,7 +1465,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 47
       },
       "id": 45,
       "options": {
@@ -1526,7 +1526,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 55
       },
       "id": 14,
       "title": "Component SLIs \u2014 HyperShift Operator and Control Plane Operator",
@@ -1591,7 +1591,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 52
+        "y": 56
       },
       "id": 15,
       "options": {
@@ -1627,7 +1627,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "100 * min(avg_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "100 * min(avg_over_time(hypershift:cpo:availability:ratio1m[30d]) and hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": true,
           "legendFormat": "Control Plane Operator",
           "range": false,
@@ -1696,7 +1696,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 52
+        "y": 56
       },
       "id": 16,
       "options": {
@@ -1799,7 +1799,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 52
+        "y": 56
       },
       "id": 17,
       "options": {
@@ -1894,7 +1894,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 58
+        "y": 62
       },
       "id": 18,
       "options": {
@@ -1997,7 +1997,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 58
+        "y": 62
       },
       "id": 36,
       "options": {
@@ -2103,7 +2103,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 58
+        "y": 62
       },
       "id": 37,
       "options": {
@@ -2197,7 +2197,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 68
       },
       "id": 19,
       "options": {
@@ -2231,7 +2231,7 @@
             "uid": "$hcp_datasource"
           },
           "editorMode": "code",
-          "expr": "min(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m))) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m)) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) count_over_time(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"}[30d] offset 5m) unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
+          "expr": "min(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) and (count(hypershift:cpo:availability:ratio1m and on(cluster, namespace) hypershift:cpo:eligible:info) == count((max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"}) > 0) and on(cluster, namespace) hypershift:cpo:eligible:info)) and count(up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info) unless on() (up{namespace=~\"ocm-.*\", pod=~\"control-plane-operator-.*\"} and on(cluster, namespace) hypershift:cpo:eligible:info unless on(cluster, namespace) kube_deployment_spec_replicas{namespace=~\"ocm-.*\", deployment=\"control-plane-operator\"})",
           "instant": false,
           "legendFormat": "Control Plane Operator (worst HCP)",
           "range": true,
@@ -2288,7 +2288,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 68
       },
       "id": 20,
       "options": {
@@ -2375,7 +2375,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 76
       },
       "id": 21,
       "options": {
@@ -2442,7 +2442,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 76
       },
       "id": 22,
       "options": {
@@ -2545,7 +2545,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 80
+        "y": 84
       },
       "id": 43,
       "options": {
@@ -2663,7 +2663,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 92
       },
       "id": 23,
       "options": {
@@ -2730,7 +2730,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 96
+        "y": 100
       },
       "id": 24,
       "options": {
@@ -2797,7 +2797,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 96
+        "y": 100
       },
       "id": 25,
       "options": {
@@ -2843,7 +2843,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 104
+        "y": 108
       },
       "id": 38,
       "title": "Operational Capacity Guides - not SLIs, SLOs, or error budgets",
@@ -2910,7 +2910,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 105
+        "y": 109
       },
       "id": 39,
       "options": {
@@ -3006,7 +3006,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 105
+        "y": 109
       },
       "id": 40,
       "options": {
@@ -3102,7 +3102,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 105
+        "y": 109
       },
       "id": 41,
       "options": {
@@ -3198,7 +3198,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 105
+        "y": 109
       },
       "id": 42,
       "options": {
@@ -3223,7 +3223,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max(100 * sum by (cluster) (max by (cluster, instance) (kubelet_running_pods{cluster=~\".*-mgmt-[0-9]+\"}) unless on() (max by (cluster, node) (kube_node_status_allocatable{cluster=~\".*-mgmt-[0-9]+\", resource=\"pods\"}) unless on(cluster, node) (kubelet_node_name{cluster=~\".*-mgmt-[0-9]+\"} and on(cluster, instance) kubelet_running_pods{cluster=~\".*-mgmt-[0-9]+\"}))) / (sum by (cluster) (max by (cluster, node) (kube_node_status_allocatable{cluster=~\".*-mgmt-[0-9]+\", resource=\"pods\"})) > 0))",
+          "expr": "max(100 * sum by (cluster) ((max by (cluster, instance) (kubelet_running_pods{cluster=~\".*-mgmt-[0-9]+\"}) and on(cluster, instance) (kubelet_node_name{cluster=~\".*-mgmt-[0-9]+\"} and on(cluster, node) kube_node_status_allocatable{cluster=~\".*-mgmt-[0-9]+\", resource=\"pods\"})) unless on() (max by (cluster, node) (kube_node_status_allocatable{cluster=~\".*-mgmt-[0-9]+\", resource=\"pods\"}) unless on(cluster, node) (kubelet_node_name{cluster=~\".*-mgmt-[0-9]+\"} and on(cluster, instance) kubelet_running_pods{cluster=~\".*-mgmt-[0-9]+\"}))) / (sum by (cluster) (max by (cluster, node) (kube_node_status_allocatable{cluster=~\".*-mgmt-[0-9]+\", resource=\"pods\"})) > 0))",
           "instant": true,
           "legendFormat": "Worst management cluster",
           "range": false,
@@ -3239,7 +3239,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 111
+        "y": 115
       },
       "id": 26,
       "title": "Supporting Context \u2014 KASAvailable (hostedClusterAPI_kubeapiserver_available)",
@@ -3304,7 +3304,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 112
+        "y": 116
       },
       "id": 27,
       "options": {
@@ -3388,7 +3388,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 112
+        "y": 116
       },
       "id": 28,
       "options": {
@@ -3476,7 +3476,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 112
+        "y": 116
       },
       "id": 29,
       "options": {
@@ -3536,7 +3536,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 118
+        "y": 122
       },
       "id": 32,
       "options": {
@@ -3594,14 +3594,14 @@
     },
     {
       "gridPos": {
-        "h": 10,
+        "h": 13,
         "w": 24,
         "x": 0,
-        "y": 126
+        "y": 130
       },
       "id": 33,
       "options": {
-        "content": "### Interpretation and acceptance\n\n- **No data is not green.** Missing deployment telemetry removes availability observations. No completed operations or reconciliations leaves outcome ratios undefined. Zero wait counts require reporting HostedCluster inventory; zero KAS counts require reporting KAS availability. Missing inventory is unknown, not healthy.\n- **Telemetry coverage** is the number of recorded eligible one-minute availability observations / 43,200 expected minutes in 30d, shown for the least-covered current deployment. New deployments, intentional scale-to-zero, missed scrapes, and recording-rule rollout reduce coverage. A 100% availability reading with partial coverage is not evidence of full-window compliance.\n- **Budgets** use 100 * (1 - observed bad fraction / allowed bad fraction). Negative values mean the budget is overspent; they are not clamped to zero. Component availability uses the worst current deployment, while reconciliation error/latency budgets are fleet event-weighted. Provisioning budgets use completed outcomes over 3d.\n- **Scope:** component replicas measure operator health, not end-to-end API reachability. Existing KAS availability is shown separately. Wait duration disappears on first availability and cannot establish a successful create. Completed-operation panels avoid that proxy.\n- **Dashboard versus future burn-rate accounting:** dashboard availability, coverage, and budgets use `hypershift:operator:availability:ratio1m` and `hypershift:cpo:availability:ratio1m` (one-minute good fractions). Future component burn-rate alerts would use the corresponding `replicas_unavailable:ratio` recordings (point-in-time bad fractions). Sampling and HA aggregation differ, so dashboard budgets would not exactly reproduce alert budget consumption. `hypershift:hostedclusters:unhealthy:ratio` is a separate HostedCluster condition-health signal, not component replica availability.\n- **Delivery without live telemetry:** synthetic expression tests do not validate Grafana rendering or real SLO compliance. Before/after screenshots and clearly labeled synthetic healthy, breached, idle/no-traffic, and missing-data renders are still required for visual review. Live data is not required for dashboard delivery.\n- **Dashboard operational follow-up:** once telemetry exists, verify collection and labels in matching regional workspaces, baseline historical behavior, and revisit the proposed component targets with owners. These are deferred follow-ups for dashboard delivery, not approval to enable burns.\n- **Burn-rate rollout prerequisites:** shared recordings must be live in production, stakeholders must approve objectives and missing-data semantics, and an alert-tester report must validate candidate firing behavior and noise. Burn-rate alert groups are not deployed until a separate follow-up satisfies these gates. Existing threshold alerts and severities are listed above; KAS alerting is unchanged.",
+        "content": "### Interpretation and acceptance\n\n- **No data is not green.** Missing deployment telemetry removes availability observations. No completed operations or reconciliations leaves outcome ratios undefined. Zero wait counts require reporting HostedCluster inventory; zero KAS counts require reporting KAS availability. Missing inventory is unknown, not healthy.\n- **Telemetry coverage** is the number of recorded eligible one-minute availability observations / 43,200 expected minutes in 30d, shown for the least-covered current deployment. New deployments, intentional scale-to-zero, missed scrapes, and recording-rule rollout reduce coverage. A 100% availability reading with partial coverage is not evidence of full-window compliance.\n- **Budgets** use 100 * (1 - observed bad fraction / allowed bad fraction). Negative values mean the budget is overspent; they are not clamped to zero. Component availability uses the worst current deployment, while reconciliation error/latency budgets are fleet event-weighted. Provisioning budgets use completed outcomes over 3d.\n- **Scope:** component replicas measure operator health, not end-to-end API reachability. Existing KAS availability is shown separately. Wait duration disappears on first availability and cannot establish a successful create. Completed-operation panels avoid that proxy.\n- **Dashboard versus future burn-rate accounting:** dashboard availability, coverage, and budgets use `hypershift:operator:availability:ratio1m` and `hypershift:cpo:availability:ratio1m` (one-minute good fractions). Future component burn-rate alerts would use the corresponding `replicas_unavailable:ratio` recordings (point-in-time bad fractions). Sampling and HA aggregation differ, so dashboard budgets would not exactly reproduce alert budget consumption. `hypershift:hostedclusters:failure_conditions:ratio` measures failure conditions per HostedCluster, not a distinct unhealthy-cluster fraction, not component replica availability.\n- **Delivery without live telemetry:** synthetic expression tests do not validate Grafana rendering or real SLO compliance. Before/after screenshots and clearly labeled synthetic healthy, breached, idle/no-traffic, and missing-data renders are still required for visual review. Live data is not required for dashboard delivery.\n- **Dashboard operational follow-up:** once telemetry exists, verify collection and labels in matching regional workspaces, baseline historical behavior, and revisit the proposed component targets with owners. These are deferred follow-ups for dashboard delivery, not approval to enable burns.\n- **Burn-rate rollout prerequisites:** shared recordings must be live in production, stakeholders must approve objectives and missing-data semantics, and an alert-tester report must validate candidate firing behavior and noise. Burn-rate alert groups are not deployed until a separate follow-up satisfies these gates. Existing threshold alerts and severities are listed above; KAS alerting is unchanged.",
         "mode": "markdown"
       },
       "title": "Gaps and Open Questions",

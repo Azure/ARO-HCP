@@ -58,7 +58,7 @@ spec:
   # replica availability. Multiple failure conditions can count one cluster twice.
   - name: hypershift-hostedcluster-recording-rules
     rules:
-    - record: hypershift:hostedclusters:unhealthy:ratio
+    - record: hypershift:hostedclusters:failure_conditions:ratio
       expr: |
         clamp_max(
           sum by (cluster) (max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions))
