@@ -7189,14 +7189,14 @@
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
-  input: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+  input: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_desired:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -7206,14 +7206,14 @@
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
-  input: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+  input: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_progress:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -12549,14 +12549,19 @@
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
   input: |
-    hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    (
+      hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    )
+    unless on (cluster, resource_id) (
+      backend_cluster_provision_state{phase="deleting"} == 1
+    )
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_desired:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -12567,14 +12572,19 @@
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
   input: |
-    hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    (
+      hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    )
+    unless on (cluster, resource_id) (
+      backend_cluster_provision_state{phase="deleting"} == 1
+    )
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_progress:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
