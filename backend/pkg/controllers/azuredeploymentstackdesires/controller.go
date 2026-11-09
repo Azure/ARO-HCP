@@ -583,6 +583,25 @@ const (
 	deploymentStackDeploymentFailedCode = "DeploymentStackDeploymentFailed"
 )
 
+// classifyError turns an Azure deployment-stack error into a diagnostic message
+// and a verdict on whether the failure reflects invalid intent. The message is
+// the full error tree marshaled to JSON, retained verbatim so the entire
+// diagnostic is preserved in the condition alongside the typed Stack. The bool
+// reports whether the failure is invalid intent (true) rather than a retryable
+// execution failure (false), which determines whether the caller sets an
+// InvalidIntent condition (settled, subject only to the long reconcile cooldown)
+// or an ExecutionFailed condition that drives a workqueue retry.
+//
+// Classification is deliberately conservative: only error codes that
+// unambiguously indicate a bad spec count as invalid intent. A top-level
+// InvalidTemplate or InvalidRequestContent qualifies directly. The one wrapper
+// inspected is DeploymentStackDeploymentFailed, and only one level deep: it is
+// treated as invalid intent only when every child is itself a leaf (no further
+// Details) carrying InvalidTemplate or InvalidRequestContent. Anything else,
+// including a missing detail, an unrecognized code, or a deeper/mixed tree, is
+// classified as retryable, because InvalidTemplateDeployment can also mean a
+// missing permission with no structured authorization code, and HTTP 400 plus
+// message text alone cannot establish invalid intent.
 func classifyError(detail *armdeploymentstacks.ErrorDetail) (string, bool) {
 	if detail == nil {
 		return "Azure stack operation failed without error details", false
