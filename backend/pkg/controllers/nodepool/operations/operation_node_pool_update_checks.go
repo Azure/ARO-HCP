@@ -27,8 +27,6 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -48,13 +46,13 @@ type nodePoolUpdateDesiredVersionCheck struct {
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
-var _ operationbase.OperationStatusCalculator[*arohcpv1alpha1.NodePool] = (*nodePoolUpdateDesiredVersionCheck)(nil)
+var _ operationbase.OperationStatusCalculator[*nodePoolUpdateOperationStatusInput] = (*nodePoolUpdateDesiredVersionCheck)(nil)
 
 func (c *nodePoolUpdateDesiredVersionCheck) GetSourceName() string {
 	return "nodePoolDesiredVersionResolution"
 }
 
-func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ *nodePoolUpdateOperationStatusInput) (*operationbase.OperationState, error) {
 	existingNodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
@@ -132,14 +130,14 @@ func (c *nodePoolUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context
 
 type nodePoolUpdateClusterServiceStatusCheck struct{}
 
-var _ operationbase.OperationStatusCalculator[*arohcpv1alpha1.NodePool] = (*nodePoolUpdateClusterServiceStatusCheck)(nil)
+var _ operationbase.OperationStatusCalculator[*nodePoolUpdateOperationStatusInput] = (*nodePoolUpdateClusterServiceStatusCheck)(nil)
 
 func (c *nodePoolUpdateClusterServiceStatusCheck) GetSourceName() string {
 	return "clusterServiceNodePoolStatus"
 }
 
-func (c *nodePoolUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
-	existingCSNodePoolStatus := csNodePool.Status()
+func (c *nodePoolUpdateClusterServiceStatusCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input *nodePoolUpdateOperationStatusInput) (*operationbase.OperationState, error) {
+	existingCSNodePoolStatus := input.ClusterServiceNodePool.Status()
 	logger := utils.LoggerFromContext(ctx)
 	newOperationStatus, opError, err := operationbase.ConvertNodePoolStatus(operation, existingCSNodePoolStatus)
 	if err != nil {
@@ -158,18 +156,18 @@ type nodePoolUpdateClusterServiceSpecCheck struct {
 	nodePoolLister corelisters.NodePoolLister
 }
 
-var _ operationbase.OperationStatusCalculator[*arohcpv1alpha1.NodePool] = (*nodePoolUpdateClusterServiceSpecCheck)(nil)
+var _ operationbase.OperationStatusCalculator[*nodePoolUpdateOperationStatusInput] = (*nodePoolUpdateClusterServiceSpecCheck)(nil)
 
 func (c *nodePoolUpdateClusterServiceSpecCheck) GetSourceName() string {
 	return "clusterServiceNodePoolSpec"
 }
 
-func (c *nodePoolUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+func (c *nodePoolUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input *nodePoolUpdateOperationStatusInput) (*operationbase.OperationState, error) {
 	nodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
-	if matches, message := c.clusterServiceNodePoolSpecMatchesDesired(nodePool, csNodePool); !matches {
+	if matches, message := c.clusterServiceNodePoolSpecMatchesDesired(nodePool, input.ClusterServiceNodePool); !matches {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
@@ -180,13 +178,13 @@ type nodePoolUpdateHypershiftCheck struct {
 	readDesireLister kubeapplierlisters.ReadDesireLister
 }
 
-var _ operationbase.OperationStatusCalculator[*arohcpv1alpha1.NodePool] = (*nodePoolUpdateHypershiftCheck)(nil)
+var _ operationbase.OperationStatusCalculator[*nodePoolUpdateOperationStatusInput] = (*nodePoolUpdateHypershiftCheck)(nil)
 
 func (c *nodePoolUpdateHypershiftCheck) GetSourceName() string {
 	return "hypershiftNodePool"
 }
 
-func (c *nodePoolUpdateHypershiftCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, csNodePool *arohcpv1alpha1.NodePool) (*operationbase.OperationState, error) {
+func (c *nodePoolUpdateHypershiftCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input *nodePoolUpdateOperationStatusInput) (*operationbase.OperationState, error) {
 	nodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
@@ -208,7 +206,7 @@ func (c *nodePoolUpdateHypershiftCheck) CalculateOperationStatus(ctx context.Con
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Hypershift NodePool has not been observed yet"), nil
 	}
 
-	if matches, message := c.hypershiftNodePoolSpecMatchesDesired(nodePool, csNodePool, hypershiftNodePool); !matches {
+	if matches, message := c.hypershiftNodePoolSpecMatchesDesired(nodePool, input.ClusterServiceNodePool, hypershiftNodePool); !matches {
 		logger.Info("hypershift NodePool spec does not match desired configuration", "message", message)
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}

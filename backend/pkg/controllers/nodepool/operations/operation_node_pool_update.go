@@ -41,7 +41,7 @@ import (
 )
 
 type operationNodePoolUpdate struct {
-	statusCalculators               operationbase.OperationStatusCalculators[*arohcpv1alpha1.NodePool]
+	statusCalculators               operationbase.OperationStatusCalculators[*nodePoolUpdateOperationStatusInput]
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
@@ -97,7 +97,7 @@ func NewOperationNodePoolUpdateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*arohcpv1alpha1.NodePool](
+	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
 		&nodePoolUpdateDesiredVersionCheck{nodePoolLister: nodePoolLister, serviceProviderNodePoolLister: serviceProviderNodePoolLister, clock: clock, resourcesDBClient: resourcesDBClient, desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen},
 		&nodePoolUpdateClusterServiceStatusCheck{},
 		&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: nodePoolLister},
@@ -170,7 +170,11 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err))
 	}
 
-	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, csResource)
+	input := &nodePoolUpdateOperationStatusInput{
+		ClusterServiceNodePool: csResource,
+	}
+
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "node pool update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
@@ -199,4 +203,10 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 
 func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
+}
+
+// clusterUpdateOperationStatusInput shares one Cluster Service and provider-state
+// observation across all update checks in a reconciliation.
+type nodePoolUpdateOperationStatusInput struct {
+	ClusterServiceNodePool *arohcpv1alpha1.NodePool
 }
