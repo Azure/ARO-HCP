@@ -374,9 +374,17 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		CleanupWorkflow:    CleanupWorkflowStandard,
 	}
 	// The direct resource group deletion experiment is opt-in per spec and never the default.
-	if specSelectsDirectResourceGroupDeletion(ginkgo.CurrentSpecReport().FullText(), os.Getenv(directResourceGroupDeletionSpecsEnv)) {
+	selector := os.Getenv(directResourceGroupDeletionSpecsEnv)
+	// PROBE ONLY. This branch exists to answer one question on a single INT run:
+	// does direct resource group deletion leave the managed resource group behind?
+	// It hardcodes the two probe specs because the INT lane has no way to set this
+	// environment variable. Never merge this branch.
+	if selector == "" {
+		selector = "custom node pool osDisk size,manage pull secrets"
+	}
+	if specSelectsDirectResourceGroupDeletion(ginkgo.CurrentSpecReport().FullText(), selector) {
 		ginkgo.GinkgoLogr.Info("using the direct resource group deletion experiment",
-			"resourceGroups", resourceGroupNames, "selector", directResourceGroupDeletionSpecsEnv)
+			"resourceGroups", resourceGroupNames, "selector", selector)
 		opts.CleanupWorkflow = CleanupWorkflowDirectResourceGroup
 	}
 	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, opts)
