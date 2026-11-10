@@ -27,6 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -72,7 +73,10 @@ func TestClusterOperationDeadlines(t *testing.T) {
 	}
 	accepted := expectation{operationState: coreapi.ProvisioningStateAccepted, clusterState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
 	provisioning := expectation{operationState: coreapi.ProvisioningStateProvisioning, clusterState: coreapi.ProvisioningStateProvisioning, owner: operationtesting.TestOperationName}
-	retry := expectation{operationState: coreapi.ProvisioningStateAccepted, reconcileError: true, clusterState: coreapi.ProvisioningStateAccepted, owner: operationtesting.TestOperationName}
+	// An unavailable ServiceProviderCluster (or an unset Cluster Service ID) is a
+	// "still waiting" state now: the checks report Updating without an error rather
+	// than returning a retryable error before expiry.
+	updating := expectation{operationState: coreapi.ProvisioningStateUpdating, clusterState: coreapi.ProvisioningStateUpdating, owner: operationtesting.TestOperationName}
 	deadlineFailure := expectation{operationState: coreapi.ProvisioningStateFailed, errorCode: coreapi.CloudErrorCodeDeadlineExceeded, clusterState: coreapi.ProvisioningStateFailed}
 	placementFailure := expectation{operationState: coreapi.ProvisioningStateFailed, errorCode: coreapi.CloudErrorCodeInternalServerError, clusterState: coreapi.ProvisioningStateFailed}
 	mismatched := expectation{operationState: coreapi.ProvisioningStateAccepted, clusterState: coreapi.ProvisioningStateAccepted, owner: newOwner}
@@ -100,9 +104,9 @@ func TestClusterOperationDeadlines(t *testing.T) {
 		{name: "expired without CS ID", deadline: expired, want: [3]*expectation{&placementFailure, &deadlineFailure, &deadlineFailure}},
 		{name: "expired before prerequisites", deadline: expired, withCSID: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
 		{name: "expired with observation errors", deadline: expired, withCSID: true, observationErrors: true, want: [3]*expectation{&deadlineFailure, &deadlineFailure, &deadlineFailure}},
-		{name: "nil deadline", want: [3]*expectation{&provisioning, &retry, &accepted}},
-		{name: "at deadline", deadline: equal, want: [3]*expectation{&placementFailure, &retry, &accepted}},
-		{name: "before deadline", deadline: future, want: [3]*expectation{&provisioning, &retry, &accepted}},
+		{name: "nil deadline", want: [3]*expectation{&provisioning, &updating, &accepted}},
+		{name: "at deadline", deadline: equal, want: [3]*expectation{&placementFailure, &updating, &accepted}},
+		{name: "before deadline", deadline: future, want: [3]*expectation{&provisioning, &updating, &accepted}},
 		{name: "ownership mismatch", deadline: expired, owner: &newOwner, want: [3]*expectation{&mismatched, &mismatched, &mismatched}},
 		{name: "empty owner", deadline: expired, owner: &emptyOwner, want: [3]*expectation{&unowned, &unowned, &unowned}},
 		{name: "stale cached owner", deadline: expired, storedOwner: &newOwner, want: [3]*expectation{&stalePlacement, &staleDeadline, nil}},
@@ -195,9 +199,13 @@ func TestClusterOperationDeadlines(t *testing.T) {
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
 						controller := &operationClusterCreate{clock: clock, resourcesDBClient: db, activeOperationLister: operations, clusterLister: clusters, serviceProviderClusterLister: spcs, readDesireLister: reads, clusterServiceClient: cs}
+						controller.statusCalculators, err = controller.newStatusCalculators()
+						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestUpdate:
-						controller := &operationClusterUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, clusterLister: clusters, serviceProviderClusterLister: spcs, readDesireLister: reads, clusterServiceClient: cs}
+						controller := &operationClusterUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, clusterLister: clusters, serviceProviderClusterLister: spcs, readDesireLister: reads, clusterServiceClient: cs, desiredVersionMismatchFirstSeen: lru.New(100000)}
+						controller.statusCalculators, err = controller.newStatusCalculators()
+						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestDelete:
 						controller := &operationClusterDelete{clock: clock, resourcesDBClient: db, readDesireLister: reads, clusterServiceClient: cs}

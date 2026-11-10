@@ -84,26 +84,25 @@ func (calculators OperationStatusCalculators[Input]) CalculateOperationStatus(ct
 		return nil, errors.New("no operation status calculators")
 	}
 
-	// TODO should we separate observation errors from other errors?
-	// TODO should we change how we deal with observationErrors and instead of returning them
-	// we somehow create meta states and/or update the existing states so they are always created?
 	states := make([]*OperationState, 0, len(calculators))
 	var errs []error
 	for _, source := range slices.Sorted(maps.Keys(calculators)) {
-		var sourceErrs []error
 		var state *OperationState
 
 		calculator := calculators[source]
 		if isNilOperationStatusCalculator(calculator) || source == "" || calculator.GetSourceName() != source {
-			sourceErrs = append(errs, fmt.Errorf("invalid operation status calculator for source %q", source))
+			errs = append(errs, fmt.Errorf("invalid operation status calculator for source %q", source))
+			continue
 		}
+
+		var sourceErrs []error
 		state, err := calculator.CalculateOperationStatus(ctx, operation, input)
 		if err != nil {
-			sourceErrs = append(errs, errors.New(utils.ErrorMessageWithoutLineTracking(fmt.Errorf("operation status source %q could not be executed: %w", source, err))))
+			sourceErrs = append(sourceErrs, fmt.Errorf("operation status source %q could not be calculated: %w", source, err))
 		} else if state == nil {
-			sourceErrs = append(errs, fmt.Errorf("operation status source %q: nil operation state", source))
+			sourceErrs = append(sourceErrs, fmt.Errorf("operation status source %q: nil operation state", source))
 		} else if state.ProvisioningState == "" {
-			sourceErrs = append(errs, fmt.Errorf("operation status source %q: empty provisioning state", source))
+			sourceErrs = append(sourceErrs, fmt.Errorf("operation status source %q: empty provisioning state", source))
 		}
 
 		if len(sourceErrs) > 0 {
@@ -121,7 +120,7 @@ func (calculators OperationStatusCalculators[Input]) CalculateOperationStatus(ct
 			}
 
 			if len(desiredPendingOperationState) > 0 {
-				state = NewOperationState(desiredPendingOperationState, fmt.Sprintf("operation state could not be calculated: %v", errors.Join(sourceErrs...)))
+				state = NewOperationState(desiredPendingOperationState, fmt.Sprintf("operation status source %q could not be calculated", source))
 			}
 		}
 

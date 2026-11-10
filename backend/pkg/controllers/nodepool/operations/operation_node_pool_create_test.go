@@ -58,8 +58,10 @@ func TestNodePoolCreateStatusHandlesClearedClusterServiceID(t *testing.T) {
 		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
 	}
 	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestCreate), struct{}{})
-	require.ErrorContains(t, err, "node pool cluster service ID is no longer available")
-	assert.Nil(t, state)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+	assert.Contains(t, state.Message, "node pool cluster service id is not set")
 }
 
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
@@ -431,10 +433,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
-			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
-				&nodePoolCreateClusterServiceCheck{nodePoolLister: controller.nodePoolLister, clusterServiceClient: controller.clusterServiceClient},
-				&nodePoolCreateHypershiftCheck{nodePoolLister: controller.nodePoolLister, readDesireLister: controller.readDesireLister},
-			)
+			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())

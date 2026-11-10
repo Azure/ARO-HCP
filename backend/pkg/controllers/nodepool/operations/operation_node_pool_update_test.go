@@ -563,12 +563,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
-			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
-				&nodePoolUpdateDesiredVersionCheck{nodePoolLister: controller.nodePoolLister, serviceProviderNodePoolLister: controller.serviceProviderNodePoolLister, clock: controller.clock, resourcesDBClient: controller.resourcesDBClient, desiredVersionMismatchFirstSeen: controller.desiredVersionMismatchFirstSeen},
-				&nodePoolUpdateClusterServiceStatusCheck{},
-				&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: controller.nodePoolLister},
-				&nodePoolUpdateHypershiftCheck{nodePoolLister: controller.nodePoolLister, readDesireLister: controller.readDesireLister},
-			)
+			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)

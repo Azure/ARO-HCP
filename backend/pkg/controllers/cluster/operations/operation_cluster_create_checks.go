@@ -351,14 +351,13 @@ func (c *clusterCreateRoleAssignmentsCheck) CalculateOperationStatus(ctx context
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
-type clusterCreateIngressCertificateCheck struct {
+type clusterCreateDefaultIngressCertificateCheck struct {
 	readDesireLister kubeapplierlisters.ReadDesireLister
 }
 
-var _ operationbase.OperationStatusCalculator[struct{}] = (*clusterCreateIngressCertificateCheck)(nil)
+var _ operationbase.OperationStatusCalculator[struct{}] = (*clusterCreateDefaultIngressCertificateCheck)(nil)
 
-// TODO make clear is default ingress certificate
-func (c *clusterCreateIngressCertificateCheck) GetSourceName() string {
+func (c *clusterCreateDefaultIngressCertificateCheck) GetSourceName() string {
 	return "defaultIngressServingCertificate"
 }
 
@@ -407,7 +406,7 @@ func (c *clusterCreateIngressCertificateCheck) GetSourceName() string {
 //
 // Upstream failure handling, unchanged-hash return, and successful status update:
 // https://github.com/kubernetes-sigs/secrets-store-sync-controller/blob/v0.0.6/pkg/controller/secretsync_controller.go#L350-L389
-func (c *clusterCreateIngressCertificateCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
+func (c *clusterCreateDefaultIngressCertificateCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, _ struct{}) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	secretSync, observed, err := kubeapplierhelpers.GetCachedIngressSecretSyncForCluster(

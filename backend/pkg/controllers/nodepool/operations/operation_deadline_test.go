@@ -27,6 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -176,9 +177,13 @@ func TestNodePoolOperationDeadlines(t *testing.T) {
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
 						controller := &operationNodePoolCreate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs}
+						controller.statusCalculators, err = controller.newStatusCalculators()
+						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestUpdate:
-						controller := &operationNodePoolUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs, serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{}}
+						controller := &operationNodePoolUpdate{clock: clock, resourcesDBClient: db, activeOperationsLister: operations, nodePoolLister: nodePools, readDesireLister: reads, clusterServiceClient: cs, serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{}, desiredVersionMismatchFirstSeen: lru.New(100000)}
+						controller.statusCalculators, err = controller.newStatusCalculators()
+						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestDelete:
 						controller := &operationNodePoolDelete{clock: clock, resourcesDBClient: db, clusterServiceClient: cs}

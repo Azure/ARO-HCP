@@ -314,6 +314,8 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 				activeOperationsLister: activeOperationsLister,
 				notificationClient:     nil,
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tc.wantErr {

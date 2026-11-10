@@ -97,12 +97,7 @@ func NewOperationNodePoolUpdateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
-		&nodePoolUpdateDesiredVersionCheck{nodePoolLister: nodePoolLister, serviceProviderNodePoolLister: serviceProviderNodePoolLister, clock: clock, resourcesDBClient: resourcesDBClient, desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen},
-		&nodePoolUpdateClusterServiceStatusCheck{nodePoolLister: nodePoolLister},
-		&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: nodePoolLister},
-		&nodePoolUpdateHypershiftCheck{nodePoolLister: nodePoolLister, readDesireLister: readDesireLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationNodePoolUpdateControllerName,
@@ -113,6 +108,19 @@ func NewOperationNodePoolUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationNodePoolUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[*nodePoolUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
+		&nodePoolUpdateDesiredVersionCheck{nodePoolLister: c.nodePoolLister, serviceProviderNodePoolLister: c.serviceProviderNodePoolLister, clock: c.clock, resourcesDBClient: c.resourcesDBClient, desiredVersionMismatchFirstSeen: c.desiredVersionMismatchFirstSeen},
+		&nodePoolUpdateClusterServiceStatusCheck{nodePoolLister: c.nodePoolLister},
+		&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: c.nodePoolLister},
+		&nodePoolUpdateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {

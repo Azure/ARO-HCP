@@ -39,7 +39,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -531,17 +530,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					}
 				}(),
 			}
-			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
-				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
-				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
-				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateIngressCertificateCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-			)
+			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
@@ -735,17 +724,7 @@ func TestOperationClusterCreate_PlacementDeadline(t *testing.T) {
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 				resourcesDBClient:            db,
 			}
-			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[struct{}](
-				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
-				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
-				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateIngressCertificateCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-			)
+			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 			placementState, err := (&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: spcLister}).CalculateOperationStatus(ctx, operation, struct{}{})
 			require.NoError(t, err)
@@ -1326,17 +1305,7 @@ func TestOperationClusterCreate_CalculateOperationStatus(t *testing.T) {
 					},
 				},
 			}
-			calculators, err := operationbase.NewOperationStatusCalculators[struct{}](
-				&clusterCreateValidationCheck{clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateHostedClusterCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateResourceCheck{clusterLister: controller.clusterLister},
-				&clusterCreateClusterServiceCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
-				&clusterCreatePlacementCheck{clusterLister: controller.clusterLister, clock: controller.clock, serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateServingCACheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateIngressCertificateCheck{readDesireLister: controller.readDesireLister},
-				&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-				&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: controller.serviceProviderClusterLister},
-			)
+			calculators, err := controller.newStatusCalculators()
 			require.NoError(t, err)
 			controller.statusCalculators = calculators
 
@@ -1510,7 +1479,7 @@ func TestServiceProviderDefaultIngressServingCertificateStatus(t *testing.T) {
 			if tc.unobserved {
 				desire.Status.Conditions[0].Status = metav1.ConditionFalse
 			}
-			controller := &clusterCreateIngressCertificateCheck{
+			controller := &clusterCreateDefaultIngressCertificateCheck{
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplierapi.ReadDesire{desire},
 				},

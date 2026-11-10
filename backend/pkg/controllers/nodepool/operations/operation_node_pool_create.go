@@ -87,10 +87,7 @@ func NewOperationNodePoolCreateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[struct{}](
-		&nodePoolCreateClusterServiceCheck{nodePoolLister: nodePoolLister, clusterServiceClient: clusterServiceClient},
-		&nodePoolCreateHypershiftCheck{nodePoolLister: nodePoolLister, readDesireLister: readDesireLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationNodePoolCreateControllerName,
@@ -101,6 +98,17 @@ func NewOperationNodePoolCreateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of create-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationNodePoolCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[struct{}], error) {
+	return operationbase.NewOperationStatusCalculators[struct{}](
+		&nodePoolCreateClusterServiceCheck{nodePoolLister: c.nodePoolLister, clusterServiceClient: c.clusterServiceClient},
+		&nodePoolCreateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {

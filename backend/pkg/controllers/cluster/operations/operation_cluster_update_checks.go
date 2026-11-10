@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -36,7 +37,8 @@ import (
 )
 
 type clusterUpdateValidationCheck struct {
-	clock utilsclock.PassiveClock
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	clock                        utilsclock.PassiveClock
 }
 
 var _ operationbase.OperationStatusCalculator[clusterUpdateOperationStatusInput] = (*clusterUpdateValidationCheck)(nil)
@@ -45,10 +47,13 @@ func (c *clusterUpdateValidationCheck) GetSourceName() string {
 	return "clusterValidation"
 }
 
-func (c *clusterUpdateValidationCheck) CalculateOperationStatus(_ context.Context, operation *coreapi.Operation, input clusterUpdateOperationStatusInput) (*operationbase.OperationState, error) {
-	serviceProviderCluster := input.ServiceProviderCluster
-	if serviceProviderCluster == nil {
+func (c *clusterUpdateValidationCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input clusterUpdateOperationStatusInput) (*operationbase.OperationState, error) {
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
 	}
 
 	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now()), nil
@@ -56,6 +61,7 @@ func (c *clusterUpdateValidationCheck) CalculateOperationStatus(_ context.Contex
 
 type clusterUpdateDesiredVersionCheck struct {
 	clusterLister                   corelisters.ClusterLister
+	serviceProviderClusterLister    corelisters.ServiceProviderClusterLister
 	clock                           utilsclock.PassiveClock
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -72,9 +78,12 @@ func (c *clusterUpdateDesiredVersionCheck) CalculateOperationStatus(ctx context.
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 
-	spc := input.ServiceProviderCluster
-	if spc == nil {
+	spc, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
 	}
 
 	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
@@ -230,8 +239,9 @@ func (c *clusterUpdateClusterServiceSpecCheck) CalculateOperationStatus(ctx cont
 }
 
 type clusterUpdateHostedClusterCheck struct {
-	clusterLister    corelisters.ClusterLister
-	readDesireLister kubeapplierlisters.ReadDesireLister
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ operationbase.OperationStatusCalculator[clusterUpdateOperationStatusInput] = (*clusterUpdateHostedClusterCheck)(nil)
@@ -245,10 +255,15 @@ func (c *clusterUpdateHostedClusterCheck) CalculateOperationStatus(ctx context.C
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	spc := input.ServiceProviderCluster
-	if spc == nil {
+
+	spc, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
 	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
+	}
+
 	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -273,7 +288,8 @@ func (c *clusterUpdateHostedClusterCheck) CalculateOperationStatus(ctx context.C
 }
 
 type clusterUpdateAutoscalerCheck struct {
-	readDesireLister kubeapplierlisters.ReadDesireLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
 var _ operationbase.OperationStatusCalculator[clusterUpdateOperationStatusInput] = (*clusterUpdateAutoscalerCheck)(nil)
@@ -283,11 +299,15 @@ func (c *clusterUpdateAutoscalerCheck) GetSourceName() string {
 }
 
 func (c *clusterUpdateAutoscalerCheck) CalculateOperationStatus(ctx context.Context, operation *coreapi.Operation, input clusterUpdateOperationStatusInput) (*operationbase.OperationState, error) {
-	spc := input.ServiceProviderCluster
-	if spc == nil {
+	logger := utils.LoggerFromContext(ctx)
+
+	spc, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "serviceProviderCluster is not available"), nil
 	}
-	logger := utils.LoggerFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
+	}
 
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
 	if lowest == nil {

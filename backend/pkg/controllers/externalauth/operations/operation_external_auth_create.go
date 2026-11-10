@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -34,7 +36,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 )
 
 type operationExternalAuthCreate struct {
@@ -84,9 +85,7 @@ func NewOperationExternalAuthCreateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*externalAuthOperationCreateStatusInput](
-		&externalAuthCreateClusterServiceCreateCheck{externalAuthLister: externalAuthLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationExternalAuthCreateControllerName,
@@ -97,6 +96,16 @@ func NewOperationExternalAuthCreateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of create-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationExternalAuthCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[*externalAuthOperationCreateStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*externalAuthOperationCreateStatusInput](
+		&externalAuthCreateClusterServiceCreateCheck{externalAuthLister: c.externalAuthLister},
+	)
 }
 
 func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {

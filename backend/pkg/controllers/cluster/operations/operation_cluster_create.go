@@ -99,18 +99,7 @@ func NewOperationClusterCreateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[struct{}](
-		&clusterCreateValidationCheck{clock: clock, serviceProviderClusterLister: serviceProviderClusterLister},
-		&clusterCreateHostedClusterCheck{readDesireLister: readDesireLister},
-		&clusterCreateResourceCheck{clusterLister: clusterLister},
-		&clusterCreateClusterServiceCheck{clusterLister: clusterLister, clusterServiceClient: clusterServiceClient},
-		&clusterCreatePlacementCheck{clusterLister: clusterLister, clock: clock, serviceProviderClusterLister: serviceProviderClusterLister},
-		&clusterCreateServingCACheck{serviceProviderClusterLister: serviceProviderClusterLister},
-		&clusterCreateIngressCertificateCheck{readDesireLister: readDesireLister},
-		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: serviceProviderClusterLister},
-		&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: serviceProviderClusterLister},
-		&clusterCreateDataPlaneOIDCFederationCheck{serviceProviderClusterLister: serviceProviderClusterLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationClusterCreateControllerName,
@@ -121,6 +110,25 @@ func NewOperationClusterCreateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of create-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationClusterCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[struct{}], error) {
+	return operationbase.NewOperationStatusCalculators[struct{}](
+		&clusterCreateValidationCheck{clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateHostedClusterCheck{readDesireLister: c.readDesireLister},
+		&clusterCreateResourceCheck{clusterLister: c.clusterLister},
+		&clusterCreateClusterServiceCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient},
+		&clusterCreatePlacementCheck{clusterLister: c.clusterLister, clock: c.clock, serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateServingCACheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateDefaultIngressCertificateCheck{readDesireLister: c.readDesireLister},
+		&clusterCreateRoleAssignmentsCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateTLSCertificatesCheck{serviceProviderClusterLister: c.serviceProviderClusterLister},
+		&clusterCreateDataPlaneOIDCFederationCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister},
+	)
 }
 
 func (c *operationClusterCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -169,7 +177,6 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
-	// TODO  c.statusCalculators.CalculateOperationStatus doesn't accumulate like done in main branch. redesign
 	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, cluster.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "cluster creation did not complete before the deadline")
 	if err != nil {

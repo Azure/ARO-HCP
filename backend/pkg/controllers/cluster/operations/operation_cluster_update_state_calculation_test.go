@@ -793,13 +793,14 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			controller := &clusterUpdateHostedClusterCheck{
-				clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}},
+				serviceProviderClusterLister: spcListerForCluster(tt.cluster.ID, tt.serviceProviderCluster),
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}
 
-			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.cluster.ID}, clusterUpdateOperationStatusInput{ServiceProviderCluster: tt.serviceProviderCluster})
+			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.cluster.ID}, clusterUpdateOperationStatusInput{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -1784,7 +1785,9 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.cluster.ID = operationtesting.NewClusterTestFixture().ClusterResourceID
+			fixture := operationtesting.NewClusterTestFixture()
+			tt.cluster.ID = fixture.ClusterResourceID
+			tt.cluster.ServiceProviderProperties.ClusterServiceID = &fixture.ClusterInternalID
 			controller := &clusterUpdateClusterServiceSpecCheck{clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{tt.cluster}}}
 			state, err := controller.CalculateOperationStatus(
 				context.Background(),
@@ -2113,10 +2116,11 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 			}
 
 			controller := &clusterUpdateAutoscalerCheck{
-				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{Desires: readDesires},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: readDesires},
 			}
 
-			got, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: cluster.ID}, clusterUpdateOperationStatusInput{ServiceProviderCluster: spc})
+			got, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: cluster.ID}, clusterUpdateOperationStatusInput{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, got.ProvisioningState)
 			assert.Equal(t, tt.wantMessage, got.Message)

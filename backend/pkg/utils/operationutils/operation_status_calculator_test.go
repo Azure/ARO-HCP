@@ -126,8 +126,12 @@ func TestOperationStatusCalculatorsJoinErrors(t *testing.T) {
 		calculators[source] = &stubOperationStatusCalculator[struct{}]{source: source, state: NewOperationState(coreapi.ProvisioningStateSucceeded, ""), err: sourceError, calls: &calls}
 	}
 	got, err := calculators.CalculateOperationStatus(context.Background(), &coreapi.Operation{}, struct{}{})
-	assert.Nil(t, got, "source errors must prevent returning a partial union")
+	// Source errors no longer discard the states that were observed; the summarized
+	// state is still returned alongside the joined errors so callers can act on it.
+	require.NotNil(t, got)
+	assert.Equal(t, coreapi.ProvisioningStateSucceeded, got.ProvisioningState)
 	require.Error(t, err)
+	// Each source error is wrapped, so its identity is preserved in the joined error.
 	assert.ErrorIs(t, err, listerError)
 	assert.ErrorIs(t, err, clientError)
 	assert.Contains(t, err.Error(), `source "a-lister"`)
@@ -140,9 +144,12 @@ func TestOperationStatusCalculatorsRejectInvalidStates(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		state     *OperationState
+		wantState coreapi.ProvisioningState
 		wantError string
 	}{
-		{name: "nil", wantError: "nil operation state"},
+		// A nil state simply contributes nothing, so the valid sibling source still wins.
+		{name: "nil", wantState: coreapi.ProvisioningStateSucceeded, wantError: "nil operation state"},
+		// An empty provisioning state ranks worst and poisons the summary, so no state is returned.
 		{name: "empty provisioning state", state: &OperationState{}, wantError: "empty provisioning state"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -154,7 +161,12 @@ func TestOperationStatusCalculatorsRejectInvalidStates(t *testing.T) {
 			)
 			require.NoError(t, err)
 			got, err := calculators.CalculateOperationStatus(context.Background(), &coreapi.Operation{}, struct{}{})
-			assert.Nil(t, got)
+			if tc.wantState == "" {
+				assert.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				assert.Equal(t, tc.wantState, got.ProvisioningState)
+			}
 			require.ErrorContains(t, err, tc.wantError)
 			assert.Contains(t, err.Error(), `source "a-invalid"`)
 			assert.True(t, ready.called, "invalid results must not stop other observations")

@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -35,7 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 )
 
 type operationExternalAuthUpdate struct {
@@ -87,10 +88,7 @@ func NewOperationExternalAuthUpdateController(
 		notificationClient:     notificationClient,
 	}
 
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[*externalAuthUpdateOperationStatusInput](
-		&externalAuthUpdateClusterServiceSpecCheck{externalAuthLister: externalAuthLister},
-		&externalAuthUpdateHypershiftHostedClusterCheck{externalAuthLister: externalAuthLister, readDesireLister: readDesireLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationExternalAuthUpdateControllerName,
@@ -101,6 +99,17 @@ func NewOperationExternalAuthUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationExternalAuthUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[*externalAuthUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*externalAuthUpdateOperationStatusInput](
+		&externalAuthUpdateClusterServiceSpecCheck{externalAuthLister: c.externalAuthLister},
+		&externalAuthUpdateHypershiftHostedClusterCheck{externalAuthLister: c.externalAuthLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {

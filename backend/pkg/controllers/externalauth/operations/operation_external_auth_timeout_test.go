@@ -191,7 +191,7 @@ func TestExternalAuthOperationCompletionDeadline(t *testing.T) {
 					}
 					switch request {
 					case cosmosstorageutils.OperationRequestCreate:
-						syncer = &operationExternalAuthCreate{
+						createSyncer := &operationExternalAuthCreate{
 							clock:                  clock,
 							resourcesDBClient:      client,
 							activeOperationsLister: operationLister,
@@ -199,8 +199,11 @@ func TestExternalAuthOperationCompletionDeadline(t *testing.T) {
 							clusterServiceClient:   cs,
 							notificationClient:     server.Client(),
 						}
+						createSyncer.statusCalculators, err = createSyncer.newStatusCalculators()
+						require.NoError(t, err)
+						syncer = createSyncer
 					case cosmosstorageutils.OperationRequestUpdate:
-						syncer = &operationExternalAuthUpdate{
+						updateSyncer := &operationExternalAuthUpdate{
 							clock:                  clock,
 							resourcesDBClient:      client,
 							activeOperationsLister: operationLister,
@@ -209,6 +212,9 @@ func TestExternalAuthOperationCompletionDeadline(t *testing.T) {
 							readDesireLister:       &kubeapplierlistertesting.SliceReadDesireLister{},
 							notificationClient:     server.Client(),
 						}
+						updateSyncer.statusCalculators, err = updateSyncer.newStatusCalculators()
+						require.NoError(t, err)
+						syncer = updateSyncer
 					case cosmosstorageutils.OperationRequestDelete:
 						syncer = &operationExternalAuthDelete{
 							clock:                clock,
@@ -237,6 +243,8 @@ func TestExternalAuthOperationCompletionDeadline(t *testing.T) {
 							wantStatus = coreapi.ProvisioningStateSucceeded
 						case expires && !tc.absent:
 							wantStatus = coreapi.ProvisioningStateFailed
+						case tc.noCSID && request == cosmosstorageutils.OperationRequestCreate:
+							wantStatus = coreapi.ProvisioningStateProvisioning
 						case tc.noCSID && request == cosmosstorageutils.OperationRequestUpdate:
 							wantStatus = coreapi.ProvisioningStateUpdating
 						case readsCS && !tc.csError:

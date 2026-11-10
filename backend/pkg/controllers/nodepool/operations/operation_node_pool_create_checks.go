@@ -45,10 +45,11 @@ func (c *nodePoolCreateClusterServiceCheck) CalculateOperationStatus(ctx context
 		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 
-	// TODO is this check correct here?
-	// Deletion may have cleared the ID since SynchronizeOperation read the node pool.
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || nodePool.ServiceProviderProperties.ClusterServiceID.String() == "" {
-		return nil, utils.TrackError(fmt.Errorf("node pool cluster service ID is not set"))
+	// The Cluster Service resource is created asynchronously. Until its ID is
+	// populated there is nothing to query, so report the operation as still
+	// provisioning rather than dereferencing a nil ClusterServiceID.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "node pool cluster service id is not set"), nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)

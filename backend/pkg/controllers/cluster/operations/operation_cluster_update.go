@@ -16,7 +16,6 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -98,14 +97,7 @@ func NewOperationClusterUpdateController(
 	}
 
 	// The registry is fixed in code; invalid source registrations are startup errors.
-	syncer.statusCalculators = metadataapi.Must(operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
-		&clusterUpdateValidationCheck{clock: clock},
-		&clusterUpdateDesiredVersionCheck{clusterLister: clusterLister, clock: clock, desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen},
-		&clusterUpdateClusterServiceStatusCheck{clusterLister: clusterLister, clusterServiceClient: clusterServiceClient},
-		&clusterUpdateClusterServiceSpecCheck{clusterLister: clusterLister},
-		&clusterUpdateHostedClusterCheck{clusterLister: clusterLister, readDesireLister: readDesireLister},
-		&clusterUpdateAutoscalerCheck{readDesireLister: readDesireLister},
-	))
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationClusterUpdateControllerName,
@@ -116,6 +108,21 @@ func NewOperationClusterUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationClusterUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[clusterUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
+		&clusterUpdateValidationCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock},
+		&clusterUpdateDesiredVersionCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock, desiredVersionMismatchFirstSeen: c.desiredVersionMismatchFirstSeen},
+		&clusterUpdateClusterServiceStatusCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient},
+		&clusterUpdateClusterServiceSpecCheck{clusterLister: c.clusterLister},
+		&clusterUpdateHostedClusterCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
+		&clusterUpdateAutoscalerCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -168,22 +175,11 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	var inputErrs []error
-
-	serviceProviderResource, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		inputErrs = append(inputErrs, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err)))
-	}
 	input := clusterUpdateOperationStatusInput{
-		ServiceProviderCluster:   serviceProviderResource,
 		ClusterServiceOnceGetter: newClusterServiceClusterOnceGetter(c.clusterServiceClient),
 	}
 
 	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
-	if len(inputErrs) > 0 {
-		logger.Error(err, "failed to build operation status input")
-		observationErr = errors.Join(observationErr, errors.Join(inputErrs...))
-	}
 	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)

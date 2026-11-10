@@ -554,6 +554,9 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 				},
 			}
 
+			tt.operationStatusInput.ClusterServiceNodePoolOnceGetter = func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+				return tt.operationStatusInput.ClusterServiceNodePool, nil
+			}
 			state, err := controller.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.operationStatusInput)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
@@ -676,6 +679,9 @@ func TestClusterServiceNodePoolSpecOperationState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			controller := &nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{tt.nodePool}}}
+			tt.operationStatusInput.ClusterServiceNodePoolOnceGetter = func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+				return tt.operationStatusInput.ClusterServiceNodePool, nil
+			}
 			state, err := controller.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.nodePool.ID}, tt.operationStatusInput)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)

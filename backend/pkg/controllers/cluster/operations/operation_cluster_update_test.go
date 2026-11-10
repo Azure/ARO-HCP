@@ -37,7 +37,6 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -73,8 +72,26 @@ func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
 			},
 		},
 	)
-	require.ErrorContains(t, err, "cluster service ID is no longer available")
-	assert.Nil(t, state)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, coreapi.ProvisioningStateUpdating, state.ProvisioningState)
+	assert.Contains(t, state.Message, "cluster service ID is not set")
+}
+
+// spcListerForCluster returns a ServiceProviderCluster slice lister keyed so that
+// it resolves for the given cluster. The check reads the ServiceProviderCluster
+// from this lister (not from the operation status input), so its resource ID must
+// be the ServiceProviderCluster child of the cluster's resource ID.
+func spcListerForCluster(clusterID *azcorearm.ResourceID, spc *coreapi.ServiceProviderCluster) *corelistertesting.SliceServiceProviderClusterLister {
+	if spc == nil {
+		return &corelistertesting.SliceServiceProviderClusterLister{}
+	}
+	spc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		clusterID.String(),
+		coreapi.ServiceProviderClusterResourceTypeName,
+		coreapi.ServiceProviderClusterResourceName,
+	)))
+	return &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}}
 }
 
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
@@ -107,10 +124,11 @@ func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 			// document now that the rollout controllers own desired versions.
 			syncer := &clusterUpdateDesiredVersionCheck{
 				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister:    spcListerForCluster(cluster.ID, spc),
 				clock:                           clocktesting.NewFakeClock(time.Now()),
 				desiredVersionMismatchFirstSeen: lru.New(10),
 			}
-			state, err := syncer.CalculateOperationStatus(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{ServiceProviderCluster: spc})
+			state, err := syncer.CalculateOperationStatus(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, state.ProvisioningState)
 		})
@@ -963,14 +981,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
-			controller.statusCalculators, err = operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
-				&clusterUpdateValidationCheck{clock: controller.clock},
-				&clusterUpdateDesiredVersionCheck{clusterLister: controller.clusterLister, clock: controller.clock, desiredVersionMismatchFirstSeen: controller.desiredVersionMismatchFirstSeen},
-				&clusterUpdateClusterServiceStatusCheck{clusterLister: controller.clusterLister, clusterServiceClient: controller.clusterServiceClient},
-				&clusterUpdateClusterServiceSpecCheck{clusterLister: controller.clusterLister},
-				&clusterUpdateHostedClusterCheck{clusterLister: controller.clusterLister, readDesireLister: controller.readDesireLister},
-				&clusterUpdateAutoscalerCheck{readDesireLister: controller.readDesireLister},
-			)
+			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)
