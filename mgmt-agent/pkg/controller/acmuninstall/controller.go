@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -70,6 +71,7 @@ var (
 )
 
 const (
+	stepEnsureHypershiftOperatorNotManagedByMCE = "ensure-hypershift-operator-not-managed-by-mce"
 	stepEnsurePodNetworksNotACMOwned            = "ensure-podnetworks-not-acm-owned"
 	stepEnsurePodNetworkInstancesNotACMOwned    = "ensure-podnetworkinstances-not-acm-owned"
 	stepEnsureHostedClusterResourcesNotACMOwned = "ensure-hostedcluster-resources-not-acm-owned"
@@ -109,6 +111,9 @@ type step struct {
 //  2. PodNetworkInstance objects are not ACM-owned
 //  3. HostedClusters, their namespaced resources, and HostedControlPlane
 //     namespaces are not ACM-owned
+//  4. Hypershift operator deployment is annotated
+//     hypershift.open-cluster-management.io/not-by-mce=true so the
+//     Hypershift addon agent does not clean it up
 //
 // After the prerequisites succeed once they are not rechecked: new clusters are
 // no longer ACM-managed, so ownership cannot reappear for this purpose.
@@ -145,6 +150,7 @@ func NewController(kubeClient kubernetes.Interface, dynamicClient dynamic.Interf
 		{name: stepEnsurePodNetworksNotACMOwned, run: c.ensurePodNetworksNotACMOwned},
 		{name: stepEnsurePodNetworkInstancesNotACMOwned, run: c.ensurePodNetworkInstancesNotACMOwned},
 		{name: stepEnsureHostedClusterResourcesNotACMOwned, run: c.ensureHostedClusterResourcesNotACMOwned},
+		{name: stepEnsureHypershiftOperatorNotManagedByMCE, run: c.ensureHypershiftOperatorNotManagedByMCE},
 	}
 	c.steps = []step{
 		{name: stepDeleteMCE, run: c.ensureMCEDeleted},
@@ -246,6 +252,54 @@ func (c *Controller) reconcile(ctx context.Context) (time.Duration, error) {
 
 	logger.Info("ACM uninstall completed; all steps finished")
 	return idleRecheckInterval, nil
+}
+
+// ensureHypershiftOperatorNotManagedByMCE ensures the Hypershift operator
+// deployment carries hypershift.open-cluster-management.io/not-by-mce=true so
+// the addon agent does not clean it up. Without this annotation MCE will
+// continue managing the operator; see isHypershiftOperatorByMCE /
+// operatorUpgradable:
+// https://github.com/stolostron/hypershift-addon-operator/blob/31eb17c58ae007f670ff5308498e5c56d8f64e5e/pkg/install/hypershift.go#L775
+// If the annotation is missing, it patches and returns not done so reconcile
+// rechecks after the patch. Annotation docs:
+// https://github.com/stolostron/hypershift-addon-operator/blob/main/docs/configuration/disable_hypershift_operator_management.md
+func (c *Controller) ensureHypershiftOperatorNotManagedByMCE(ctx context.Context) (stepResult, error) {
+	const (
+		namespace                      = "hypershift"
+		name                           = "operator"
+		notManagedByMCEAnnotationKey   = "hypershift.open-cluster-management.io/not-by-mce"
+		notManagedByMCEAnnotationValue = "true"
+	)
+
+	logger := utils.LoggerFromContext(ctx)
+
+	deploy, err := c.kubeClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return stepResult{}, fmt.Errorf("get Hypershift operator deployment %s/%s: %w", namespace, name, err)
+	}
+
+	if deploy.Annotations[notManagedByMCEAnnotationKey] == notManagedByMCEAnnotationValue {
+		return stepResult{done: true}, nil
+	}
+
+	logger.Info("annotating Hypershift operator deployment so MCE does not manage it",
+		"namespace", namespace,
+		"name", name,
+		"annotation", notManagedByMCEAnnotationKey,
+	)
+	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{%q:%q}}}`, notManagedByMCEAnnotationKey, notManagedByMCEAnnotationValue))
+	_, err = c.kubeClient.AppsV1().Deployments(namespace).Patch(
+		ctx, name, types.MergePatchType, patch, metav1.PatchOptions{},
+	)
+	if err != nil {
+		return stepResult{}, fmt.Errorf("annotate Hypershift operator deployment %s/%s: %w", namespace, name, err)
+	}
+
+	return stepResult{
+		done:   false,
+		reason: "patched Hypershift operator deployment with not-by-mce annotation; waiting to recheck",
+		values: []any{"namespace", namespace, "name", name},
+	}, nil
 }
 
 func (c *Controller) ensureMCEDeleted(ctx context.Context) (stepResult, error) {
