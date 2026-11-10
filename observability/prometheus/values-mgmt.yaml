@@ -98,6 +98,9 @@ kube-prometheus-stack:
       - apiGroups: ["velero.io"]
         resources: ["deletebackuprequests"]
         verbs: ["list", "watch"]
+      - apiGroups: ["cluster.x-k8s.io"]
+        resources: ["machines"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -217,6 +220,56 @@ kube-prometheus-stack:
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
+          # CAPI Machines for the hosted clusters live in the hosted control plane
+          # namespaces (ocm-*) on this management cluster, so these metrics are routed
+          # to the HCP Azure Monitor Workspace by the remoteWrite rules in
+          # templates/prometheus.yaml and dropped from the service workspace.
+          # CAPI serves both v1beta1 and v1beta2; v1beta2 is the storage version and is
+          # what we must use here. Under v1beta1 the Machine's status.conditions still
+          # holds the pre-v1beta2 condition set, which has no Deleting condition at all
+          # -- that one lives at status.v1beta2.conditions. Pinning v1beta1 therefore
+          # silently yields no deleting_stage series (verified on a live management
+          # cluster). Note this is a different answer from swift-recorder, which reads
+          # Machines as v1beta1 (see its clusterv1 import comment); that is fine because
+          # it only touches fields common to both.
+          - groupVersionKind:
+              group: cluster.x-k8s.io
+              kind: "Machine"
+              version: "v1beta2"
+            metricNamePrefix: capiMachine
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              node: [status, nodeRef, name]
+              node_pool: [metadata, labels, "cluster.x-k8s.io/deployment-name"]
+            metrics:
+            - name: "node_drain_start_time_seconds"
+              help: "Unix time at which CAPI started draining this Machine's node. Set once the Machine is deleting and the drain has begun; a series exists only for Machines being deleted, so this costs nothing on a steady-state cluster. nilIsZero is deliberately omitted to keep it that way -- with it, every worker Machine would carry a series. CAVEAT: CAPI does NOT clear nodeDrainStartTime when the drain finishes, so on its own this cannot distinguish a wedged drain from a Machine whose drain succeeded but whose Azure VM deletion is slow. Prefer the recording rule duration:capiMachine_node_draining:seconds, which gates this on deleting_stage{reason=\"DrainingNode\"} and is the supported way to ask how long a node has been draining."
+              # Scoped to this metric on purpose, NOT to the whole resource block.
+              # An unresolved path is the normal case here (most Machines are not
+              # draining), but KSM has no "absent means no metric" mode: in
+              # registry_factory.go it either honours nilIsZero and emits 0, or returns
+              # "got nil while resolving path" as an error logged once per object per
+              # scrape. Verified on a live management cluster -- one line per
+              # non-draining Machine, every scrape, per Prometheus replica, all landing
+              # in the containerLogs Kusto table. errorLogV demotes those to V(10).
+              # Keeping it per-metric matters: the resource-level form also silences
+              # genuinely broken paths in sibling metrics, which is how a misconfigured
+              # deleting_stage first showed up as "no series and no explanation".
+              errorLogV: 10
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, deletion, nodeDrainStartTime]
+            - name: "deleting_stage"
+              help: "Which stage of the CAPI deletion workflow a Machine is in, from the reason on its Deleting condition (DrainingNode, WaitingForVolumeDetach, WaitingForInfrastructureDeletion, NotDeleting, ...). The value is the condition's lastTransitionTime in Unix seconds. One series per Machine, since CAPI keeps a Deleting=False/NotDeleting condition on idle Machines too. Combined with node_drain_start_time_seconds by the recording rule duration:capiMachine_node_draining:seconds; also useful on its own to see which deletion stage a Machine is wedged in."
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, conditions, "[type=Deleting]"]
+                  labelsFromPath:
+                    reason: [reason]
+                  valueFrom: [lastTransitionTime]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:

@@ -299,3 +299,21 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     ]
   }
 }
+
+resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_node_drain_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'duration:capiMachine_node_draining:seconds'
+        expression: '(time() - max by (cluster, namespace, name, node, node_pool, region) (capiMachine_node_drain_start_time_seconds)) and on (cluster, namespace, name) (max by (cluster, namespace, name, region) (capiMachine_deleting_stage{reason="DrainingNode"}))'
+      }
+    ]
+  }
+}
