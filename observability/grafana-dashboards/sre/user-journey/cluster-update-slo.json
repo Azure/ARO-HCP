@@ -68,16 +68,26 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
+          "expr": "(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0)) * 100",
           "instant": true,
-          "legendFormat": "Success Rate",
+          "legendFormat": "Succeeded x100",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})",
+          "instant": true,
+          "legendFormat": "Completed",
+          "refId": "B"
         }
       ],
       "title": "Success Rate (Latest Update per Cluster)",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
-        { "id": "merge", "options": {} }
+        { "id": "groupBy", "options": { "fields": { "Metric": { "operation": "groupby", "aggregations": [] }, "Value": { "operation": "aggregate", "aggregations": ["sum"] } } } },
+        { "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "Metric", "handlerKey": "field.name" }, { "fieldName": "Value (sum)", "handlerKey": "field.value" }] } },
+        { "id": "calculateField", "options": { "alias": "Success Rate", "binary": { "left": "Succeeded x100", "operator": "/", "reducer": "sum", "right": "Completed" }, "mode": "binary", "reduce": { "reducer": "sum" }, "replaceFields": true } }
       ],
       "type": "stat"
     },
@@ -122,8 +132,8 @@
       ],
       "title": "Clusters with Failed Latest Update",
       "transformations": [
-        { "id": "seriesToRows", "options": {} },
-        { "id": "merge", "options": {} }
+        { "id": "merge", "options": {} },
+        { "id": "reduce", "options": { "reducers": ["sum"] } }
       ],
       "type": "stat"
     },
@@ -167,19 +177,21 @@
       ],
       "title": "Stuck Operations (>90m)",
       "transformations": [
-        { "id": "seriesToRows", "options": {} },
-        { "id": "merge", "options": {} }
+        { "id": "merge", "options": {} },
+        { "id": "reduce", "options": { "reducers": ["sum"] } }
       ],
       "type": "stat"
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead. The displayed value is clamped to 0-100%.",
+      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead. Computed fleet-wide as (5% budget - failure rate) / 5% from failed and completed counts summed across the selected datasources; an overspent budget is shown as 0%.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "decimals": 1,
-          "mappings": [],
+          "mappings": [
+            { "type": "range", "options": { "from": null, "to": 0, "result": { "text": "0%", "color": "red", "index": 0 } } }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -209,16 +221,26 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp(\n  (0.05 - (\n    (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0))\n    /\n    clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n  )) / 0.05 * 100,\n  0,\n  100\n)",
+          "expr": "(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) - 20 * (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0))) * 100",
           "instant": true,
-          "legendFormat": "Error Budget Remaining",
+          "legendFormat": "Budget x100",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})",
+          "instant": true,
+          "legendFormat": "Completed",
+          "refId": "B"
         }
       ],
       "title": "Error Budget Remaining (Indicative)",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
-        { "id": "merge", "options": {} }
+        { "id": "groupBy", "options": { "fields": { "Metric": { "operation": "groupby", "aggregations": [] }, "Value": { "operation": "aggregate", "aggregations": ["sum"] } } } },
+        { "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "Metric", "handlerKey": "field.name" }, { "fieldName": "Value (sum)", "handlerKey": "field.value" }] } },
+        { "id": "calculateField", "options": { "alias": "Error Budget Remaining", "binary": { "left": "Budget x100", "operator": "/", "reducer": "sum", "right": "Completed" }, "mode": "binary", "reduce": { "reducer": "sum" }, "replaceFields": true } }
       ],
       "type": "stat"
     },
