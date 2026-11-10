@@ -241,6 +241,138 @@ func TestAllowlistIsCaseSensitive(t *testing.T) {
 // though it were the config itself, while git records only the link and
 // nothing underneath it — which is precisely the entry no filename rule can
 // see. A mode added to this set needs an answer for what it actually names.
+// TestConfigLocationBoundaries pins where a configuration location starts and
+// stops. Every case here is a near miss that must fall on a specific side: the
+// segment rule must not match a longer directory name, and the prefix rule
+// must not match a longer one either, which is the whole reason the prefixes
+// carry a trailing slash.
+func TestConfigLocationBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		path     string
+		inConfig bool
+	}{
+		// Segment matching: a whole element, never a substring.
+		{path: ".claude/x.md", inConfig: true},
+		{path: "frontend/.claude/x.md", inConfig: true},
+		{path: "a/b/c/.vscode/x", inConfig: true},
+		{path: ".claude", inConfig: true}, // the directory name as a tracked entry
+		{path: "notclaude/x.md"},
+		{path: ".claudex/x.md"},
+		{path: "x/.claude.bak/y.md"},
+		{path: "docs/claude/x.md"},
+
+		// Prefix matching: the trailing slash is what stops ".github/agents"
+		// from matching ".github/agentsfoo".
+		{path: ".github/agents/x.md", inConfig: true},
+		{path: ".github/skills/s/SKILL.md", inConfig: true},
+		{path: ".github/instructions/x.md", inConfig: true},
+		{path: ".github/agentsfoo/x.md"},
+		{path: ".github/skillsets/x.md"},
+		{path: ".github/agents"}, // a file with that name, not the directory
+		{path: ".github/workflows/ci.yml"},
+		{path: ".github/scripts/x.py"},
+
+		// A prefix is anchored at the repository root, and "skills" or
+		// "agents" anywhere else is an ordinary directory name.
+		{path: "docs/.github/agents/x.md"},
+		{path: "docs/skills/guide.md"},
+		{path: "internal/agents/pool.go"},
+
+		// Case folds for the location match, so a spelling cannot evade it.
+		{path: ".GITHUB/AGENTS/x.md", inConfig: true},
+		{path: "Frontend/.Claude/x.md", inConfig: true},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			findings := checkPaths(regularFiles(tc.path))
+
+			// Nothing here is allowlisted, so being in a configuration
+			// location is exactly equivalent to being refused as unlisted.
+			got := len(findings) == 1 && findings[0].rule == ruleUnlistedConfig
+			if got != tc.inConfig {
+				t.Fatalf("expected inConfigLocation=%v for %s, got %+v", tc.inConfig, tc.path, findings)
+			}
+		})
+	}
+}
+
+// TestParseIndexEntries covers the shapes git should never emit. They are
+// parse errors rather than skipped entries on purpose: silently dropping a
+// malformed record would drop a file from the scan.
+func TestParseIndexEntries(t *testing.T) {
+	const good = "100644 9a2a01d70a1051e12a975753da6d03c1582654d1 0\t.claude/x.md\x00"
+
+	t.Run("well formed", func(t *testing.T) {
+		files, err := parseIndexEntries([]byte(good))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(files) != 1 {
+			t.Fatalf("expected one entry, got %+v", files)
+		}
+		want := trackedFile{path: ".claude/x.md", mode: "100644", oid: "9a2a01d70a1051e12a975753da6d03c1582654d1"}
+		if files[0] != want {
+			t.Errorf("expected %+v, got %+v", want, files[0])
+		}
+	})
+
+	t.Run("empty index", func(t *testing.T) {
+		files, err := parseIndexEntries(nil)
+		if err != nil || len(files) != 0 {
+			t.Fatalf("expected no entries and no error, got %+v / %v", files, err)
+		}
+	})
+
+	t.Run("trailing NUL does not produce an empty entry", func(t *testing.T) {
+		files, err := parseIndexEntries([]byte(good + good))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(files) != 2 {
+			t.Fatalf("expected two entries, got %+v", files)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		in   string
+	}{
+		{name: "no tab separating metadata from path", in: "100644 9a2a01d 0 .claude/x.md\x00"},
+		{name: "no space after the mode", in: "100644\t.claude/x.md\x00"},
+		{name: "no space after the object ID", in: "100644 9a2a01d\t.claude/x.md\x00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := parseIndexEntries([]byte(tc.in)); err == nil {
+				t.Fatalf("expected an error for %q", tc.in)
+			}
+		})
+	}
+}
+
+// TestScanRepositoryFailsOutsideARepository pins that a git failure is an
+// internal error rather than an empty clean result. Reporting "no findings"
+// when the index could not be read would be the worst possible outcome: a
+// green check that inspected nothing.
+func TestScanRepositoryFailsOutsideARepository(t *testing.T) {
+	findings, err := scanRepository(t.TempDir())
+	if err == nil {
+		t.Fatalf("expected an error outside a repository, got findings %+v", findings)
+	}
+	if findings != nil {
+		t.Errorf("expected no findings alongside the error, got %+v", findings)
+	}
+	if !strings.Contains(err.Error(), "error listing tracked files") {
+		t.Errorf("expected the error to name the failure, got %v", err)
+	}
+}
+
+// TestCheckPathsOnAnEmptyIndex guards the other direction: an empty repository
+// is clean, not an error.
+func TestCheckPathsOnAnEmptyIndex(t *testing.T) {
+	if findings := checkPaths(nil); len(findings) != 0 {
+		t.Fatalf("expected no findings for an empty index, got %+v", findings)
+	}
+}
+
 func TestIsRegularFile(t *testing.T) {
 	for _, tc := range []struct {
 		mode string
