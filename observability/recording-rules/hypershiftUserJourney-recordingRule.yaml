@@ -39,6 +39,8 @@ spec:
     # would miss outages between rule evaluations. Zero desired replicas and
     # missing deployment telemetry are not healthy availability observations.
     # Keep the lowest replica window so staggered HA scrapes cannot hide outages.
+    # Cap each fraction before averaging so surge replicas cannot repay downtime.
+    # Non-overlapping 15s input windows capture 30s scrapes without filling gaps.
     # Dashboard availability/coverage/budgets use this one-minute good fraction.
     # Burn-rate alerts in Azure/ARO-HCP#7989 instead use
     # hypershift:operator:replicas_unavailable:ratio, a point-in-time bad fraction.
@@ -46,13 +48,15 @@ spec:
     # Both recordings share this group; see docs/alerts/hypershift-operators.md.
     - record: hypershift:operator:availability:ratio1m
       expr: |
-        clamp_max(
-          min by (cluster) (
-            avg_over_time(kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"}[1m])
-            /
-            (avg_over_time(kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}[1m]) > 0)
-          ),
-          1
+        min by (cluster) (
+          avg_over_time(
+            clamp_max(
+              last_over_time(kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"}[15s])
+              /
+              (last_over_time(kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"}[15s]) > 0),
+              1
+            )[1m:15s]
+          )
         )
   # HostedCluster condition health is a separate journey signal, not component
   # replica availability. Multiple failure conditions can count one cluster twice.

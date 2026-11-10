@@ -41,17 +41,21 @@ spec:
     # scrapes so short outages survive the one-minute recording interval.
     # Keep each HCP separate; scaled-to-zero deployments are not eligible.
     # Keep the lowest replica window so staggered HA scrapes cannot hide outages.
+    # Cap each fraction before averaging so surge replicas cannot repay downtime.
+    # Non-overlapping 15s input windows capture 30s scrapes without filling gaps.
     # Dashboard accounting uses this one-minute good fraction; burn-rate alerts
     # in Azure/ARO-HCP#7989 use hypershift:cpo:replicas_unavailable:ratio instead.
     # Their point-in-time bad fraction is not the exact complement of this rule.
     # Both recordings share this hypershift-cpo-recording-rules group.
     - record: hypershift:cpo:availability:ratio1m
       expr: |
-        clamp_max(
-          min by (cluster, namespace) (
-            avg_over_time(kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m])
-            /
-            (avg_over_time(kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m]) > 0)
-          ),
-          1
+        min by (cluster, namespace) (
+          avg_over_time(
+            clamp_max(
+              last_over_time(kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}[15s])
+              /
+              (last_over_time(kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}[15s]) > 0),
+              1
+            )[1m:15s]
+          )
         )

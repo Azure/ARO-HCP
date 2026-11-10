@@ -728,7 +728,7 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
       }
       {
         record: 'hypershift:operator:availability:ratio1m'
-        expression: 'clamp_max(min by (cluster, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}[1m]) / (avg_over_time(kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}[1m]) > 0)), 1)'
+        expression: 'min by (cluster, region) (avg_over_time(clamp_max(last_over_time(kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}[15s]) / (last_over_time(kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}[15s]) > 0), 1)[1m:15s]))'
       }
     ]
   }

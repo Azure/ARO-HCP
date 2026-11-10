@@ -328,7 +328,7 @@ resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
       }
       {
         record: 'hypershift:cpo:availability:ratio1m'
-        expression: 'clamp_max(min by (cluster, namespace, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m]) / (avg_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m]) > 0)), 1)'
+        expression: 'min by (cluster, namespace, region) (avg_over_time(clamp_max(last_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[15s]) / (last_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[15s]) > 0), 1)[1m:15s]))'
       }
     ]
   }

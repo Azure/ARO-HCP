@@ -50,6 +50,50 @@ tests:
     exp_samples:
     - labels: '{cluster="mc1"}'
       value: -9900
+- interval: 30s
+  name: "Operator surge replicas cannot cancel an unavailable interval"
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1", prometheus_replica="r1"}'
+    values: "3 2 4"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1", prometheus_replica="r1"}'
+    values: "3 3 3"
+  # A healthy HA replica must not mask the other replica's outage.
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1", prometheus_replica="r2"}'
+    values: "3 3 3"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1", prometheus_replica="r2"}'
+    values: "3 3 3"
+  # Changing desired replicas must still average the observed fractions.
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "3 2 6"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc2"}'
+    values: "3 3 6"
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc3"}'
+    values: "3 0 6"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc3"}'
+    values: "3 3 3"
+  promql_expr_test:
+  - expr: hypershift:operator:availability:ratio1m
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hypershift:operator:availability:ratio1m{cluster="mc1"}'
+      value: 0.8333333333333333
+    - labels: 'hypershift:operator:availability:ratio1m{cluster="mc2"}'
+      value: 0.8333333333333333
+    - labels: 'hypershift:operator:availability:ratio1m{cluster="mc3"}'
+      value: 0.5
+- interval: 30s
+  name: "Operator availability does not fill missing scrapes with old healthy values"
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3 _ 0"
+  - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="mc1"}'
+    values: "3 _ 3"
+  promql_expr_test:
+  - expr: hypershift:operator:availability:ratio1m
+    eval_time: 1m
+    exp_samples:
+    - labels: 'hypershift:operator:availability:ratio1m{cluster="mc1"}'
+      value: 0
 - interval: 15s
   name: "Staggered HA scrapes preserve an outage spanning two evaluation windows"
   input_series:
@@ -81,6 +125,8 @@ tests:
   - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="scaled-down"}'
     values: "0+0x10"
   - series: 'kube_deployment_spec_replicas{namespace="hypershift", deployment="operator", cluster="missing-availability"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator", cluster="missing-desired"}'
     values: "3+0x10"
   promql_expr_test:
   - expr: hypershift:operator:availability:ratio1m
