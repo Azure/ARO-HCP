@@ -107,7 +107,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("concurrency must be greater than zero")
 	}
 
-	if o.CleanupWorkflow != string(framework.CleanupWorkflowStandard) && o.CleanupWorkflow != string(framework.CleanupWorkflowNoRP) {
+	if o.CleanupWorkflow != string(framework.CleanupWorkflowStandard) &&
+		o.CleanupWorkflow != string(framework.CleanupWorkflowNoRP) &&
+		o.CleanupWorkflow != string(framework.CleanupWorkflowDirectResourceGroup) {
 		return nil, fmt.Errorf("invalid cleanup workflow: %s", o.CleanupWorkflow)
 	}
 

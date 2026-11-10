@@ -373,6 +373,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		Timeout:            60 * time.Minute,
 		CleanupWorkflow:    CleanupWorkflowStandard,
 	}
+	// The direct resource group deletion experiment is opt-in per spec and never the default.
+	if specSelectsDirectResourceGroupDeletion(ginkgo.CurrentSpecReport().FullText(), os.Getenv(directResourceGroupDeletionSpecsEnv)) {
+		ginkgo.GinkgoLogr.Info("using the direct resource group deletion experiment",
+			"resourceGroups", resourceGroupNames, "selector", directResourceGroupDeletionSpecsEnv)
+		opts.CleanupWorkflow = CleanupWorkflowDirectResourceGroup
+	}
 	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, opts)
 	if errCleanupResourceGroups != nil {
 		if !isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
@@ -452,6 +458,9 @@ type CleanupWorkflow string
 const (
 	CleanupWorkflowStandard CleanupWorkflow = "standard"
 	CleanupWorkflowNoRP     CleanupWorkflow = "no-rp"
+	// CleanupWorkflowDirectResourceGroup deletes the customer resource group without an
+	// explicit HCP cluster delete. It is an opt-in experiment and is never the default.
+	CleanupWorkflowDirectResourceGroup CleanupWorkflow = "direct-resource-group"
 )
 
 type CleanupResourceGroupsOptions struct {
@@ -472,6 +481,10 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 	case CleanupWorkflowNoRP:
 		cleanup = func(ctx context.Context, resourceGroupName string) error {
 			return tc.cleanupResourceGroupNoRP(ctx, resourceGroupName, opts.Timeout, opts.FPACredentials)
+		}
+	case CleanupWorkflowDirectResourceGroup:
+		cleanup = func(ctx context.Context, resourceGroupName string) error {
+			return tc.cleanupResourceGroupByDirectDeletion(ctx, resourceGroupName, opts.Timeout)
 		}
 	default:
 		return fmt.Errorf("unsupported cleanup workflow %q", opts.CleanupWorkflow)
