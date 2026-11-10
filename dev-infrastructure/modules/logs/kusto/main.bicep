@@ -87,6 +87,7 @@ var allServiceLogsTablesKQL = {
   ciProcessedJobs: loadTextContent('tables/ciProcessedJobs.kql')
   ciTestNames: loadTextContent('tables/ciTestNames.kql')
   ciTestResults: loadTextContent('tables/ciTestResults.kql')
+  ciFailurePatterns: loadTextContent('tables/ciFailurePatterns.kql')
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
 

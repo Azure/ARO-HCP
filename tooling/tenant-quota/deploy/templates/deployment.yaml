@@ -8,6 +8,8 @@ metadata:
     app: tenant-quota-collector
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: tenant-quota-collector

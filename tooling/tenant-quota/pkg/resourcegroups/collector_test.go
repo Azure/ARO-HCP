@@ -51,6 +51,13 @@ func testConfig(subs ...config.SubscriptionConfig) *config.Config {
 	cfg := &config.Config{
 		Interval: "1m",
 		Timeout:  "10s",
+		CIJobOutcomes: config.CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: config.CIFailurePatternsConfig{
+			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
 		Tenants: []config.TenantConfig{
 			{
 				TenantID:                 "test-tenant",
@@ -295,6 +302,13 @@ func TestCollectAll_SkipsTenantWithoutSubscriptions(t *testing.T) {
 	cfg := &config.Config{
 		Interval: "1m",
 		Timeout:  "10s",
+		CIJobOutcomes: config.CIJobOutcomesConfig{
+			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
+			TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"},
+		},
+		CIFailurePatterns: config.CIFailurePatternsConfig{
+			Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+		},
 		Tenants: []config.TenantConfig{
 			{
 				TenantID:                 "test-tenant",

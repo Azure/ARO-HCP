@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,6 +23,8 @@ import (
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/query"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 func TestSchemaRequiresSourceAndCorrectTypes(t *testing.T) {
@@ -112,7 +113,7 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 		{name: "empty-population", noRuns: true, noObservations: true},
 	}
 	for _, queryName := range []string{"runs", "observations"} {
-		for _, mode := range []string{"table-partial", "dataset-partial", "truncated-wire"} {
+		for _, mode := range []string{"table-partial", "dataset-partial", "truncated-wire", "completed-primary-missing-terminal", "malformed-trailing"} {
 			tests = append(tests, testCase{name: queryName + "/" + mode, failureQuery: queryName, mode: mode})
 		}
 	}
@@ -120,8 +121,8 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			metadata := testBundle().Metadata
 			metadata.Environment = ""
-			metadata.Filters = Filters{Source: "rp-upgrade\"; take 1", JobFilter: "job\"; take 1"}
-			buildIDs := []string{"run-1", "run-\"2; take 1"}
+			metadata.Filters = Filters{Source: "rp-upgrade🙂\"; take 1", JobFilter: "job𐐷\"; take 1"}
+			buildIDs := []string{"run-1", "run-🙂\"2; take 1"}
 			if tc.noRuns {
 				buildIDs = []string{}
 			}
@@ -171,6 +172,13 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 				}
 				queryName := "runs"
 				parameters := body.Properties.Parameters
+				encodedFilters, encodeErr := json.Marshal(metadata.Filters)
+				if encodeErr != nil {
+					t.Error(encodeErr)
+				}
+				if parameters["filters"] != "dynamic("+string(encodedFilters)+")" {
+					t.Errorf("filter parameter bytes changed: %q", parameters["filters"])
+				}
 				var columns []wireColumn
 				var rows [][]any
 				if strings.Contains(body.CSL, "ciJobOutcomes") {
@@ -178,7 +186,7 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 					if observationRequests.Load() != 0 {
 						t.Error("run query followed observation query")
 					}
-					if len(parameters) != 3 || parameters["windowFrom"] != fmt.Sprintf("datetime(%s)", metadata.Window.From.Format(time.RFC3339Nano)) || parameters["windowTo"] != fmt.Sprintf("datetime(%s)", metadata.Window.To.Format(time.RFC3339Nano)) || parameters["jobFilter"] != strconv.Quote(metadata.Filters.JobFilter) {
+					if len(parameters) != 3 || parameters["windowFrom"] != fmt.Sprintf("datetime(%s)", metadata.Window.From.Format(time.RFC3339Nano)) || parameters["windowTo"] != fmt.Sprintf("datetime(%s)", metadata.Window.To.Format(time.RFC3339Nano)) {
 						t.Errorf("incorrect run parameters: %+v", parameters)
 					}
 					columns = []wireColumn{
@@ -194,14 +202,11 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 					if runRequests.Load() == 0 {
 						t.Error("observation query preceded run query")
 					}
-					if len(parameters) != 2 || parameters["sourceFilter"] != strconv.Quote(metadata.Filters.Source) {
+					if len(parameters) != 2 {
 						t.Errorf("incorrect observation parameters: %+v", parameters)
 					}
 					var capturedIDs []string
-					encodedIDs, decodeErr := strconv.Unquote(parameters["buildIDs"])
-					if decodeErr != nil {
-						t.Errorf("buildIDs is not a quoted string parameter: %v", decodeErr)
-					}
+					encodedIDs := strings.TrimSuffix(strings.TrimPrefix(parameters["buildIDs"], "dynamic("), ")")
 					if err := json.Unmarshal([]byte(encodedIDs), &capturedIDs); err != nil || capturedIDs == nil {
 						t.Errorf("buildIDs is not a JSON array: %v", err)
 					}
@@ -237,7 +242,10 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 				writeFrames(t, writer, columns, rows, mode)
 			}))
 			defer server.Close()
-			client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(server.URL))
+			httpClient := server.Client()
+			httpClient.Timeout = 5 * time.Second
+			httpClient.Transport = kusto.CompleteTransport{Base: httpClient.Transport}
+			client, err := azkustodata.New(azkustodata.NewConnectionStringBuilder(server.URL), azkustodata.WithHttpClient(httpClient))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -273,9 +281,6 @@ func TestTypedSDKParametersAndLateFailures(t *testing.T) {
 			}
 			if err == nil || bundle.SchemaVersion != 0 {
 				t.Fatalf("accepted %s response: %+v, %v", tc.name, bundle, err)
-			}
-			if tc.mode != "truncated-wire" && !strings.Contains(err.Error(), "LimitsExceeded") {
-				t.Fatalf("expected real late query-limit failure, got %v", err)
 			}
 		})
 	}
@@ -325,6 +330,12 @@ func writeFrames(t *testing.T, writer http.ResponseWriter, columns []wireColumn,
 		fmt.Sprintf(`{"FrameType":"TableFragment","TableFragmentType":"DataAppend","TableId":1,"Rows":%s}`, encodedRows),
 		fmt.Sprintf(`{"FrameType":"TableCompletion","TableId":1,"RowCount":%d%s}`, len(rows), tableErrors),
 		fmt.Sprintf(`{"FrameType":"DataSetCompletion","HasErrors":%t,"Cancelled":false%s}`, hasErrors, datasetErrors),
+	}
+	if mode == "completed-primary-missing-terminal" {
+		frames = frames[:len(frames)-1]
+	}
+	if mode == "malformed-trailing" {
+		frames = append(frames, `{"FrameType":`)
 	}
 	if _, err := fmt.Fprint(writer, "["+strings.Join(frames, "\n,")+"\n]\n"); err != nil {
 		t.Error(err)

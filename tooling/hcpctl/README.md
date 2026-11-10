@@ -55,6 +55,10 @@ Live queries use your Azure credentials. The database defaults to `ServiceLogs`;
 - `--job-filter`: case-sensitive job-name substring, defaulting to `e2e-parallel`. Use `--job-filter ""` for all jobs.
 - `--timeout`: collection deadline, including active authentication-metadata requests, defaulting to two minutes. SDK-internal waits behind another metadata initialization may outlast an individual caller's deadline.
 
+Collection uses deadline-bound, strongly consistent reads with the result cache disabled. Each query must end with a successful terminal dataset-completion frame and fit within a 64 MiB decompressed response; missing completion, late errors, cancellation, malformed trailing data, and invalid typed fields are errors, not partial bundles. Query filters and selected build IDs use serialized dynamic parameters, preserving Unicode (including non-BMP characters) without interpolating data into KQL.
+
+Go consumers can reuse `kusto.CompleteQuery` with an SDK client. SDK management/schema reads must additionally install `kusto.CompleteTransport` in the SDK HTTP client. This narrow integrity adapter bounds response bytes, checks whole-response JSON and terminal query status, and leaves frame decoding, typed values, and server errors to SDK v1.2.3. Authentication metadata and ingestion traffic are unchanged. Bare SDK `Query` is not a completeness guarantee.
+
 Replay saved inputs offline to inspect evidence or compare extraction changes:
 
 ```bash
@@ -72,6 +76,8 @@ The JSON report uses schema version **1** and records the extractor version. It 
 One input can contribute to several patterns, so pattern counts overlap. Inspect the referenced results when evaluating grouping or evidence selection; findings describe symptoms rather than confirmed root causes.
 
 **Saved inputs and reports contain raw evidence and may contain secrets. Store them securely and review them before sharing.**
+
+The extractor used here is shared with the [`ci-failure-patterns` controller](../tenant-quota/README.md#derived-ci-failure-patterns) of the tenant-quota collector, which stores the same findings for all failed CI results in Kusto. This CLI does not read or write those stored results: it collects raw facts, extracts locally, and saved bundles remain the frozen evidence source for replay and review.
 
 ## Example Usage
 

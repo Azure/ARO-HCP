@@ -207,6 +207,15 @@ clouds:
             # Bounds recent-submission caches.
             cacheSize: 20000
             cacheTTL: "15m"
+          ciFailurePatterns:
+            results:
+              table: "ciFailurePatterns"
+              ingestionMapping: "ciFailurePatternsMapping"
+            # Newest-build poll interval; the paced history sweep is separate.
+            interval: "5m"
+            workers: 4
+            cacheSize: 20000
+            cacheTTL: "15m"
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"

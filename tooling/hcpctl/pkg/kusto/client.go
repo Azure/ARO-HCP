@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -99,15 +101,20 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-// Query materializes the complete response, including late table and dataset
-// failures. Callers supply query options and bound the operation with ctx.
+// Query materializes a bounded, complete response, requiring successful terminal
+// dataset completion. The configured timeout bounds the operation; clients
+// without a configured timeout must receive a context deadline.
 func (c *Client) Query(ctx context.Context, database string, statement azkustodata.Statement, options ...azkustodata.QueryOption) (azkquery.Dataset, error) {
-	return c.kustoClient.Query(ctx, database, statement, options...)
+	if c.QueryTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.QueryTimeout)
+		defer cancel()
+	}
+	return CompleteQuery(ctx, c.kustoClient, database, statement, options...)
 }
 
-// DecodePrimary decodes exactly one primary result table from a materialized
-// dataset. Auxiliary tables are ignored; absent or ambiguous results are errors.
-func DecodePrimary[T any](dataset azkquery.Dataset) ([]T, error) {
+// PrimaryTable selects exactly one primary result table from a materialized dataset.
+func PrimaryTable(dataset azkquery.Dataset) (azkquery.Table, error) {
 	if dataset == nil {
 		return nil, fmt.Errorf("kusto returned no dataset")
 	}
@@ -124,7 +131,49 @@ func DecodePrimary[T any](dataset azkquery.Dataset) ([]T, error) {
 	if primary == nil {
 		return nil, fmt.Errorf("kusto returned no primary result table")
 	}
-	return azkquery.ToStructs[T](primary)
+	return primary, nil
+}
+
+// DecodePrimary decodes exactly one primary result table from a materialized
+// dataset. Every exported, non-ignored struct field must have a result column,
+// even for an empty table. Errors never return a partially decoded slice.
+func DecodePrimary[T any](dataset azkquery.Dataset) ([]T, error) {
+	primary, err := PrimaryTable(dataset)
+	if err != nil {
+		return nil, fmt.Errorf("select primary result: %w", err)
+	}
+	if err := validatePrimaryColumns[T](primary); err != nil {
+		return nil, err
+	}
+	rows, err := azkquery.ToStructs[T](primary)
+	if err != nil {
+		return nil, fmt.Errorf("decode primary result: %w", err)
+	}
+	return rows, nil
+}
+
+func validatePrimaryColumns[T any](primary azkquery.Table) error {
+	target := reflect.TypeOf((*T)(nil)).Elem()
+	if target.Kind() != reflect.Struct {
+		return fmt.Errorf("primary result target must be a struct")
+	}
+	for i := range target.NumField() {
+		field := target.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := strings.TrimSpace(field.Tag.Get("kusto"))
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		if primary.ColumnByName(name) == nil {
+			return fmt.Errorf("primary result is missing column %q", name)
+		}
+	}
+	return nil
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster

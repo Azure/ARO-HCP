@@ -14,6 +14,8 @@ Use the implementation and deployment sources rather than maintaining a copied i
 - [`pkg/`](pkg/) contains collector, metric, configuration, and credential behavior.
 - [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml), under `opstool.tenantQuota`, is the source of truth for deployed configuration.
 
+The raw collector lives in [`pkg/cijoboutcomes`](pkg/cijoboutcomes/) and the failure-pattern controller in [`pkg/cipatterns`](pkg/cipatterns/). Both use [`pkg/kusto`](pkg/kusto/) for owner-lifetime HTTP cancellation, JSON mapping parsing and column matching, and JSON-lines ingestion. Client creation, cleanup, queries, mapping policy, and batch bounds remain with each controller.
+
 ## Runtime Model
 
 At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
@@ -169,6 +171,47 @@ Deploy the `ciTestResults` schema documentation and mapping (with the additive
 `source` column) before this collector; ingestion startup checks the mapping.
 **There is no backfill**: processed builds are skipped, and an existing batch tag
 prevents rewriting. Historical `ciTestResults` rows have an empty `source`.
+
+## Derived CI Failure Patterns
+
+The `ci-failure-patterns` controller ([`pkg/cipatterns`](pkg/cipatterns/)) derives failure patterns from the failed results in `ciTestResults` and stores them in the `ciFailurePatterns` table. It runs the shared [`cifailurepatterns`](../cifailurepatterns/) extractor, the same one [`hcpctl`](../hcpctl/README.md) uses for offline analysis. The raw rows stay authoritative; derived rows are a projection that can be recomputed from them.
+
+The controller is independent of Prow job discovery and of `ciProcessedJobs`: it covers every failed result still present in `ciTestResults`.
+
+**How it works**
+
+- **Discovery.** Two loops feed one work queue keyed by build ID. A poll of the 64 newest failed builds runs every `interval` (default 5m), so a new run is picked up within one interval. A history sweep walks all retained builds from newest to oldest in pages of 128. It only advances while less than one page of work is outstanding, and rests for 12 hours after reaching the oldest build before starting over, so a restart or a rebuild proceeds at worker speed without flooding Kusto.
+- **Reconciliation.** `workers` (default 4) take builds from the queue. For each build the controller reads its failed results and test names, works out the result rows the current extractor should produce, reads the rows already stored, and submits only the missing ones.
+- **Completion.** Kusto ingestion is queued, so a successful submission does not mean the rows are visible. The controller re-reads the build with strongly consistent queries until every expected row is visible, backing off between attempts. A cache of recently submitted rows (`cacheSize`, `cacheTTL`) prevents resubmitting rows that are still waiting to become visible, and its expiry allows resubmission if an ingestion was lost.
+- **Failure handling.** Errors are retried with backoff. A build that exceeds the row, byte, or response limits fails instead of being truncated. No state is persisted: after a restart the stored rows determine what is still missing.
+
+**Results.** One row holds the findings for one distinct failed input: the origin, build ID, source, and test ID of a failure, its resolved test name, a fingerprint of the raw input, the extractor and schema versions, and the ordered findings with their evidence locations. Identical failures share a row, so the number of occurrences always comes from `ciTestResults`. The raw message and timings are not copied. Join `ciTestResults` on `(buildId, source, testId, messageHash)` to get them, where `messageHash` is the lowercase hex SHA-256 of the raw message and `hash_sha256(message)` computes it in Kusto (both give an empty string for an empty message). The hash is needed because a test can fail more than once in a run, which leaves several raw rows with the same `(buildId, source, testId)` and different messages. Finding locations are byte offsets into the raw message. Rows are identified by `resultKey`, which includes the extractor version, so a new extractor version produces new rows next to the old ones. A retried submission can leave physical copies of the same row; conflicting findings for one `resultKey` are reported as an error.
+
+**Configuration.** The controller reuses the Kusto connection and raw table settings from `ciJobOutcomes`, which does not need to be enabled. `ciFailurePatterns` defines the results table and ingestion mapping, the poll interval, the number of workers, and the submission cache. The Kusto deployment creates the results table and mapping.
+
+**Querying.** Always select the extractor and schema version explicitly; never take the newest row or aggregate across versions. Missing rows mean a build has not been reconciled yet, not that it has no findings. A pattern match is a symptom, not a confirmed root cause. To join results to their raw rows:
+
+```kusto
+ciFailurePatterns
+| join kind=inner (
+    ciTestResults | where failed | extend messageHash = hash_sha256(message)
+  ) on buildId, source, testId, messageHash
+```
+
+To inspect the stored rows of one version and spot physical copies:
+
+```kusto
+let selectedOrigin = "https://kusto.example.com/ServiceLogs"; // Replace with the cluster URI and database, without a trailing slash.
+let selectedExtractorVersion = "fp-1"; // Replace with the version being inspected.
+let selectedSchemaVersion = 1;
+ciFailurePatterns
+| where origin == selectedOrigin
+    and extractorVersion == selectedExtractorVersion
+    and resultSchemaVersion == selectedSchemaVersion
+| summarize physicalCopies = count() by resultKey
+```
+
+For frozen evidence while developing extraction rules, use hcpctl's raw-bundle export and offline replay instead of these results.
 
 ## One-Shot CLI
 
