@@ -203,7 +203,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpperf
   image:
-    digest: sha256:08a5a0094b686255dde32a05c8dd74f9502e7c5ae697a6c91e3d5a7dd62a4aee
+    digest: sha256:55f0ee57306164c945913740d144a16c0e9ebaa2711dac0a9e143e1c05c6ada3
     registry: arohcpsvcdev.azurecr.io
     repository: test-jbriones/aro-hcp-clusters-service
   k8s:
