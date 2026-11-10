@@ -15,6 +15,7 @@
 package capacityreporting
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/ARO-HCP/fleet/pkg/scheduling"
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
@@ -68,15 +70,35 @@ func TestComputeObservedResources(t *testing.T) {
 							},
 						},
 					},
-					Usage: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("5"),
-						corev1.ResourceMemory: resource.MustParse("10Gi"),
-						"pods":                resource.MustParse("50"),
-					},
-					Requested: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("12"),
-						corev1.ResourceMemory: resource.MustParse("24Gi"),
-						"pods":                resource.MustParse("100"),
+					Usage:     corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("999")},
+					Requested: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("999")},
+					HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+						Resources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{
+							Usage: corev1.ResourceList{
+								corev1.ResourceCPU:                 resource.MustParse("5"),
+								corev1.ResourceMemory:              resource.MustParse("10Gi"),
+								kuberesources.SwiftNICResourceName: resource.MustParse("2"),
+								"pods":                             resource.MustParse("50"),
+							},
+							Requested: corev1.ResourceList{
+								corev1.ResourceCPU:                 resource.MustParse("12"),
+								corev1.ResourceMemory:              resource.MustParse("24Gi"),
+								kuberesources.SwiftNICResourceName: resource.MustParse("2"),
+								"pods":                             resource.MustParse("100"),
+							},
+						},
+						ReadyResources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{
+							Usage: corev1.ResourceList{
+								corev1.ResourceCPU:                 resource.MustParse("1"),
+								corev1.ResourceMemory:              resource.MustParse("2Gi"),
+								kuberesources.SwiftNICResourceName: resource.MustParse("1"),
+							},
+							Requested: corev1.ResourceList{
+								corev1.ResourceCPU:                 resource.MustParse("3"),
+								corev1.ResourceMemory:              resource.MustParse("4Gi"),
+								kuberesources.SwiftNICResourceName: resource.MustParse("1"),
+							},
+						},
 					},
 				},
 			},
@@ -87,12 +109,14 @@ func TestComputeObservedResources(t *testing.T) {
 				kuberesources.SwiftNICResourceName: resource.MustParse("8"),
 			},
 			wantUsage: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("5"),
-				corev1.ResourceMemory: resource.MustParse("10Gi"),
+				corev1.ResourceCPU:                 resource.MustParse("5"),
+				corev1.ResourceMemory:              resource.MustParse("10Gi"),
+				kuberesources.SwiftNICResourceName: resource.MustParse("2"),
 			},
 			wantRequests: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("12"),
-				corev1.ResourceMemory: resource.MustParse("24Gi"),
+				corev1.ResourceCPU:                 resource.MustParse("12"),
+				corev1.ResourceMemory:              resource.MustParse("24Gi"),
+				kuberesources.SwiftNICResourceName: resource.MustParse("2"),
 			},
 		},
 		{
@@ -103,9 +127,11 @@ func TestComputeObservedResources(t *testing.T) {
 			wantCurrent: corev1.ResourceList{},
 		},
 		{
-			name: "nil usage stays nil",
+			name: "missing population totals do not fall back to legacy totals",
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
+					Usage:     corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("999")},
+					Requested: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("999")},
 					Nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 						{
 							SKU:   "Standard_D8ds_v5",
@@ -163,7 +189,8 @@ func TestEvaluateCapacityCondition(t *testing.T) {
 			name: "ReportCurrent true produces DataCollected",
 			report: &capacityreportv1alpha1.CapacityReport{
 				Status: capacityreportv1alpha1.CapacityReportStatus{
-					Conditions: reportCurrentTrue,
+					Conditions:          reportCurrentTrue,
+					HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{Resources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)}},
 				},
 			},
 			wantStatus: metav1.ConditionTrue,
@@ -197,6 +224,64 @@ func TestEvaluateCapacityCondition(t *testing.T) {
 			assert.Equal(t, "CapacityDataCurrent", condition.Type, "Type")
 			assert.Equal(t, test.wantStatus, condition.Status, "Status")
 			assert.Equal(t, test.wantReason, condition.Reason, "Reason")
+		})
+	}
+}
+
+func withZeroFloor(values corev1.ResourceList) corev1.ResourceList {
+	result := values.DeepCopy()
+	if result == nil {
+		result = corev1.ResourceList{}
+	}
+	for _, name := range scheduling.Resources() {
+		if _, present := result[name]; !present {
+			result[name] = resource.MustParse("0")
+		}
+	}
+	return result
+}
+
+func TestNewResourceTotalsAvailability(t *testing.T) {
+	for _, scenario := range []string{"missing", "zero"} {
+		t.Run(scenario, func(t *testing.T) {
+			report := &capacityreportv1alpha1.CapacityReport{}
+			report.Status.Conditions = []metav1.Condition{{Type: capacityreportv1alpha1.ConditionTypeReportCurrent, Status: metav1.ConditionTrue}}
+			report.Status.Usage = withZeroFloor(corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("99")})
+			report.Status.Requested = report.Status.Usage.DeepCopy()
+			if scenario != "missing" {
+				report.Status.HostedControlPlanes.Resources = &capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: withZeroFloor(nil), Requested: withZeroFloor(nil)}
+			}
+			observed := ComputeObservedResources(report)
+			condition := evaluateCapacityCondition(report)
+			if scenario == "zero" {
+				require.Equal(t, metav1.ConditionTrue, condition.Status)
+			} else {
+				require.Equal(t, metav1.ConditionUnknown, condition.Status)
+				require.Equal(t, "MissingResourceTotals", condition.Reason)
+			}
+			if scenario == "zero" {
+				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Usage, observed.Usage, "preserved usage")
+				assertResourceListEqual(t, report.Status.HostedControlPlanes.Resources.Requested, observed.Requests, "preserved requests")
+			} else {
+				require.Nil(t, observed.Usage)
+				require.Nil(t, observed.Requests)
+			}
+			encoded, err := json.Marshal(observed)
+			require.NoError(t, err)
+			var serialized map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(encoded, &serialized))
+			for name, values := range map[string]corev1.ResourceList{"usage": observed.Usage, "requests": observed.Requests} {
+				if len(values) == 0 {
+					require.NotContains(t, serialized, name)
+					continue
+				}
+				var quantities map[string]string
+				require.NoError(t, json.Unmarshal(serialized[name], &quantities))
+				require.Len(t, quantities, len(values))
+				for resourceName := range values {
+					require.Equal(t, "0", quantities[string(resourceName)])
+				}
+			}
 		})
 	}
 }
