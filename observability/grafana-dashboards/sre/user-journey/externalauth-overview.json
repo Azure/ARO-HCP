@@ -3072,7 +3072,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"}))) * 100",
+          "expr": "((count(max without(prometheus_replica) (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths\", subscription_id=~\"$subscription_id\", subscription_id!~\"${exclude_subs:raw}\", resource_id=~\"$resource_id\", phase=\"failed\"})) or vector(0))) * 100",
           "instant": true,
           "legendFormat": "Numerator",
           "range": false,
