@@ -13,13 +13,15 @@
 // limitations under the License.
 
 // verify-supply-chain fails if any file tracked by git is a committed AI-agent
-// settings file, MCP server configuration, or editor configuration. Agent JSON
-// carrying an execution key is reported as a known attack pattern. Exit code is
-// 1 for a violation, 2 on an internal error.
+// settings file, MCP server configuration, or editor configuration. Exit code
+// is 1 for a violation, 2 on an internal error.
 //
-// Nothing is resolved to decide this: paths and modes come from the git index
-// and contents from the object store, so the check judges exactly the bytes a
-// PR proposes, and refuses anything it cannot judge that way.
+// Every rule is decided from the git index alone: paths and modes, never file
+// contents. That is deliberate. These files are refused by name whatever is
+// inside them, so reading one could only change the wording of a failure that
+// has already happened — and it would mean asserting from a JSON key whether a
+// colleague's misplaced config is an attack, which is not a judgement any
+// filename check can make.
 //
 // Threat model, per-rule reasoning, and the scope left to human review:
 // docs/ci/supply-chain-presubmit.md.
@@ -27,10 +29,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
 	"path"
@@ -64,6 +64,9 @@ const workspaceConfigExt = ".code-workspace"
 // Matched under any agent directory rather than per vendor: hooks.json is
 // Cursor's spelling today, and a name that means "run this" under one agent is
 // not something to wait for a second vendor to adopt before listing.
+//
+// The name is the whole rule. None of these may be committed, empty or
+// populated, so what the file contains changes nothing about the outcome.
 var agentSettingsFiles = map[string]bool{
 	"settings.json":       true,
 	"settings.local.json": true,
@@ -79,30 +82,17 @@ var mcpConfigFiles = map[string]bool{
 	".mcp.json": true,
 }
 
-// executionKeys make an agent configuration file self-executing. The order is
-// fixed so a file carrying several always reports the same one.
-var executionKeys = []string{"command", "hooks"}
-
-func isExecutionKey(key string) bool {
-	return slices.Contains(executionKeys, key)
-}
-
 const (
 	ruleAgentSettings = "agent-settings"
 	ruleEditorConfig  = "editor-config"
-	ruleExecutionKey  = "execution-key"
-	ruleInvalidJSON   = "invalid-json"
-	ruleUnreadable    = "unreadable"
 	ruleConfigNotFile = "config-not-a-file"
 )
 
-// finding is a single violation. malware marks the indicators that match a
-// known attack pattern rather than merely being unwanted.
+// finding is a single violation.
 type finding struct {
-	path    string
-	rule    string
-	detail  string
-	malware bool
+	path   string
+	rule   string
+	detail string
 }
 
 func main() {
@@ -125,46 +115,18 @@ func main() {
 	os.Exit(1)
 }
 
-// scanRepository applies every rule to the git index at root.
-//
-// Separate from main so the rules can be tested as they actually run. They
-// interact — the content rules read exactly what the path rules block — and
-// testing each in isolation is what let two of them go unreachable without a
-// test noticing.
+// scanRepository applies every rule to the git index at root. Separate from
+// main so the rules can be tested as they actually run.
 func scanRepository(root string) ([]finding, error) {
 	files, err := trackedFiles(root)
 	if err != nil {
 		return nil, fmt.Errorf("error listing tracked files in %s: %w", root, err)
 	}
-
-	findings := checkPaths(files)
-
-	// One entry can earn a path finding and a content finding, and both are
-	// reported. They say different things: the path rule that the file does
-	// not belong in the commit, the content rule what the scan made of the
-	// bytes. Suppressing the second because the first already fails the build
-	// is what made invalid-json and unreadable unreachable, and it hid the one
-	// signal separating a stray settings.json from an attempt to smuggle a
-	// command key past the decoder by breaking the syntax.
-	for _, f := range agentJSONFiles(files) {
-		if !readableBlob(f) {
-			findings = append(findings, unreadableAgentJSON(f))
-			continue
-		}
-
-		content, err := blobContent(root, f.oid)
-		if err != nil {
-			// Quoted for the same reason as in report: index data.
-			return nil, fmt.Errorf("error reading %q (%q): %w", f.path, f.oid, err)
-		}
-		findings = append(findings, scanAgentJSON(f.path, content)...)
-	}
-
-	return findings, nil
+	return checkPaths(files), nil
 }
 
-// Index modes. Only a regular file carries its own bytes; a symlink's blob is
-// a target path and a gitlink is a commit in another repository.
+// Index modes. Only a regular file is a file in this repository; a symlink
+// names a path elsewhere and a gitlink a commit in another repository.
 const (
 	modeRegular    = "100644"
 	modeExecutable = "100755"
@@ -176,7 +138,6 @@ const (
 type trackedFile struct {
 	path string
 	mode string
-	oid  string
 }
 
 // trackedFiles returns every entry in the git index. Untracked files are
@@ -185,7 +146,9 @@ type trackedFile struct {
 // force-added file stays tracked and keeps appearing here.
 func trackedFiles(root string) ([]trackedFile, error) {
 	// --stage prints "<mode> <sha> <stage>\t<path>", so the entry's type comes
-	// from the index rather than the working tree.
+	// from the index rather than the working tree. That keeps the check honest
+	// on a fresh clone and on filesystems that do not carry the executable bit.
+	// Only the mode and the path are read; the object ID is never resolved.
 	cmd := exec.Command("git", "ls-files", "--stage", "-z")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
@@ -203,54 +166,27 @@ func trackedFiles(root string) ([]trackedFile, error) {
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
 		}
-		mode, rest, ok := bytes.Cut(meta, []byte{' '})
+		mode, _, ok := bytes.Cut(meta, []byte{' '})
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
 		}
-		oid, _, ok := bytes.Cut(rest, []byte{' '})
-		if !ok {
-			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
-		}
-		files = append(files, trackedFile{path: string(p), mode: string(mode), oid: string(oid)})
+		files = append(files, trackedFile{path: string(p), mode: string(mode)})
 	}
 	return files, nil
 }
 
-// blobContent returns the bytes git recorded for an object ID. Never
-// os.ReadFile: an entry staged as a regular file can be swapped on disk
-// afterwards, leaving the index mode intact while the path hangs the reader or
-// hides the staged bytes.
-func blobContent(root, oid string) ([]byte, error) {
-	cmd := exec.Command("git", "cat-file", "blob", oid)
-	cmd.Dir = root
-	cmd.Stderr = os.Stderr
-	return cmd.Output()
-}
-
-// readableBlob reports whether an index entry carries its own bytes. A
-// symlink's blob is a target path rather than the target, and a submodule's
-// object is a commit this repository need not have, so neither can be judged
-// here. checkPaths asks the same question so the two cannot drift.
-func readableBlob(f trackedFile) bool {
+// isRegularFile reports whether an index entry is a file this repository
+// actually carries. A symlink's blob is a target path rather than the target,
+// and a submodule's object is a commit this repository need not have; neither
+// is resolved here, so neither counts.
+func isRegularFile(f trackedFile) bool {
 	return f.mode == modeRegular || f.mode == modeExecutable
 }
 
-// unreadableAgentJSON refuses agent JSON the execution-key rule could not read,
-// naming the mode so a reviewer knows what the entry stands for. The path rules
-// reject the same entry, and both lines are printed: that one says the alias
-// may not be committed, this one that nothing here judged what it stands for.
-func unreadableAgentJSON(f trackedFile) finding {
-	return finding{
-		path:   f.path,
-		rule:   ruleUnreadable,
-		detail: fmt.Sprintf("agent configuration must be a regular file; git records mode %s, which is not resolved here", f.mode),
-	}
-}
-
-// checkPaths applies the path-shaped rules. Pure, so the denylist is testable
-// without a repository on disk. Comparisons are against the lowercased path:
-// git's index is case-sensitive, so .Claude/settings.json is a distinct
-// tracked path. Case order is load-bearing; read the comments before moving.
+// checkPaths applies every rule. Pure, so the denylist is testable without a
+// repository on disk. Comparisons are against the lowercased path: git's index
+// is case-sensitive, so .Claude/settings.json is a distinct tracked path. Case
+// order is load-bearing; read the comments before moving.
 func checkPaths(files []trackedFile) []finding {
 	var findings []finding
 	for _, f := range files {
@@ -285,8 +221,8 @@ func checkPaths(files []trackedFile) []finding {
 		// .vscode. An alias records nothing for the paths underneath, so
 		// frontend/.claude/settings.json is never a tracked path that any
 		// filename rule could match — yet it is what an agent resolves and
-		// reads. Keyed on readableBlob so an unanticipated mode is refused too.
-		case !readableBlob(f) && hasAnySegment(lower, configDirs...):
+		// reads. Keyed on isRegularFile so an unanticipated mode is refused too.
+		case !isRegularFile(f) && hasAnySegment(lower, configDirs...):
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleConfigNotFile,
@@ -308,88 +244,6 @@ func checkPaths(files []trackedFile) []finding {
 	return findings
 }
 
-// agentJSONFiles returns the tracked JSON subject to the execution-key rule:
-// exactly the names checkPaths already blocks. Reading them decides whether the
-// report says "must not be committed" or "matches confirmed malware", so this
-// escalates severity rather than detecting anything new.
-//
-// Deliberately not every .json under an agent directory. Nothing auto-loads a
-// skill's fixtures or manifests, so a command key in one is far more likely to
-// be a documented example than an attack — and telling an author their test
-// data is confirmed malware is the one mistake this rule must not make. The
-// route it appears to cover it cannot: a malicious skill carries its
-// instruction in SKILL.md, which is markdown this check does not read.
-//
-// Keyed on the filename, not the directory, so .claude/skills/x/settings.json
-// is still escalated. An allowlisted directory would have been a safe harbour.
-//
-// Unreadable entries are selected too, so that the caller refuses them.
-// Dropping them here would be the bypass.
-func agentJSONFiles(files []trackedFile) []trackedFile {
-	var out []trackedFile
-	for _, f := range files {
-		lower := strings.ToLower(f.path)
-		base := path.Base(lower)
-		switch {
-		case mcpConfigFiles[base]:
-			out = append(out, f)
-		case hasAnySegment(lower, agentConfigDirs...) && agentSettingsFiles[base]:
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-// scanAgentJSON requires agent JSON to parse, then reports an execution key
-// anywhere in it.
-//
-// Malformed input is refused, not scanned more cleverly: a raw-byte fallback
-// has to tell a key from a value by hand, and a wrong guess here tells an
-// author their file is confirmed malware.
-func scanAgentJSON(p string, content []byte) []finding {
-	var doc any
-	if err := json.Unmarshal(content, &doc); err != nil {
-		return []finding{{
-			path:   p,
-			rule:   ruleInvalidJSON,
-			detail: fmt.Sprintf("agent configuration must be valid JSON: %v", err),
-		}}
-	}
-
-	if key, ok := findExecutionKey(doc); ok {
-		return []finding{{
-			path:    p,
-			rule:    ruleExecutionKey,
-			detail:  fmt.Sprintf("contains a %q key", key),
-			malware: true,
-		}}
-	}
-	return nil
-}
-
-// findExecutionKey walks a decoded JSON document for the first execution key,
-// visiting keys in sorted order so the same one is always reported.
-func findExecutionKey(node any) (string, bool) {
-	switch v := node.(type) {
-	case map[string]any:
-		for _, key := range slices.Sorted(maps.Keys(v)) {
-			if isExecutionKey(key) {
-				return key, true
-			}
-			if found, ok := findExecutionKey(v[key]); ok {
-				return found, true
-			}
-		}
-	case []any:
-		for _, child := range v {
-			if found, ok := findExecutionKey(child); ok {
-				return found, true
-			}
-		}
-	}
-	return "", false
-}
-
 // hasAnySegment matches a whole path element against any of segments, so
 // ".claude" matches "frontend/.claude/x" but not "notclaude/x" or
 // "x/.claude.bak". Callers pass a lowercased path.
@@ -403,19 +257,14 @@ func hasAnySegment(p string, segments ...string) bool {
 }
 
 // remediation is what to actually do about each rule, keyed by rule name. The
-// advice differs in kind and a single blanket line gets most of it wrong: a
-// settings file is unwanted and should go, whereas an alias is usually a
-// legitimate asset in the wrong shape and telling its author to delete it
-// costs them work the check never meant to reject. A syntax error is different
-// again — it is the one finding that reports the scan did not run, so the
-// advice has to point at the contents rather than at the comma.
+// advice differs in kind and a single blanket line gets it wrong: a settings
+// file is unwanted and should go, whereas an alias is usually a legitimate
+// asset in the wrong shape, and telling its author to delete it costs them
+// work the check never meant to reject.
 var remediation = map[string]string{
 	ruleAgentSettings: "Remove these from the commit. They belong in your local working copy only.",
 	ruleEditorConfig:  "Remove these from the commit. They belong in your local working copy only.",
 	ruleConfigNotFile: "Replace the alias with a real file, or move the content out of the configuration path. Do not resolve it to find out what it points at.",
-	ruleInvalidJSON:   "This did not parse as strict JSON — no comments, no trailing commas — so it was never scanned for an execution key. Breaking the syntax is how a command key gets past the decoder, so read the contents rather than assuming a stray comma.",
-	ruleUnreadable:    "Replace the entry with a real file. Its contents could not be read, so the execution-key rule could not judge them.",
-	ruleExecutionKey:  "Do not open or run these files. Report them to the security team before taking any other action.",
 }
 
 // report prints the findings, then what to do about each rule that appeared.
@@ -426,16 +275,12 @@ var remediation = map[string]string{
 // Neither changes the exit code, but a security tool whose output its subject
 // can write is not worth reading.
 func report(w io.Writer, findings []finding) {
-	fmt.Fprintln(w, "ERROR: supply-chain attack indicators found in tracked files.")
+	fmt.Fprintln(w, "ERROR: committed agent or editor configuration found in tracked files.")
 	fmt.Fprintln(w)
 
 	var rules []string
 	for _, f := range findings {
 		fmt.Fprintf(w, "  %q (%s): %s\n", f.path, f.rule, f.detail)
-		if f.malware {
-			fmt.Fprintln(w, `      This matches a known supply-chain attack pattern. Do not run it.`)
-			fmt.Fprintln(w, "      Report it to the security team before taking any other action.")
-		}
 		if !slices.Contains(rules, f.rule) {
 			rules = append(rules, f.rule)
 		}
@@ -448,11 +293,20 @@ func report(w io.Writer, findings []finding) {
 		if !ok {
 			// A new rule without advice is a bug, but a blank line here would
 			// hide it. Say so rather than defaulting to "delete the file",
-			// which is the wrong answer for half the rules.
+			// which is the wrong answer for one of the three rules.
 			advice = "No remediation recorded for this rule; see docs/ci/supply-chain-presubmit.md."
 		}
 		fmt.Fprintf(w, "  %s: %s\n", rule, advice)
 	}
+
+	// Printed for every finding rather than decided per file. Agent and editor
+	// configuration is executable by design, and this check deliberately does
+	// not read it, so it cannot and does not say which of these is dangerous.
+	// What it can say is that none of them should be run to find out.
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "If one of these is not yours, do not open or run it: this configuration")
+	fmt.Fprintln(w, "executes on clone, which is how a known supply-chain attack worked. Report")
+	fmt.Fprintln(w, "it to the security team rather than investigating it yourself.")
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, `See the "Security self-check" bullet in CONTRIBUTING.md, and`)
