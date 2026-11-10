@@ -734,24 +734,6 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
   }
 }
 
-resource hypershiftHostedclusterRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hypershift-hostedcluster-recording-rules'
-  location: location
-  properties: {
-    scopes: [
-      azureMonitoring
-    ]
-    enabled: true
-    interval: 'PT1M'
-    rules: [
-      {
-        record: 'hypershift:hostedclusters:unhealthy:ratio'
-        expression: 'clamp_max(sum by (cluster, region) (max by (cluster, platform, condition, region) (hypershift_hostedclusters_failure_conditions)) / (sum by (cluster, region) (max by (cluster, platform, region) (hypershift_hostedclusters)) > 0), 1)'
-      }
-    ]
-  }
-}
-
 resource arohcpCertificateRotationSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arohcp_certificate_rotation_slo_recording_rules'
   location: location

@@ -36,15 +36,10 @@ not the exact budget consumed by the burn-rate alerts. Both exclude zero-desired
 replicas and missing deployment inputs; dashboard summaries additionally require
 complete current inventory and expose observation coverage.
 
-The alerting PR's `hypershift:hostedclusters:unhealthy:ratio` measures
-HostedCluster failure conditions, not operator/CPO replica availability. Keep
-that journey-health signal separate from component availability.
-
 Both operator recordings and the alerting reconciliation inputs share
 `hypershiftUserJourney-recordingRule.yaml` and its
-`hypershift-operator-recording-rules` group. HostedCluster condition health has
-its own group in that same source. Both CPO availability recordings and the
-alerting reconciliation inputs share
+`hypershift-operator-recording-rules` group. Both CPO availability recordings and
+the alerting reconciliation inputs share
 `hypershiftControlPlaneOperator-recordingRule.yaml` and its
 `hypershift-cpo-recording-rules` group. The HCP configuration includes that source
 once; there is no second dashboard-only CPO source or duplicate Bicep resource.

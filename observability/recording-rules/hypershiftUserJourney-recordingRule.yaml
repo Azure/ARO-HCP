@@ -54,15 +54,3 @@ spec:
           ),
           1
         )
-  # HostedCluster condition health is a separate journey signal, not component
-  # replica availability. Multiple failure conditions can count one cluster twice.
-  - name: hypershift-hostedcluster-recording-rules
-    rules:
-    - record: hypershift:hostedclusters:unhealthy:ratio
-      expr: |
-        clamp_max(
-          sum by (cluster) (max by (cluster, platform, condition) (hypershift_hostedclusters_failure_conditions))
-          /
-          (sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0),
-          1
-        )
