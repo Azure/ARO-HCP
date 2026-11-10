@@ -379,7 +379,7 @@ func TestAcquireAdmissionDeadlineAndRollback(t *testing.T) {
 
 func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
+	for _, scenario := range []string{"success", "resolve", "admit", "publish", "second acquire", "duplicate secondary", "unexpected name", "malformed secondary", "timeout", "primary state write", "secondary state write", "subscription resolution", "invalid runtime state", "foreign resolved asset", "skip e2e admission", "skip infra admission", "skip both admissions", "unskipped admission fails"} {
 		t.Run(scenario, func(t *testing.T) {
 			calls := []string{}
 			e2e := &lifecycleHandler{kind: slots.KindE2EIdentities, calls: &calls}
@@ -448,6 +448,9 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			writes := 0
 			options.WriteState = func(dir string, state *slots.AcquiredSlotState) error {
 				writes++
+				if scenario == "foreign resolved asset" && state.Slot.Assets.InfrastructureIdentities != nil {
+					state.Slot.Assets.InfrastructureIdentities.ResourceGroups[0] = "foreign-00"
+				}
 				if (scenario == "primary state write" && writes == 1) || (scenario == "secondary state write" && len(state.Leases.Assets[slots.KindInfrastructureIdentities]) == 1) {
 					return errors.New("state disk write failed")
 				}
@@ -545,8 +548,12 @@ func TestIndependentAssetLifecycleAndRollback(t *testing.T) {
 			if infra.fail != "" && !strings.Contains(err.Error(), "fake "+infra.fail+" failed") {
 				t.Fatalf("expected failure from %s, got %v", infra.fail, err)
 			}
-			if scenario == "invalid runtime state" {
-				if !strings.Contains(err.Error(), "unresolved E2E subscription") {
+			if scenario == "invalid runtime state" || scenario == "foreign resolved asset" {
+				wantError := "unresolved E2E subscription"
+				if scenario == "foreign resolved asset" {
+					wantError = "does not match acquired leases"
+				}
+				if !strings.Contains(err.Error(), wantError) {
 					t.Fatalf("expected runtime validation failure, got %v", err)
 				}
 				for _, call := range calls {

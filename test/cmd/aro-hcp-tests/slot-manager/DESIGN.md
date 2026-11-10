@@ -25,7 +25,12 @@ certificate name. Consumers reject malformed provided bundles rather than fallin
 back to legacy pools. New consumers do not resolve old static-pool leases;
 personal-development configuration remains supported. Acquire/release are no-ops
 for this dedicated asset. Admission alone resolves and verifies its bundle, then
-the orchestrator validates and persists resolved state before publication. See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
+the orchestrator validates and persists resolved state before publication.
+Pre-admission validation defers only the missing mock bundle: other resolved
+assets must still match their dedicated containers or held leases before any
+admission cleanup runs. Failed mock readmission clears the prior bundle on every
+error path, including credential setup and identity drift.
+See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
 
 Slot-manager is a CI-only allocator of a complete E2E environment, not a raw
 Boskos resource. A **slot** is one allocatable E2E environment instance. A

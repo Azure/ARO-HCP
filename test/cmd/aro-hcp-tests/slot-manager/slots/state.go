@@ -218,15 +218,7 @@ func (s *AcquiredSlotState) ValidateForAdmission() error {
 			}
 		}
 	}
-	return nil
-}
-
-// Validate requires a fully resolved state suitable for runtime publication.
-func (s *AcquiredSlotState) Validate() error {
-	if err := s.ValidateForAdmission(); err != nil {
-		return err
-	}
-	if err := s.Slot.ValidateResolvedAssets(); err != nil {
+	if err := s.Slot.validateResolvedAssets(true); err != nil {
 		return err
 	}
 	if s.Slot.RequiresInfrastructureSubscription() {
@@ -243,6 +235,14 @@ func (s *AcquiredSlotState) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Validate requires a fully resolved state suitable for runtime publication.
+func (s *AcquiredSlotState) Validate() error {
+	if err := s.ValidateForAdmission(); err != nil {
+		return err
+	}
+	return s.Slot.ValidateResolvedAssets()
 }
 
 func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlotState, customerSubscription, selectedClusterProfileDir string) error {

@@ -370,6 +370,10 @@ func TestInfrastructureRuntimeMatchesJournal(t *testing.T) {
 			if err := state.ValidateForRelease(); err != nil {
 				t.Fatalf("resolved asset mismatch must not prevent release: %v", err)
 			}
+			admissionErr := state.ValidateForAdmission()
+			if tc.want == "" && admissionErr != nil || tc.want != "" && (admissionErr == nil || !strings.Contains(admissionErr.Error(), tc.want)) {
+				t.Fatalf("expected pre-admission validation %q, got %v", tc.want, admissionErr)
+			}
 			err := AddCoreRuntimeExports(NewRuntimeContractBuilder(), state, "dev-e2e", "profile")
 			if tc.want == "" {
 				if err != nil {
@@ -472,6 +476,9 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 			if err := state.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected runtime validation error %q, got %v", tc.want, err)
 			}
+			if err := state.ValidateForAdmission(); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected pre-admission validation error %q, got %v", tc.want, err)
+			}
 			dir := t.TempDir()
 			if err := WriteAcquiredSlotState(dir, state); err != nil {
 				t.Fatalf("runtime failure must not prevent journal persistence: %v", err)
@@ -495,6 +502,21 @@ func TestAcquiredSlotStateSeparatesJournalAndRuntimeValidation(t *testing.T) {
 				t.Fatalf("invalid runtime state created an env file: %v", err)
 			}
 		})
+	}
+}
+
+func TestAdmissionDefersOnlyMockResolution(t *testing.T) {
+	state := resolvedTestState()
+	state.Slot.AssetRequirements = append(state.Slot.AssetRequirements, AssetRequirement{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
+	if err := state.ValidateForAdmission(); err != nil {
+		t.Fatalf("unresolved mock prevented admission: %v", err)
+	}
+	if err := state.Validate(); err == nil {
+		t.Fatal("unresolved mock permitted runtime publication")
+	}
+	state.Slot.AssetRequirements[len(state.Slot.AssetRequirements)-1].Allocation = AllocationLeased
+	if err := state.ValidateForAdmission(); err == nil {
+		t.Fatal("invalid mock allocation permitted admission")
 	}
 }
 

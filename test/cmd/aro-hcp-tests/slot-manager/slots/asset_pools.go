@@ -128,11 +128,21 @@ func (p Pool) Requirements() []AssetRequirement {
 }
 
 func (s ExpandedSlot) ValidateResolvedAssets() error {
+	return s.validateResolvedAssets(false)
+}
+
+func (s ExpandedSlot) validateResolvedAssets(allowUnresolvedMock bool) error {
 	for _, assetRequirement := range s.AssetRequirements {
 		switch assetRequirement.Kind {
 		case KindMockIdentities:
 			bundle := s.Assets.MockIdentities
-			if assetRequirement.Allocation != AllocationDedicated || assetRequirement.UnitsPerSlot != 1 || bundle == nil {
+			if assetRequirement.Allocation != AllocationDedicated || assetRequirement.UnitsPerSlot != 1 {
+				return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
+			}
+			if bundle == nil && allowUnresolvedMock {
+				continue
+			}
+			if bundle == nil {
 				return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
 			}
 			if err := bundle.Validate(); err != nil {

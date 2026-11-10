@@ -138,6 +138,34 @@ func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
 	if err := handler.ReleaseLease(t.Context(), request); err != nil || store.reads != 14 || store.writes != 0 {
 		t.Fatalf("release contacted remote services: %v", err)
 	}
+	for _, failure := range []string{"credential", "client", "identity drift"} {
+		t.Run(failure, func(t *testing.T) {
+			previous := *request.AcquiredSlotState.Slot.Assets.MockIdentities
+			failedRequest := request
+			originalFactory := handler.newStore
+			name := IdentityNames(slot)[0]
+			originalPrincipal := store.principals[name]
+			switch failure {
+			case "credential":
+				failedRequest.SelectedClusterProfileDir = t.TempDir()
+			case "client":
+				handler.newStore = func(azcore.TokenCredential) (identityStore, error) { return nil, errors.New("client unavailable") }
+			case "identity drift":
+				changed := originalPrincipal
+				changed.ClientID = uuid.NewString()
+				store.principals[name] = changed
+			}
+			if err := registry.AdmitLease(t.Context(), failedRequest); err == nil || store.writes != 0 {
+				t.Fatal("readmission accepted or repaired invalid input")
+			}
+			if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+				t.Error("published stale bundle after failed readmission")
+			}
+			handler.newStore = originalFactory
+			store.principals[name] = originalPrincipal
+			request.AcquiredSlotState.Slot.Assets.MockIdentities = &previous
+		})
+	}
 	delete(store.certificates, IdentityNames(slot)[0])
 	if err := registry.AdmitLease(t.Context(), request); err == nil || store.writes != 0 {
 		t.Fatal("readmission repaired or accepted missing certificate")

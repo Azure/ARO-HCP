@@ -99,6 +99,8 @@ func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequ
 		return fmt.Errorf("missing acquired slot state")
 	}
 	slot := &request.AcquiredSlotState.Slot
+	previous := slot.Assets.MockIdentities
+	slot.Assets.MockIdentities = nil
 	credential, err := slots.NewClusterProfileCredential(request.SelectedClusterProfileDir, nil)
 	if err != nil {
 		return ownerRepair(*slot, err)
@@ -111,10 +113,9 @@ func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequ
 	defer cancel()
 	bundle, err := reconcile(ctx, store, *slot, false)
 	if err != nil {
-		slot.Assets.MockIdentities = nil
 		return ownerRepair(*slot, err)
 	}
-	if previous := slot.Assets.MockIdentities; previous != nil && *previous != *bundle {
+	if previous != nil && *previous != *bundle {
 		return ownerRepair(*slot, fmt.Errorf("identity bundle changed while the primary slot lease was held"))
 	}
 	slot.Assets.MockIdentities = bundle
