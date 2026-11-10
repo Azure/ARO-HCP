@@ -105,8 +105,8 @@ func TestExtractEvidenceProwEntrypointExtractsMsgField(t *testing.T) {
 func TestExtractEvidenceAlignsReleaseStatusInfoAndStepErrorDetails(t *testing.T) {
 	t.Parallel()
 
-	rawA := `time=2026-04-21T09:58:27.890Z level=INFO msg="Determined release status." release="hypershift" namespace="hypershift" status=failed description="Release \"hypershift\" failed: resource not ready, name: operator, kind: Deployment, status: InProgress\ncontext deadline exceeded"`
-	rawB := `time=2026-04-21T09:58:28.016Z level=ERROR msg="Step errored." serviceGroup=Microsoft.Azure.ARO.HCP.RP.HypershiftOperator step=deploy err="error running Helm release deployment Step, failed to deploy helm release: resource not ready, name: operator, kind: Deployment, status: InProgress\ncontext deadline exceeded"`
+	rawA := `time=2026-04-21T09:58:27.890Z level=INFO msg="Determined release status." release="mce-config" namespace="open-cluster-management" status=failed description="Release \"mce-config\" failed: resource not ready, name: grc-policy-propagator, kind: Deployment, status: InProgress\ncontext deadline exceeded"`
+	rawB := `time=2026-04-21T09:58:28.016Z level=ERROR msg="Step errored." serviceGroup=Microsoft.Azure.ARO.HCP.ACM step=deploy-mce-config err="error running Helm release deployment Step, failed to deploy helm release: resource not ready, name: grc-policy-propagator, kind: Deployment, status: InProgress\ncontext deadline exceeded"`
 
 	gotA := Extract(Input{Text: rawA})[0].Canonical
 	gotB := Extract(Input{Text: rawB})[0].Canonical
@@ -117,7 +117,7 @@ func TestExtractEvidenceAlignsReleaseStatusInfoAndStepErrorDetails(t *testing.T)
 	if strings.Contains(lowered, "determined release status") || strings.Contains(lowered, "error running helm release deployment step") {
 		t.Fatalf("expected release wrapper text to be stripped from canonical phrase, got=%q", gotA)
 	}
-	if !strings.Contains(lowered, "resource not ready") || !strings.Contains(lowered, "operator") {
+	if !strings.Contains(lowered, "resource not ready") || !strings.Contains(lowered, "grc-policy-propagator") {
 		t.Fatalf("expected canonical phrase to retain the actionable release detail, got=%q", gotA)
 	}
 }

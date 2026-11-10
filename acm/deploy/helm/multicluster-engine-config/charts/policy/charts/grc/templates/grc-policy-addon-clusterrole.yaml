@@ -1,0 +1,318 @@
+# Copyright (c) 2022 Red Hat, Inc.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.org }}:grc:policyaddon-clusterrole
+  labels:
+    app: grc
+    component: "ocm-policy-addon-ctrl"
+rules:
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - addondeploymentconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - clustermanagementaddons
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - addon.open-cluster-management.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - clustermanagementaddons/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - addon.open-cluster-management.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - clustermanagementaddons/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - managedclusteraddons
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - addon.open-cluster-management.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - managedclusteraddons
+  verbs:
+  - delete
+- apiGroups:
+  - addon.open-cluster-management.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - managedclusteraddons/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - addon.open-cluster-management.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - managedclusteraddons/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  - certificatesigningrequests/approval
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - signers
+  verbs:
+  - approve
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resourceNames:
+  - id.k8s.io
+  resources:
+  - clusterclaims
+  verbs:
+  - get
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - infrastructures
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - cert-policy-controller
+  - config-policy-controller
+  - governance-policy-framework
+  - governance-standalone-hub-templating
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resourceNames:
+  - governance-policy-database
+  - policy-encryption-key
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.open-cluster-management.io
+  resourceNames:
+  - grc
+  resources:
+  - internalhubcomponents
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - operator.open-cluster-management.io
+  resourceNames:
+  - grc
+  resources:
+  - internalhubcomponents/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - policy.open-cluster-management.io
+  resources:
+  - policies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - policy.open-cluster-management.io
+  resources:
+  - policies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - policy.open-cluster-management.io
+  resources:
+  - policies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - create
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - open-cluster-management:cert-policy-controller-hub
+  - open-cluster-management:config-policy-controller-hub
+  - open-cluster-management:policy-framework-hub
+  - open-cluster-management:governance-standalone-hub-templating
+  resources:
+  - clusterroles
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - open-cluster-management:governance-standalone-hub-templating
+  resources:
+  - clusterrolebindings
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - open-cluster-management:cert-policy-controller-hub
+  - open-cluster-management:config-policy-controller-hub
+  - open-cluster-management:policy-framework-hub
+  - open-cluster-management:governance-standalone-hub-templating
+  resources:
+  - rolebindings
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - create
+- apiGroups:
+  - route.openshift.io
+  resourceNames:
+  - governance-history-api
+  resources:
+  - routes
+  verbs:
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
