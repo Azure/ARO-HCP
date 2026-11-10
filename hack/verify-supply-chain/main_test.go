@@ -30,6 +30,7 @@ func TestCheckPaths(t *testing.T) {
 		name string
 		path string
 		mode string // empty means a regular file
+		oid  string // empty means the approved oid, where there is one
 		rule string // empty means the path must be accepted
 	}{
 		// The allowlist is the whole rule inside a configuration directory.
@@ -58,6 +59,20 @@ func TestCheckPaths(t *testing.T) {
 		// exception.
 		{name: "allowlisted pr-standards skill", path: ".claude/skills/pr-standards/SKILL.md"},
 		{name: "allowlisted bootstrap skill", path: ".claude/skills/bootstrap-api-version/SKILL.md"},
+		{name: "allowlisted github skill", path: ".github/skills/agentic-workflows/SKILL.md"},
+		{name: "allowlisted github agent", path: ".github/agents/agentic-workflows.agent.md"},
+
+		// Approval is pinned to content: the same path with any other blob is
+		// a different file as far as the gate is concerned.
+		{name: "approved path with changed content", path: ".claude/skills/pr-standards/SKILL.md", oid: "0000000000000000000000000000000000000001", rule: ruleModifiedConfig},
+
+		// The .github subtrees that are covered, and the ones that are not.
+		{name: "unlisted github agent", path: ".github/agents/rogue.agent.md", rule: ruleUnlistedConfig},
+		{name: "unlisted github instruction", path: ".github/instructions/rogue.instructions.md", rule: ruleUnlistedConfig},
+		{name: "github workflow is out of scope", path: ".github/workflows/ci.yml"},
+		{name: "github script is out of scope", path: ".github/scripts/helper.py"},
+		{name: "github owners is out of scope", path: ".github/OWNERS"},
+		{name: "a skills directory elsewhere is not a config location", path: "docs/skills/guide.md"},
 
 		// The directory match is case-insensitive so a spelling cannot evade
 		// it; the allowlist lookup is case-sensitive so a near-miss spelling
@@ -111,7 +126,17 @@ func TestCheckPaths(t *testing.T) {
 			if mode == "" {
 				mode = modeRegular
 			}
-			findings := checkPaths([]trackedFile{{path: tc.path, mode: mode}})
+			oid := tc.oid
+			if oid == "" {
+				// An allowlisted case must carry the approved blob; anything
+				// else just needs a well-formed one.
+				if approved, ok := allowedConfigFiles[tc.path]; ok {
+					oid = approved
+				} else {
+					oid = "0000000000000000000000000000000000000000"
+				}
+			}
+			findings := checkPaths([]trackedFile{{path: tc.path, mode: mode, oid: oid}})
 
 			if tc.rule == "" {
 				if len(findings) != 0 {
@@ -152,7 +177,9 @@ func TestCheckPathsReportsEveryViolation(t *testing.T) {
 func regularFiles(paths ...string) []trackedFile {
 	files := make([]trackedFile, len(paths))
 	for i, p := range paths {
-		files[i] = trackedFile{path: p, mode: modeRegular}
+		// An allowlisted path carries the blob it was approved with, so that
+		// a test about something else does not trip the content pin.
+		files[i] = trackedFile{path: p, mode: modeRegular, oid: allowedConfigFiles[p]}
 	}
 	return files
 }
@@ -168,13 +195,18 @@ func TestAllowlistMatchesTheRepository(t *testing.T) {
 		t.Fatalf("listing tracked files: %v", err)
 	}
 
-	tracked := make(map[string]bool, len(files))
+	tracked := make(map[string]string, len(files))
 	for _, f := range files {
-		tracked[f.path] = true
+		tracked[f.path] = f.oid
 	}
-	for p := range allowedConfigFiles {
-		if !tracked[p] {
+	for p, approved := range allowedConfigFiles {
+		oid, ok := tracked[p]
+		if !ok {
 			t.Errorf("allowlisted path %q is not tracked; remove the stale entry", p)
+			continue
+		}
+		if oid != approved {
+			t.Errorf("allowlisted path %q is pinned to %s but the index records %s; re-read the file before updating the pin", p, approved, oid)
 		}
 	}
 }
@@ -186,7 +218,7 @@ func TestAllowlistMatchesTheRepository(t *testing.T) {
 // entry.
 func TestAllowlistIsCaseSensitive(t *testing.T) {
 	const approved = ".claude/skills/pr-standards/SKILL.md"
-	if !allowedConfigFiles[approved] {
+	if allowedConfigFiles[approved] == "" {
 		t.Fatalf("%s should be allowlisted", approved)
 	}
 
@@ -329,6 +361,7 @@ func TestReportGivesPerRuleRemediation(t *testing.T) {
 func TestEveryRuleHasRemediation(t *testing.T) {
 	for _, rule := range []string{
 		ruleUnlistedConfig,
+		ruleModifiedConfig,
 		ruleAgentSettings,
 		ruleEditorConfig,
 		ruleConfigNotFile,
@@ -337,8 +370,8 @@ func TestEveryRuleHasRemediation(t *testing.T) {
 			t.Errorf("rule %q has no remediation", rule)
 		}
 	}
-	if len(remediation) != 4 {
-		t.Errorf("remediation has %d entries, expected 4 — add the new rule to this test", len(remediation))
+	if len(remediation) != 5 {
+		t.Errorf("remediation has %d entries, expected 5 — add the new rule to this test", len(remediation))
 	}
 }
 
@@ -523,9 +556,18 @@ func TestScanRepository(t *testing.T) {
 			want:  []string{".claude/skills/x/my-hooks.json " + ruleUnlistedConfig},
 		},
 		{
-			// An allowlisted path, which is what the repository ships.
-			name:  "allowlisted skill",
-			setup: writeTracked(".claude/skills/pr-standards/SKILL.md", "# pr standards\n"),
+			// The real approved file, byte for byte. Nothing else can satisfy
+			// the pin, which is the point of pinning.
+			name:  "allowlisted skill, approved content",
+			setup: copyTracked("../../.claude/skills/pr-standards/SKILL.md", ".claude/skills/pr-standards/SKILL.md"),
+		},
+		{
+			// One appended line is enough. This is the attack the pin exists
+			// for: a SKILL.md an agent already trusts, with an instruction
+			// added to it, needs no new file and no executable bit.
+			name:  "allowlisted skill, one line appended",
+			setup: appendTracked("../../.claude/skills/pr-standards/SKILL.md", ".claude/skills/pr-standards/SKILL.md", "\n<!-- injected -->\n"),
+			want:  []string{".claude/skills/pr-standards/SKILL.md " + ruleModifiedConfig},
 		},
 		{
 			// Allowlisted as a file, not as a symlink to one. The alias rule
@@ -576,6 +618,26 @@ func TestScanRepository(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tc.want, got)
 			}
 		})
+	}
+}
+
+// copyTracked stages src (relative to the test file) at dst in the scratch
+// repository, so a test can use the exact bytes an allowlist entry approves.
+func copyTracked(src, dst string) func(*testing.T, string) {
+	return appendTracked(src, dst, "")
+}
+
+// appendTracked is copyTracked with extra bytes on the end, for showing that
+// the pin notices.
+func appendTracked(src, dst, extra string) func(*testing.T, string) {
+	return func(t *testing.T, dir string) {
+		t.Helper()
+
+		content, err := os.ReadFile(src)
+		if err != nil {
+			t.Fatalf("reading %s: %v", src, err)
+		}
+		writeTracked(dst, string(content)+extra)(t, dir)
 	}
 }
 
