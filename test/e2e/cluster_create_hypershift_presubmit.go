@@ -47,7 +47,7 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers()
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 

@@ -24,6 +24,6 @@ import (
 
 var _ = Describe("Duplicate", func() {
 	It("two labels", labels.MIContainers(1), labels.MIContainers(2), func(ctx context.Context) {
-		tc.AssignIdentityContainers(ctx, 1)
+		tc.AssignIdentityContainers()
 	})
 })

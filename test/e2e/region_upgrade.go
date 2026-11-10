@@ -66,7 +66,7 @@ var _ = Describe("Region in-place upgrade", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err := tc.AssignIdentityContainers()
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 

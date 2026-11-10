@@ -15,9 +15,9 @@
 // verify-mi-containers walks Go source files under the given directories
 // (skipping _test.go files and known non-spec files like setup.go and
 // e2e_test.go) and reports any It() or DescribeTable() blocks that are
-// missing a labels.MIContainers(N) decorator. It also verifies that the
-// declared container count matches the integer literal passed to
-// AssignIdentityContainers inside the test function body. It also enforces
+// missing a labels.MIContainers(N) decorator. It also verifies that
+// AssignIdentityContainers is called inside the test function body if and
+// only if the declared count is positive. It also enforces
 // that the one intentional resource-scoped RBAC test remains the complete
 // customer-resource-group deletion lifecycle test.
 //
@@ -262,7 +262,7 @@ func checkFile(path string) ([]string, error) {
 		label := fmt.Sprintf("%s:%d: %s(%q)", pos.Filename, pos.Line, specKind, specName)
 
 		declared, hasMILabel, labelCount := findMIContainersLabel(call)
-		assignCount, hasAssignCall, hasAssignLiteralCount := findAssignIdentityContainersInfo(call)
+		hasAssignCall := findAssignIdentityContainersCall(call)
 
 		if !hasMILabel {
 			violations = append(violations, label+" is missing labels.MIContainers(N) decorator")
@@ -281,8 +281,6 @@ func checkFile(path string) ([]string, error) {
 
 		if declared == 0 && hasAssignCall {
 			violations = append(violations, fmt.Sprintf("%s has MIContainers(0) but calls AssignIdentityContainers", label))
-		} else if declared > 0 && hasAssignLiteralCount && declared != assignCount {
-			violations = append(violations, fmt.Sprintf("%s has MIContainers(%d) but calls AssignIdentityContainers with count=%d", label, declared, assignCount))
 		} else if declared > 0 && !hasAssignCall {
 			violations = append(violations, fmt.Sprintf("%s has MIContainers(%d) but does not call AssignIdentityContainers", label, declared))
 		}
@@ -371,7 +369,7 @@ func parseIntArg(expr ast.Expr) (int, bool) {
 	return 0, false
 }
 
-func findAssignIdentityContainersInfo(specCall *ast.CallExpr) (count int, hasCall bool, hasLiteralCount bool) {
+func findAssignIdentityContainersCall(specCall *ast.CallExpr) (hasCall bool) {
 	for _, arg := range specCall.Args {
 		funcLit, ok := arg.(*ast.FuncLit)
 		if !ok {
@@ -384,15 +382,11 @@ func findAssignIdentityContainersInfo(specCall *ast.CallExpr) (count int, hasCal
 			}
 			if isAssignIdentityContainersCall(call) {
 				hasCall = true
-				if c, ok := extractSecondIntArg(call); ok {
-					count = c
-					hasLiteralCount = true
-				}
 			}
 			return true
 		})
 	}
-	return count, hasCall, hasLiteralCount
+	return hasCall
 }
 
 func isAssignIdentityContainersCall(call *ast.CallExpr) bool {
@@ -405,19 +399,4 @@ func isAssignIdentityContainersCall(call *ast.CallExpr) bool {
 		return true
 	}
 	return false
-}
-
-func extractSecondIntArg(call *ast.CallExpr) (int, bool) {
-	if len(call.Args) < 2 {
-		return 0, false
-	}
-	lit, ok := call.Args[1].(*ast.BasicLit)
-	if !ok || lit.Kind != token.INT {
-		return 0, false
-	}
-	n, err := strconv.Atoi(lit.Value)
-	if err != nil {
-		return 0, false
-	}
-	return n, true
 }

@@ -71,7 +71,7 @@ type perItOrDescribeTestContext struct {
 
 	// miEnvAssigned is true when ASSIGNED_MI_CONTAINERS was accepted for this
 	// test. When true, leasing, release, and debug collection use
-	// miEnvAssignedContainers and do not consult the file-based pool.
+	// miEnvAssignedContainers and do not consult any shared pool state.
 	miEnvAssigned bool
 	// miEnvAssignedContainers holds the MI container resource group names
 	// parsed from ASSIGNED_MI_CONTAINERS for this test, in lease order.
