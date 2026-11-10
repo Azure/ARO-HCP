@@ -48,8 +48,10 @@ spec:
     - record: hypershift:cpo:availability:ratio1m
       expr: |
         clamp_max(
-          min by (cluster, namespace) (avg_over_time(kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m]))
-          /
-          (max by (cluster, namespace) (avg_over_time(kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m])) > 0),
+          min by (cluster, namespace) (
+            avg_over_time(kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m])
+            /
+            (avg_over_time(kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}[1m]) > 0)
+          ),
           1
         )
