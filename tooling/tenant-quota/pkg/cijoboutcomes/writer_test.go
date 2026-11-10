@@ -40,13 +40,18 @@ const testJobURI JobURI = "gs://test-platform-results-public/logs/periodic-ci-Az
 
 func newTestWriter(t *testing.T) *Writer {
 	t.Helper()
-	cfg := &config.Config{CIJobOutcomes: config.CIJobOutcomesConfig{
-		JobFilter:   "ARO-HCP",
-		Outcomes:    config.KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
-		TestResults: config.KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
-		TestNames:   config.KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
-		Discovered:  config.KustoTableConfig{Table: "ciDiscoveredJobs", IngestionMapping: "ciDiscoveredJobsMapping"},
-		Processed:   config.KustoTableConfig{Table: "ciProcessedJobs", IngestionMapping: "ciProcessedJobsMapping"},
+	cfg := &config.Config{CIFailurePatterns: config.CIFailurePatternsConfig{
+		Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"},
+	}, CIJobOutcomes: config.CIJobOutcomesConfig{
+		ClusterURI:   "http://localhost:8080",
+		IngestionURI: "http://localhost:8081",
+		Database:     "local",
+		JobFilter:    "ARO-HCP",
+		Outcomes:     config.KustoTableConfig{Table: "ciJobOutcomes", IngestionMapping: "ciJobOutcomesMapping"},
+		TestResults:  config.KustoTableConfig{Table: "ciTestResults", IngestionMapping: "ciTestResultsMapping"},
+		TestNames:    config.KustoTableConfig{Table: "ciTestNames", IngestionMapping: "ciTestNamesMapping"},
+		Discovered:   config.KustoTableConfig{Table: "ciDiscoveredJobs", IngestionMapping: "ciDiscoveredJobsMapping"},
+		Processed:    config.KustoTableConfig{Table: "ciProcessedJobs", IngestionMapping: "ciProcessedJobsMapping"},
 	}, Tenants: []config.TenantConfig{{TenantID: "t", ServicePrincipalClientId: "c", KeyVaultSecretName: "s"}}}
 	require.NoError(t, cfg.Validate())
 	w := NewWriter(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))

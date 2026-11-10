@@ -24,10 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
@@ -35,7 +32,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -59,7 +55,6 @@ type nodePoolVersionSyncer struct {
 	nodePoolLister                corelisters.NodePoolLister
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
-	subscriptionLister            corelisters.SubscriptionLister
 	readDesireLister              kubeapplierlisters.ReadDesireLister
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 
@@ -72,7 +67,6 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	subscriptionLister corelisters.SubscriptionLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
@@ -84,7 +78,6 @@ func NewNodePoolVersionController(
 		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		serviceProviderClusterLister:  serviceProviderClusterLister,
-		subscriptionLister:            subscriptionLister,
 		readDesireLister:              readDesireLister,
 		resourcesDBClient:             resourcesDBClient,
 		cincinnatiClientCache:         cincinnati.NewClientCache(),
@@ -102,7 +95,6 @@ func NewNodePoolVersionController(
 	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
-	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
 
 	// React to ServiceProviderCluster version changes without resyncing this input.
@@ -157,7 +149,7 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *coreapi.NodePool, servicePro
 //   - Exists as a known version in Cincinnati.
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version.
 //   - Downgrade: at most -2 minor versions from the highest control plane version.
-//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures.
+//   - Cross-major upgrades must follow the supported upgrade paths.
 //   - NP version must be in the allowed skew map when CP and NP are on different majors.
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion.
 //
@@ -186,9 +178,8 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
 
-	// Pull the ServiceProviderCluster and Subscription from cache rather than
-	// re-fetching live: validation only reads them, and if either isn't yet
-	// observed by the informer we'll be retriggered when it lands.
+	// Pull the ServiceProviderCluster from cache rather than re-fetching live:
+	// validation only reads it, and the informer will retrigger us when it arrives.
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -207,14 +198,6 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(err)
 	}
 
-	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
-	}
-
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
 	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := kubeapplierhelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -225,14 +208,8 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
-	op := operation.Operation{
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
-	}
-
 	// Validate the customer's desired version before setting it
-	experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)
-	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
-		experimentalFeaturesEnabled)
+	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID)
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
 		// Other Cincinnati errors are treated as transient graph or transport issues.
@@ -243,7 +220,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 				NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-				func(ctrl *coreapi.Controller) {
+				func(ctx context.Context, ctrl *coreapi.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
 						Type:    coreapi.ControllerConditionTypeIntentFailed,
 						Status:  metav1.ConditionTrue,
@@ -275,7 +252,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 	if err = controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-		func(ctrl *coreapi.Controller) {
+		func(ctx context.Context, ctrl *coreapi.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
 				Type:    coreapi.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionFalse,
@@ -294,7 +271,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 //   - The desired version exists in Cincinnati
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
 //   - Downgrade: at most -2 minor versions from the highest control plane version
-//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - Cross-major upgrades must follow the supported upgrade paths
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
 //
 // Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
@@ -303,7 +280,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *coreapi.ServiceProviderNodePool, spCluster *coreapi.ServiceProviderCluster,
-	channelGroup string, clusterUUID uuid.UUID, allowExperimentalReleaseFeatures bool) error {
+	channelGroup string, clusterUUID uuid.UUID) error {
 	if desiredVersion == nil {
 		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")
 	}
@@ -315,7 +292,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Conte
 	nodePoolActiveVersions := spNodePool.Status.NodePoolVersion.ActiveVersions
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
-	if err := validation.ValidateNodePoolVersionChange(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, highestCPVersion, allowExperimentalReleaseFeatures); err != nil {
+	if err := validation.ValidateNodePoolVersionChange(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, highestCPVersion); err != nil {
 		return err
 	}
 

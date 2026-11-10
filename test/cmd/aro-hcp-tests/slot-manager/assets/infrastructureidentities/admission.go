@@ -28,15 +28,18 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 )
 
 type admitClients struct {
-	identities *armmsi.UserAssignedIdentitiesClient
-	fics       *armmsi.FederatedIdentityCredentialsClient
-	roles      *armauthorization.RoleAssignmentsClient
+	subscriptionID string
+	resourceGroups *armresources.ResourceGroupsClient
+	identities     *armmsi.UserAssignedIdentitiesClient
+	fics           *armmsi.FederatedIdentityCredentialsClient
+	roles          *armauthorization.RoleAssignmentsClient
 }
 
 func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential) (*admitClients, error) {
@@ -48,10 +51,16 @@ func azureAdmitClients(subscriptionID string, credential azcore.TokenCredential)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating role assignments client: %w", err)
 	}
+	resourceGroups, err := armresources.NewResourceGroupsClient(subscriptionID, credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating resource groups client: %w", err)
+	}
 	return &admitClients{
-		identities: msiFactory.NewUserAssignedIdentitiesClient(),
-		fics:       msiFactory.NewFederatedIdentityCredentialsClient(),
-		roles:      roles,
+		subscriptionID: subscriptionID,
+		resourceGroups: resourceGroups,
+		identities:     msiFactory.NewUserAssignedIdentitiesClient(),
+		fics:           msiFactory.NewFederatedIdentityCredentialsClient(),
+		roles:          roles,
 	}, nil
 }
 
@@ -121,7 +130,7 @@ func admitIdentityLeaseWithClients(ctx context.Context, request assets.LeaseRequ
 	logger.Info(fmt.Sprintf("Loaded infrastructure identity lease inventory with %d federated credentials and %d role assignments",
 		len(federatedCredentials), len(assignments)))
 	operations := azureutil.DeleteFederatedCredentialOps(logger, clients.fics, federatedCredentials)
-	operations = append(operations, azureutil.DeleteRoleAssignmentOps(logger, clients.roles, assignments)...)
+	operations = append(operations, azureutil.DeleteRoleAssignmentOps(logger, clients.roles, clients.resourceGroups, clients.subscriptionID, assignments)...)
 	workers := max(cleanupWorkers, 1)
 	logger.Info("Deleting federated credentials and role assignments", "count", len(operations), "workers", workers)
 	if err := azureutil.RunWithWorkers(ctx, operations, workers); err != nil {

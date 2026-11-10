@@ -36,6 +36,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
@@ -169,12 +170,18 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
+			convergenceStart := time.Now()
+			var convergenceErr error
+			defer func() {
+				tc.RecordTestOperation(timing.KindConvergence, "Verify control plane converged", convergenceStart, time.Now(), convergenceErr)
+			}()
 			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				convergenceErr = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
 						installVersionId,
 						upgradeVersionId))
+				return convergenceErr
 			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),

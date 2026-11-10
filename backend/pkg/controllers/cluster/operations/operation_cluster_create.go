@@ -17,7 +17,6 @@ package operations
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -40,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -158,7 +158,8 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
-	operationalState, err := c.determineOperationState(ctx, operation, cluster)
+	operationalState, observationErr := c.determineOperationState(ctx, operation, cluster)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, cluster.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "cluster creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -168,28 +169,6 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-
-		message := operationbase.DeadlineExceededMessage(
-			"cluster creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		code := operationalState.CloudErrorCode
-		if code == coreapi.CloudErrorCodeInternalServerError {
-			code = coreapi.CloudErrorCodeDeadlineExceeded
-		}
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    code,
-			Message: message,
 		}
 	}
 
@@ -256,26 +235,23 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("tlsCertificates"))
 	}
+	if currState, err := c.dataPlaneOIDCFederationOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.WithSource("dataPlaneOIDCFederation"))
+	}
 
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	// cheap and easy backup check for potential accidents in future code.
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
 	logger.Info("determined cluster create operation status", "operationStates", operationStates)
-
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
 	}
-	logger.Info("picked cluster create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
@@ -594,6 +570,47 @@ func (c *operationClusterCreate) tlsCertificatesOperationStatus(ctx context.Cont
 		}
 	}
 	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+}
+
+// dataPlaneOIDCFederationOperationStatus blocks cluster creation completion
+// until data-plane OIDC federation is ensured (see
+// coreapihelpers.IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured) for
+// every data-plane operator identity the cluster currently requires. Each
+// operator is checked individually against
+// ServiceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+// rather than inspecting whichever assignments already exist there, for the
+// same reason as roleAssignmentsOperationStatus's sibling check: an operator
+// whose identity metadata has not resolved yet has no entry in that map at
+// all. Every operator is checked (not just the first pending one) so the
+// Provisioning message reports how many, and which, operators are still
+// pending.
+func (c *operationClusterCreate) dataPlaneOIDCFederationOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.Cluster) (*operationbase.OperationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	dataPlaneOIDCFederation := serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation
+	var pending []string
+	for operatorName, resourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		key := coreapi.DataplaneOIDCFederationAssignmentKey{IdentityResourceID: strings.ToLower(resourceID.String()), OperatorName: operatorName}
+		status := dataPlaneOIDCFederation[key]
+		if status == nil || !coreapihelpers.IsDataplaneOIDCFederationAssignmentTargetIdentityEnsured(status) {
+			pending = append(pending, fmt.Sprintf("%s (%s)", operatorName, resourceID))
+		}
+	}
+	if len(pending) == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	slices.Sort(pending)
+	logger.Info("data-plane OIDC federation not yet ensured", "pendingDataPlaneOIDCFederation", pending)
+	message := fmt.Sprintf("data-plane OIDC federation not yet ensured for %d operator(s): %s", len(pending), strings.Join(pending, ", "))
+	return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, message), nil
 }
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {

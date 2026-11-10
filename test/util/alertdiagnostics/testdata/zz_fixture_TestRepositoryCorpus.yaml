@@ -6168,14 +6168,21 @@
   group: arohcp_backup_slo_metrics_absent_alerts
   alert: userJourneyBackupMetricsAbsent
   occurrence: 1
-  input: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+  input: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
   plan:
-    expression: group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1)
     conditions:
       - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
-        path: root/unless:left
+        path: root/unless:left/and:left
         queries:
           - expression: (group by (cluster, region) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster, region) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster, region) (up{namespace="velero",pod=~"velero-.+"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -7189,14 +7196,14 @@
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
-  input: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+  input: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_desired:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -7206,14 +7213,14 @@
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
-  input: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+  input: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_progress:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -8680,16 +8687,27 @@
   alert: userJourneyBackupMetricsAbsent
   occurrence: 1
   input: |
-    group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+    (
+      group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})
+      and on (cluster)
+      group by (cluster) (up{job="prometheus/prometheus", namespace="prometheus"} == 1)
+    )
     unless on (cluster)
     group by (cluster) (up{namespace="velero", pod=~"velero-.+"} == 1)
   plan:
-    expression: group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) unless on (cluster) group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1)
+    expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"}) and on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1)
     conditions:
       - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
-        path: root/unless:left
+        path: root/unless:left/and:left
         queries:
           - expression: (group by (cluster) (underlay_clusters{cluster=~".*-mgmt-.*"})) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+            role: signal
+        thresholds: []
+        unsupported: ""
+      - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
+        path: root/unless:left/and:right
+        queries:
+          - expression: (group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) (group by (cluster) (up{namespace="velero",pod=~"velero-.+"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -12549,14 +12567,19 @@
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
   input: |
-    hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    (
+      hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    )
+    unless on (cluster, resource_id) (
+      backend_cluster_provision_state{phase="deleting"} == 1
+    )
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+    expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_desired:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_desired:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'
@@ -12567,14 +12590,19 @@
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
   input: |
-    hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    (
+      hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    )
+    unless on (cluster, resource_id) (
+      backend_cluster_provision_state{phase="deleting"} == 1
+    )
   plan:
-    expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+    expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)
     conditions:
-      - expression: hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
-        path: root
+      - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
+        path: root/unless:left
         queries:
-          - expression: hosted_control_plane_upgrade:duration_in_progress:seconds
+          - expression: (hosted_control_plane_upgrade:duration_in_progress:seconds) unless on (cluster, resource_id) ((backend_cluster_provision_state{phase="deleting"} == 1))
             role: signal
         thresholds:
           - operator: '>'

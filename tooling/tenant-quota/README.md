@@ -14,6 +14,8 @@ Use the implementation and deployment sources rather than maintaining a copied i
 - [`pkg/`](pkg/) contains collector, metric, configuration, and credential behavior.
 - [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml), under `opstool.tenantQuota`, is the source of truth for deployed configuration.
 
+The raw collector lives in [`pkg/cijoboutcomes`](pkg/cijoboutcomes/) and the failure-pattern controller in [`pkg/cipatterns`](pkg/cipatterns/). Both use [`pkg/kusto`](pkg/kusto/) for owner-lifetime HTTP cancellation, JSON mapping parsing and column matching, and JSON-lines ingestion. Client creation, cleanup, queries, mapping policy, and batch bounds remain with each controller.
+
 ## Runtime Model
 
 At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
@@ -169,6 +171,47 @@ Deploy the `ciTestResults` schema documentation and mapping (with the additive
 `source` column) before this collector; ingestion startup checks the mapping.
 **There is no backfill**: processed builds are skipped, and an existing batch tag
 prevents rewriting. Historical `ciTestResults` rows have an empty `source`.
+
+## Derived CI Failure Patterns
+
+The `ci-failure-patterns` controller ([`pkg/cipatterns`](pkg/cipatterns/)) derives failure patterns from the failed results in `ciTestResults` and stores them in the `ciFailurePatterns` table. It runs the shared [`cifailurepatterns`](../cifailurepatterns/) extractor, the same one [`hcpctl`](../hcpctl/README.md) uses for offline analysis. The raw rows stay authoritative; derived rows are a projection that can be recomputed from them.
+
+The controller is independent of Prow job discovery and of `ciProcessedJobs`: it covers every failed result still present in `ciTestResults`.
+
+**How it works**
+
+- **Discovery.** Two loops feed one work queue keyed by build ID. A poll of the 64 newest failed builds runs every `interval` (default 5m), so a new run is picked up within one interval. A history sweep walks all retained builds from newest to oldest in pages of 128. It only advances while less than one page of work is outstanding, and rests for 12 hours after reaching the oldest build before starting over, so a restart or a rebuild proceeds at worker speed without flooding Kusto.
+- **Reconciliation.** `workers` (default 4) take builds from the queue. For each build the controller reads its failed results and test names, works out the result rows the current extractor should produce, reads the rows already stored, and submits only the missing ones.
+- **Completion.** Kusto ingestion is queued, so a successful submission does not mean the rows are visible. The controller re-reads the build with strongly consistent queries until every expected row is visible, backing off between attempts. A cache of recently submitted rows (`cacheSize`, `cacheTTL`) prevents resubmitting rows that are still waiting to become visible, and its expiry allows resubmission if an ingestion was lost.
+- **Failure handling.** Errors are retried with backoff. A build that exceeds the row, byte, or response limits fails instead of being truncated. No state is persisted: after a restart the stored rows determine what is still missing.
+
+**Results.** One row holds the findings for one distinct failed input: the origin, build ID, source, and test ID of a failure, its resolved test name, a fingerprint of the raw input, the extractor and schema versions, and the ordered findings with their evidence locations. Identical failures share a row, so the number of occurrences always comes from `ciTestResults`. The raw message and timings are not copied. Join `ciTestResults` on `(buildId, source, testId, messageHash)` to get them, where `messageHash` is the lowercase hex SHA-256 of the raw message and `hash_sha256(message)` computes it in Kusto (both give an empty string for an empty message). The hash is needed because a test can fail more than once in a run, which leaves several raw rows with the same `(buildId, source, testId)` and different messages. Finding locations are byte offsets into the raw message. Rows are identified by `resultKey`, which includes the extractor version, so a new extractor version produces new rows next to the old ones. A retried submission can leave physical copies of the same row; conflicting findings for one `resultKey` are reported as an error.
+
+**Configuration.** The controller reuses the Kusto connection and raw table settings from `ciJobOutcomes`, which does not need to be enabled. `ciFailurePatterns` defines the results table and ingestion mapping, the poll interval, the number of workers, and the submission cache. The Kusto deployment creates the results table and mapping.
+
+**Querying.** Always select the extractor and schema version explicitly; never take the newest row or aggregate across versions. Missing rows mean a build has not been reconciled yet, not that it has no findings. A pattern match is a symptom, not a confirmed root cause. To join results to their raw rows:
+
+```kusto
+ciFailurePatterns
+| join kind=inner (
+    ciTestResults | where failed | extend messageHash = hash_sha256(message)
+  ) on buildId, source, testId, messageHash
+```
+
+To inspect the stored rows of one version and spot physical copies:
+
+```kusto
+let selectedOrigin = "https://kusto.example.com/ServiceLogs"; // Replace with the cluster URI and database, without a trailing slash.
+let selectedExtractorVersion = "fp-1"; // Replace with the version being inspected.
+let selectedSchemaVersion = 1;
+ciFailurePatterns
+| where origin == selectedOrigin
+    and extractorVersion == selectedExtractorVersion
+    and resultSchemaVersion == selectedSchemaVersion
+| summarize physicalCopies = count() by resultKey
+```
+
+For frozen evidence while developing extraction rules, use hcpctl's raw-bundle export and offline replay instead of these results.
 
 ## One-Shot CLI
 
@@ -389,27 +432,32 @@ After adding or changing a tenant:
 1. Update [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml).
 2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
 
-### Renew a client secret
+### Check and renew a client secret
 
-List current tenant credentials:
-
-```bash
-cd tooling/tenant-quota
-./scripts/renew-sp-secret.sh --list
-```
-
-Renew one tenant:
+The collector's client secret for each tenant managed by the privileged `E2ESubscriptionRBAC` pipeline (currently RedHat0) is held in the opstool Key Vault and expires after one to two years. Check it with a dry run of `ensure-secret`, which fails if the stored secret is expired (or no longer matches any credential of the application) and warns when it expires within 90 days (`--expiry-warning`):
 
 ```bash
-cd tooling/tenant-quota
-az login --tenant <azure-ad-tenant-id>
-./scripts/renew-sp-secret.sh --tenant RedHat0
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret --dry-run \
+  --vault-url https://opstool-kv-usw3.vault.azure.net \
+  --mapping 'custom-metrics-collector-redhat0-ms-graph-ro;custom-metrics-collector-redhat0-client-secret'
 ```
 
-If needed, the script can also restart the deployment:
+Renew it by adding `--rotate` (drop `--dry-run`). This mints a new client secret and stores it as a new Key Vault secret version; the previous Entra credential is left in place until it expires or is deleted. Use `--dry-run --rotate` to preview the rotation:
 
 ```bash
-./scripts/renew-sp-secret.sh --tenant RedHat0 --restart
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials ensure-secret --rotate \
+  --vault-url https://opstool-kv-usw3.vault.azure.net \
+  --mapping 'custom-metrics-collector-redhat0-ms-graph-ro;custom-metrics-collector-redhat0-client-secret'
 ```
 
-Because the runtime watches mounted secret files, a restart should normally be optional and is mainly a recovery step if the rotated secret does not propagate promptly.
+The application and secret names come from `opstool.tenantQuota.tenants.<tenant>.applicationName` and `keyVaultSecretName` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml). The caller needs the permissions described in [`tooling/entra-app-credentials`](../entra-app-credentials/README.md).
+
+`ensure-secret` authenticates to Key Vault and Microsoft Graph with the same Azure credential, so it only covers tenants whose Entra application is reconciled by the privileged pipeline (that is, with an `applicationName`). The TestTestARO service principal lives in a different Entra tenant and has no `applicationName`; it is not covered. To renew its secret, use the script's two-phase flow: `./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault` with a target-tenant identity (it mints a new client secret with `az ad sp credential reset`, which replaces the application's existing client secrets, and writes it to a local file), then switch to an identity that can write to the Key Vault and run `./scripts/manage-service-principals.sh --keyvault-only --secret-name <name> --secret-file <printed-path>`.
+
+After rotating, confirm the collector recovered:
+
+```bash
+kubectl -n tenant-quota logs deploy/tenant-quota-collector --since=10m | grep -E 'AADSTS|Collected resource group metrics'
+```
+
+The collector does not restart itself on rotation. The Key Vault CSI driver re-reads the secret into the pod mount on its rotation poll, which is **1 hour** on the opstool AKS add-on (`az aks show ... --query addonProfiles.azureKeyvaultSecretsProvider.config`; the rotation reconciler logs `controller="rotation"` in the `secrets-store` container of the `aks-secrets-store-csi-driver` pod on the collector's node). The collector's secret watcher then polls the mounted file every minute and, on a change, drops its cached credential so the next collection cycle authenticates with the new secret. Expect up to about an hour before the collector recovers. To recover immediately, restart the collector, whose new pod mounts the latest secret version: `kubectl -n tenant-quota rollout restart deployment/tenant-quota-collector`.

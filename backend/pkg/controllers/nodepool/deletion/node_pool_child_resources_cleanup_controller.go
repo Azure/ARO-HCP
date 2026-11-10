@@ -175,8 +175,8 @@ func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, 
 }
 
 // extraDeleteGateShouldDeleteServiceProviderNodePool returns false while the
-// ServiceProviderNodePool still has Maestro readonly bundles or nodepool-scoped
-// kube-applier *Desire documents.
+// ServiceProviderNodePool still has nodepool-scoped kube-applier *Desire
+// documents.
 func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderNodePool(ctx context.Context, serviceProviderNodePoolResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -195,13 +195,6 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 	}
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
-	}
-
-	// Check if there are any Maestro readonly bundles remaining.
-	if len(spnp.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"serviceProviderNodePoolResourceID", spnp.ResourceID.String(), "remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
-		return false, nil
 	}
 
 	// Check if there are any nodepool-scoped kube-applier *Desire documents remaining.

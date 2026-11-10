@@ -67777,6 +67777,121 @@ data:
             type: StateSet
           help: Backup phase
           name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: Backup CR presence indicator, independent of status.phase - one row per
+            existing CR
+          name: info
+      - groupVersionKind:
+          group: velero.io
+          kind: DeleteBackupRequest
+          version: v1
+        labelsFromPath:
+          backupName:
+          - spec
+          - backupName
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+        metricNamePrefix: veleroDeleteBackupRequest
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - InProgress
+              - Processed
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: DeleteBackupRequest phase
+          name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: DeleteBackupRequest CR presence indicator, independent of status.phase
+            - one row per existing CR
+          name: info
+      - groupVersionKind:
+          group: cluster.x-k8s.io
+          kind: Machine
+          version: v1beta2
+        labelsFromPath:
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+          node:
+          - status
+          - nodeRef
+          - name
+          node_pool:
+          - metadata
+          - labels
+          - cluster.x-k8s.io/deployment-name
+        metricNamePrefix: capiMachine
+        metrics:
+        - each:
+            gauge:
+              path:
+              - status
+              - deletion
+              - nodeDrainStartTime
+            type: Gauge
+          errorLogV: 10
+          help: 'Unix time at which CAPI started draining this Machine''s node. Set once
+            the Machine is deleting and the drain has begun; a series exists only for
+            Machines being deleted, so this costs nothing on a steady-state cluster. nilIsZero
+            is deliberately omitted to keep it that way -- with it, every worker Machine
+            would carry a series. CAVEAT: CAPI does NOT clear nodeDrainStartTime when
+            the drain finishes, so on its own this cannot distinguish a wedged drain from
+            a Machine whose drain succeeded but whose Azure VM deletion is slow. Prefer
+            the recording rule duration:capiMachine_node_draining:seconds, which gates
+            this on deleting_stage{reason="DrainingNode"} and is the supported way to
+            ask how long a node has been draining.'
+          name: node_drain_start_time_seconds
+        - each:
+            gauge:
+              labelsFromPath:
+                reason:
+                - reason
+              path:
+              - status
+              - conditions
+              - '[type=Deleting]'
+              valueFrom:
+              - lastTransitionTime
+            type: Gauge
+          help: Which stage of the CAPI deletion workflow a Machine is in, from the reason
+            on its Deleting condition (DrainingNode, WaitingForVolumeDetach, WaitingForInfrastructureDeletion,
+            NotDeleting, ...). The value is the condition's lastTransitionTime in Unix
+            seconds. One series per Machine, since CAPI keeps a Deleting=False/NotDeleting
+            condition on idle Machines too. Combined with node_drain_start_time_seconds
+            by the recording rule duration:capiMachine_node_draining:seconds; also useful
+            on its own to see which deletion stage a Machine is wedged in.
+          name: deleting_stage
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -67950,6 +68065,20 @@ rules:
   - velero.io
   resources:
   - backups
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
   verbs:
   - list
   - watch
@@ -68659,6 +68788,22 @@ spec:
     # resources where namespace has been promoted to the actual resource namespace
     # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
+      # TRANSITION — REVERT ME (ARO-30517). The velero PodMonitor renames the
+      # schedule-derived Velero series to velero_hcp_* and sets namespace=ocm-*,
+      # routing them to the HCP workspace (and out of services via the drop rules
+      # below). These two rules keep a services-workspace copy under the ORIGINAL
+      # velero_* names so the services-workspace backup SLO alerts keep firing
+      # while the velero_hcp_* series and HCP-workspace alerts are validated in
+      # production. Rename back to velero_*, then reset namespace to "velero" so
+      # the ocm-* drop rule below does not drop them. Remove once validated.
+      - sourceLabels: [__name__]
+        regex: 'velero_hcp_(.+)'
+        targetLabel: __name__
+        replacement: 'velero_${1}'
+      - sourceLabels: [__name__]
+        regex: 'velero_.+'
+        targetLabel: namespace
+        replacement: 'velero'
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
         action: drop

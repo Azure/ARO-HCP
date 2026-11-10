@@ -32,6 +32,17 @@ const (
 	KindCreateNodePool       = "create-nodepool"
 	KindDeleteCluster        = "delete-cluster"
 	KindResourceGroupCleanup = "resource-group-cleanup"
+	// KindUpdateCluster and KindUpdateNodePool cover the whole asynchronous update, including polling.
+	KindUpdateCluster  = "update-cluster"
+	KindUpdateNodePool = "update-nodepool"
+	// KindDeleteResourceGroup covers a resource group deletion requested by the test body, not framework cleanup.
+	KindDeleteResourceGroup = "delete-resource-group"
+	// KindConvergence covers waiting for an updated cluster to reach its desired state.
+	KindConvergence = "convergence"
+	// KindDataPlaneKey covers key creation outside ARM, such as Managed HSM and Key Vault etcd keys.
+	KindDataPlaneKey = "data-plane-key"
+	// KindTestStep covers ginkgo steps and framework phases so no test work stays unattributed.
+	KindTestStep = "test-step"
 )
 
 // Operation outcomes describe the helper's result rather than the enclosing test.

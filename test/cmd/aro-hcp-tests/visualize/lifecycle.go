@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"math"
 	"slices"
 	"time"
 
@@ -130,7 +131,8 @@ func lifecycleRows(item TestInfo) []StepTimingMetadata {
 			}
 			if clipped.Outcome != "" {
 				clipped.Name += " (" + clipped.Outcome + ")"
-			} else if clipped.Kind != "" {
+			} else if clipped.Kind != "" && clipped.Kind != timing.KindTestStep {
+				// Ginkgo steps carry no per-step result, so they stay unlabelled.
 				clipped.Name += " (outcome unknown)"
 			}
 			if clipped.Kind == "phase" || clipped.Kind == "gap" || timingColor(clipped.Kind) == "" {
@@ -189,6 +191,18 @@ func timingColor(kind string) string {
 		return "#d97706"
 	case timing.KindResourceGroupCleanup:
 		return "#db2777"
+	case timing.KindUpdateCluster:
+		return "#7c3aed"
+	case timing.KindUpdateNodePool:
+		return "#6366f1"
+	case timing.KindDeleteResourceGroup:
+		return "#be123c"
+	case timing.KindConvergence:
+		return "#0891b2"
+	case timing.KindDataPlaneKey:
+		return "#4d7c0f"
+	case timing.KindTestStep:
+		return "#94a3b8"
 	case "phase":
 		return "#9333ea"
 	case "gap":
@@ -206,6 +220,7 @@ type durationSummary struct {
 	Min        time.Duration
 	Max        time.Duration
 	Incomplete int
+	samples    []time.Duration
 }
 
 // Records one successful sample without merging overlapping resource operations.
@@ -218,6 +233,7 @@ func (s *durationSummary) add(duration time.Duration) {
 	}
 	s.Count++
 	s.Total += duration
+	s.samples = append(s.samples, duration)
 }
 
 // Minimum formats the shortest successful sample, including a valid zero duration.
@@ -241,13 +257,25 @@ func formatTimingDuration(duration time.Duration) string {
 	return duration.Truncate(time.Second).String()
 }
 
-// Mean formats a duration only when the category has successful complete samples.
-func (s durationSummary) Mean() string {
+// Percentile returns the nearest-rank p-th percentile of successful samples, or N/A when there are none.
+func (s durationSummary) Percentile(p float64) string {
 	if s.Count == 0 {
 		return "N/A"
 	}
-	return formatTimingDuration(s.Total / time.Duration(s.Count))
+	sorted := slices.Clone(s.samples)
+	slices.Sort(sorted)
+	rank := max(1, int(math.Ceil(p/100*float64(len(sorted)))))
+	return formatTimingDuration(sorted[rank-1])
 }
+
+// P50 formats the median successful sample.
+func (s durationSummary) P50() string { return s.Percentile(50) }
+
+// P95 formats the 95th percentile successful sample.
+func (s durationSummary) P95() string { return s.Percentile(95) }
+
+// P99 formats the 99th percentile successful sample.
+func (s durationSummary) P99() string { return s.Percentile(99) }
 
 type lifecycleSummary struct {
 	Rows                              []durationSummary
@@ -262,6 +290,11 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 		{Name: timing.KindCreateNodePool, Color: timingColor(timing.KindCreateNodePool)},
 		{Name: timing.KindDeleteCluster, Color: timingColor(timing.KindDeleteCluster)},
 		{Name: timing.KindResourceGroupCleanup, Color: timingColor(timing.KindResourceGroupCleanup)},
+		{Name: timing.KindUpdateCluster, Color: timingColor(timing.KindUpdateCluster)},
+		{Name: timing.KindUpdateNodePool, Color: timingColor(timing.KindUpdateNodePool)},
+		{Name: timing.KindDeleteResourceGroup, Color: timingColor(timing.KindDeleteResourceGroup)},
+		{Name: timing.KindConvergence, Color: timingColor(timing.KindConvergence)},
+		{Name: timing.KindDataPlaneKey, Color: timingColor(timing.KindDataPlaneKey)},
 		{Name: "Full cleanup", Color: timingColor("phase")},
 	}}
 	for _, item := range times {
@@ -286,7 +319,7 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 			summary.Other++
 			continue
 		}
-		for i := range summary.Rows[:4] {
+		for i := range summary.Rows[:len(summary.Rows)-1] {
 			for _, step := range item.Steps {
 				if step.Kind != summary.Rows[i].Name {
 					continue
@@ -317,9 +350,9 @@ func summarizeLifecycle(times []TestInfo) lifecycleSummary {
 				}
 			}
 			if incomplete {
-				summary.Rows[4].Incomplete++
+				summary.Rows[len(summary.Rows)-1].Incomplete++
 			} else {
-				summary.Rows[4].add(item.FinishedAt.Sub(item.CleanupStartedAt))
+				summary.Rows[len(summary.Rows)-1].add(item.FinishedAt.Sub(item.CleanupStartedAt))
 			}
 		}
 	}
@@ -345,7 +378,7 @@ body { margin: 0; color: CanvasText; background: Canvas; }
 </style><section class="timing-summary">
 <h2>Operation durations</h2>
 <p>Full-run summary (unchanged by chart filters): {{.Passed}} passed · {{.Failed}} failed · {{.TimedOut}} timed out{{if .Unknown}} · {{.Unknown}} unknown{{end}}{{if .Other}} · {{.Other}} other{{end}}. Successful operations only.</p>
-<table><thead><tr><th>Operation</th><th>Min</th><th>Average</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.Mean}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
+<table><thead><tr><th>Operation</th><th>Min</th><th>P50</th><th>P95</th><th>P99</th><th>Max</th><th>Samples</th><th>Incomplete</th></tr></thead><tbody>{{range .Rows}}<tr style="border-left:4px solid {{.Color}}"><td>{{.Name}}</td><td>{{.Minimum}}</td><td>{{.P50}}</td><td>{{.P95}}</td><td>{{.P99}}</td><td>{{.Maximum}}</td><td>{{.Count}}</td><td>{{.Incomplete}}</td></tr>{{end}}</tbody></table>
 <p>Bar colors match the table · Purple: enclosing phase context, not operation coverage · Slate: No recorded operation, not necessarily idle time. Each bar is one test; concurrent operations share the bar height. Vertical zoom expands selected tests for detail.</p>
 <div class="timing-controls">
 <label for="timing-sort">Sort tests by

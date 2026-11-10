@@ -21,8 +21,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
+
+	copilot "github.com/github/copilot-sdk/go"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -85,19 +88,22 @@ func TestBuildSessionConfigBYOK(t *testing.T) {
 		name         string
 		clientModel  string
 		sessionModel string
+		promptTokens int
 		wantModel    string
 	}{
 		{name: "deployment default", wantModel: "analysis"},
-		{name: "client override", clientModel: "client-model", wantModel: "client-model"},
-		{name: "session override", clientModel: "client-model", sessionModel: "session-model", wantModel: "session-model"},
+		{name: "client override with budget", clientModel: "client-model", promptTokens: 128000, wantModel: "client-model"},
+		{name: "session override with budget", clientModel: "client-model", sessionModel: "session-model", promptTokens: 200000, wantModel: "session-model"},
+		{name: "deployment with budget", promptTokens: 900000, wantModel: "analysis"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tokenRequested := false
-			client := &CopilotClient{cfg: &AgentConfig{
+			client, err := NewCopilotClient(&AgentConfig{
 				AuthMode:        CopilotAuthModeBYOK,
 				ModelEndpoint:   "https://example.invalid",
 				ModelDeployment: "analysis",
 				Model:           tc.clientModel,
+				MaxPromptTokens: tc.promptTokens,
 				AzureCredential: tokenCredentialFunc(func(_ context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
 					tokenRequested = true
 					if want := []string{"https://cognitiveservices.azure.com/.default"}; !reflect.DeepEqual(opts.Scopes, want) {
@@ -105,7 +111,15 @@ func TestBuildSessionConfigBYOK(t *testing.T) {
 					}
 					return azcore.AccessToken{Token: "test-token"}, nil
 				}),
-			}}
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := client.Stop(); err != nil {
+					t.Error(err)
+				}
+			})
 
 			cfg, err := client.buildSessionConfig(t.Context(), SessionConfig{Model: tc.sessionModel})
 			if err != nil {
@@ -117,14 +131,44 @@ func TestBuildSessionConfigBYOK(t *testing.T) {
 			if cfg.Provider == nil {
 				t.Fatal("Provider = nil, want Azure BYOK provider")
 			}
-			if cfg.Provider.Type != "azure" || cfg.Provider.WireAPI != "responses" {
-				t.Errorf("provider protocol = %q/%q, want azure/responses", cfg.Provider.Type, cfg.Provider.WireAPI)
-			}
-			if cfg.Provider.BaseURL != client.cfg.ModelEndpoint || cfg.Provider.BearerToken != "test-token" {
-				t.Error("provider endpoint or bearer token was not preserved")
-			}
 			if cfg.Model != tc.wantModel {
 				t.Errorf("Model = %q, want %q", cfg.Model, tc.wantModel)
+			}
+			// Check the complete SDK provider contract: setting a budget must
+			// not introduce model-identity, routing, or authentication overrides.
+			wantProvider := &copilot.ProviderConfig{
+				Type: "azure", WireAPI: "responses", BaseURL: client.cfg.ModelEndpoint,
+				BearerToken: "test-token", MaxPromptTokens: tc.promptTokens,
+			}
+			if !reflect.DeepEqual(cfg.Provider, wantProvider) {
+				t.Errorf("Provider = %+v, want %+v", cfg.Provider, wantProvider)
+			}
+		})
+	}
+}
+
+func TestCopilotRejectsInvalidPromptBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		config  AgentConfig
+		wantErr string
+	}{
+		{name: "negative budget", config: AgentConfig{AuthMode: CopilotAuthModeBYOK, MaxPromptTokens: -1}, wantErr: "must not be negative"},
+		{name: "implicit GitHub auth", config: AgentConfig{MaxPromptTokens: 128000}, wantErr: "requires copilot auth mode"},
+		{name: "logged-in auth", config: AgentConfig{AuthMode: CopilotAuthModeLoggedIn, MaxPromptTokens: 128000}, wantErr: "requires copilot auth mode"},
+		{name: "token auth", config: AgentConfig{AuthMode: CopilotAuthModeToken, MaxPromptTokens: 128000}, wantErr: "requires copilot auth mode"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := NewCopilotClient(&tc.config)
+			if client != nil {
+				t.Cleanup(func() {
+					if err := client.Stop(); err != nil {
+						t.Error(err)
+					}
+				})
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("NewCopilotClient() error = %v, want %q", err, tc.wantErr)
 			}
 		})
 	}

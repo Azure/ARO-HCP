@@ -210,11 +210,9 @@ func registerNodePoolVersionController() controllerconfig.ControllerRegistration
 }
 
 func instantiateNodePoolVersionController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return nodepoolversion.NewNodePoolVersionController(
 		controllerContext.ResourcesDBClient,
-		subscriptionLister,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
 		unionReadDesireLister,

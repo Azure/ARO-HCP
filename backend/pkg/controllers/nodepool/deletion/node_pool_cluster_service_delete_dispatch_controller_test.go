@@ -432,7 +432,7 @@ func newTestNodePool(t *testing.T, opts func(*coreapi.NodePool)) *coreapi.NodePo
 	return np
 }
 
-func newTestSPNP(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *coreapi.ServiceProviderNodePool {
+func newTestSPNP(t *testing.T) *coreapi.ServiceProviderNodePool {
 	t.Helper()
 	spnpResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -442,8 +442,5 @@ func newTestSPNP(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *core
 			"/serviceProviderNodePools/default"))
 	return &coreapi.ServiceProviderNodePool{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spnpResourceID, PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID)},
-		Status: coreapi.ServiceProviderNodePoolStatus{
-			MaestroReadonlyBundles: bundles,
-		},
 	}
 }

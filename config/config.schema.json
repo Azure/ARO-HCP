@@ -606,6 +606,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "additionalIngressRules": {
+          "type": "string",
+          "description": "Additional service-cluster Allow/Inbound NSG rules as CSV: name=priority:protocol:source:destination:destinationPort. Supports IPv4/CIDR, service tags and wildcard prefixes; excludes free-text descriptions.",
+          "pattern": "^$|^[A-Za-z0-9_.-]+=[0-9]+:[A-Za-z*]+:[A-Za-z0-9_./*-]+:[A-Za-z0-9_./*-]+:[0-9*-]+(,[A-Za-z0-9_.-]+=[0-9]+:[A-Za-z*]+:[A-Za-z0-9_./*-]+:[A-Za-z0-9_./*-]+:[0-9*-]+)*$"
+        },
         "systemPoolOnly": {
           "type": "boolean",
           "description": "CI and personal DEV service clusters only: omit worker and infra pools and allow all workloads on the system pool. Does not delete existing pools."
@@ -1233,46 +1238,6 @@
         "globalCertificatesDomain"
       ]
     },
-    "acm": {
-      "type": "object",
-      "properties": {
-        "operator": {
-          "type": "object",
-          "properties": {
-            "version": {
-              "type": "string"
-            },
-            "bundle": {
-              "$ref": "#/definitions/containerImage"
-            }
-          },
-          "required": [
-            "bundle"
-          ],
-          "additionalProperties": false
-        },
-        "mce": {
-          "type": "object",
-          "properties": {
-            "version": {
-              "type": "string"
-            },
-            "bundle": {
-              "$ref": "#/definitions/containerImage"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "bundle"
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operator",
-        "mce"
-      ]
-    },
     "clustersService": {
       "type": "object",
       "properties": {
@@ -1447,7 +1412,6 @@
         "image": {
           "$ref": "#/definitions/containerImageOptionalDigest"
         },
-
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1473,12 +1437,18 @@
         "backupCadenceProfile": {
           "type": "string",
           "description": "Backup cadence profile: 'production' creates hourly/daily/weekly schedules, 'testing' creates a 10-minute cycle schedule",
-          "enum": ["production", "testing"]
+          "enum": [
+            "production",
+            "testing"
+          ]
         },
         "backupScheduleState": {
           "type": "string",
           "description": "Controls Velero schedule CRs for hosted cluster backups: 'Enabled' sets spec.paused=false, 'Disabled' sets spec.paused=true",
-          "enum": ["Enabled", "Disabled"]
+          "enum": [
+            "Enabled",
+            "Disabled"
+          ]
         },
         "exitOnPanic": {
           "type": "boolean",
@@ -1602,7 +1572,9 @@
             }
           },
           "additionalProperties": false,
-          "required": ["enabled"]
+          "required": [
+            "enabled"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1622,7 +1594,10 @@
         },
         "captureMode": {
           "type": "string",
-          "enum": ["slow", "all"]
+          "enum": [
+            "slow",
+            "all"
+          ]
         },
         "image": {
           "$ref": "#/definitions/containerImageOptionalDigest"
@@ -1632,7 +1607,12 @@
         }
       },
       "additionalProperties": false,
-      "required": ["enabled", "captureMode", "image", "k8s"]
+      "required": [
+        "enabled",
+        "captureMode",
+        "image",
+        "k8s"
+      ]
     },
     "kubeApplier": {
       "type": "object",
@@ -1709,7 +1689,13 @@
           "properties": {
             "profile": {
               "type": "string",
-              "enum": ["", "ci", "development", "integration", "production"],
+              "enum": [
+                "",
+                "ci",
+                "development",
+                "integration",
+                "production"
+              ],
               "description": "Nodepool tier profile. Empty means disabled. Tier definitions (VM cores, disk sizes, nodes per zone, family priorities) are defined in code."
             }
           },
@@ -1789,7 +1775,6 @@
         "image": {
           "$ref": "#/definitions/containerImageOptionalDigest"
         },
-
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -2371,7 +2356,10 @@
         },
         "sku": {
           "type": "string",
-          "enum": ["Standard", "Premium"],
+          "enum": [
+            "Standard",
+            "Premium"
+          ],
           "description": "SKU/tier for the audit logs Event Hub namespace (default Premium; Standard for regions without Premium availability)"
         },
         "authRuleName": {
@@ -2467,6 +2455,10 @@
           "type": "string",
           "description": "MISE Entra application registration name"
         },
+        "manageEntraApp": {
+          "type": "boolean",
+          "description": "Whether to manage the MISE Entra application when MISE is deployed. If false, an existing application with applicationName is required and is still looked up."
+        },
         "arm": {
           "type": "object",
           "properties": {
@@ -2555,7 +2547,9 @@
               "description": "Whether to connect to the mdsd audit socket for audit logging."
             }
           },
-          "required": ["connectSocket"]
+          "required": [
+            "connectSocket"
+          ]
         },
         "imageV2": {
           "$ref": "#/definitions/containerImageOptionalDigest"
@@ -2568,7 +2562,8 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "applicationName"
+        "applicationName",
+        "manageEntraApp"
       ]
     },
     "msiRp": {
@@ -3808,7 +3803,7 @@
           "$ref": "#/definitions/nsp"
         },
         "istio": {
-          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep — passing revisions through ARM would overwrite upgrades the pipeline step had already applied.",
+          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep \u2014 passing revisions through ARM would overwrite upgrades the pipeline step had already applied.",
           "type": "object",
           "properties": {
             "tag": {

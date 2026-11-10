@@ -22,10 +22,11 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Cluster service network, mirroring dev-infrastructure/modules/aks-cluster-base.bicep.
@@ -40,7 +41,7 @@ const (
 // mutated. Changed paths are sorted and contain no configuration values.
 func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.ManagedCluster, bootstrap *compute.Pool) (armcontainerservice.ManagedCluster, []string, error) {
 	if existing != nil && existing.Properties == nil {
-		return armcontainerservice.ManagedCluster{}, nil, fmt.Errorf("cluster properties are missing")
+		return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(fmt.Errorf("cluster properties are missing"))
 	}
 	var advancedNetworking *armcontainerservice.AdvancedNetworking
 	if armcontainerservice.NetworkDataplane(o.networkDataplane) == armcontainerservice.NetworkDataplaneCilium {
@@ -159,9 +160,20 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 		},
 	}
 
+	desired.Properties.ServiceMeshProfile = o.serviceMeshProfile
+	desired.Properties.IngressProfile = o.ingressProfile
+	// Revisions belong to bootstrap only; upgrades are managed separately.
+	if existing != nil && o.serviceMeshProfile != nil && o.serviceMeshProfile.Istio != nil {
+		profile := *o.serviceMeshProfile
+		istio := *profile.Istio
+		istio.Revisions = nil
+		profile.Istio = &istio
+		desired.Properties.ServiceMeshProfile = &profile
+	}
+
 	if existing == nil {
 		if bootstrap == nil {
-			return armcontainerservice.ManagedCluster{}, nil, fmt.Errorf("cluster creation requires a system pool")
+			return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(fmt.Errorf("cluster creation requires a system pool"))
 		}
 		desired.Location = ptr.To(o.region)
 		desired.Properties.DNSPrefix = ptr.To(o.clusterName)
@@ -202,16 +214,23 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 	// Ref: https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/create-or-update
 	properties.AgentPoolProfiles = nil
 	properties.KubernetesVersion = nil
+	if profile := properties.ServiceMeshProfile; profile != nil && profile.Istio != nil {
+		profileCopy := *profile
+		istio := *profile.Istio
+		istio.Revisions = nil
+		profileCopy.Istio = &istio
+		properties.ServiceMeshProfile = &profileCopy
+	}
 
 	// Merge the wire representation so explicit false/empty values are owned,
 	// while nested server defaults and fields owned by other actors survive.
 	currentFields, err := clusterConfigurationFields(live)
 	if err != nil {
-		return armcontainerservice.ManagedCluster{}, nil, err
+		return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(err)
 	}
 	desiredFields, err := clusterConfigurationFields(desired)
 	if err != nil {
-		return armcontainerservice.ManagedCluster{}, nil, err
+		return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(err)
 	}
 	changed := mergeClusterConfiguration(currentFields, desiredFields, "")
 	if len(changed) == 0 {
@@ -219,11 +238,11 @@ func (o *validatedOptions) desiredClusterSpec(existing *armcontainerservice.Mana
 	}
 	data, err := json.Marshal(currentFields)
 	if err != nil {
-		return armcontainerservice.ManagedCluster{}, nil, fmt.Errorf("encoding cluster configuration: %w", err)
+		return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(fmt.Errorf("encoding cluster configuration: %w", err))
 	}
 	var update armcontainerservice.ManagedCluster
 	if err := json.Unmarshal(data, &update); err != nil {
-		return armcontainerservice.ManagedCluster{}, nil, fmt.Errorf("decoding cluster configuration: %w", err)
+		return armcontainerservice.ManagedCluster{}, nil, utils.TrackError(fmt.Errorf("decoding cluster configuration: %w", err))
 	}
 	slices.Sort(changed)
 	return update, changed, nil
@@ -243,6 +262,7 @@ func toClusterAgentPoolProfile(name string, props *armcontainerservice.ManagedCl
 		OSDiskSizeGB:           props.OSDiskSizeGB,
 		OSDiskType:             props.OSDiskType,
 		EnableAutoScaling:      props.EnableAutoScaling,
+		Count:                  props.Count,
 		MinCount:               props.MinCount,
 		MaxCount:               props.MaxCount,
 		Mode:                   props.Mode,
@@ -267,11 +287,11 @@ func toClusterAgentPoolProfile(name string, props *armcontainerservice.ManagedCl
 func clusterConfigurationFields(cluster armcontainerservice.ManagedCluster) (map[string]any, error) {
 	data, err := json.Marshal(cluster)
 	if err != nil {
-		return nil, fmt.Errorf("encoding cluster configuration: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("encoding cluster configuration: %w", err))
 	}
 	var fields map[string]any
 	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, fmt.Errorf("decoding cluster configuration: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("decoding cluster configuration: %w", err))
 	}
 	return fields, nil
 }

@@ -158,6 +158,7 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 		}
 	}
 	expectedIdentityNames := framework.NewDefaultIdentities().ToSlice()
+	optionalIdentityNames := azureutil.NormalizedNameSet(framework.OptionalIdentityNames())
 	missingIdentities := make([]identityReference, 0)
 	unexpectedIdentities := make([]identityReference, 0)
 	actualIdentities := 0
@@ -176,6 +177,9 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 			missingIdentities = append(missingIdentities, identityReference{ResourceGroup: resourceGroup, Name: name})
 		}
 		for _, name := range unexpected {
+			if optionalIdentityNames.Has(strings.ToLower(name)) {
+				continue
+			}
 			unexpectedIdentities = append(unexpectedIdentities, identityReference{ResourceGroup: actualGroup, Name: name})
 		}
 	}

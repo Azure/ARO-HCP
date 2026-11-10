@@ -40,7 +40,7 @@ data:
     dataPlaneIdentitiesOIDCConfiguration:
       storageAccountBlobContainerName: "$web"
       storageAccountBlobServiceURL: "__regionalOidcStorageAccountBlobEndpoint__"
-      oidcIssuerBaseURL: "__regionalOidcStorageAccountWebEndpoint__"
+      oidcIssuerBaseURL: "__oidcIssuerBaseUrl__"
     tlsCertificatesConfig:
       issuer: "Self"
       certificatesGenerationSource: AzureKeyVault
@@ -137,7 +137,7 @@ spec:
         azure.workload.identity/use: "true"
       annotations:
         checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
-        checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
+        checksum/azureruntimeconfig: 'c8f5e412a88baa1f4bb6002c144f2f96aaacda2e3b91e833b4d45b2da6683870'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

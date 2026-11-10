@@ -13,6 +13,7 @@ type ManagedIdentities = {
   dpDiskCsiDriverMiName: string
   dpFileCsiDriverMiName: string
   dpImageRegistryMiName: string
+  dpAutoNodeMiName: string
   serviceManagedIdentityName: string
 }
 @description('Identities to assign')
@@ -39,6 +40,9 @@ param keyVaultName string
   'resourceGroup'
 ])
 param rbacScope string = 'resourceGroup'
+
+@description('If true, deploy the dp-autonode role assignments module and include the identity in dataPlaneOperators')
+param enableAutoNode bool = false
 
 //
 // E X I S T I N G   R E S O U R C E S
@@ -428,6 +432,25 @@ resource dpImageRegistryOperatorRoleVnetAssignment 'Microsoft.Authorization/role
 
 // No subnet-scoped assignment: the VNet-scoped grant above already covers the subnet via RBAC scope inheritance.
 
+// Only the resource ID is used in this module. The ID does not cause ARM to read the identity.
+resource dpAutoNodeMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: identities.dpAutoNodeMiName
+  scope: resourceGroup(resourceGroupName)
+}
+
+// The dp-autonode role assignments are in a child module. When enableAutoNode is false, ARM skips the child
+// deployment and does not read the dp-autonode identity. The pool resource groups can then omit it.
+module autonodeAssignments 'autonode-assignments.bicep' = if (enableAutoNode) {
+  name: '${deployment().name}-autonode'
+  params: {
+    dpAutoNodeMiName: identities.dpAutoNodeMiName
+    resourceGroupName: resourceGroupName
+    nsgName: nsgName
+    vnetName: vnetName
+    rbacScope: rbacScope
+  }
+}
+
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
@@ -521,11 +544,11 @@ output userAssignedIdentitiesValue object = {
     'cloud-network-config': cloudNetworkConfigMi.id
     'kms': kmsMi.id
   }
-  dataPlaneOperators: {
+  dataPlaneOperators: union({
     'disk-csi-driver': dpDiskCsiDriverMi.id
     'file-csi-driver': dpFileCsiDriverMi.id
     'image-registry': dpImageRegistryMi.id
-  }
+  }, enableAutoNode ? { autonode: dpAutoNodeMi.id } : {})
   serviceManagedIdentity: serviceManagedIdentity.id
 }
 

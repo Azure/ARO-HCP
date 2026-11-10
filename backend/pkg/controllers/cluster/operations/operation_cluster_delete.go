@@ -157,6 +157,11 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 
+	if operation.OperationID.Name != cluster.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("cluster active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.OperationID.Name, "clusterActiveOperationID", cluster.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+
 	if cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time) {
 
@@ -165,7 +170,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			"deadline", cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time,
 			"message", message)
 		persistErr := &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInternalServerError,
+			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
 			Message: message,
 		}
 		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
@@ -207,7 +212,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster status: %w", ocm.StripVolatileErrorFields(err)))
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster status: %w", err))
 		}
 		// 404 - CS has finished deleting. clusterClusterServiceIDClearer will clear the ID.
 		logger.Info("cluster-service Cluster gone - skipping operation update", "clusterServiceID", clusterCSID.String())
@@ -319,7 +324,7 @@ func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Con
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 			return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 		}
-		return nil, fmt.Errorf("failed to get ClusterService status: %w", ocm.StripVolatileErrorFields(err))
+		return nil, fmt.Errorf("failed to get ClusterService status: %w", err)
 	}
 
 	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil

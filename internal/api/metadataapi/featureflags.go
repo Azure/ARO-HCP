@@ -95,13 +95,13 @@ const (
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
 
-	// TagClusterMaxUpdateDuration overrides the default 60-minute update deadline.
+	// TagClusterMaxUpdateDuration overrides the default 90-minute update deadline.
 	// Only honored when ExperimentalReleaseFeatures is registered. The value must
 	// be a valid Go duration of at least one minute.
 	TagClusterMaxUpdateDuration = ExperimentalClusterTagPrefix + "max-update-duration"
 
 	// TagClusterMaxDeletionDuration is the ARM resource tag that overrides
-	// the default cluster deletion deadline (60 minutes) when the
+	// the default cluster deletion deadline (50 minutes) when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	// The value must be a valid Go time.Duration string (e.g. "24m", "30m").
 	// The tag is set at cluster creation time but consumed at deletion time.
@@ -132,8 +132,13 @@ const (
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
 
-	// TagNodePoolMaxUpdateDuration overrides the default 60-minute update deadline.
+	// TagNodePoolMaxUpdateDuration overrides the default 90-minute update deadline.
 	// Only honored when ExperimentalReleaseFeatures is registered. The value must
 	// be a valid Go duration of at least one minute.
 	TagNodePoolMaxUpdateDuration = ExperimentalNodePoolTagPrefix + "max-update-duration"
+
+	// TagNodePoolMaxDeletionDuration overrides the node pool deletion budget.
+	// Only honored when ExperimentalReleaseFeatures is registered. The value must
+	// be a valid Go duration of at least one minute, set on PUT/PATCH for use by DELETE.
+	TagNodePoolMaxDeletionDuration = ExperimentalNodePoolTagPrefix + "max-deletion-duration"
 )

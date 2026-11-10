@@ -20,10 +20,10 @@
   "devDependencies": {
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
-    "@stoplight/spectral-cli": "^6.14.0",
+    "@stoplight/spectral-cli": "^6.17.0",
     "@typespec/compiler": "^1.16.0",
     "autorest": "^3.8.0",
-    "prettier": "^3.9.5"
+    "prettier": "^3.9.10"
   },
   "overrides": {
     "ajv@>=7.0.0-alpha.0": "^8.18.0",
@@ -47,6 +47,10 @@
     "brace-expansion@1.x": "^1.1.21",
     "js-yaml@^3": "^3.15.2",
     "js-yaml@^4": "^4.3.2",
-    "undici": "^7.30.1"
+    "undici": "^7.30.1",
+    "glob": {
+      ".": "^14.0.2",
+      "minimatch": "^11.0.1"
+    }
   }
 }

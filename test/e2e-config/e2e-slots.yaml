@@ -225,6 +225,12 @@ environments:
       - canadacentral
       resource_type: aro-hcp-dev-hypershift-westus3-slot
       slot_count: 2
+      vm_family_policy:
+        worker_families:
+        - standardDSv3Family
+        - standardDSv5Family
+        - standardDASv5Family
+        - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -236,10 +242,10 @@ environments:
           allocation: leased
           asset_pool: dev-infrastructure-identities
   # dev-xs is a separate environment for smaller workloads such as upgrade/
-  # in-place tests and CAPZ on-demand testing. It uses deploy_env ci02 so
-  # these jobs and e2e-parallel jobs (ci00/ci01) never compete for the same
-  # Boskos pools. ci02 maps to a dedicated templatize environment with
-  # cluster sizing tuned for fewer concurrent HCPs.
+  # in-place tests, CAPZ on-demand testing and HyperShift presubmits. It uses
+  # deploy_env ci02 so these jobs and e2e-parallel jobs (ci00/ci01) never
+  # compete for the same Boskos pools. ci02 maps to a dedicated templatize
+  # environment with cluster sizing tuned for fewer concurrent HCPs.
   dev-xs:
     deployment_environment:
       name: ci02
@@ -271,6 +277,35 @@ environments:
         infrastructure_identities:
           allocation: leased
           asset_pool: dev-infrastructure-identities
+    # HyperShift presubmits use the smaller ci02 infrastructure and support
+    # up to 6 concurrent HCPs per run. Keep the broader ci01 jobs on the
+    # existing two-slot dev/hypershift pool.
+    - name: hypershift
+      subscriptions:
+        e2e: "Hypershift Managed Azure"
+      region_mode: weighted
+      regions:
+      - westus3
+      - centralus
+      - canadacentral
+      resource_type: aro-hcp-dev-xs-hypershift-slot
+      slot_count: 30
+      vm_family_policy:
+        worker_families:
+        - standardDSv3Family
+        - standardDSv5Family
+        - standardDASv5Family
+        - StandardDsv6Family
+      slot_assets:
+        e2e_identities:
+          allocation: dedicated
+          provisioning: unmanaged
+          provisioning_region: westus3
+          resource_group_prefix: aro-hcp-msi-container-hypershift-dev-xs
+          resource_group_count: 6
+        infrastructure_identities:
+          allocation: leased
+          asset_pool: dev-infrastructure-identities
   int:
     deployment_environment:
       name: int
@@ -296,10 +331,6 @@ environments:
       slot_count: 1
       identity_container_provisioning_count: 100
       vm_family_policy:
-        worker_families:
-        - StandardDsv6Family
-        - standardDSv5Family
-        - standardDASv5Family
         helper_families:
         - StandardDdsv6Family
         - standardDDSv5Family
@@ -324,10 +355,6 @@ environments:
       vm_family_policy:
         regions:
           westus3:
-            worker_families:
-            - StandardDsv6Family
-            - standardDSv5Family
-            - standardDASv5Family
             helper_families:
             - StandardDdsv6Family
             - standardDDSv5Family
@@ -349,10 +376,6 @@ environments:
       vm_family_policy:
         regions:
           westus3:
-            worker_families:
-            - StandardDsv6Family
-            - standardDSv5Family
-            - standardDASv5Family
             helper_families:
             - StandardDdsv6Family
             - standardDDSv5Family
@@ -383,6 +406,23 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard0-slot
       slot_count: 3
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - standardDASv5Family
+            - StandardDsv6Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -395,6 +435,24 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
       slot_count: 3
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv3Family
+            - StandardDsv6Family
+            - standardDSv5Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - standardDASv5Family
+            - StandardDsv6Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -408,6 +466,23 @@ environments:
       resource_type: aro-hcp-prod-shard2-slot
       slot_count: 3
       identity_container_provisioning_count: 100
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -421,6 +496,23 @@ environments:
       resource_type: aro-hcp-prod-shard3-slot
       slot_count: 3
       identity_container_provisioning_count: 100
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -434,6 +526,23 @@ environments:
       resource_type: aro-hcp-prod-shard4-slot
       slot_count: 3
       identity_container_provisioning_count: 100
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -447,6 +556,23 @@ environments:
       resource_type: aro-hcp-prod-shard5-slot
       slot_count: 3
       identity_container_provisioning_count: 100
+      vm_family_policy:
+        regions:
+          switzerlandnorth:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          centralindia:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
+          eastus2:
+            worker_families:
+            - standardDSv5Family
+            - StandardDsv6Family
+            - standardDASv5Family
       slot_assets:
         e2e_identities:
           allocation: dedicated
@@ -465,6 +591,12 @@ environments:
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-testtenant-slot
       slot_count: 4
+      vm_family_policy:
+        worker_families:
+        - standardDSv3Family
+        - standardDSv5Family
+        - standardDASv5Family
+        - StandardDsv6Family
       slot_assets:
         e2e_identities:
           allocation: dedicated

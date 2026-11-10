@@ -72,13 +72,13 @@ graph TB
 
 Istio is installed and configured through a three-part process involving infrastructure provisioning and in-cluster setup:
 
-* **AKS service mesh add-on installation:** The AKS-managed Istio plugin is enabled via Bicep within the AKS deployment process. The service cluster template discovers whether the cluster exists at deployment time. New clusters are created directly with the target in [configuration management](configuration.md) under `svc.istio.versions`, avoiding a separate canary upgrade immediately after creation. For existing clusters, Bicep omits the revisions property entirely, preserving the installed revisions, including an in-progress canary. The `IstioUpgrade` pipeline step continues to own subsequent mesh upgrades.
+* **AKS service mesh add-on installation:** The Go `aks-cluster-create svc-cluster` subcommand enables the AKS-managed Istio plugin. New clusters are created directly with the target in [configuration management](configuration.md) under `svc.istio.versions`, avoiding a separate canary upgrade immediately after creation. For existing clusters, provisioning preserves the observed revisions, including an in-progress canary, rather than resetting them to the bootstrap configuration. The `IstioUpgrade` pipeline step owns subsequent mesh upgrades.
 
 * **In-cluster configuration via Helm:** Post-installation configuration is handled through a Helm chart maintained under the `istio` folder repository. This chart sets up mesh-wide strict mTLS and configures Istio’s external authorization feature.
 
 * **Revision management:** The service cluster pipeline runs an `IstioUpgrade` step (`dev-infrastructure/svc-pipeline.yaml`) that reconciles mesh revisions from configuration. It uses the `istio-upgrade` tool (from ARO-Tools) to install revisions, move the stable revision tag, restart workloads, and verify mesh health. See [Mesh Management with Revisions](#mesh-management-with-revisions) for more details.
 
-The creation check uses Bicep's `@nullIfNotFound()` decorator. Bicep **0.48.1 or newer** is required so the compiler emits a GA ARM language version for this feature. Deployments to the same cluster must remain serialized; the existence lookup is not a concurrency lock.
+The Go tool observes the cluster before constructing its deployment. Deployments to the same cluster must remain serialized; the existence lookup is not a concurrency lock.
 
 ## Mesh Management with Revisions
 

@@ -334,9 +334,9 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			name: "when the cluster is not found performs a no-op",
 		},
 		{
-			name:            "when there is a child ServiceProviderCluster without Maestro bundles it deletes it",
+			name:            "when there is a child ServiceProviderCluster it deletes it",
 			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources:  []any{newTestSPC(t, nil)},
+			childResources:  []any{newTestSPC(t)},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -394,37 +394,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				missingClient, missingErr := kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID)
 				require.NoError(t, missingErr)
 				require.Nil(t, missingClient)
-			},
-		},
-		{
-			name:            "when there is a child ServiceProviderCluster with Maestro bundles it does not delete it",
-			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{newTestSPC(t, coreapi.MaestroBundleReferenceList{
-				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-			})},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
-			},
-		},
-		{
-			name:            "when there are children including SPC with Maestro bundles it deletes all except SPC",
-			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{
-				newTestClusterScopedManagementClusterContent("gate-mcc"),
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-				}),
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
-				_, err := mccCRUD.Get(ctx, "gate-mcc")
-				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected MCC to be deleted")
-
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
 			},
 		},
 		{
@@ -806,6 +775,111 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 			resourceID := metadataapi.Must(azcorearm.ParseResourceID(tc.resourceID))
 			got := hasSkippedResourceTypePrefix(resourceID, skipSubtreeTypes)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *testing.T) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000000"
+		resourceGroupName = "test-rg"
+		clusterName       = "test-cluster"
+	)
+
+	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/" + coreapi.ServiceProviderClusterResourceTypeName +
+			"/" + coreapi.ServiceProviderClusterResourceName,
+	))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	identityB := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-b"))
+	federatedIdentityCredentialA := metadataapi.Must(azcorearm.ParseResourceID(
+		identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	federatedIdentityCredentialB := metadataapi.Must(azcorearm.ParseResourceID(
+		identityB.String() + "/federatedIdentityCredentials/fic-b"))
+
+	keyA := strings.ToLower(identityA.String())
+	keyB := strings.ToLower(identityB.String())
+
+	testCases := []struct {
+		name               string
+		federation         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		expectShouldDelete bool
+	}{
+		{
+			name: "azure resources remaining blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "pending azure resources remaining blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "remaining resources on one identity blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyB, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "empty resource slices allow deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources:        []*azcorearm.ResourceID{},
+					PendingAzureResources: []*azcorearm.ResourceID{},
+				},
+			},
+			expectShouldDelete: true,
+		},
+		{
+			name:               "deconfigured identities with no remaining resources allow deletion",
+			federation:         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{},
+			expectShouldDelete: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   serviceProviderClusterResourceID,
+					PartitionKey: strings.ToLower(serviceProviderClusterResourceID.SubscriptionID),
+				},
+			}
+			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = tc.federation
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{serviceProviderCluster})
+			require.NoError(t, err)
+
+			controller := &clusterChildResourcesCleanupController{
+				resourcesDBClient: mockResourcesDB,
+			}
+
+			shouldDelete, err := controller.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, serviceProviderClusterResourceID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectShouldDelete, shouldDelete)
 		})
 	}
 }

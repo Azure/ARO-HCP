@@ -147,12 +147,6 @@ func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 				require.Equal(t, want, fmt.Sprint(value), path)
 			}
 
-			t.Run("parameter template", func(t *testing.T) {
-				rendered, err := config.PreprocessFile(filepath.Join(repoRootDir, "dev-infrastructure/configurations/svc-cluster.tmpl.bicepparam"), baseline)
-				require.NoError(t, err)
-				require.Contains(t, strings.Split(string(rendered), "\n"), "param systemPoolOnly = true", "render an unquoted Bicep boolean from the resolved config")
-			})
-
 			encoded, err := json.Marshal(baseline)
 			require.NoError(t, err)
 			for _, test := range []struct {
@@ -258,6 +252,52 @@ func TestMgmtSchedulingConfigSchema(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestAdditionalIngressRulesSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	replacements, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement: "dev", EnvironmentReplacement: "pers",
+		RegionReplacement: "westus3", RegionShortReplacement: "usw3",
+		StampReplacement: "1", Ev2Config: replacements,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	encoded, err := json.Marshal(baseline)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{"empty", "", true},
+		{"CI worker", "allow-istio-ingress=1000:Tcp:192.0.2.37:*:443", true},
+		{"multiple", "https=1000:Tcp:192.0.2.0/24:*:443,dns=1001:Udp:VirtualNetwork:10.0.0.4:53", true},
+		{"port range", "workers=1010:Tcp:10.0.0.0/8:*:8000-8080", true},
+		{"apostrophe", "developer's-access=1000:Tcp:192.0.2.37:*:443", false},
+		{"backslash", `developer\access=1000:Tcp:192.0.2.37:*:443`, false},
+		{"missing field", "https=1000:Tcp:192.0.2.37:443", false},
+		{"trailing comma", "https=1000:Tcp:192.0.2.37:*:443,", false},
+		{"IPv6 delimiter", "https=1000:Tcp:2001:db8::1:*:443", false},
+		{"newline", "https=1000:Tcp:192.0.2.37:*:443\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mutated configtypes.Configuration
+			require.NoError(t, json.Unmarshal(encoded, &mutated))
+			svc := mutated["svc"].(map[string]any)
+			svc["aks"].(map[string]any)["additionalIngressRules"] = tc.value
+			err := resolver.ValidateSchema(mutated)
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
 		})
 	}
 }

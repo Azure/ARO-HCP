@@ -116,6 +116,19 @@ type ExternalAuthServiceProviderProperties struct {
 	// external auth has been handled.
 	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+
+	// CreateOperationCompletionDeadline bounds the accepted creation attempt to 30 minutes.
+	// A nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend PUT ExternalAuth (via admission)
+	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+	// UpdateOperationCompletionDeadline is reset to 30 minutes from each accepted update.
+	// A nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend PUT/PATCH ExternalAuth (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+	// DeleteOperationCompletionDeadline is reset to 30 minutes from each accepted deletion attempt.
+	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend DELETE ExternalAuth, Frontend DELETE Cluster/Subscription (cascade)
+	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
 // Token issuer profile

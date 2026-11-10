@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -139,7 +137,8 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, externalAuth)
+	operationalState, observationErr := c.determineOperationState(ctx, externalAuth)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, externalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "External auth creation did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -166,7 +165,7 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 }
 
 func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ExternalAuth) bool {
-	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil && externalAuth.ServiceProviderProperties.ClusterServiceID != nil
+	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
@@ -181,26 +180,23 @@ func (c *operationExternalAuthCreate) determineOperationState(ctx context.Contex
 		operationStates = append(operationStates, state.WithSource("externalAuthClusterServiceCreate"))
 	}
 
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
 	logger.Info("determined external auth create operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	state, err := operationbase.SummarizeOperationStates(operationStates, errs...)
+	var logValues []any
+	if state != nil {
+		logValues = append(logValues, "provisioningState", state.ProvisioningState, "message", state.Message)
 	}
-	logger.Info("picked external auth create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+	if err != nil {
+		logValues = append(logValues, "error", err)
+	}
+	logger.Info("summarized operation state", logValues...)
+	return state, err
 }
 
 func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
+	if id := externalAuth.ServiceProviderProperties.ClusterServiceID; id == nil || id.String() == "" {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "Waiting for Cluster Service external auth creation"), nil
+	}
 	logger := utils.LoggerFromContext(ctx)
 	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
 	defer cancel()

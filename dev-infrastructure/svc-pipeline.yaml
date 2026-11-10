@@ -30,6 +30,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/postgres-access/postgres-access
     trap - EXIT
+    tmp="$(mktemp ./scripts/aks-cluster-create/aks-cluster-create.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/aks-cluster-create
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/aks-cluster-create/aks-cluster-create
+    trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: global
@@ -424,13 +430,180 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # Create SVC cluster
+  - name: cluster-infra
+    action: ARM
+    template: templates/svc-cluster-infra.bicep
+    parameters: configurations/svc-cluster-infra.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: service
+      step: infra
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "Resource is in Updating state"
+      - "There was a problem communicating with the identity service"
+      - "was not found in the AAD tenant"
+      - "ServiceUnavailable"
+      # Transient RBAC propagation lag, mostly on fresh region buildout: the
+      # deployment identity's Key Vault role assignment (needed to create the
+      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
+      - "ForbiddenByRbac"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+  - name: cluster-create
+    action: Shell
+    command: ./aks-cluster-create svc-cluster
+    workingDir: ./scripts/aks-cluster-create
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: SYSTEM_POOL_ONLY
+      configRef: svc.aks.systemPoolOnly
+    - name: ISTIO_VERSIONS
+      configRef: svc.istio.versions
+    - name: UPGRADE_SETTINGS_MAX_SURGE
+      configRef: svc.aks.upgradeSettings.maxSurge
+    - name: UPGRADE_SETTINGS_MAX_UNAVAILABLE
+      configRef: svc.aks.upgradeSettings.maxUnavailable
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
+    - name: REGION
+      configRef: region
+    - name: SYSTEM_POOL_NAME
+      configRef: svc.aks.systemAgentPool.name
+    - name: SYSTEM_POOL_VM_SIZE
+      configRef: svc.aks.systemAgentPool.vmSize
+    - name: SYSTEM_POOL_OS_DISK_SIZE_GB
+      configRef: svc.aks.systemAgentPool.osDiskSizeGB
+    - name: SYSTEM_POOL_MIN_COUNT
+      configRef: svc.aks.systemAgentPool.minCount
+    - name: SYSTEM_POOL_MAX_COUNT
+      configRef: svc.aks.systemAgentPool.maxCount
+    - name: SYSTEM_POOL_ZONES
+      configRef: svc.aks.systemAgentPool.zones
+    - name: USER_POOL_NAME
+      configRef: svc.aks.userAgentPool.name
+    - name: USER_POOL_VM_SIZE
+      configRef: svc.aks.userAgentPool.vmSize
+    - name: USER_POOL_OS_DISK_SIZE_GB
+      configRef: svc.aks.userAgentPool.osDiskSizeGB
+    - name: USER_POOL_MIN_COUNT
+      configRef: svc.aks.userAgentPool.minCount
+    - name: USER_POOL_MAX_COUNT
+      configRef: svc.aks.userAgentPool.maxCount
+    - name: USER_POOL_COUNT
+      configRef: svc.aks.userAgentPool.poolCount
+    - name: USER_POOL_ZONES
+      configRef: svc.aks.userAgentPool.zones
+    - name: INFRA_POOL_NAME
+      configRef: svc.aks.infraAgentPool.name
+    - name: INFRA_POOL_VM_SIZE
+      configRef: svc.aks.infraAgentPool.vmSize
+    - name: INFRA_POOL_OS_DISK_SIZE_GB
+      configRef: svc.aks.infraAgentPool.osDiskSizeGB
+    - name: INFRA_POOL_MIN_COUNT
+      configRef: svc.aks.infraAgentPool.minCount
+    - name: INFRA_POOL_MAX_COUNT
+      configRef: svc.aks.infraAgentPool.maxCount
+    - name: INFRA_POOL_COUNT
+      configRef: svc.aks.infraAgentPool.poolCount
+    - name: INFRA_POOL_ZONES
+      configRef: svc.aks.infraAgentPool.zones
+    - name: NODE_SUBNET_ID
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: nodeSubnetId
+    - name: POD_SUBNET_ID
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: podSubnetId
+    - name: NETWORK_DATAPLANE
+      configRef: svc.aks.networkDataplane
+    - name: NETWORK_POLICY
+      configRef: svc.aks.networkPolicy
+    - name: OUTBOUND_IP_RESOURCE_ID
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: outboundIPResourceId
+    - name: MANAGED_IDENTITY_ID
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: managedIdentityId
+    - name: ETCD_KMS_KEY_URI
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: etcdKeyUriWithVersion
+    - name: KUBERNETES_VERSION
+      configRef: svc.aks.kubernetesVersion
+    - name: CLUSTER_TAGS
+      configRef: svc.aks.tags
+    - name: OWNING_TEAM_TAG_VALUE
+      configRef: monitoring.alertRuleOwningTeamTag
+    dependsOn:
+    - resourceGroup: service
+      step: cluster-infra
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "Resource is in Updating state"
+      - "There was a problem communicating with the identity service"
+      - "was not found in the AAD tenant"
+      # The AKS RP can validate KMS access before the cluster identity's
+      # Key Vault Crypto User role assignment has propagated.
+      - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
+      # Every managed-cluster write reconciles the aks-managed-azure-monitor-metrics
+      # core extension, which fails while another AKS operation (e.g. a node-image
+      # auto-upgrade) holds the cluster. AKS documents this as wait-and-retry.
+      - "conflicting operation in progress"
+      - "ServiceUnavailable"
+      - "waiting for deployment aks-cluster-create: context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+  # Configure resources that depend on the service cluster.
   - name: cluster
     action: ARM
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: nodeSubnetId
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: nodeSubnetId
+    - name: vnetId
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: vnetId
+    - name: istioIngressGatewayIP
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: istioIngressGatewayIP
+    - name: opsIngressGatewayIP
+      input:
+        resourceGroup: service
+        step: cluster-infra
+        name: opsIngressGatewayIP
     - name: globalMSIId
       input:
         resourceGroup: global
@@ -473,6 +646,8 @@ resourceGroups:
         name: subscriptionId
     dependsOn:
     - resourceGroup: service
+      step: cluster-create
+    - resourceGroup: service
       step: frontend-cert
     - resourceGroup: service
       step: admin-api-cert
@@ -495,17 +670,6 @@ resourceGroups:
       - "AnmPreconditionFailedException"
       - "MaxRetryCountReached"
       - "ServiceUnavailable"
-      # Transient RBAC propagation lag, mostly on fresh region buildout: the
-      # deployment identity's Key Vault role assignment (needed to create the
-      # aks-etcd-encryption key) may not have propagated yet. Retry once it lands.
-      - "ForbiddenByRbac"
-      # The AKS RP can validate KMS access before the cluster identity's
-      # Key Vault Crypto User role assignment has propagated.
-      - "AzureKeyVaultKmsValidateIdentityPermissionCustomerError"
-      # Every managed-cluster write reconciles the aks-managed-azure-monitor-metrics
-      # core extension, which fails while another AKS operation (e.g. a node-image
-      # auto-upgrade) holds the cluster. AKS documents this as wait-and-retry.
-      - "conflicting operation in progress"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -713,7 +877,7 @@ resourceGroups:
       - "client connection lost"
       - "unexpected error when reading response body"
       # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
-      - '"DetailStatus": "Waiting to run"'
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: istio-upgrade

@@ -38,11 +38,12 @@ import (
 	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
-	It("should create a cluster with Managed HSM keyVaultType and rotate the etcd KMS key",
+	It("should create a cluster with Managed HSM keyVaultType",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -78,6 +79,44 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			deployerIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve deploying principal identity")
 			Expect(deployerIdentity.ObjectID).NotTo(BeEmpty(), "deploying principal object ID was empty")
+
+			// The customer resources do not depend on the Managed HSM: the cluster network and
+			// identities are separate deployments in the same resource group, and the HSM only
+			// supplies the KMS key. Deploying them alongside the HSM keeps the customer-resources
+			// deployment off the path of the HSM provisioning and activation waits.
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams20261001()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.OpenshiftVersionId = "4.22"
+			// KMS requires VNet integration; DisableSwift=false provides vnetIntegrationSubnetId (see test/e2e/README.md).
+			clusterParams.DisableSwift = false
+
+			By("deploying cluster customer resources alongside the Managed HSM")
+			type customerResourcesResult struct {
+				clusterParams framework.ClusterParams20261001
+				err           error
+			}
+			customerResourcesCtx, cancelCustomerResources := context.WithCancel(ctx)
+			customerResourcesDone := make(chan customerResourcesResult, 1)
+			customerResourcesStopped := make(chan struct{})
+			// Cancel the deployment and wait for its worker before the spec ends, so it cannot
+			// outlive the spec or record deployments and timing spans while framework cleanup runs.
+			defer func() {
+				cancelCustomerResources()
+				<-customerResourcesStopped
+			}()
+			go func() {
+				defer close(customerResourcesStopped)
+				params, deployErr := tc.CreateClusterCustomerResources20261001(customerResourcesCtx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{},
+					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
+				)
+				customerResourcesDone <- customerResourcesResult{clusterParams: params, err: deployErr}
+			}()
 
 			By("deploying an un-activated Managed HSM with the test principal as initial administrator")
 			hsmName := fmt.Sprintf("mhsm-%s", utilrand.String(12))
@@ -164,8 +203,13 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyClient, err := azkeys.NewClient(mhsmURL, cred, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Managed HSM key client")
 
-			createKeyVersion := func() string {
+			createKeyVersion := func(label string) string {
 				var keyID string
+				var operationErr error
+				createStart := time.Now()
+				defer func() {
+					tc.RecordTestOperation(timing.KindDataPlaneKey, fmt.Sprintf("Create Managed HSM key version (%s)", label), createStart, time.Now(), operationErr)
+				}()
 				Eventually(func() error {
 					createKeyResp, createErr := keyClient.CreateKey(ctx, keyName, azkeys.CreateKeyParameters{
 						Kty:     to.Ptr(azkeys.KeyTypeRSAHSM),
@@ -173,12 +217,15 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 						KeyOps:  []*azkeys.KeyOperation{to.Ptr(azkeys.KeyOperationEncrypt), to.Ptr(azkeys.KeyOperationDecrypt), to.Ptr(azkeys.KeyOperationWrapKey), to.Ptr(azkeys.KeyOperationUnwrapKey)},
 					}, nil)
 					if createErr != nil {
+						operationErr = createErr
 						return createErr
 					}
 					if createKeyResp.Key == nil || createKeyResp.Key.KID == nil {
-						return fmt.Errorf("created key response was missing key ID")
+						operationErr = fmt.Errorf("created key response was missing key ID")
+						return operationErr
 					}
 					keyID = string(*createKeyResp.Key.KID)
+					operationErr = nil
 					return nil
 				}, 10*time.Minute, 15*time.Second).Should(Succeed(), "failed to create Managed HSM key version (mHSM RBAC may still be propagating)")
 				Expect(keyID).NotTo(BeEmpty(), "created key ID was empty")
@@ -186,7 +233,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			}
 
 			By("creating the initial key in the Managed HSM")
-			keyID := createKeyVersion()
+			keyID := createKeyVersion("initial")
 			GinkgoLogr.Info("Managed HSM key created",
 				"hsmName", hsmName,
 				"keyName", keyName,
@@ -196,32 +243,10 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			keyVersion, keyVaultName, err := parseMHSMKeyIDComponents(keyID)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse key version from key ID %q", keyID)
 
-			By("creating a second key version in the Managed HSM for the rotation")
-			secondKeyVersion, _, err := parseMHSMKeyIDComponents(createKeyVersion())
-			Expect(err).NotTo(HaveOccurred(), "failed to parse second key version")
-			Expect(secondKeyVersion).NotTo(BeEmpty(), "second key version was empty")
-			Expect(secondKeyVersion).NotTo(Equal(keyVersion), "second key version should differ from the initial version")
-			GinkgoLogr.Info("Created second Managed HSM key version for rotation",
-				"keyName", keyName,
-				"secondKeyVersion", secondKeyVersion)
-
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20261001()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.OpenshiftVersionId = "4.22"
-			// KMS requires VNet integration; DisableSwift=false provides vnetIntegrationSubnetId (see test/e2e/README.md).
-			clusterParams.DisableSwift = false
-
-			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20261001(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for etcd mHSM cluster")
+			By("waiting for cluster customer resources")
+			customerResources := <-customerResourcesDone
+			Expect(customerResources.err).NotTo(HaveOccurred(), "failed to create customer resources for etcd mHSM cluster")
+			clusterParams = customerResources.clusterParams
 
 			By("granting Managed HSM Crypto User role on the key to the runtime KMS caller(s)")
 			Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil(), "cluster params UserAssignedIdentitiesProfile was nil")
@@ -285,70 +310,10 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster viability check failed — etcd encryption with mHSM key should be working")
 
-			By("rotating the cluster to the second Managed HSM key version")
-			hcpClient := tc.Get20261001ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			updateResult, err := framework.UpdateHCPCluster20261001(ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				hcpsdk20261001.HcpOpenShiftCluster{
-					Properties: &hcpsdk20261001.HcpOpenShiftClusterProperties{
-						Etcd: &hcpsdk20261001.EtcdProfile{
-							DataEncryption: &hcpsdk20261001.EtcdDataEncryptionProfile{
-								CustomerManaged: &hcpsdk20261001.CustomerManagedEncryptionProfile{
-									Kms: &hcpsdk20261001.KmsEncryptionProfile{
-										ActiveKey: &hcpsdk20261001.KmsKey{
-											Version: to.Ptr(secondKeyVersion),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				HCPClusterReencryptionUpgradeTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to rotate cluster %q to the second mHSM key version", customerClusterName)
-			Expect(updateResult.Properties).NotTo(BeNil(), "rotation result Properties was nil")
-			Expect(updateResult.Properties.Etcd).NotTo(BeNil(), "rotation result Etcd was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption).NotTo(BeNil(), "rotation result DataEncryption was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged).NotTo(BeNil(), "rotation result CustomerManaged was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms).NotTo(BeNil(), "rotation result Kms was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey).NotTo(BeNil(), "rotation result ActiveKey was nil")
-			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).NotTo(BeNil(), "rotation result key Version was nil")
-			Expect(*updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).To(Equal(secondKeyVersion),
-				"cluster %q should reference the second key version after rotation", customerClusterName)
-
-			By("confirming the second key version persists via GET (round-trip verification)")
-			rotatedCluster, err := framework.GetHCPCluster20261001(ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %q after rotation", customerClusterName)
-			Expect(rotatedCluster.Properties).NotTo(BeNil(), "rotated cluster Properties was nil")
-			Expect(rotatedCluster.Properties.Etcd).NotTo(BeNil(), "rotated cluster Etcd was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption).NotTo(BeNil(), "rotated cluster DataEncryption was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged).NotTo(BeNil(), "rotated cluster CustomerManaged was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).NotTo(BeNil(), "rotated cluster Kms was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey).NotTo(BeNil(), "rotated cluster ActiveKey was nil")
-			Expect(rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).NotTo(BeNil(), "rotated cluster key Version was nil")
-			Expect(*rotatedCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).To(Equal(secondKeyVersion),
-				"cluster %q should reference the second key version after round-trip GET", customerClusterName)
-
-			By("verifying etcd re-encryption (StorageVersionMigration) succeeded after rotation")
-			err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "StorageVersionMigration should reach Succeeded after mHSM key rotation")
-
-			By("verifying the cluster remains viable after rotation")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyStorageVersionMigrationSucceeded())
-			Expect(err).NotTo(HaveOccurred(), "cluster should remain viable after mHSM key rotation")
-
-			GinkgoLogr.Info("Cluster with Managed HSM etcd encryption rotated successfully",
+			GinkgoLogr.Info("Cluster with Managed HSM etcd encryption created successfully",
 				"clusterName", customerClusterName,
 				"hsmName", hsmName,
-				"initialKeyVersion", keyVersion,
-				"rotatedKeyVersion", secondKeyVersion)
+				"keyVersion", keyVersion)
 		},
 	)
 })

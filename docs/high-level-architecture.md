@@ -66,9 +66,6 @@ The Management Clusters are the execution layer of ARO HCP, responsible for host
   - Bridges management-cluster concerns (for example SWIFT NIC extended resources on nodes).
   - Emits structured **resource** and **pod** lifecycle **event logs** to Kusto via `mgmt-agent-controller` container logs — see [mgmt-agent event logs](../tooling/hcpctl/pkg/agent/prompts/exemplars/mgmt-agent-event-logs.md) for ad-hoc query patterns. These are intentionally **not** included in the default snapshot dump because output volume is unbounded.
 
-- **Advanced Cluster Management (ACM)**
-  - Responsible for additional lifecycle and policy management of ARO HCP clusters.
-
 #### Scaling with Multiple Management Clusters
 
 A single Management Cluster has a limit on the number of HCPs it can run due to resource constraints. To scale the service within a region, multiple Management Clusters can be deployed. These clusters operate independently while still being orchestrated by the Service Cluster to distribute HCPs efficiently. This horizontal scaling model ensures that ARO HCP can support a high number of HCPs in a region.

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// aks-cluster-create creates a management cluster's AKS ManagedCluster
+// aks-cluster-create creates a service or management cluster's AKS ManagedCluster
 // resource and all its node pools (system, infra, worker) from static
 // per-pool configuration through one incremental ARM deployment. The template
 // is built in memory using fleet/pkg/compute and fleet/pkg/azure/agentpoolspec;
@@ -31,10 +31,9 @@
 // as AKS permissions. Serialize writers for each cluster: deployment resource
 // writes do not carry the per-resource ETag guards used by the tag update.
 //
-// Inputs (environment variables):
+// Management cluster inputs (environment variables):
 //
 //	SUBSCRIPTION_ID, RESOURCE_GROUP, CLUSTER_NAME, REGION
-//	REGION_AVAILABILITY_ZONE_COUNT   - EV2-backed regional zone count
 //	NODE_SUBNET_ID, POD_SUBNET_ID     - from the mgmt-infra bicep outputs
 //	NETWORK_DATAPLANE, NETWORK_POLICY
 //	OUTBOUND_IP_RESOURCE_ID           - from the mgmt-infra bicep outputs
@@ -60,21 +59,23 @@
 //	INFRA_POOL_MIN_COUNT, INFRA_POOL_MAX_COUNT, INFRA_POOL_COUNT,
 //	INFRA_POOL_ZONES (CSV)
 //
-// Every pool spans exactly 3 zones (see compute.ResolveZones):
-// REGION_AVAILABILITY_ZONE_COUNT must be at least 3, empty per-pool zones
-// default to the region's first 3, and an explicit *_ZONES list must name
-// exactly 3 valid zones. User and infra pools select the first POOL_COUNT
-// zones from the resolved list; the system pool spans all of them.
+// Existing pools retain their zones; new pools prefer explicit zones, then SKU discovery.
 package main
 
 import (
 	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func main() {
@@ -97,22 +98,23 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	raw := newRawOptionsFromEnv(os.Getenv)
-	logger = logger.WithValues(
-		"subscriptionID", raw.subscriptionID,
-		"resourceGroup", raw.resourceGroup,
-		"clusterName", raw.clusterName,
-		"region", raw.region,
-	)
-	ctx = logr.NewContext(ctx, logger)
-
-	validated, err := raw.Validate()
+	validated, err := parseCommand(os.Args[1:], os.Getenv, os.Stdout)
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
 	if err != nil {
 		logger.Error(err, "validation failed")
 		os.Exit(1)
 	}
+	logger = logger.WithValues(
+		"subscriptionID", validated.subscriptionID,
+		"resourceGroup", validated.resourceGroup,
+		"clusterName", validated.clusterName,
+		"region", validated.region,
+	)
+	ctx = logr.NewContext(ctx, logger)
 
-	completed, err := validated.Complete()
+	completed, err := validated.Complete(ctx)
 	if err != nil {
 		logger.Error(err, "completing options failed")
 		os.Exit(1)
@@ -125,4 +127,34 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("cluster reconciliation completed", "elapsed", time.Since(started).String())
+}
+
+// parseCommand selects an independent input parser before any Azure clients exist.
+func parseCommand(args []string, env func(string) string, output io.Writer) (*validatedOptions, error) {
+	if len(args) == 0 {
+		return nil, utils.TrackError(fmt.Errorf("a subcommand is required: mgmt-cluster or svc-cluster (see --help)"))
+	}
+	switch args[0] {
+	case "--help", "-h":
+		fmt.Fprintln(output, "Usage: aks-cluster-create <mgmt-cluster|svc-cluster> [--help]")
+		return nil, flag.ErrHelp
+	case "mgmt-cluster", "svc-cluster":
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unknown subcommand %q: expected mgmt-cluster or svc-cluster", args[0]))
+	}
+	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	flags.SetOutput(output)
+	flags.Usage = func() {
+		fmt.Fprintf(output, "Usage: aks-cluster-create %s [--help]\n", args[0])
+	}
+	if err := flags.Parse(args[1:]); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if flags.NArg() != 0 {
+		return nil, utils.TrackError(fmt.Errorf("%s does not accept positional arguments", args[0]))
+	}
+	if args[0] == "mgmt-cluster" {
+		return newManagementRawOptionsFromEnv(env).Validate()
+	}
+	return newServiceRawOptionsFromEnv(env).Validate()
 }
