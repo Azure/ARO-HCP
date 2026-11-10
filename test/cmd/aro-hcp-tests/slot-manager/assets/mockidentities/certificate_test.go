@@ -21,6 +21,7 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -55,14 +56,20 @@ func publicTestCertificate(t *testing.T) ([]byte, *x509.Certificate) {
 func TestCertificateAdmissionReadOnly(t *testing.T) {
 	certificate, template := publicTestCertificate(t)
 	thumbprint := sha1.Sum(certificate)
+	mismatched := sha1.Sum([]byte("different certificate"))
 	name := "aro-hcp-slot-test-cs"
 	for _, test := range []struct {
 		name, thumbprint, wantError string
 		enabled                     bool
 	}{
 		{name: "healthy", enabled: true, thumbprint: base64.StdEncoding.EncodeToString(thumbprint[:])},
+		{name: "hex wire", enabled: true, thumbprint: strings.ToUpper(hex.EncodeToString(thumbprint[:]))},
+		{name: "ASCII hex bytes", enabled: true, thumbprint: base64.StdEncoding.EncodeToString([]byte(hex.EncodeToString(thumbprint[:])))},
 		{name: "disabled", thumbprint: base64.StdEncoding.EncodeToString(thumbprint[:]), wantError: "certificate is disabled"},
 		{name: "mismatched pin", enabled: true, thumbprint: base64.StdEncoding.EncodeToString([]byte("wrong")), wantError: "thumbprint is not pinned"},
+		{name: "mismatched raw pin", enabled: true, thumbprint: base64.StdEncoding.EncodeToString(mismatched[:]), wantError: "thumbprint is not pinned"},
+		{name: "mismatched hex wire", enabled: true, thumbprint: strings.ToUpper(hex.EncodeToString(mismatched[:])), wantError: "thumbprint is not pinned"},
+		{name: "mismatched ASCII hex bytes", enabled: true, thumbprint: base64.StdEncoding.EncodeToString([]byte(hex.EncodeToString(mismatched[:]))), wantError: "thumbprint is not pinned"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			reads := 0
@@ -109,6 +116,16 @@ func TestCertificateValidation(t *testing.T) {
 	if err := validateCertificate(certificate, keys, now); err != nil {
 		t.Fatal(err)
 	}
+	key.SetTypeEscaped(ptr.To("Symmetric"))
+	if err := validateCertificate(certificate, keys, now); err == nil {
+		t.Fatal("accepted invalid credential type")
+	}
+	key.SetTypeEscaped(ptr.To("AsymmetricX509Cert"))
+	key.SetUsage(ptr.To("Sign"))
+	if err := validateCertificate(certificate, keys, now); err == nil {
+		t.Fatal("accepted invalid credential usage")
+	}
+	key.SetUsage(ptr.To("Verify"))
 	for _, instant := range []time.Time{now.Add(-2 * time.Hour), now.Add(2 * time.Hour)} {
 		if err := validateCertificate(certificate, keys, instant); err == nil {
 			t.Fatal("accepted invalid certificate validity")

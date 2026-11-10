@@ -152,7 +152,7 @@ func validateCertificate(certificate []byte, keys []models.KeyCredentialable, no
 	if key == nil {
 		return fmt.Errorf("missing application credential metadata")
 	}
-	if ptr.Deref(key.GetTypeEscaped(), "") != "AsymmetricX509Cert" || ptr.Deref(key.GetUsage(), "") != "Verify" || !bytes.Equal(key.GetCustomKeyIdentifier(), thumbprint[:]) {
+	if ptr.Deref(key.GetTypeEscaped(), "") != "AsymmetricX509Cert" || ptr.Deref(key.GetUsage(), "") != "Verify" || !bytes.Equal(pinning.NormalizeCustomKeyIdentifier(key.GetCustomKeyIdentifier()), thumbprint[:]) {
 		return fmt.Errorf("certificate thumbprint is not pinned on application")
 	}
 	if key.GetStartDateTime() == nil || key.GetEndDateTime() == nil || now.Before(*key.GetStartDateTime()) || !now.Before(*key.GetEndDateTime()) {
