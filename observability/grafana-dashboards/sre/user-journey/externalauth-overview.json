@@ -2285,9 +2285,9 @@
           "instant": true
         }
       ],
-      "title": "Completed Ops (7d TTL)",
+      "title": "Retained Completed Ops",
       "type": "stat",
-      "description": "Total completed ExternalAuth operations within the 7-day Cosmos TTL window. Note: update durations include both RP processing and HyperShift reconciliation time. Separating these requires hypershift_cluster_identity_providers from the HCPs workspace (not available in the services datasource).",
+      "description": "Count of retained ExternalAuth snapshots in a terminal phase (succeeded, failed, or canceled). One series is kept per resource and operation type, and it is not guaranteed to be the latest operation. This is not a total of every operation in the 7-day Cosmos window. Note: update durations include both RP processing and HyperShift reconciliation time. Separating these requires hypershift_cluster_identity_providers from the HCPs workspace (not available in the services datasource).",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -2392,7 +2392,7 @@
       ],
       "title": "Success Rate",
       "type": "stat",
-      "description": "Percentage of completed ExternalAuth operations that succeeded.",
+      "description": "Percentage of retained terminal snapshots whose phase is succeeded. One series per resource and operation type, not a percentage of every completed operation.",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -3093,7 +3093,7 @@
       ],
       "title": "Operation Error Rate",
       "type": "stat",
-      "description": "Percentage of completed ExternalAuth operations that ended in Failed state.",
+      "description": "Percentage of retained terminal snapshots whose phase is failed. One series per resource and operation type, not a percentage of every completed operation.",
       "transformations": [
         {
           "id": "seriesToRows",
