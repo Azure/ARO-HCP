@@ -192,7 +192,7 @@ func checkPaths(files []trackedFile) []finding {
 				rule:   ruleEditorConfig,
 				detail: "editor workspace files can run tasks on folder open and must not be committed",
 			})
-		case !isRegularFile(f) && inConfigLocation:
+		case !isRegularFile(f) && (inConfigLocation || aliasesAConfigLocation(lower)):
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleConfigNotFile,
@@ -221,6 +221,21 @@ func checkPaths(files []trackedFile) []finding {
 		}
 	}
 	return findings
+}
+
+// aliasesAConfigLocation reports whether an alias at this path would expose a
+// configuration location beneath it. A segment match already covers its own
+// directory, but a prefix does not: ".github/agents/" never matches
+// ".github/agents", so without this a symlink there would hide a whole
+// subtree that git records nothing under. Ancestors count for the same
+// reason, which is bounded here only because the prefixes are root-anchored.
+func aliasesAConfigLocation(lower string) bool {
+	for _, prefix := range configPrefixes {
+		if strings.HasPrefix(prefix, lower+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // hasAnyPrefix takes a lowercased path; every prefix ends in "/" so that

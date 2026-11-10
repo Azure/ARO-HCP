@@ -268,7 +268,12 @@ func TestConfigLocationBoundaries(t *testing.T) {
 		{path: ".github/instructions/x.md", inConfig: true},
 		{path: ".github/agentsfoo/x.md"},
 		{path: ".github/skillsets/x.md"},
-		{path: ".github/agents"}, // a file with that name, not the directory
+		// A *regular file* with the subtree's name is not a configuration
+		// location. The same path as an alias is a different question
+		// entirely -- see TestAliasAtAConfigLocationRoot.
+		{path: ".github/agents"},
+		{path: ".github/skills"},
+		{path: ".github/instructions"},
 		{path: ".github/workflows/ci.yml"},
 		{path: ".github/scripts/x.py"},
 
@@ -290,6 +295,44 @@ func TestConfigLocationBoundaries(t *testing.T) {
 			got := len(findings) == 1 && findings[0].rule == ruleUnlistedConfig
 			if got != tc.inConfig {
 				t.Fatalf("expected inConfigLocation=%v for %s, got %+v", tc.inConfig, tc.path, findings)
+			}
+		})
+	}
+}
+
+// TestAliasAtAConfigLocationRoot pins the boundary a trailing slash opened.
+// ".github/agents/" cannot match ".github/agents", so before this the subtree
+// root could be committed as a symlink and git would record nothing beneath
+// it -- the exact alias the config-not-a-file rule exists to refuse, reaching
+// the prefix locations through the one gap a segment match does not have.
+//
+// Ancestors count too: an alias at ".github" exposes all three subtrees. That
+// is safe to guard because a directory is never an index entry, so ".github"
+// can only appear here if it already is an alias.
+func TestAliasAtAConfigLocationRoot(t *testing.T) {
+	for _, p := range []string{
+		".github",
+		".github/agents",
+		".github/skills",
+		".github/instructions",
+		".claude", // the segment match already covered this one
+	} {
+		for _, mode := range []string{modeSymlink, modeSubmodule} {
+			t.Run(p+" "+mode, func(t *testing.T) {
+				findings := checkPaths([]trackedFile{{path: p, mode: mode, oid: "0000000000000000000000000000000000000000"}})
+				if len(findings) != 1 || findings[0].rule != ruleConfigNotFile {
+					t.Fatalf("expected %s for %s as %s, got %+v", ruleConfigNotFile, p, mode, findings)
+				}
+			})
+		}
+	}
+
+	// The near misses must stay out: an alias here exposes nothing protected.
+	for _, p := range []string{".github/workflows", ".github/scripts", ".github/agentsfoo", "docs"} {
+		t.Run(p+" stays allowed", func(t *testing.T) {
+			findings := checkPaths([]trackedFile{{path: p, mode: modeSymlink, oid: "0"}})
+			if len(findings) != 0 {
+				t.Fatalf("expected %s as a symlink to be accepted, got %+v", p, findings)
 			}
 		})
 	}
@@ -712,6 +755,13 @@ func TestScanRepository(t *testing.T) {
 			name:  "symlinked agent directory",
 			setup: symlinkTracked("frontend/.claude", "../config"),
 			want:  []string{"frontend/.claude " + ruleConfigNotFile},
+		},
+		{
+			// The prefix-root alias, end to end with a real symlink. This
+			// survived the unit tests once already.
+			name:  "symlinked github agent subtree",
+			setup: symlinkTracked(".github/agents", "../payload"),
+			want:  []string{".github/agents " + ruleConfigNotFile},
 		},
 		{
 			name:  "project-scoped mcp config",
