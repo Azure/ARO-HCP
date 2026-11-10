@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### IDMS Image Registry Mirror SLO Dashboard\n\nMonitors the health of the IDMS (`imageDigestMirrors`) user journey — a customer PUT/PATCH that configures image registry mirrors, delivered to the guest cluster as `ImageDigestMirrorSet` objects.\n\n> **Scope caveat:** there is **no IDMS-specific metric today.** An `imageDigestMirrors` change is carried by the generic cluster **update** LRO, so every panel here is scoped to `operation_type=\"update\"` on `hcpopenshiftclusters` and includes authorized-CIDR changes, version upgrades, and every other cluster update. Treat these panels as the enclosing signal, not as proof an IDMS change specifically succeeded or failed. Confirm the operation is a mirror change from the Backend logs.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention \u2014 a current-state view, not a count of every LRO. The burn-rate alerts are driven by the windowed series in `backend-cluster-update-slo-recordingRule.yaml`.\n\n**SLO Target (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h/5m, 6h/30m and 3d windows of terminal transitions. The alerts exclude internal subscriptions listed in `internal_subscription:info`; use **Exclude Subscriptions** to do the same on this dashboard.\n\n> **No latency SLO:** the 45m (2700s) threshold on the *Stuck Operations* and duration panels mirrors `BackendAsyncOperationClusterUpdateStuck`, which alerts on individual stuck update operations. It is a reference line, not a latency SLI, and has no burn-rate alert.\n\n**Metrics Source:** `current:backend_cluster_update:last_transition_time_seconds` (one current state per cluster update operation, recorded in `backend-cluster-update-slo-recordingRule.yaml` so a former Backend leader's stale snapshot is not double counted) and `backend_resource_operation_start_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **User Journey:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
+        "content": "### Cluster Update SLO Dashboard\n\nMonitors customer cluster updates — PUT/PATCH requests on `hcpOpenShiftClusters` carried by the generic cluster **update** operation (`operation_type=\"update\"`). This includes `imageDigestMirrors` changes (the IDMS image registry mirror journey), authorized-CIDR and other cluster spec changes, and control plane version upgrades. The operation metrics do not record what an update changed, so confirm that from the Backend logs before triaging a specific journey.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention — a current-state view, not a count of every operation. The burn-rate alerts are driven by the windowed series in `cluster-update-slo-recordingRule.yaml`.\n\n**SLO Target (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h/5m, 6h/30m and 3d windows of terminal transitions. The alerts exclude internal subscriptions listed in `internal_subscription:info`; use **Exclude Subscriptions** to do the same on this dashboard.\n\n> **No latency SLO:** cluster updates have a completion deadline (90 minutes by default); the Backend fails updates that exceed it, so they count against the success rate. The 90m (5400s) line on the *Stuck Operations* and duration panels marks that default deadline. It is a reference line, not a latency SLI, and has no burn-rate alert.\n\n**Metrics Source:** `current:backend_cluster_update:last_transition_time_seconds` (one current state per cluster update operation, recorded in `cluster-update-slo-recordingRule.yaml` so a former Backend leader's stale snapshot is not double counted) and `backend_resource_operation_start_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **Journeys covered include:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -129,7 +129,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Cluster update operations whose current phase is accepted or updating and that started over 45 minutes ago. Uses the same 2700s threshold as BackendAsyncOperationClusterUpdateStuck, but reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
+      "description": "Cluster update operations whose current phase is accepted or updating and that started over 90 minutes ago, past the default cluster update completion deadline. The Backend fails updates at their deadline, so an operation here means the deadline is not being enforced. Reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -159,13 +159,13 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count((time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"})) > 2700) or vector(0)",
+          "expr": "count((time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"})) > 5400) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck Operations",
           "refId": "A"
         }
       ],
-      "title": "Stuck Operations (>45m)",
+      "title": "Stuck Operations (>90m)",
       "transformations": [
         { "id": "seriesToRows", "options": {} },
         { "id": "merge", "options": {} }
@@ -319,7 +319,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Age of in-flight cluster update operations at p50/p95/p99. The 2700s (45m) line is the BackendAsyncOperationClusterUpdateStuck threshold, for reference; there is no latency SLO.",
+      "description": "Age of in-flight cluster update operations at p50/p95/p99. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -343,7 +343,7 @@
             "mode": "absolute",
             "steps": [
               { "color": "green" },
-              { "color": "red", "value": 2700 }
+              { "color": "red", "value": 5400 }
             ]
           },
           "unit": "s"
@@ -385,7 +385,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "End-to-end duration of cluster update operations that reached a terminal phase. The 2700s (45m) line is the BackendAsyncOperationClusterUpdateStuck threshold, for reference; there is no latency SLO.",
+      "description": "End-to-end duration of cluster update operations that reached a terminal phase. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -409,7 +409,7 @@
             "mode": "absolute",
             "steps": [
               { "color": "green" },
-              { "color": "red", "value": 2700 }
+              { "color": "red", "value": 5400 }
             ]
           },
           "unit": "s"
@@ -480,7 +480,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Clusters whose latest update is in failed state. A cluster that failed and then succeeded on retry will not appear. Confirm from the Backend logs that the update carried an imageDigestMirrors change.",
+      "description": "Clusters whose latest update is in failed state. A cluster that failed and then succeeded on retry will not appear. Confirm from the Backend logs what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version).",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -678,7 +678,7 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["aro-hcp", "idms", "image-mirror", "slo", "user-journey"],
+  "tags": ["aro-hcp", "cluster-update", "idms", "slo", "user-journey"],
   "templating": {
     "list": [
       {
@@ -741,7 +741,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "IDMS Image Registry Mirror SLO",
-  "uid": "idms-mirror-slo",
+  "title": "Cluster Update SLO",
+  "uid": "cluster-update-slo",
   "version": 1
 }

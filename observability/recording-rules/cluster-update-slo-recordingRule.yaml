@@ -6,51 +6,41 @@ metadata:
     app.kubernetes.io/part-of: kube-prometheus
     prometheus: k8s
     role: recording-rules
-  name: backend-cluster-update-slo-recording-rules
+  name: cluster-update-slo-recording-rules
   namespace: monitoring
 spec:
   groups:
   # ========================================
   # Cluster Update SLO Recording Rules
   # ========================================
-  # Backend-owned SLIs for cluster update (PUT/PATCH) operations on
-  # hcpOpenShiftClusters, derived from backend_resource_operation_last_transition_time_seconds
-  # and backend_resource_operation_phase_info.
+  # SLIs for cluster update (PUT/PATCH) operations on hcpOpenShiftClusters,
+  # derived from backend_resource_operation_last_transition_time_seconds and
+  # backend_resource_operation_phase_info. Consumed by the cluster update SLO
+  # alerts (observability/alerts/cluster-update-slo-prometheusRule.yaml) and the
+  # Cluster Update SLO dashboard.
   #
-  # These live here rather than under observability/recording-rules/ because
-  # they measure a backend operation type, not a single user journey. They are
-  # currently consumed by the IDMS (imageDigestMirrors) user journey
-  # (observability/alerts/idms-mirror-slo-prometheusRule.yaml), which is one —
-  # but not the only — customer intent carried by this operation type. Any
-  # future cluster-update journey should reuse these series rather than define
-  # its own.
-  #
-  # !!! SCOPE — READ BEFORE USING THESE RULES !!!
-  #
-  # An imageDigestMirrors change is carried by the generic cluster "update" LRO
-  # and is emitted with operation_type="update", exactly like an authorizedCIDRs
-  # change or a control plane version upgrade. Nothing on
-  # backend_resource_operation_phase_info distinguishes them, so these series are
-  # deliberately named for the operation they measure (cluster_update) rather
-  # than for any journey consuming them.
-  #
-  # Known co-tenants of operation_type="update":
-  #   - Control plane version upgrades. These have their own user journey
+  # SCOPE: every customer change carried by the generic cluster "update"
+  # operation (operation_type="update") is counted, and nothing on
+  # backend_resource_operation_phase_info distinguishes one change from another.
+  # This includes:
+  #   - imageDigestMirrors changes (the IDMS image registry mirror journey);
+  #   - authorizedCIDRs, autoscaling, pod sizing and other cluster spec changes;
+  #   - control plane version upgrades. These also have their own user journey
   #     (observability/recording-rules/userJourneyClusterUpgrade-recordingRule.yaml),
-  #     but it measures version state via backend_cluster_version_info rather
-  #     than the LRO, so there is no double-definition. An upgrade failure will
-  #     still surface in the error rate below.
-  #   - authorizedCIDRs, autoscaling, pod sizing and other cluster spec changes.
+  #     which measures version state via backend_cluster_version_info rather
+  #     than the operation, so there is no double-definition.
   #
   # When an alert built on these series fires, confirm what the affected
-  # operation actually changed before attributing it to a specific journey.
+  # operation actually changed before triaging it as a specific journey.
   #
   # Relationship to other alerts on the same operation metrics:
   #   - Stuck (non-terminal) update operations are covered by
   #     BackendAsyncOperationClusterUpdateStuck in
-  #     backend-async-operations-prometheusRule.yaml (same directory).
+  #     backend/alerts/backend-async-operations-prometheusRule.yaml.
   #   - These rules cover the disjoint case: operations that reach a terminal
-  #     "failed" phase, which the stuck alert can never fire on.
+  #     "failed" phase, which the stuck alert can never fire on. Updates that
+  #     exceed their completion deadline (90 minutes by default) are failed by
+  #     the Backend and therefore counted here.
   #
   # Target: 95% of clusters' latest updates should succeed (not reach "failed").
   # Error Budget: 5% (1 - 0.95)
@@ -73,7 +63,10 @@ spec:
   # (resource, operation_type), because the Backend replaces the previous series
   # with the newest retained operation by start time (Cosmos document key breaks
   # ties). Informer resync order does not affect selection. When that document
-  # expires, the newest remaining operation is selected. Every count below is
+  # expires, the newest remaining operation is selected. (Newest-operation
+  # selection is implemented by the operation phase metrics handler fix
+  # "select newest retained operation for operation phase gauges"; before it,
+  # the last synced operation wins.) Every count below is
   # therefore a count of CLUSTERS by the outcome of their latest retained
   # update, not a count of LROs. A failed update
   # that is later retried successfully is overwritten and never counted, so

@@ -1,5 +1,5 @@
 rule_files:
-- backend-cluster-update-slo-recordingRule.yaml
+- cluster-update-slo-recordingRule.yaml
 evaluation_interval: 1m
 tests:
 # Instantaneous records: 8 succeeded, 2 failed cluster update operations -> error rate 0.2

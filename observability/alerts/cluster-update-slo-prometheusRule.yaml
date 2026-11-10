@@ -6,40 +6,33 @@ metadata:
     app.kubernetes.io/part-of: kube-prometheus
     prometheus: k8s
     role: alert-rules
-  name: idms-mirror-slo-rules
+  name: cluster-update-slo-rules
   namespace: monitoring
 spec:
   groups:
   # ========================================
-  # IDMS Image Registry Mirror SLO Alerts — Errors
+  # Cluster Update SLO Alerts — Errors
   # ========================================
   # Recording rules for these alerts live in
-  # backend/alerts/backend-cluster-update-slo-recordingRule.yaml, which defines
-  # the errors:backend_cluster_update:* series. They are backend-owned and are
-  # not IDMS-specific.
+  # observability/recording-rules/cluster-update-slo-recordingRule.yaml, which
+  # defines the errors:backend_cluster_update:* series.
   #
-  # !!! SCOPE CAVEAT — READ BEFORE ACTING ON THESE ALERTS !!!
-  #
-  # These alerts are named for the IDMS (imageDigestMirrors) user journey, but
-  # the underlying SLI cannot distinguish an imageDigestMirrors change from any
-  # other cluster update. operation_type="update" covers mirror changes,
-  # authorizedCIDRs changes, and control plane version upgrades alike — hence
-  # the series is named for the operation, not the journey.
-  #
-  # When one of these fires, FIRST confirm the affected operation actually
-  # carried an imageDigestMirrors change from the Backend logs.
-  # If it did not, the IDMS journey is not the correct triage path.
-  #
-  # See backend/alerts/backend-cluster-update-slo-recordingRule.yaml for the
-  # full rationale and the instrumentation needed to make this genuinely
-  # IDMS-scoped.
+  # SCOPE: these alerts cover every customer change carried by the generic
+  # cluster "update" operation (operation_type="update"): imageDigestMirrors
+  # changes (the IDMS image registry mirror journey), authorizedCIDRs and other
+  # cluster spec changes, and control plane version upgrades. The operation
+  # metrics do not record what an update changed, so when one of these fires,
+  # first check what the affected updates changed from the Backend logs, then
+  # triage the matching journey.
   #
   # Coverage boundaries — this file deliberately contains ONLY error alerts:
   #   - Stuck (non-terminal) update operations:
   #     BackendAsyncOperationClusterUpdateStuck in
   #     backend/alerts/backend-async-operations-prometheusRule.yaml, on the same
   #     operation metrics. It fires only on phase=~"accepted|updating" and so is
-  #     disjoint from the terminal-"failed" condition alerted on here.
+  #     disjoint from the terminal-"failed" condition alerted on here. Updates
+  #     that exceed their completion deadline (90 minutes by default) are failed
+  #     by the Backend and therefore counted here.
   #   - Controller saturation (queue depth, retry hot loop):
   #     BackendControllerQueueDepthHigh in backend/alerts/backend-prometheusRule.yaml
   #     and BackendControllerRetryHotLoop in
@@ -86,7 +79,7 @@ spec:
   # Volume guard: each tier requires an absolute floor of completions/failures
   # in the long window so a single failure on a quiet window cannot page. The
   # floors match the cluster provisioning and deletion SLOs.
-  - name: arohcp_idms_mirror_slo_error_alerts
+  - name: arohcp_cluster_update_slo_error_alerts
     labels:
       component: slo
     rules:
@@ -94,7 +87,7 @@ spec:
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
     # ----------------------------------------
     # 14.4x burn: >72% failures over 1h and 5m, at least 3 failures in 1h.
-    - alert: userJourneyIDMSMirrorErrors1h5m
+    - alert: userJourneyClusterUpdateErrors1h5m
       expr: |
         errors:backend_cluster_update:failed_1h >= 3
         and
@@ -104,19 +97,19 @@ spec:
       for: 5m
       labels:
         severity: "3"
-        slo: idms-mirror-errors
+        slo: cluster-update-errors
         long_window: 1h
         short_window: 5m
       annotations:
         summary: "Cluster updates failing fast (>72% over 1h)"
-        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "https://aka.ms/arohcp-runbook-idms"
-        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
+        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
     # 6x burn: >30% failures over 6h and 30m, at least 5 completions in 6h.
-    - alert: userJourneyIDMSMirrorErrors6h30m
+    - alert: userJourneyClusterUpdateErrors6h30m
       expr: |
         errors:backend_cluster_update:total_6h >= 5
         and
@@ -126,20 +119,20 @@ spec:
       for: 30m
       labels:
         severity: "3"
-        slo: idms-mirror-errors
+        slo: cluster-update-errors
         long_window: 6h
         short_window: 30m
       annotations:
         summary: "Cluster update error rate elevated (>30% over 6h)"
-        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "https://aka.ms/arohcp-runbook-idms"
-        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
+        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
     # Per ADR: slow burn alerts generate a ticket, not a page.
     # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
-    - alert: userJourneyIDMSMirrorErrors3d
+    - alert: userJourneyClusterUpdateErrors3d
       expr: |
         errors:backend_cluster_update:total_3d >= 10
         and
@@ -149,13 +142,13 @@ spec:
       for: 6h
       labels:
         severity: "4"
-        slo: idms-mirror-errors
+        slo: cluster-update-errors
         long_window: 3d
       annotations:
         summary: "Cluster update failures persistent (>5% over 3d)"
-        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Confirm whether the affected operations carried an imageDigestMirrors change before triaging as an IDMS issue."
-        runbook_url: "https://aka.ms/arohcp-runbook-idms"
-        correlationId: "userJourneyIDMSMirrorErrors/{{ $labels.cluster }}"
+        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
     # ----------------------------------------
     # Note: there is deliberately no separate "degradation" precursor alert.
     # A >15% / 30m precursor was considered and rejected: above 30% it fires at
