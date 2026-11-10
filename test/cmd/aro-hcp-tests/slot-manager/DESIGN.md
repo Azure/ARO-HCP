@@ -12,8 +12,8 @@ application key and service-principal `appId` alternate key make concurrent
 Owner retries converge without choosing an arbitrary display-name match.
 Display-name collisions fail closed. No identity-ID catalog is maintained.
 
-Acquisition and every admission read Graph, public Key Vault certificates, and
-subscription RBAC. They never create, reset, rotate, repair, or clean up this
+Every admission reads Graph, public Key Vault certificates, and
+subscription RBAC. These checks never create, reset, rotate, repair, or clean up this
 asset. Resolution is persisted only as acquired runtime state, not as discovery
 input; admission detects identity changes while the lease is held. Publication
 requires a complete validated three-principal bundle. Release retains all backing
@@ -22,7 +22,10 @@ resources. These rules do not change other assets' existing cleanup semantics.
 The nonsecret `LEASED_MOCK_IDENTITY_BUNDLE` contains slot/subscription identity
 and `msi`, `backend`, `clustersService` entries with client ID, principal ID and
 certificate name. Consumers reject malformed provided bundles rather than falling
-back to legacy pools. See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
+back to legacy pools. New consumers do not resolve old static-pool leases;
+personal-development configuration remains supported. Acquire/release are no-ops
+for this dedicated asset. Admission alone resolves and verifies its bundle, then
+the orchestrator validates and persists resolved state before publication. See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
 
 Slot-manager is a CI-only allocator of a complete E2E environment, not a raw
 Boskos resource. A **slot** is one allocatable E2E environment instance. A
@@ -333,14 +336,12 @@ for operator procedures.
 
 ## Future assets
 
-The asset registry is an extension point. Mock identities (MSI mock service
-principal, backend ARM helper, and clusters-service ARM helper) remain intent
-only; their persistent credentials and baseline RBAC need an asset-specific
-preparation policy.
+The asset registry remains an extension point. Dedicated mock identities use
+the persistent preparation and admission policy described above.
 
 ## Feature progress
 
 - E2E identity assets are live.
 - The infrastructure identity asset exists; catalog demand and pool rollout
   are separate from this design.
-- Mock identity assets have not started.
+- Dedicated mock identity assets are implemented for DEV/dev-xs.

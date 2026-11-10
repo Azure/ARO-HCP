@@ -518,7 +518,9 @@ This Boskos inventory is still a consumer artifact. It is not generated automati
 
 The lease itself is currently declared on `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/aro-hcp-provision-environment-ref.yaml`, not in the top-level local workflow.
 
-That step requests a single lease from the pool and exposes it as `LEASED_MSI_MOCK_SP`. The leased SP is then consumed during environment provisioning in `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/aro-hcp-provision-environment-commands.sh`, overriding the default mock SP values:
+That legacy step requests a single lease from the pool and exposes it as
+`LEASED_MSI_MOCK_SP`. Old checked-out provisioning code resolved the static
+catalog as follows; new consumers no longer perform this resolution:
 
 ```bash
 MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
@@ -526,7 +528,9 @@ MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" d
 MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
 ```
 
-Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at runtime. They do not query Entra or the `dev-ci` rollout directly during provisioning.
+Old checked-out jobs consume the Boskos key and static `msi-mock-pool.yaml`
+catalog at runtime. New slot jobs use live Graph discovery during admission and
+consume the exported bundle; they do not resolve these legacy catalogs.
 
 ## ARM Helper Service Principal Pool
 
@@ -560,16 +564,14 @@ Maintainer flow:
    after that inventory has rolled out, request two leases as
    `LEASED_ARM_HELPER_SP`.
 
-The runtime catalog is
-`dev-infrastructure/openshift-ci/arm-helper-pool.yaml`. An unknown or incomplete
-lease entry fails provisioning. The first whitespace-separated lease configures
-Backend through `armHelperClientId` and `armHelperCertName`; the second configures
-Clusters Service through `clustersServiceArmHelperClientId` and
-`clustersServiceArmHelperCertName`. A single lease remains supported during the
-transition to the shared `hack/ci` provisioning scripts and configures both
-Backend and Clusters Service with that identity. A missing lease preserves all
-configured defaults. Neither lease overrides `armHelperFPAPrincipalId`, which is
-the shared mock first-party principal rather than an authenticating ARM helper.
+The legacy catalog `dev-infrastructure/openshift-ci/arm-helper-pool.yaml` remains
+deployed for old checked-out consumers. New jobs no longer select identities
+from either one or two legacy helper leases: slot bundles supply distinct
+Backend and Clusters Service helpers. Personal-development configuration still
+supplies shared identities outside slots. Neither path overrides
+`armHelperFPAPrincipalId`, the shared mock first-party principal rather than an
+authenticating ARM helper. Do not grow or retire these pools in this rollout;
+the existing lease declarations remain concurrency gates until follow-up work.
 
 ## Where To Look
 
@@ -609,4 +611,7 @@ DEV/dev-xs slot-manager jobs now require a dedicated three-principal mock asset.
 Read [slot-bound mock identity operations](slot-mock-identities.md) for the
 Owner deployment sequence, read-only admission, runtime contract, upgrade bridge
 and remaining legacy lease concurrency gates. The legacy pools described above
-remain available for non-slot compatibility and are not retired by this change.
+remain deployed and their Boskos leases still cap concurrency, but new consumers
+no longer resolve their static catalogs. Old in-flight jobs finish on old code;
+personal-development configuration remains supported. Azure pool/catalog
+retirement and removal of release-side lease gates are deferred.

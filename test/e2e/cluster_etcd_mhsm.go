@@ -262,7 +262,9 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 			// operator (including the KMS plugin) authenticates as the MSI mock service principal instead;
 			// there we must also grant that principal (MI_MOCK_PRINCIPAL_ID) or the encrypt call gets 403.
 			grantMHSMCryptoUser(kmsIdentityPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
-			if miMockPrincipalID := framework.MIMockPrincipalID(); miMockPrincipalID != "" {
+			miMockPrincipalID, err := framework.MIMockPrincipalID()
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve MSI mock principal for MHSM roles")
+			if miMockPrincipalID != "" {
 				grantMHSMCryptoUser(miMockPrincipalID, "ServicePrincipal", fmt.Sprintf("/keys/%s", keyName))
 			}
 

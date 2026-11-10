@@ -17,12 +17,16 @@ package mockidentities
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
@@ -36,6 +40,7 @@ type fakeStore struct {
 	writes       int
 	fail         string
 	owner        bool
+	reads        int
 }
 
 func (store *fakeStore) AuthorizeOwner(context.Context, string) error {
@@ -45,6 +50,7 @@ func (store *fakeStore) AuthorizeOwner(context.Context, string) error {
 	return nil
 }
 func (store *fakeStore) Resolve(_ context.Context, name string, apply bool) (leaseenv.MockPrincipal, error) {
+	store.reads++
 	if store.fail == name {
 		return leaseenv.MockPrincipal{}, errors.New("ambiguous Graph result")
 	}
@@ -60,6 +66,7 @@ func (store *fakeStore) Resolve(_ context.Context, name string, apply bool) (lea
 	return principal, nil
 }
 func (store *fakeStore) Certificate(_ context.Context, name string, apply bool) error {
+	store.reads++
 	if store.certificates[name] {
 		return nil
 	}
@@ -71,6 +78,7 @@ func (store *fakeStore) Certificate(_ context.Context, name string, apply bool) 
 	return nil
 }
 func (store *fakeStore) Roles(_ context.Context, subscription string, bundle leaseenv.MockIdentityBundlePayload, apply bool) error {
+	store.reads++
 	if subscription != bundle.SubscriptionID {
 		return errors.New("wrong scope")
 	}
@@ -86,6 +94,57 @@ func (store *fakeStore) Roles(_ context.Context, subscription string, bundle lea
 }
 func testSlot() slots.ExpandedSlot {
 	return slots.ExpandedSlot{ResourceName: "aro-hcp-dev-shard0-slot-00", MockIdentityConfig: &slots.MockIdentitiesAsset{Allocation: slots.AllocationDedicated}, Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "11111111-1111-1111-1111-111111111111"}}, AssetRequirements: []slots.AssetRequirement{{Kind: slots.KindMockIdentities, Allocation: slots.AllocationDedicated, UnitsPerSlot: 1}}}
+}
+
+func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
+	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
+	slot := testSlot()
+	if _, err := reconcile(t.Context(), store, slot, true); err != nil {
+		t.Fatal(err)
+	}
+	store.reads, store.writes = 0, 0
+	profile := t.TempDir()
+	for name, value := range map[string]string{"tenant": uuid.NewString(), "client-id": uuid.NewString(), "client-secret": "test-placeholder"} {
+		if err := os.WriteFile(filepath.Join(profile, name), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := &Handler{newStore: func(azcore.TokenCredential) (identityStore, error) { return store, nil }}
+	registry, err := assets.NewRegistry(handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slot}, SelectedClusterProfileDir: profile}
+	if err := registry.AcquireLeases(t.Context(), request, nil); err != nil {
+		t.Fatal(err)
+	}
+	if store.reads != 0 || request.AcquiredSlotState.Slot.Assets.MockIdentities != nil {
+		t.Fatal("acquisition performed discovery")
+	}
+	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+		t.Fatal("published before admission")
+	}
+	for admission := 1; admission <= 2; admission++ {
+		if err := registry.AdmitLease(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if store.reads != admission*7 || store.writes != 0 {
+			t.Fatalf("expected exactly three Graph and certificate checks and one RBAC check per admission: %+v", store)
+		}
+	}
+	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err != nil {
+		t.Fatal(err)
+	}
+	if err := handler.ReleaseLease(t.Context(), request); err != nil || store.reads != 14 || store.writes != 0 {
+		t.Fatalf("release contacted remote services: %v", err)
+	}
+	delete(store.certificates, IdentityNames(slot)[0])
+	if err := registry.AdmitLease(t.Context(), request); err == nil || store.writes != 0 {
+		t.Fatal("readmission repaired or accepted missing certificate")
+	}
+	if err := registry.PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil {
+		t.Fatal("published stale bundle after failed readmission")
+	}
 }
 
 func TestPersistentLifecycle(t *testing.T) {

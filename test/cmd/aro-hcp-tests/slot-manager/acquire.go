@@ -760,7 +760,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err := journal.Persist(); err != nil {
 		return err
 	}
-	if err := state.Validate(); err != nil {
+	if err := state.ValidateForAdmission(); err != nil {
 		return err
 	}
 	logger.Info("Starting asset admission",
@@ -775,6 +775,12 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	}
 	cancelAdmission()
 	if err != nil {
+		return err
+	}
+	if err := state.Validate(); err != nil {
+		return err
+	}
+	if err := journal.Persist(); err != nil {
 		return err
 	}
 	contract := slots.NewRuntimeContractBuilder()

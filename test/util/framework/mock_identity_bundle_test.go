@@ -16,6 +16,10 @@ package framework
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -35,19 +39,65 @@ func TestSlotMockPrincipalAlignment(t *testing.T) {
 	t.Setenv(leaseenv.MockIdentityBundle, string(payload))
 	t.Setenv(leaseenv.MSIMockSP, "unused-legacy")
 	t.Setenv("MI_MOCK_PRINCIPAL_ID", bundle.MSI.PrincipalID)
-	if got := MIMockPrincipalID(); got != bundle.MSI.PrincipalID {
-		t.Fatalf("wrong MSI principal: %s", got)
+	if got, err := MIMockPrincipalID(); err != nil || got != bundle.MSI.PrincipalID {
+		t.Fatalf("wrong MSI principal: %s, %v", got, err)
 	}
 	for _, invalid := range []struct{ payload, explicit string }{{"{}", ""}, {string(payload), uuid.NewString()}} {
 		t.Setenv(leaseenv.MockIdentityBundle, invalid.payload)
 		t.Setenv("MI_MOCK_PRINCIPAL_ID", invalid.explicit)
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Error("invalid or conflicting bundle silently fell back")
-				}
-			}()
-			MIMockPrincipalID()
-		}()
+		if got, err := MIMockPrincipalID(); err == nil || got != "" {
+			t.Fatalf("invalid or conflicting bundle returned %q, %v", got, err)
+		}
+	}
+}
+
+func TestNonSlotMockPrincipalConfiguration(t *testing.T) {
+	const scenarioEnv = "ARO_HCP_TEST_MOCK_CONFIG_SCENARIO"
+	if scenario := os.Getenv(scenarioEnv); scenario != "" {
+		if err := os.Unsetenv(leaseenv.MockIdentityBundle); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MI_MOCK_PRINCIPAL_ID", "")
+		t.Setenv(leaseenv.MSIMockSP, "obsolete-ignored")
+		t.Setenv("ARO_HCP_CONFIG_FILE_OVERRIDE", "")
+		t.Setenv("ARO_HCP_CLOUD", "dev")
+		t.Setenv("DEPLOY_ENV", "pers")
+		t.Setenv("REGION", "westus3")
+		principal := "11111111-1111-1111-1111-111111111111"
+		value := fmt.Sprintf("%q", principal)
+		want := principal
+		wantError := false
+		switch scenario {
+		case "empty":
+			value, want = `""`, ""
+		case "invalid-type":
+			value, want, wantError = "42", "", true
+		case "config-error":
+			want, wantError = "", true
+		case "explicit":
+			t.Setenv("MI_MOCK_PRINCIPAL_ID", principal)
+		}
+		configFile := filepath.Join(t.TempDir(), "config.yaml")
+		if scenario != "config-error" && scenario != "explicit" {
+			data := fmt.Sprintf("defaults:\n  miMockPrincipalId: %s\nclouds:\n  dev:\n    environments:\n      pers:\n        regions:\n          westus3: {}\n", value)
+			if err := os.WriteFile(configFile, []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Setenv("ARO_HCP_CONFIG_FILE", configFile)
+		got, err := MIMockPrincipalID()
+		if (err != nil) != wantError || got != want {
+			t.Fatalf("principal=%q, error=%v; want %q, error=%t", got, err, want, wantError)
+		}
+		return
+	}
+	for _, scenario := range []string{"personal", "empty", "invalid-type", "config-error", "explicit"} {
+		t.Run(scenario, func(t *testing.T) {
+			command := exec.Command(os.Args[0], "-test.run=^TestNonSlotMockPrincipalConfiguration$")
+			command.Env = append(os.Environ(), scenarioEnv+"="+scenario)
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("configuration subprocess failed: %v\n%s", err, output)
+			}
+		})
 	}
 }

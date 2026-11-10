@@ -121,9 +121,7 @@ func (handler *Handler) checkLease(ctx context.Context, request assets.LeaseRequ
 	return nil
 }
 
-func (handler *Handler) AcquireLease(ctx context.Context, request assets.LeaseRequest) error {
-	return handler.checkLease(ctx, request)
-}
+func (*Handler) AcquireLease(context.Context, assets.LeaseRequest) error { return nil }
 func (handler *Handler) AdmitLease(ctx context.Context, request assets.LeaseRequest) error {
 	return handler.checkLease(ctx, request)
 }

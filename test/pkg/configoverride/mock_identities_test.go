@@ -33,7 +33,7 @@ func TestSlotMockIdentityPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := Inputs{DeployEnvironment: "ci01", MockIdentityBundle: string(payload), MSIMockLease: "unused", ARMHelperLeases: []string{"unused", "unused", "unused"}}
+	input := Inputs{DeployEnvironment: "ci01", MockIdentityBundle: string(payload)}
 	result, err := Generate(input, Paths{})
 	if err != nil {
 		t.Fatal(err)
@@ -56,5 +56,21 @@ func TestSlotMockIdentityPrecedence(t *testing.T) {
 	parsed, err := InputsFromEnvironment([]string{leaseenv.MockIdentityBundle + "="})
 	if err != nil || !parsed.MockIdentityBundleProvided {
 		t.Fatal("lost empty provided bundle")
+	}
+}
+
+func TestLegacyLeasesDoNotSelectIdentities(t *testing.T) {
+	input, err := InputsFromEnvironment([]string{"DEPLOY_ENV=pers", "LEASED_MSI_MOCK_SP=obsolete", "LEASED_ARM_HELPER_SP=one two three"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Generate(input, Paths{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"miMock", "armHelper", "clustersServiceArmHelper"} {
+		if strings.Contains(string(result.YAML), field) {
+			t.Fatalf("overrode personal-dev configuration using obsolete leases: %s", result.YAML)
+		}
 	}
 }

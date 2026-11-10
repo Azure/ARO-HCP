@@ -174,8 +174,8 @@ func (s *AcquiredSlotState) ValidateForRelease() error {
 	return nil
 }
 
-// Validate requires a fully resolved state suitable for runtime publication.
-func (s *AcquiredSlotState) Validate() error {
+// ValidateForAdmission checks held leases and subscriptions before resolving readiness.
+func (s *AcquiredSlotState) ValidateForAdmission() error {
 	if err := s.ValidateForRelease(); err != nil {
 		return err
 	}
@@ -217,6 +217,14 @@ func (s *AcquiredSlotState) Validate() error {
 				return fmt.Errorf("slot state asset lease %q is no longer held", lease.ResourceName)
 			}
 		}
+	}
+	return nil
+}
+
+// Validate requires a fully resolved state suitable for runtime publication.
+func (s *AcquiredSlotState) Validate() error {
+	if err := s.ValidateForAdmission(); err != nil {
+		return err
 	}
 	if err := s.Slot.ValidateResolvedAssets(); err != nil {
 		return err

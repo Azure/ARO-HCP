@@ -12,8 +12,6 @@ _aro_hcp_build_config_override() {
         --shared-dir "${SHARED_DIR}"
         --deploy-env "${DEPLOY_ENV:?DEPLOY_ENV must be set}"
         --output-file "${output_file}"
-        --msi-mock-pool-catalog "${PWD}/dev-infrastructure/openshift-ci/msi-mock-pool.yaml"
-        --arm-helper-pool-catalog "${ARM_HELPER_POOL_CATALOG:-${PWD}/dev-infrastructure/openshift-ci/arm-helper-pool.yaml}"
         --hypershift-override-file "${SHARED_DIR}/hypershift-image-overrides.yaml"
     )
     # Go cannot export into this provisioning shell. Pass through any existing

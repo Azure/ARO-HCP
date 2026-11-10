@@ -150,46 +150,6 @@ func TestFlagsOverrideEnvironment(t *testing.T) {
 	}
 }
 
-func TestSelectedSourceCatalogs(t *testing.T) {
-	for _, selection := range []string{"default", "relative", "absolute", "environment", "flag-over-environment"} {
-		t.Run(selection, func(t *testing.T) {
-			clearEnvironment(t)
-			source, shared := t.TempDir(), t.TempDir()
-			relative := "dev-infrastructure/openshift-ci/arm-helper-pool.yaml"
-			if selection != "default" {
-				relative = "selected/arm.yaml"
-			}
-			catalog := filepath.Join(source, relative)
-			if err := os.MkdirAll(filepath.Dir(catalog), 0755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(catalog, []byte("armHelperPool:\n  selected:\n    clientId: baseline-client\n    principalId: baseline-principal\n    certName: baseline-cert\n"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv(leaseenv.ARMHelperSP, "selected")
-			args := []string{"--source-dir", source, "--shared-dir", shared, "--deploy-env", "baseline"}
-			switch selection {
-			case "relative":
-				args = append(args, "--arm-helper-pool-catalog", relative)
-			case "absolute":
-				args = append(args, "--arm-helper-pool-catalog", catalog)
-			case "environment":
-				t.Setenv("ARM_HELPER_POOL_CATALOG", relative)
-			case "flag-over-environment":
-				t.Setenv("ARM_HELPER_POOL_CATALOG", "missing.yaml")
-				args = append(args, "--arm-helper-pool-catalog", relative)
-			}
-			if stdout, err := execute(args...); err != nil || stdout != "\n" {
-				t.Fatalf("stdout = %q, err = %v", stdout, err)
-			}
-			defaults := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "baseline")
-			if defaults["armHelperClientId"] != "baseline-client" || defaults["clustersServiceArmHelperCertName"] != "baseline-cert" {
-				t.Fatalf("selected catalog not used: %#v", defaults)
-			}
-		})
-	}
-}
-
 type publicationWriter struct {
 	t      *testing.T
 	path   string
@@ -226,7 +186,7 @@ func TestOutputPublication(t *testing.T) {
 }
 
 func TestFailureDoesNotPublish(t *testing.T) {
-	for _, failure := range []string{"invalid-input", "unknown-image", "missing-catalog", "publication", "extra-argument", "missing-output"} {
+	for _, failure := range []string{"invalid-input", "unknown-image", "invalid-bundle", "publication", "extra-argument", "missing-output"} {
 		t.Run(failure, func(t *testing.T) {
 			clearEnvironment(t)
 			shared := t.TempDir()
@@ -242,8 +202,8 @@ func TestFailureDoesNotPublish(t *testing.T) {
 			case "unknown-image":
 				t.Setenv("UNSUPPORTED_IMAGE", "registry.example/unsupported@sha256:1234")
 				args = append(args, "--deploy-env", "dev")
-			case "missing-catalog":
-				t.Setenv(leaseenv.MSIMockSP, "missing")
+			case "invalid-bundle":
+				t.Setenv(leaseenv.MockIdentityBundle, "{}")
 				args = append(args, "--deploy-env", "dev", "--source-dir", t.TempDir())
 			case "publication":
 				args = append(args, "--deploy-env", "dev", "--output-file", shared)

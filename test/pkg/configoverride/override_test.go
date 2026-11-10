@@ -155,8 +155,8 @@ func TestRecognizedEnvironmentInputs(t *testing.T) {
 		"UNRELATED=value", "IMAGE_FORMAT=ignored",
 	})
 	want := Inputs{
-		DeployEnvironment: "overlay-env", MSIMockLease: "mock",
-		ARMHelperLeases: []string{"one", "two"}, MSIContainers: "container-one container-two",
+		DeployEnvironment:            "overlay-env",
+		MSIContainers:                "container-one container-two",
 		InfrastructureIdentityBundle: `{"literal":"a=b"}`,
 		OCLoginRegistries:            " existing.registry ", Images: map[string]string{"BACKEND_IMAGE": ""},
 	}
@@ -254,140 +254,6 @@ func TestHealthcheckAndEnvironmentKeys(t *testing.T) {
 	}
 }
 
-const mockCatalog = `miMockPool:
-  selected:
-    clientId: mock-client
-    principalId: mock-principal
-    certName: mock-cert
-  other:
-    clientId: other-client
-    principalId: other-principal
-    certName: other-cert
-`
-
-const helperCatalog = `armHelperPool:
-  backend:
-    clientId: backend-client
-    principalId: backend-principal
-    certName: backend-cert
-  clusters-service:
-    clientId: clusters-client
-    principalId: clusters-principal
-    certName: clusters-cert
-`
-
-func TestSelectedCatalogs(t *testing.T) {
-	paths := Paths{MSIMockCatalog: fixture(t, "mock.yaml", mockCatalog), ARMHelperCatalog: fixture(t, "helper.yaml", helperCatalog)}
-	for _, tc := range []struct {
-		name  string
-		input Inputs
-		want  map[string]interface{}
-	}{
-		{"mock selected", Inputs{MSIMockLease: "selected"}, map[string]interface{}{"miMockClientId": "mock-client", "miMockPrincipalId": "mock-principal", "miMockCertName": "mock-cert"}},
-		{"single helper fallback", Inputs{ARMHelperLeases: []string{"backend"}}, map[string]interface{}{"armHelperClientId": "backend-client", "armHelperCertName": "backend-cert", "clustersServiceArmHelperClientId": "backend-client", "clustersServiceArmHelperCertName": "backend-cert"}},
-		{"two independent helpers", Inputs{ARMHelperLeases: []string{"backend", "clusters-service"}}, map[string]interface{}{"armHelperClientId": "backend-client", "armHelperCertName": "backend-cert", "clustersServiceArmHelperClientId": "clusters-client", "clustersServiceArmHelperCertName": "clusters-cert"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.input.DeployEnvironment, tc.input.MSIContainers = "ci01", "leased"
-			_, document := generated(t, tc.input, paths)
-			got := defaultsAt(t, document, "ci01")
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("defaults = %#v, want %#v", got, tc.want)
-			}
-			if _, exists := got["armHelperFPAPrincipalId"]; exists {
-				t.Fatal("FPA principal was overwritten")
-			}
-		})
-	}
-}
-
-func TestCatalogErrorsAndDemandedReads(t *testing.T) {
-	for _, pool := range []struct{ name, root, lease string }{
-		{"mock", "miMockPool", "selected"}, {"helper", "armHelperPool", "backend"}, {"second helper", "armHelperPool", "clusters-service"},
-	} {
-		t.Run(pool.name, func(t *testing.T) {
-			for _, tc := range []struct {
-				name, body string
-				missing    bool
-			}{
-				{"missing file", "", true}, {"malformed YAML", "[", false}, {"wrong root", "otherPool: {}", false},
-				{"wrong pool type", pool.root + ": []", false}, {"missing entry", pool.root + ": {}", false},
-				{"scalar entry", pool.root + ":\n  " + pool.lease + ": bad", false},
-				{"multiple documents", pool.root + ": {}\n---\nother: value", false},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					path := filepath.Join(t.TempDir(), "missing.yaml")
-					if !tc.missing {
-						path = fixture(t, "catalog.yaml", tc.body)
-					}
-					input := Inputs{DeployEnvironment: "ci01"}
-					paths := Paths{MSIMockCatalog: path, ARMHelperCatalog: path}
-					if pool.name == "mock" {
-						input.MSIMockLease = pool.lease
-					} else {
-						input.ARMHelperLeases = []string{pool.lease}
-					}
-					if result, err := Generate(input, paths); err == nil || result.YAML != nil {
-						t.Fatalf("Generate = %#v, %v; expected error", result, err)
-					}
-					// Neither missing nor malformed catalogs matter without selected leases.
-					generated(t, Inputs{DeployEnvironment: "ci01"}, paths)
-				})
-			}
-			for _, field := range []string{"clientId", "principalId", "certName"} {
-				for _, value := range []string{"", `""`, "null", `"null"`, "42", "true", "[]", "{}"} {
-					t.Run(field+"="+value, func(t *testing.T) {
-						fields := map[string]interface{}{"clientId": "client", "principalId": "principal", "certName": "cert"}
-						body := pool.root + ":\n  " + pool.lease + ":\n"
-						for _, key := range []string{"clientId", "principalId", "certName"} {
-							if key == field {
-								if value != "" {
-									body += "    " + key + ": " + value + "\n"
-								}
-								continue
-							}
-							body += "    " + key + ": " + fields[key].(string) + "\n"
-						}
-						input := Inputs{DeployEnvironment: "ci01"}
-						if pool.name == "mock" {
-							input.MSIMockLease = pool.lease
-						} else {
-							input.ARMHelperLeases = []string{pool.lease}
-							if pool.name == "second helper" {
-								body += "  backend:\n    clientId: valid-client\n    principalId: valid-principal\n    certName: valid-cert\n"
-								input.ARMHelperLeases = []string{"backend", pool.lease}
-							}
-						}
-						path := fixture(t, "catalog.yaml", body)
-						if result, err := Generate(input, Paths{MSIMockCatalog: path, ARMHelperCatalog: path}); err == nil || result.YAML != nil {
-							t.Fatalf("Generate = %#v, %v; expected error", result, err)
-						}
-					})
-				}
-			}
-		})
-	}
-	if _, err := Generate(Inputs{DeployEnvironment: "ci01", ARMHelperLeases: []string{"one", "two", "three"}}, Paths{}); err == nil || !strings.Contains(err.Error(), "at most two") {
-		t.Fatalf("expected helper count error, got %v", err)
-	}
-}
-
-func TestCatalogKeysAndValuesAreLiteral(t *testing.T) {
-	lease := `name" | .injected = true | "`
-	value := `$(touch should-not-exist); " | .injected = true`
-	catalog, err := yaml.Marshal(map[string]interface{}{"miMockPool": map[string]interface{}{
-		lease: map[string]interface{}{"clientId": value, "principalId": "principal", "certName": "certificate"},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, document := generated(t, Inputs{DeployEnvironment: "ci01", MSIMockLease: lease, MSIContainers: "leased"}, Paths{MSIMockCatalog: fixture(t, "catalog.yaml", string(catalog))})
-	want := map[string]interface{}{"miMockClientId": value, "miMockPrincipalId": "principal", "miMockCertName": "certificate"}
-	if got := defaultsAt(t, document, "ci01"); !reflect.DeepEqual(got, want) {
-		t.Fatalf("defaults = %#v, want %#v", got, want)
-	}
-}
-
 func TestOverlayMerge(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
@@ -426,7 +292,7 @@ func TestOverlayMerge(t *testing.T) {
           enabled: false
           list: [one, two]
 `
-	result, document := generated(t, Inputs{DeployEnvironment: "ci01", Images: map[string]string{"BACKEND_IMAGE": "registry/repo@sha256:123"}, ARMHelperLeases: []string{"backend"}}, Paths{ARMHelperCatalog: fixture(t, "helper.yaml", helperCatalog), HypershiftOverlay: fixture(t, "overlay.yaml", overlay)})
+	result, document := generated(t, Inputs{DeployEnvironment: "ci01", Images: map[string]string{"BACKEND_IMAGE": "registry/repo@sha256:123"}}, Paths{HypershiftOverlay: fixture(t, "overlay.yaml", overlay)})
 	defaults := defaultsAt(t, document, "ci01")
 	wantImage := map[string]interface{}{"registry": "registry", "repository": "repo", "digest": "hypershift-digest"}
 	if image := defaults["backend"].(map[string]interface{})["image"]; !reflect.DeepEqual(image, wantImage) {

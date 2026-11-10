@@ -289,7 +289,8 @@ the privileged pipeline is run.
 ## Slot-bound CI bundles
 
 DEV/dev-xs slot-manager jobs use the dedicated asset described in
-[slot-bound mock identity operations](slot-mock-identities.md). Its bundle takes
-precedence over legacy pool leases. Personal-dev shared principals and all legacy
-pool infrastructure described above remain unchanged. Do not expand old pools
+[slot-bound mock identity operations](slot-mock-identities.md). New jobs consume its bundle, not legacy static-pool leases. Personal-dev
+shared-principal configuration remains supported. Old in-flight jobs retain their
+old checked-out consumers, while legacy Boskos leases still gate concurrency.
+All legacy pool infrastructure described above remains unchanged. Do not expand old pools
 to satisfy slot demand; capacity and retirement are a separate follow-up.

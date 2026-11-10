@@ -69,7 +69,12 @@ adapter and binary during checkout and compares baseline/upgrade overrides.
 
 `MIMockPrincipalID` uses the bundle for test grants. An explicit
 `MI_MOCK_PRINCIPAL_ID` may agree with it but conflicting values fail; without a
-bundle, the existing explicit-env, legacy-catalog, config ordering is unchanged.
+bundle, explicit environment or personal-development configuration is supported.
+Invalid bundle, conflicting identity and configuration lookup failures return
+errors to callers; an explicitly empty configured principal means no mock.
+Neither the test helper nor the configuration generator resolves the obsolete
+`LEASED_MSI_MOCK_SP`/`LEASED_ARM_HELPER_SP` static catalogs. In-flight old jobs
+finish on their old checkout; new slot jobs require the admitted bundle.
 
 ## Rollout and capacity
 
@@ -81,10 +86,11 @@ access; owners must arrange those rights if a selected CI profile lacks them.
 
 The release `aro-hcp-local-e2e`, `aro-hcp-local-e2e-upgrade` workflows and
 `aro-hcp-hypershift-deploy` ref still acquire legacy MSI/ARM leases. Those leases
-are unused for identity selection once the bundle is present, but remain
+are no longer used for identity selection by this code, but remain
 concurrency gates. Removing them is a separate openshift/release change; this PR
 does not promise increased effective concurrency or remove legacy infrastructure.
-Non-slot and personal-dev consumers retain their current fallback behavior.
+Non-slot personal-dev consumers retain explicit identity and configuration
+support, not legacy static-pool lookup.
 
 Subscription budget example from the existing five-full-slot model:
 `7615 + 7 shared + 300 legacy + 30 slot-bound = 7952` of 8000 assignments.
