@@ -16,16 +16,16 @@
 // editor configuration that has not been reviewed. Exit code is 1 for a
 // violation, 2 on an internal error.
 //
-// The rule is default-deny: nothing under an agent or editor configuration
-// directory may be committed unless its exact path is on the allowlist below.
-// A denylist of known-dangerous filenames was tried first and could not hold —
-// it blocked .claude/settings.json while letting .claude/skills/x/my-hooks.json
-// through with the same payload, because the danger is in what loads the file,
-// not in what it is called.
+// The rule is default-deny: nothing in an agent or editor configuration
+// location may be committed unless the allowlist below approves that exact
+// path at that exact content. Approval is pinned to the blob the index
+// records, so editing an approved file revokes its approval until someone
+// re-approves it.
 //
-// Every rule is decided from the git index: paths and modes, never file
-// contents. Nothing is parsed, so nothing has to guess whether a colleague's
-// misplaced config is an attack — a question no filename check can answer.
+// Every rule is decided from the git index: paths, modes, and the object IDs
+// git has already computed. No blob is read and nothing is parsed, so no rule
+// has to guess whether a colleague's misplaced config is an attack — a
+// question no filename check can answer.
 //
 // Threat model, per-rule reasoning, and the scope left to human review:
 // docs/ci/supply-chain-presubmit.md.
@@ -54,8 +54,24 @@ import (
 // below, which are vendor-neutral, and human review.
 var configDirs = []string{".claude", ".copilot", ".cursor", ".vscode"}
 
-// allowedConfigFiles are the only paths under configDirs that may be
-// committed. Everything else is refused.
+// configPrefixes are agent configuration locations that cannot be matched as a
+// segment, because the segment name is too generic to use on its own: a rule
+// on "skills" or "agents" would match any directory anywhere with that name.
+// These are matched as a path prefix instead.
+//
+// Deliberately only the agent-configuration subtrees of .github, not .github
+// itself. The rest of it is ordinary high-churn CI configuration — nearly a
+// hundred commits to .github/workflows in six months — and an allowlist that
+// turned over daily would be one nobody reads.
+var configPrefixes = []string{
+	".github/agents/",
+	".github/skills/",
+	".github/instructions/",
+}
+
+// allowedConfigFiles maps an approved path to the git object ID of the exact
+// content that was approved. Everything else in a configuration location is
+// refused, and so is an approved path whose content has since changed.
 //
 // This is an allowlist rather than a denylist of dangerous names because the
 // danger is not in the name. An agent loads what its own configuration points
@@ -68,18 +84,31 @@ var configDirs = []string{".claude", ".copilot", ".cursor", ".vscode"}
 // quieter diff than "change the verifier" — which is exactly the review this
 // list exists to force.
 //
-// Paths are matched exactly, including case. The directory match below is
-// case-insensitive so that .Claude/ cannot slip past it; this one must not be,
-// or a near-miss spelling of an approved path would inherit its approval.
+// Pinning the content matters as much as pinning the path. An allowlist of
+// paths alone publishes the list of files an attacker may edit freely: a
+// SKILL.md is prose an agent reads and follows, so appending an instruction to
+// an already-approved one needs no new file, no executable bit and no script.
+// The object ID is what git already recorded for the blob, so checking it
+// reads nothing and judges nothing — it answers only "are these the approved
+// bytes?".
 //
-// Adding an entry is a change to a security control. Before you do: confirm
-// the file is genuinely needed, confirm it cannot execute anything by itself,
-// and have someone read it in full. A SKILL.md is prose an agent follows — it
-// needs no executable bit and no script, and no automated rule here inspects
-// it.
-var allowedConfigFiles = map[string]bool{
-	".claude/skills/bootstrap-api-version/SKILL.md": true,
-	".claude/skills/pr-standards/SKILL.md":          true,
+// Paths are matched exactly, including case. The location match is
+// case-insensitive so that .Claude/ cannot slip past it; this one must not be,
+// or a near-miss spelling would inherit an approved path's approval.
+//
+// Adding or updating an entry is a change to a security control. Before you
+// do: confirm the file is needed, confirm it cannot execute anything by
+// itself, and read it in full — including when you are only bumping the hash,
+// because that is the review the pin exists to force.
+//
+// Regenerate a hash with: git hash-object <path>
+var allowedConfigFiles = map[string]string{
+	".claude/OWNERS": "20cbcdac7e2a71ed02f27a4f734d714fc1836e03",
+	".claude/skills/bootstrap-api-version/SKILL.md": "36a339ddf8bb019b0bec79d8ef39cf3c346c02f2",
+	".claude/skills/pr-standards/SKILL.md":          "6cecfb66e8887cb808c4563b7918090535f5d2cf",
+	".github/agents/agentic-workflows.agent.md":     "7dcd288d083eba95430dca331967a48da7257f3f",
+	".github/instructions/e2e.instructions.md":      "cd16a25d1459cda97bc448652f2212714bd57e90",
+	".github/skills/agentic-workflows/SKILL.md":     "9476edb2bb54d3fbc6e9fd6fb7d340957a9194ec",
 }
 
 // Matched by extension at any path: a workspace file carries what .vscode/
@@ -97,6 +126,7 @@ var mcpConfigFiles = map[string]bool{
 
 const (
 	ruleUnlistedConfig = "unlisted-config"
+	ruleModifiedConfig = "modified-config"
 	ruleAgentSettings  = "agent-settings"
 	ruleEditorConfig   = "editor-config"
 	ruleConfigNotFile  = "config-not-a-file"
@@ -152,6 +182,7 @@ const (
 type trackedFile struct {
 	path string
 	mode string
+	oid  string // the blob git recorded; never resolved, only compared
 }
 
 // trackedFiles returns every entry in the git index. Untracked files are
@@ -163,7 +194,8 @@ func trackedFiles(root string) ([]trackedFile, error) {
 	// --stage prints "<mode> <sha> <stage>\t<path>", so the entry's type comes
 	// from the index rather than the working tree. That keeps the check honest
 	// on a fresh clone and on filesystems that do not carry the executable bit.
-	// Only the mode and the path are read; the object ID is never resolved.
+	// The object ID is compared against the allowlist and never resolved, so
+	// no blob is read.
 	cmd := exec.Command("git", "ls-files", "--stage", "-z")
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
@@ -181,11 +213,15 @@ func trackedFiles(root string) ([]trackedFile, error) {
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files entry %q", entry)
 		}
-		mode, _, ok := bytes.Cut(meta, []byte{' '})
+		mode, rest, ok := bytes.Cut(meta, []byte{' '})
 		if !ok {
 			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
 		}
-		files = append(files, trackedFile{path: string(p), mode: string(mode)})
+		oid, _, ok := bytes.Cut(rest, []byte{' '})
+		if !ok {
+			return nil, fmt.Errorf("unexpected git ls-files metadata %q", meta)
+		}
+		files = append(files, trackedFile{path: string(p), mode: string(mode), oid: string(oid)})
 	}
 	return files, nil
 }
@@ -207,7 +243,7 @@ func checkPaths(files []trackedFile) []finding {
 		p := f.path
 		lower := strings.ToLower(p)
 		base := path.Base(lower)
-		inConfigDir := hasAnySegment(lower, configDirs...)
+		inConfigLocation := hasAnySegment(lower, configDirs...) || hasAnyPrefix(lower, configPrefixes...)
 
 		switch {
 		// First, the two rules that reach outside the configuration
@@ -231,25 +267,47 @@ func checkPaths(files []trackedFile) []finding {
 		// allowed as a file, not as a symlink to one. An alias also records
 		// nothing for the paths underneath it, so an aliased directory exposes
 		// configuration no path rule could otherwise see.
-		case !isRegularFile(f) && inConfigDir:
+		case !isRegularFile(f) && inConfigLocation:
 			findings = append(findings, finding{
 				path:   p,
 				rule:   ruleConfigNotFile,
 				detail: fmt.Sprintf("agent and editor configuration paths must be real files; git records mode %s, which names content this repository does not carry and is not resolved here", f.mode),
 			})
 
-		// Default-deny. The directory match is case-insensitive so .Claude/
-		// cannot evade it; the allowlist lookup is case-sensitive so a
-		// near-miss spelling cannot inherit an approved path's approval.
-		case inConfigDir && !allowedConfigFiles[p]:
-			findings = append(findings, finding{
-				path:   p,
-				rule:   ruleUnlistedConfig,
-				detail: "not on the reviewed allowlist in hack/verify-supply-chain/main.go",
-			})
+		// Default-deny, then content-pinned. The location match is
+		// case-insensitive so .Claude/ cannot evade it; the allowlist lookup
+		// is case-sensitive so a near-miss spelling cannot inherit an approved
+		// path's approval.
+		case inConfigLocation:
+			approved, listed := allowedConfigFiles[p]
+			switch {
+			case !listed:
+				findings = append(findings, finding{
+					path:   p,
+					rule:   ruleUnlistedConfig,
+					detail: "not on the reviewed allowlist in hack/verify-supply-chain/main.go",
+				})
+			case approved != f.oid:
+				findings = append(findings, finding{
+					path:   p,
+					rule:   ruleModifiedConfig,
+					detail: fmt.Sprintf("approved as %s but the index records %s", approved, f.oid),
+				})
+			}
 		}
 	}
 	return findings
+}
+
+// hasAnyPrefix reports whether p starts with any of prefixes. Callers pass a
+// lowercased path; every prefix is lowercase and ends in "/".
+func hasAnyPrefix(p string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasAnySegment matches a whole path element against any of segments, so
@@ -270,6 +328,7 @@ func hasAnySegment(p string, segments ...string) bool {
 // asset in the wrong shape, and an unlisted file may well belong here once
 // somebody has read it.
 var remediation = map[string]string{
+	ruleModifiedConfig: "An approved file has changed, so its approval no longer applies. Read the diff in full before anything else — appending an instruction to a SKILL.md an agent already trusts needs no new file. If the change is legitimate, update the pinned hash in allowedConfigFiles with `git hash-object <path>` in the same PR.",
 	ruleUnlistedConfig: "If the file does not belong in the repository, remove it — agent and editor configuration belongs in your local working copy. If it genuinely does belong, say so in the PR: confirm it is needed, confirm it cannot execute anything by itself, have a second person read it in full, and add its exact path to allowedConfigFiles in hack/verify-supply-chain/main.go in the same PR. That edit is a change to a security control and will be reviewed as one.",
 	ruleAgentSettings:  "Remove these from the commit. They belong in your local working copy only.",
 	ruleEditorConfig:   "Remove these from the commit. They belong in your local working copy only.",

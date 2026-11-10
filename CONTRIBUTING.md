@@ -201,7 +201,7 @@ Skills live in `.claude/skills/` as `SKILL.md` files with YAML frontmatter. Clau
 1. Create a directory under `.claude/skills/<skill-name>/`.
 2. Add a `SKILL.md` with YAML frontmatter (`name`, `description`) and the full instruction body.
 3. For Copilot compatibility, add the rules to `.github/copilot-instructions.md` as a new section.
-4. Add the skill's exact path to `allowedConfigFiles` in `hack/verify-supply-chain/main.go`, in the same PR. The `verify` presubmit is default-deny over `.claude/` and will reject the file otherwise. That edit is a change to a security control: say in the PR description that the file is needed, that it cannot execute anything by itself, and who read it.
+4. Add the skill's path and `git hash-object <path>` output to `allowedConfigFiles` in `hack/verify-supply-chain/main.go`, in the same PR. The `verify` presubmit is default-deny over `.claude/` and will reject the file otherwise. Editing an approved skill later also requires updating its hash. That edit is a change to a security control: say in the PR description that the file is needed, that it cannot execute anything by itself, and who read it.
 
 
 ## PR and Issue Lifecycle
