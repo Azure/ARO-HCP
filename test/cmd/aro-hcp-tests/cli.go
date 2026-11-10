@@ -216,6 +216,10 @@ func setupCli() (*cobra.Command, error) {
 
 		registerEV2RetryCatcher(specs)
 
+		// The scheduler is FIFO, so the longest specs have to enter the queue first
+		// to stay off the suite's critical path.
+		slowSpecsFirst(specs)
+
 		ext.AddSpecs(specs)
 		registry.Register(ext)
 
