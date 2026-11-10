@@ -8,7 +8,7 @@ This page documents the threat model, the reasoning behind each rule, and the sc
 
 This check is a stopgap, and is documented as one. It automates the highest-confidence slice of review guidance that was previously advisory only ([#5563](https://github.com/Azure/ARO-HCP/pull/5563)), and it lives in this repository because that was the only place to automate anything quickly — which is also its central weakness, since a PR can weaken its own gate. It is not intended as a long-term fixture, and it must not grow into a general-purpose security scanner.
 
-The intended replacement is off-the-shelf or platform-provided enforcement that lives outside this repository and does not ask this team to track agent-configuration attack vectors itself. When that exists, this tool should be deleted rather than brought up to meet it. Until then its maintenance cost stays deliberately bounded: a short list of locations, a five-entry allowlist, a sub-second runtime, and a test suite that fails CI the moment a rule stops matching this repository's own contents.
+The intended replacement is off-the-shelf or platform-provided enforcement that lives outside this repository and does not ask this team to track agent-configuration attack vectors itself. When that exists, this tool should be deleted rather than brought up to meet it. Until then its maintenance cost stays deliberately bounded: a short list of locations, a six-entry allowlist, a sub-second runtime, and a test suite that fails CI the moment a rule stops matching this repository's own contents.
 
 ## What it blocks
 
@@ -16,8 +16,8 @@ The intended replacement is off-the-shelf or platform-provided enforcement that 
 |---|---|---|
 | `unlisted-config` | anything in a configuration location whose exact path is not in `allowedConfigFiles` | The default. See [Default-deny and content-pinned](#default-deny-and-content-pinned). |
 | `modified-config` | an approved path whose blob no longer matches the approved object ID | Approval covers content, not just the name. |
-| `config-not-a-file` | any of those paths whose index mode is not a regular file | Checked *before* the allowlist, so an approved path cannot launder a symlink. See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
-| `agent-settings` | `mcp.json` / `.mcp.json` by basename at any path | The project-scoped form sits at the repository root, outside every directory the allowlist governs. |
+| `config-not-a-file` | any path in a configuration location whose index mode is not a regular file | Checked *before* the allowlist, so an approved path cannot launder a symlink. See [Path aliases are refused](#path-aliases-are-refused-not-resolved). |
+| `agent-settings` | `mcp.json` / `.mcp.json` by basename at any path | The project-scoped form sits at the repository root, outside every configuration location. |
 | `editor-config` | any `*.code-workspace` at any path | Carries the whole of `.vscode/` in one document, under a name of the author's choosing, and also usually at the root. |
 
 Configuration locations are the `.claude/`, `.copilot/`, `.cursor/` and `.vscode/` path segments at any depth, plus the `.github/agents/`, `.github/skills/` and `.github/instructions/` prefixes. The rest of `.github/` is out of scope — see [Known limitations](#known-limitations).
@@ -32,9 +32,9 @@ The check defends against a specific, narrow thing: **a PR that commits configur
 
 It is deliberately **not** a general-purpose malware scanner, and a green check is not a clean bill of health. The following are explicitly out of scope and remain the reviewer's job:
 
-- **Agent vendors beyond `.claude/`, `.copilot/` and `.cursor/`.** Those three are the directories a contributor here plausibly has configured, which is where an accidental commit comes from; within them the settings filenames are matched vendor-neutrally, so a name one agent adds is covered for all three at once. The list stops there on purpose. Enumerating vendors is a list that goes stale the week a new tool ships while still looking complete, and a longer one would imply a completeness this cannot have — so the boundary is stated here instead. A fourth vendor's directory passes until someone adds it; MCP configuration is the exception, matched by filename at any path and so already covered wherever it sits.
+- **Agent vendors beyond the listed locations.** `.claude/`, `.copilot/` and `.cursor/` are the directories a contributor here plausibly has configured, which is where an accidental commit comes from; the `.github/` subtrees cover what this repository already ships. The list stops there on purpose: enumerating vendors goes stale the week a new tool ships while still looking complete, and a longer list would imply a completeness this cannot have. Another vendor's directory passes until someone adds it. MCP configuration is the exception, matched by filename at any path and so already covered wherever it sits.
 - **The contents of every file, allowlisted ones included.** Nothing is parsed. An allowlisted `SKILL.md` is prose an agent reads and follows: it needs no executable bit and no script, and no rule here inspects it. Approving an allowlist entry means someone read the file; the check only records that they said they did.
-- **Agent instruction files outside the configuration directories.** `AGENTS.md` and `.github/copilot-instructions.md` are legitimately tracked here and are not covered. They are a prompt-injection surface rather than an execution one. Anything inside the four directories is covered, instruction file or not — `.cursor/rules/` included.
+- **Agent instruction files outside the configuration directories.** `AGENTS.md` and `.github/copilot-instructions.md` are legitimately tracked here and are not covered. They are a prompt-injection surface rather than an execution one. Anything inside a configuration location is covered, instruction file or not — `.cursor/rules/` and `.github/instructions/` included.
 - **CI/CD configuration.** `.github/workflows/`, `Makefile`, `*pipeline.yaml` and `Dockerfile` changes are not covered. Call them out explicitly in your PR description.
 
 ## Design decisions
@@ -43,9 +43,9 @@ Each of these is a case where the obvious implementation is the wrong one. They 
 
 ### Only tracked files, read from the index
 
-Paths and modes come from `git ls-files --stage`, never from a filesystem walk. Developers routinely keep a gitignored `.claude/settings.local.json` in their working copy; that is not what this check is about, and walking the tree would fail every local `make verify`.
+Paths, modes and object IDs come from `git ls-files --stage`, never from a filesystem walk. Developers routinely keep a gitignored `.claude/settings.local.json` in their working copy; that is not what this check is about, and walking the tree would fail every local `make verify`.
 
-Being gitignored is not an escape hatch in the other direction: a force-added file is tracked from then on and keeps appearing. The two `SKILL.md` files in this repository are exactly that — committed under a gitignored `/.claude/` directory.
+Being gitignored is not an escape hatch in the other direction: a force-added file is tracked from then on and keeps appearing. Every file tracked under `/.claude/` in this repository is exactly that — force-added past a gitignore.
 
 Reading the mode from the index rather than the working tree also keeps the check honest on a fresh clone and on filesystems that do not carry the executable bit. The index and the working tree can disagree — an entry staged as a regular file can be swapped for a symlink afterwards, leaving mode `100644` while the path on disk points elsewhere — and only the index is what the PR actually proposes.
 
@@ -126,7 +126,7 @@ Add to the existing list rather than adding a rule:
 
 Resist adding a rule that reads file contents. That is where this check's maintenance cost and every one of its false positives came from, and the outcome is already decided by the path.
 
-Whichever you add, add a case to `TestCheckPaths`. `TestAllowlistMatchesTheRepository` fails on an allowlist entry whose file no longer exists, so stale approvals do not accumulate, and `TestRepositoryIsClean` runs the rules against every tracked file so an over-broad change fails here rather than on the next contributor's PR.
+Whichever you add, add a case to `TestCheckPaths`. `TestAllowlistMatchesTheRepository` fails on an allowlist entry whose file no longer exists *and* on a pin that no longer matches the index, so approvals cannot drift from reality; `TestRepositoryIsClean` runs the rules against every tracked file so an over-broad change fails here rather than on the next contributor's PR.
 
 ## Known limitations
 
