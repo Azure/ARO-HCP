@@ -284,6 +284,8 @@ Steps can be configured to automatically retry on failure by adding an `automate
 
 Both `cluster-create` steps also retry `waiting for deployment aks-cluster-create: context deadline exceeded`, the timeout emitted when their 30-minute deployment wait expires. The reconciler waits for an existing ARM deployment to finish before observing resources or submitting another deployment. Stage fail-fast rendering retains this error match but limits the policy to one retry after one minute; the pipeline's configured retry count and delay are unchanged.
 
+Both steps also retry `OverconstrainedZonalAllocationRequest` and `ZonalAllocationFailed`, transient Azure capacity failures for their zone-pinned node pools. The codes appear in the step output twice: as the failing deployment operation's `statusMessage` code, and nested under the top-level `DeploymentFailed` in the deployment error body printed by the polling error. Stage fail-fast rendering retains these matches, pinning the retry count and delay as it does for the deadline match above.
+
 ### Step execution context
 
 All steps share a common execution context:
