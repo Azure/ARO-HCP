@@ -4,6 +4,7 @@ param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 
 param svcDatabaseName = '{{ .kusto.serviceLogsDatabase }}'
 param hcpDatabaseName = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
+param allAroHcpLogsDatabaseName = '{{ .kusto.allAroHcpLogsDatabase }}'
 
 param kustoResourceId = '__kustoResourceId__'
 

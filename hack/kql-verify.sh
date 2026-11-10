@@ -20,7 +20,7 @@ set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-KQL_DIR="${REPO_ROOT}/dev-infrastructure/modules/logs/kusto/tables"
+CONFIG_FILE="${KQL_VERIFY_SETTINGS:-${REPO_ROOT}/kql-verify-settings.yaml}"
 CONTAINER_NAME="kusto-emulator-$$"
 EMULATOR_IMAGE="${KUSTO_EMULATOR_IMAGE:-mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest}"
 ENDPOINT="${KUSTO_ENDPOINT:-}"
@@ -67,4 +67,4 @@ go run github.com/Azure/ARO-HCP/tooling/kustoctl \
   ${VERBOSE_FLAG} \
   validate kql \
   --endpoint "${ENDPOINT}" \
-  --kql-dir "${KQL_DIR}"
+  --config "${CONFIG_FILE}"
