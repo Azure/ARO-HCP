@@ -94,7 +94,9 @@ kube-prometheus-stack:
         - action: replace
           sourceLabels: [__name__, name]
           separator: ;
-          regex: 'veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-f0-9]{32}).*'
+          # Cluster Service IDs are lowercase alphanumeric (not hex-only);
+          # e.g. docs/etcd-restore.md uses ...-2sd1pej7kdkk1qvccoiqq534ae1knhh4-...
+          regex: 'veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
           targetLabel: namespace
           replacement: '${1}'
     image:
