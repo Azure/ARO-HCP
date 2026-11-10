@@ -4878,7 +4878,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-.*$",
+        "regex": "^Managed_Prometheus_services-(?![a-z]{2,3}$).+$",
         "type": "datasource"
       },
       {
@@ -4955,6 +4955,7 @@
       }
     ]
   },
+  "refresh": "5m",
   "time": {
     "from": "now-6h",
     "to": "now"
