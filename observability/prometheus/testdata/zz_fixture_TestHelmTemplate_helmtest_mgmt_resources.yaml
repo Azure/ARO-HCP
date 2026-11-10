@@ -67849,6 +67849,19 @@ data:
         metricNamePrefix: veleroSchedule
         metrics:
         - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - Enabled
+              - FailedValidation
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: Schedule phase
+          name: phase
+        - each:
             info:
               labelsFromPath:
                 name:
@@ -71258,12 +71271,12 @@ spec:
       honorLabels: true
       metricRelabelings:
         - action: replace
-          regex: veleroSchedule_[^;]+;(ocm-[^-]+-[^-]+)-.+
+          regex: veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-f0-9]{32}).*
           replacement: ${1}
           separator: ;
           sourceLabels:
           - __name__
-          - schedule
+          - name
           targetLabel: namespace
       relabelings:
         - action: replace
