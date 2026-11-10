@@ -690,13 +690,6 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 					}
 				}()
 
-				go func() {
-					defer utilruntime.HandleCrash()
-					if err := o.acmUninstall.Run(ctx); err != nil {
-						logger.Error(err, "ACM uninstall controller failed")
-					}
-				}()
-
 				// Block until the leadership context is cancelled.
 				<-ctx.Done()
 			},
