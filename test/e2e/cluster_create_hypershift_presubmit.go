@@ -17,6 +17,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -46,6 +48,14 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 			clusterParams.ClusterName = clusterName
 
 			tc := framework.NewTestContext()
+			v2 := framework.HyperShiftV2Config{
+				Binary:               os.Getenv("HYPERSHIFT_V2_BINARY"),
+				ManagementKubeconfig: os.Getenv("HYPERSHIFT_V2_MANAGEMENT_KUBECONFIG"),
+				ArtifactDir:          filepath.Join(tc.LogDirPath, "hypershift-v2"),
+			}
+			if v2.Binary != "" {
+				Expect(v2.Validate()).To(Succeed(), "HyperShift v2 prerequisites should be available before cluster creation")
+			}
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
@@ -136,6 +146,15 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
+
+			if v2.Binary != "" {
+				By("running the upstream HyperShift v2 HostedCluster conditions check")
+				subscriptionID, err := tc.SubscriptionID(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve the customer subscription for v2 cluster discovery")
+				resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s", subscriptionID, *resourceGroup.Name, clusterName)
+				err = framework.RunHyperShiftV2Conditions(ctx, v2, resourceID, GinkgoWriter)
+				Expect(err).NotTo(HaveOccurred(), "upstream HyperShift v2 conditions check should pass for cluster %q", clusterName)
+			}
 		},
 	)
 })
