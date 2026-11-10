@@ -270,7 +270,7 @@ clouds:
               appBaseName: "aro-dev-arm-helper-pool"
               certBaseName: "armHelperPoolCert"
               certBaseDns: "armhelperpool.hcp.osadev.cloud"
-              size: 100
+              size: 164
             msiMock:
               applicationName: "aro-dev-msi-mock2"
               certName: "msiMockCert2"
@@ -279,7 +279,7 @@ clouds:
               appBaseName: "aro-dev-msi-mock-pool"
               certBaseName: "msiMockPoolCert"
               certBaseDns: "msimockpool.hcp.osadev.cloud"
-              size: 50
+              size: 82
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"

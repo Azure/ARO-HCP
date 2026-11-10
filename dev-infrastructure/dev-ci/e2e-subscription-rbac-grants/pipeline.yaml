@@ -112,9 +112,10 @@ resourceGroups:
       # large", which hides that message from this matcher. Retrying is safe: the
       # template is idempotent. The pool modules use @batchSize(15) and ARM skips
       # later batches after a failed one, so creating a pool from scratch takes one
-      # attempt per batch: keep maximumRetryCount >= ceil(poolSize / 15) + 1 (8
-      # for the 100-app ARM helper pool). The schema caps maximumRetryCount at 10,
-      # which bounds how far @batchSize can be lowered for the largest pool.
+      # attempt per batch: ceil(poolSize / 15) + 1 attempts are needed (12 for the
+      # 164-app ARM helper pool). The schema caps maximumRetryCount at 10, so a
+      # from-scratch create or a large growth step of that pool can exhaust the
+      # retries; rerunning the entrypoint resumes, as the template is idempotent.
       - "aggregated deployment error is too large"
       - "does not exist or one of its queried"
       # ARM pre-flight validation sometimes fails with an opaque
