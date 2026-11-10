@@ -11,93 +11,50 @@ metadata:
 spec:
   groups:
   # ========================================
-  # Cluster Update SLO Recording Rules
+  # Cluster Update Current-State Recording Rule
   # ========================================
-  # SLIs for cluster update (PUT/PATCH) operations on hcpOpenShiftClusters,
-  # derived from backend_resource_operation_last_transition_time_seconds and
-  # backend_resource_operation_phase_info. Consumed by the cluster update SLO
-  # alerts (observability/alerts/cluster-update-slo-prometheusRule.yaml) and the
-  # Cluster Update SLO dashboard.
+  # Current state of each cluster update (PUT/PATCH) operation on
+  # hcpOpenShiftClusters, for the Cluster Update SLO dashboard
+  # (observability/grafana-dashboards/sre/user-journey/cluster-update-slo.json).
+  #
+  # The SLO error rates and burn-rate alerts
+  # (observability/alerts/cluster-update-slo-prometheusRule.yaml) do not use this
+  # record: they are built on the unified backend operation records
+  # (errors:backend_resource_operation:* in backend-operation-slo-recordingRule.yaml),
+  # filtered to resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"
+  # and operation_type="update".
   #
   # SCOPE: every customer change carried by the generic cluster "update"
-  # operation (operation_type="update") is counted, and nothing on
-  # backend_resource_operation_phase_info distinguishes one change from another.
-  # This includes:
-  #   - imageDigestMirrors changes (the IDMS image registry mirror journey);
-  #   - authorizedCIDRs, autoscaling, pod sizing and other cluster spec changes;
-  #   - control plane version upgrades. These also have their own user journey
-  #     (observability/recording-rules/userJourneyClusterUpgrade-recordingRule.yaml),
-  #     which measures version state via backend_cluster_version_info rather
-  #     than the operation, so there is no double-definition.
+  # operation is included: imageDigestMirrors changes (the IDMS image registry
+  # mirror journey), authorizedCIDRs and other cluster spec changes, and control
+  # plane version upgrades. Nothing on backend_resource_operation_phase_info
+  # distinguishes one change from another.
   #
-  # When an alert built on these series fires, confirm what the affected
-  # operation actually changed before triaging it as a specific journey.
-  #
-  # Relationship to other alerts on the same operation metrics:
-  #   - Stuck (non-terminal) update operations are covered by
-  #     BackendAsyncOperationClusterUpdateStuck in
-  #     backend/alerts/backend-async-operations-prometheusRule.yaml.
-  #   - These rules cover the disjoint case: operations that reach a terminal
-  #     "failed" phase, which the stuck alert can never fire on. Updates that
-  #     exceed their completion deadline (90 minutes by default) are failed by
-  #     the Backend and therefore counted here.
-  #
-  # Target: 95% of clusters' latest updates should succeed (not reach "failed").
-  # Error Budget: 5% (1 - 0.95)
-  #
-  # Only succeeded and failed updates are counted. Canceled updates are
-  # excluded from both the numerator and the denominator, so a cancellation
-  # neither counts as a failure nor dilutes the rate — the same convention as the
-  # cluster provisioning SLO.
-  #
-  # INTERNAL SUBSCRIPTIONS: every errors:* record drops operations whose
-  # subscription_id is listed in internal_subscription:info (e2e/dev/test
-  # subscriptions) BEFORE aggregating by cluster. The filter must run here, not
-  # on the alerts: once the counts are aggregated by cluster the subscription_id
-  # label is gone, so an `unless on (subscription_id)` on the alert would be a
-  # no-op. current:backend_cluster_update:last_transition_time_seconds itself is
-  # left unfiltered so dashboards can still inspect internal traffic. If
-  # internal_subscription:info is absent, nothing is excluded.
-  #
-  # WHAT IS COUNTED: the phase gauge holds at most one series per
+  # WHAT IS RECORDED: the phase gauge holds at most one series per
   # (resource, operation_type), because the Backend replaces the previous series
   # with the newest retained operation by start time (Cosmos document key breaks
-  # ties). Informer resync order does not affect selection. When that document
-  # expires, the newest remaining operation is selected. (Newest-operation
-  # selection is implemented by the operation phase metrics handler fix
-  # "select newest retained operation for operation phase gauges"; before it,
-  # the last synced operation wins.) Every count below is
-  # therefore a count of CLUSTERS by the outcome of their latest retained
-  # update, not a count of LROs. A failed update
-  # that is later retried successfully is overwritten and never counted, so
-  # these series under-report LRO failures. A true per-LRO rate needs a counter
-  # incremented once per terminal transition (ARO-25923).
+  # ties). (Newest-operation selection is implemented by the operation phase
+  # metrics handler fix "select newest retained operation for operation phase
+  # gauges"; before it, the last synced operation wins.) Dashboard counts of
+  # this record are therefore counts of CLUSTERS by the outcome of their latest
+  # retained update, not counts of individual operations: a failed update that
+  # is later retried successfully is overwritten and never counted.
   #
-  # ONE STATE PER OPERATION: every count reads
-  # current:backend_cluster_update:last_transition_time_seconds, which holds exactly
-  # one series per (cluster, resource, operation_type) with the current phase as a
-  # label and the last transition time as its value. Two sources can otherwise
-  # report the same resource: HA Prometheus replicas (prometheus_replica), and
-  # Backend targets (pod/instance), because a former leader keeps exporting its
-  # last snapshot after losing leadership. Two Backend targets may disagree on the
-  # phase of an operation, or even retain different operations, so deduplicating
-  # per phase is not enough. The record collapses replicas only, then selects one
-  # target snapshot per resource using the emitter's own rule: the operation with
-  # the newest start time wins, and for the same operation the latest transition
-  # wins. A stale snapshot can therefore neither replace a newer operation nor a
-  # later phase of the same operation. Missing start or transition gauges count
-  # as time 0, so such series still count in the instantaneous records but never
-  # inside a window. An exact tie on both start and transition time keeps one
-  # arbitrary target.
+  # ONE STATE PER OPERATION: the record holds exactly one series per
+  # (cluster, resource, operation_type), with the current phase as a label and
+  # the last transition time as its value. Two sources can otherwise report the
+  # same resource: HA Prometheus replicas (prometheus_replica), and Backend
+  # targets (pod/instance), because a former leader keeps exporting its last
+  # snapshot after losing leadership. Two Backend targets may disagree on the
+  # phase of an operation, or even retain different operations, so
+  # deduplicating per phase is not enough. The record collapses replicas only,
+  # then selects one target snapshot per resource using the emitter's own rule:
+  # the operation with the newest start time wins, and for the same operation
+  # the latest transition wins. Missing start or transition gauges count as time
+  # 0. An exact tie on both start and transition time keeps one arbitrary target.
   #
-  # The windowed group reads the record from the instantaneous group, so a phase
-  # change can reach the windowed records up to one evaluation interval later.
-  #
-  # NOTE: the instantaneous records below are a trailing ~7-day cumulative ratio,
-  # because the phase gauge is retained for the Cosmos 7-day TTL, so a single
-  # stale failure keeps the ratio elevated for days. Alert on the windowed records
-  # in arohcp_cluster_update_slo_windowed_recording_rules; the instantaneous
-  # records are kept for dashboards only.
+  # The record is not filtered by internal_subscription:info, so the dashboard
+  # can still inspect internal traffic; use its Exclude Subscriptions variable.
   - name: arohcp_cluster_update_slo_recording_rules
     interval: 1m
     rules:
@@ -151,172 +108,3 @@ spec:
             )
           )
         )
-    # Instantaneous count of clusters whose latest update succeeded
-    - record: errors:backend_cluster_update:succeeded_total
-      expr: |
-        count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds{phase="succeeded"}
-          unless on (subscription_id) internal_subscription:info
-        )
-    # Instantaneous count of clusters whose latest update succeeded or failed
-    - record: errors:backend_cluster_update:terminal_total
-      expr: |
-        count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
-          unless on (subscription_id) internal_subscription:info
-        )
-    # Instantaneous fraction of those clusters whose latest update failed
-    - record: errors:backend_cluster_update:error_rate
-      expr: |
-        (
-          count by (cluster) (
-            current:backend_cluster_update:last_transition_time_seconds{phase="failed"}
-            unless on (subscription_id) internal_subscription:info
-          )
-          or
-          0 * count by (cluster) (
-            current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
-            unless on (subscription_id) internal_subscription:info
-          )
-        )
-        /
-        clamp_min(
-          count by (cluster) (
-            current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}
-            unless on (subscription_id) internal_subscription:info
-          ),
-          1
-        )
-  # ========================================
-  # Cluster Update SLO Recording Rules: Windowed Errors (stateless)
-  # ========================================
-  # These windowed records count only clusters whose latest update's terminal
-  # transition landed inside the window, via
-  # (time() - current:backend_cluster_update:last_transition_time_seconds) < W,
-  # so a stale failure ages out of the window instead of smearing for the full
-  # Cosmos 7-day TTL. No new metric and no backend change.
-  #
-  # Long windows (1h / 6h / 3d) measure the burn; the 5m and 30m short windows
-  # confirm the 1h and 6h burns are still happening, completing the multiwindow
-  # pairs so an alert resets soon after the failures stop.
-  #
-  # The `or 0 * ...` term pins the failure count to 0 (not absent) when a
-  # cluster has update operations but none failed in-window.
-  - name: arohcp_cluster_update_slo_windowed_recording_rules
-    interval: 1m
-    rules:
-    # --- 5m window (fast burn short window): terminal transition within 300s ---
-    - record: errors:backend_cluster_update:failed_5m
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 300
-          unless on (subscription_id) internal_subscription:info
-        )
-        or
-        0 * count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:total_5m
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 300
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:error_rate_5m
-      expr: |
-        errors:backend_cluster_update:failed_5m
-        /
-        clamp_min(errors:backend_cluster_update:total_5m, 1)
-    # --- 30m window (medium burn short window): terminal transition within 1800s ---
-    - record: errors:backend_cluster_update:failed_30m
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 1800
-          unless on (subscription_id) internal_subscription:info
-        )
-        or
-        0 * count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:total_30m
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 1800
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:error_rate_30m
-      expr: |
-        errors:backend_cluster_update:failed_30m
-        /
-        clamp_min(errors:backend_cluster_update:total_30m, 1)
-    # --- 1h window (fast burn): terminal transition within 3600s ---
-    - record: errors:backend_cluster_update:failed_1h
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 3600
-          unless on (subscription_id) internal_subscription:info
-        )
-        or
-        0 * count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:total_1h
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 3600
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:error_rate_1h
-      expr: |
-        errors:backend_cluster_update:failed_1h
-        /
-        clamp_min(errors:backend_cluster_update:total_1h, 1)
-    # --- 6h window (medium burn): terminal transition within 21600s ---
-    - record: errors:backend_cluster_update:failed_6h
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 21600
-          unless on (subscription_id) internal_subscription:info
-        )
-        or
-        0 * count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:total_6h
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 21600
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:error_rate_6h
-      expr: |
-        errors:backend_cluster_update:failed_6h
-        /
-        clamp_min(errors:backend_cluster_update:total_6h, 1)
-    # --- 3d window (slow burn / budget): terminal transition within 259200s ---
-    - record: errors:backend_cluster_update:failed_3d
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase="failed"}) < 259200
-          unless on (subscription_id) internal_subscription:info
-        )
-        or
-        0 * count by (cluster) (
-          current:backend_cluster_update:last_transition_time_seconds
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:total_3d
-      expr: |
-        count by (cluster) (
-          (time() - current:backend_cluster_update:last_transition_time_seconds{phase=~"succeeded|failed"}) < 259200
-          unless on (subscription_id) internal_subscription:info
-        )
-    - record: errors:backend_cluster_update:error_rate_3d
-      expr: |
-        errors:backend_cluster_update:failed_3d
-        /
-        clamp_min(errors:backend_cluster_update:total_3d, 1)

@@ -6740,32 +6740,32 @@
   group: arohcp_cluster_update_slo_error_alerts
   alert: userJourneyClusterUpdateErrors1h5m
   occurrence: 1
-  input: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
+  input: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
   plan:
-    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
+    expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
     conditions:
-      - expression: errors:backend_cluster_update:failed_1h >= 3
+      - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:failed_1h
+          - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_1h > 0.72
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_1h
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.72
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_5m > 0.72
+      - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_5m
+          - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
@@ -6775,32 +6775,32 @@
   group: arohcp_cluster_update_slo_error_alerts
   alert: userJourneyClusterUpdateErrors3d
   occurrence: 1
-  input: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+  input: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
   plan:
-    expression: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+    expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
     conditions:
-      - expression: errors:backend_cluster_update:total_3d >= 10
+      - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:total_3d
+          - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 10
         unsupported: ""
-      - expression: errors:backend_cluster_update:failed_3d >= 2
+      - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:failed_3d
+          - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_3d > 0.05
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_3d
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
@@ -6810,32 +6810,32 @@
   group: arohcp_cluster_update_slo_error_alerts
   alert: userJourneyClusterUpdateErrors6h30m
   occurrence: 1
-  input: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
+  input: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
   plan:
-    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
+    expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
     conditions:
-      - expression: errors:backend_cluster_update:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_6h > 0.3
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.3
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_30m > 0.3
+      - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
@@ -9553,36 +9553,36 @@
   alert: userJourneyClusterUpdateErrors1h5m
   occurrence: 1
   input: |
-    errors:backend_cluster_update:failed_1h >= 3
+    errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 3
     and
-    errors:backend_cluster_update:error_rate_1h > 0.72
+    errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
     and
-    errors:backend_cluster_update:error_rate_5m > 0.72
+    errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
   plan:
-    expression: errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72
+    expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
     conditions:
-      - expression: errors:backend_cluster_update:failed_1h >= 3
+      - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:failed_1h
+          - expression: errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_1h > 0.72
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_1h
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.72
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_5m > 0.72
+      - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_5m
+          - expression: errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
@@ -9593,36 +9593,36 @@
   alert: userJourneyClusterUpdateErrors3d
   occurrence: 1
   input: |
-    errors:backend_cluster_update:total_3d >= 10
+    errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 10
     and
-    errors:backend_cluster_update:failed_3d >= 2
+    errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 2
     and
-    errors:backend_cluster_update:error_rate_3d > 0.05
+    errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.05
   plan:
-    expression: errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05
+    expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
     conditions:
-      - expression: errors:backend_cluster_update:total_3d >= 10
+      - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:total_3d
+          - expression: errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 10
         unsupported: ""
-      - expression: errors:backend_cluster_update:failed_3d >= 2
+      - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:failed_3d
+          - expression: errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_3d > 0.05
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_3d
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
@@ -9633,36 +9633,36 @@
   alert: userJourneyClusterUpdateErrors6h30m
   occurrence: 1
   input: |
-    errors:backend_cluster_update:total_6h >= 5
+    errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 5
     and
-    errors:backend_cluster_update:error_rate_6h > 0.30
+    errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
     and
-    errors:backend_cluster_update:error_rate_30m > 0.30
+    errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
   plan:
-    expression: errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3
+    expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
     conditions:
-      - expression: errors:backend_cluster_update:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_cluster_update:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_6h > 0.3
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.3
         unsupported: ""
-      - expression: errors:backend_cluster_update:error_rate_30m > 0.3
+      - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3
         path: root/and:right
         queries:
-          - expression: errors:backend_cluster_update:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}
             role: signal
         thresholds:
           - operator: '>'

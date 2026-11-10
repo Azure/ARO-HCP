@@ -339,6 +339,92 @@ tests:
     exp_samples:
     - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="create", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
       value: 0
+# Short windows (5m, 30m) count only operations whose terminal transition
+# landed inside them. /f1 and /s1 transition at 5400s; /old at 0s. At 92m
+# (5520s) /f1 and /s1 are inside both short windows and /old is outside both.
+# At 100m (6000s) /f1 and /s1 are outside 5m but inside 30m, and the 5m counts
+# are pinned to 0 rather than absent.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/old", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/f1", phase="failed", environment="dev", region="eastus2"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/s1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:error_rate_5m{operation_type="update"}'
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_5m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+  - expr: 'errors:backend_resource_operation:total_5m{operation_type="update"}'
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_5m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 2
+  - expr: 'errors:backend_resource_operation:failed_30m{operation_type="update"}'
+    eval_time: 92m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_30m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  - expr: 'errors:backend_resource_operation:failed_5m{operation_type="update"}'
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_5m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  - expr: 'errors:backend_resource_operation:total_5m{operation_type="update"}'
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_5m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  - expr: 'errors:backend_resource_operation:error_rate_30m{operation_type="update"}'
+    eval_time: 100m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_30m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.5
+# Internal subscriptions listed in internal_subscription:info are excluded
+# before aggregation. On mgmt-1, /int (internal, failed) is dropped and /ext
+# (customer, succeeded) remains. mgmt-2 has only internal operations, so it has
+# no error series at all rather than a pinned 0.
+- interval: 1m
+  input_series:
+  - series: 'internal_subscription:info{subscription_id="internal-sub"}'
+    values: "1x60"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/int", subscription_id="internal-sub", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x60"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/int", subscription_id="internal-sub", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x60"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/ext", subscription_id="sub-1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "1x60"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/ext", subscription_id="sub-1", phase="succeeded", environment="dev", region="eastus2"}'
+    values: "0x60"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/int2", subscription_id="internal-sub", phase="failed", environment="dev", region="eastus2"}'
+    values: "1x60"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", resource_id="/int2", subscription_id="internal-sub", phase="failed", environment="dev", region="eastus2"}'
+    values: "0x60"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:failed_1h{operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  - expr: 'errors:backend_resource_operation:total_1h{operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:total_1h{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  - expr: 'errors:backend_resource_operation:error_rate_5m{operation_type="update"}'
+    eval_time: 30m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_5m{cluster="mgmt-1", operation_type="update", region="eastus2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
 # ========================================
 # Error rate isolation: different resource_type/operation_type combos
 # get separate error buckets.

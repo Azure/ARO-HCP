@@ -13,9 +13,11 @@ spec:
   # ========================================
   # Cluster Update SLO Alerts — Errors
   # ========================================
-  # Recording rules for these alerts live in
-  # observability/recording-rules/cluster-update-slo-recordingRule.yaml, which
-  # defines the errors:backend_cluster_update:* series.
+  # These alerts read the unified backend operation error records
+  # (errors:backend_resource_operation:* in
+  # observability/recording-rules/backend-operation-slo-recordingRule.yaml),
+  # filtered to resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"
+  # and operation_type="update".
   #
   # SCOPE: these alerts cover every customer change carried by the generic
   # cluster "update" operation (operation_type="update"): imageDigestMirrors
@@ -44,8 +46,8 @@ spec:
   # Windowed burn-rate alerting, following the cluster deletion SLO.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
-  # These read the windowed recording rules
-  # (errors:backend_cluster_update:{failed,total,error_rate}_{5m,30m,1h,6h,3d}), which
+  # The windowed records
+  # (errors:backend_resource_operation:{failed,total,error_rate}_{5m,30m,1h,6h,3d})
   # count only clusters whose latest update's terminal transition landed inside
   # the window. Each tier therefore evaluates a real event window rather than the
   # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
@@ -57,8 +59,8 @@ spec:
   # stop. The slow 3d tier is a budget ticket and, like the cluster provisioning
   # and deletion SLOs, has no short window.
   #
-  # Internal (e2e/dev/test) subscriptions are excluded inside the recording
-  # rules, before aggregation by cluster. These alerts deliberately do not carry
+  # Internal (e2e/dev/test) subscriptions are excluded inside the unified
+  # recording rules, before aggregation by cluster. These alerts deliberately do not carry
   # exclude_internal_subscriptions: their input has no subscription_id label, so
   # the generated `unless on(subscription_id)` would be a no-op.
   #
@@ -68,8 +70,8 @@ spec:
   #
   # These are counts of clusters by the outcome of their latest update, not
   # counts of LROs: a failed update later retried successfully is overwritten
-  # and never counted, so the rates under-report LRO failures. See the
-  # recording rules file for the instrumentation a per-LRO rate would need.
+  # and never counted, so the rates under-report LRO failures. A per-LRO rate
+  # needs a counter incremented once per terminal transition (ARO-25923).
   #
   # Burn rate thresholds calculated from 95% SLO (5% error budget):
   #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h and 5m
@@ -89,11 +91,11 @@ spec:
     # 14.4x burn: >72% failures over 1h and 5m, at least 3 failures in 1h.
     - alert: userJourneyClusterUpdateErrors1h5m
       expr: |
-        errors:backend_cluster_update:failed_1h >= 3
+        errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 3
         and
-        errors:backend_cluster_update:error_rate_1h > 0.72
+        errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
         and
-        errors:backend_cluster_update:error_rate_5m > 0.72
+        errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
       for: 5m
       labels:
         severity: "3"
@@ -111,11 +113,11 @@ spec:
     # 6x burn: >30% failures over 6h and 30m, at least 5 completions in 6h.
     - alert: userJourneyClusterUpdateErrors6h30m
       expr: |
-        errors:backend_cluster_update:total_6h >= 5
+        errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 5
         and
-        errors:backend_cluster_update:error_rate_6h > 0.30
+        errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
         and
-        errors:backend_cluster_update:error_rate_30m > 0.30
+        errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
       for: 30m
       labels:
         severity: "3"
@@ -134,11 +136,11 @@ spec:
     # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
     - alert: userJourneyClusterUpdateErrors3d
       expr: |
-        errors:backend_cluster_update:total_3d >= 10
+        errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 10
         and
-        errors:backend_cluster_update:failed_3d >= 2
+        errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 2
         and
-        errors:backend_cluster_update:error_rate_3d > 0.05
+        errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.05
       for: 6h
       labels:
         severity: "4"

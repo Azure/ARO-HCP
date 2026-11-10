@@ -466,7 +466,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'Cluster updates failing fast (>72% over 1h)'
           title: 'Cluster updates failing fast (>72% over 1h)'
         }
-        expression: 'errors:backend_cluster_update:failed_1h >= 3 and errors:backend_cluster_update:error_rate_1h > 0.72 and errors:backend_cluster_update:error_rate_5m > 0.72'
+        expression: 'errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -497,7 +497,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'Cluster update error rate elevated (>30% over 6h)'
           title: 'Cluster update error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_cluster_update:total_6h >= 5 and errors:backend_cluster_update:error_rate_6h > 0.3 and errors:backend_cluster_update:error_rate_30m > 0.3'
+        expression: 'errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -527,7 +527,7 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           summary: 'Cluster update failures persistent (>5% over 3d)'
           title: 'Cluster update failures persistent (>5% over 3d)'
         }
-        expression: 'errors:backend_cluster_update:total_3d >= 10 and errors:backend_cluster_update:failed_3d >= 2 and errors:backend_cluster_update:error_rate_3d > 0.05'
+        expression: 'errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

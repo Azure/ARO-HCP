@@ -1,6 +1,6 @@
 rule_files:
 - cluster-update-slo-prometheusRule.yaml
-- cluster-update-slo-recordingRule.yaml
+- backend-operation-slo-recordingRule.yaml
 evaluation_interval: 1m
 tests:
 # ========================================
@@ -91,6 +91,8 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
         component: slo
         severity: "3"
         long_window: 1h
@@ -134,15 +136,15 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "0x400"
   promql_expr_test:
-  - expr: errors:backend_cluster_update:error_rate_1h
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
       value: 0.8
-  - expr: errors:backend_cluster_update:failed_5m
+  - expr: 'errors:backend_resource_operation:failed_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_update:failed_5m{cluster="mgmt-1"}'
+    - labels: 'errors:backend_resource_operation:failed_5m{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
       value: 0
   alert_rule_test:
   - eval_time: 10m
@@ -195,10 +197,10 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "0x400"
   promql_expr_test:
-  - expr: errors:backend_cluster_update:error_rate_1h
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_update:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
       value: 1
   alert_rule_test:
   - eval_time: 10m
@@ -245,6 +247,8 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
         component: slo
         severity: "3"
         long_window: 6h
@@ -261,8 +265,9 @@ tests:
 # Test 5: Stale failures do not alert
 # ========================================
 # 10 failed updates whose terminal transition is older than every window, but
-# still retained by the Cosmos TTL. The instantaneous error rate is 1.0, so the
-# previous level-based rules would have paged; the windowed rules must not.
+# still retained by the Cosmos TTL. Every retained update failed, so a
+# level-based rule over the retention would page; the windowed records count
+# none of them (failed_3d is pinned to 0), so nothing fires.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
@@ -306,11 +311,11 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f9", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
     values: "-300000x400"
   promql_expr_test:
-  - expr: errors:backend_cluster_update:error_rate
+  - expr: 'errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_update:error_rate{cluster="mgmt-1"}'
-      value: 1
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyClusterUpdateErrors1h5m
@@ -375,6 +380,8 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
         component: slo
         severity: "4"
         long_window: 3d
