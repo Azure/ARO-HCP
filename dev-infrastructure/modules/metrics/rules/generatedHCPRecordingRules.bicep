@@ -311,6 +311,40 @@ resource hypershiftCpoRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     interval: 'PT1M'
     rules: [
       {
+        record: 'hypershift:cpo:eligible:info'
+        expression: 'group by (cluster, namespace, region) (count_over_time(up{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[30d] offset 5m))'
+      }
+      {
+        record: 'hypershift:cpo:replicas_unavailable:ratio'
+        expression: '1 - clamp_max(max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) / (max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0), 1)'
+      }
+      {
+        record: 'hypershift:cpo:reconcile:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*"}[5m])))'
+      }
+      {
+        record: 'hypershift:cpo:reconcile_errors:rate5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*",pod=~"control-plane-operator-.*",result="error"}[5m])))'
+      }
+      {
+        record: 'hypershift:cpo:availability:ratio1m'
+        expression: 'clamp_max(min by (cluster, namespace, region) (avg_over_time(kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m]) / (avg_over_time(kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}[1m]) > 0)), 1)'
+      }
+    ]
+  }
+}
+
+resource arohcpNodeDrainRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_node_drain_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
         record: 'duration:capiMachine_node_draining:seconds'
         expression: '(time() - max by (cluster, namespace, name, node, node_pool, region) (capiMachine_node_drain_start_time_seconds)) and on (cluster, namespace, name) (max by (cluster, namespace, name, region) (capiMachine_deleting_stage{reason="DrainingNode"}))'
       }

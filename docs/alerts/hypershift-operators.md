@@ -143,10 +143,7 @@ Validate changes with the recording-rule generators and
 parses the actual dashboard expressions and evaluates completed provisioning,
 budget overspending, idle traffic, and missing-telemetry cases with Promtool.
 These expression tests do not validate Grafana rendering or establish real SLO
-compliance. Before/after screenshots and clearly labeled synthetic healthy,
-breached, idle/no-traffic, and missing-data renders are still required for visual
-review; none are attached as delivery evidence. Live telemetry is unavailable
-and is not required for this delivery.
+compliance. Live telemetry is unavailable and is not required for this delivery.
 Once telemetry exists, verify collection, query labels, and regional datasource
 pairing, then baseline historical behavior and review proposed targets with
 owners.
