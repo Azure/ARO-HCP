@@ -1,15 +1,19 @@
 # TODO(ARO-29001): replace these approvers with the security team.
 #
-# This file exists so that changes to agent configuration can be gated on a
-# specific reviewer set rather than on general repository approval. The names
-# below are a placeholder taken from the root OWNERS, so that changes here are
-# not unmergeable in the meantime -- they are not a security review.
+# This file gates changes to committed agent configuration on a named
+# reviewer set. The approvers below are copied verbatim from the root OWNERS,
+# so today this grants exactly the approval the root already granted -- it is
+# a placeholder, not a security review.
 #
-# Prow also honours parent approvers by default, so until the security team is
-# named and `options: no_parent_owners: true` is set, this file gates nothing
-# that the root OWNERS did not already gate.
+# no_parent_owners is set now rather than later: with the root list copied in
+# it changes nothing today, and it means narrowing this to the security team
+# is a matter of deleting names rather than remembering to add the option.
 approvers:
-- geoberle
+- deads2k
 - stevekuznetsov
+- geoberle
+- service-lifecycle-global-approvers
+options:
+  no_parent_owners: true
 labels:
 - area/ci

@@ -103,7 +103,7 @@ var configPrefixes = []string{
 //
 // Regenerate a hash with: git hash-object <path>
 var allowedConfigFiles = map[string]string{
-	".claude/OWNERS": "20cbcdac7e2a71ed02f27a4f734d714fc1836e03",
+	".claude/OWNERS": "1339739f4fe68150e4a8c071fee63ca4d745d81f",
 	".claude/skills/bootstrap-api-version/SKILL.md": "36a339ddf8bb019b0bec79d8ef39cf3c346c02f2",
 	".claude/skills/pr-standards/SKILL.md":          "6cecfb66e8887cb808c4563b7918090535f5d2cf",
 	".github/agents/agentic-workflows.agent.md":     "7dcd288d083eba95430dca331967a48da7257f3f",
