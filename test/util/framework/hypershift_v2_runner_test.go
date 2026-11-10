@@ -156,11 +156,12 @@ func TestRunHyperShiftV2Conditions(t *testing.T) {
 		name    string
 		script  string
 		wantErr string
+		timeout time.Duration
 	}{
-		{"When the child verifies the requested target, it should preserve the result", "exit 0", ""},
-		{"When the child fails despite a passing report, it should propagate the exit status", "exit 9", "exit status 9"},
-		{"When the child succeeds without a report, it should fail", "rm \"$report\"\nexit 0", "JUnit report"},
-		{"When cancellation interrupts the child, it should return promptly", "exec sleep 60", "context deadline exceeded"},
+		{"When the child verifies the requested target, it should preserve the result", "exit 0", "", 0},
+		{"When the child fails despite a passing report, it should propagate the exit status", "exit 9", "exit status 9", 0},
+		{"When the child succeeds without a report, it should fail", "rm \"$report\"\nexit 0", "JUnit report", 0},
+		{"When cancellation interrupts the child, it should return promptly", "exec sleep 60", "context deadline exceeded", 500 * time.Millisecond},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,9 +181,9 @@ func TestRunHyperShiftV2Conditions(t *testing.T) {
 				"printf '%s' '<testsuites><testsuite><testcase name=\"" + hyperShiftV2ConditionsName + "\"/></testsuite></testsuites>' > \"$report\"\n" + tt.script + "\n"
 			g.Expect(os.WriteFile(config.Binary, []byte(script), 0700)).To(Succeed(), "create a local child executable")
 			ctx := t.Context()
-			if strings.Contains(tt.script, "sleep") {
+			if tt.timeout > 0 {
 				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+				ctx, cancel = context.WithTimeout(ctx, tt.timeout)
 				defer cancel()
 			}
 			start := time.Now()
@@ -198,7 +199,7 @@ func TestRunHyperShiftV2Conditions(t *testing.T) {
 				g.Expect(os.WriteFile(config.Binary, []byte("#!/bin/sh\nexit 0\n"), 0700)).To(Succeed(), "replace the executable with one that produces no report")
 				g.Expect(RunHyperShiftV2Conditions(ctx, config, v2TestResourceID, io.Discard)).To(MatchError(ContainSubstring("JUnit report")), "a stale report must not satisfy a subsequent invocation")
 			}
-			if strings.Contains(tt.script, "sleep") {
+			if tt.timeout > 0 {
 				g.Expect(errors.Is(err, context.DeadlineExceeded)).To(BeTrue(), "preserve the cancellation cause")
 				g.Expect(time.Since(start)).To(BeNumerically("<", 5*time.Second), "cancellation must stop the child without waiting for its sleep")
 			}

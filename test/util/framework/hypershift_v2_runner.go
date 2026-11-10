@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -38,7 +37,10 @@ import (
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
-const hyperShiftV2ConditionsName = "should have all expected conditions with correct status"
+const (
+	hyperShiftV2ConditionsName  = "should have all expected conditions with correct status"
+	hyperShiftV2ConditionsLabel = "hosted-cluster-conditions"
+)
 
 // HyperShiftV2Config supplies the executable, management access, and artifact
 // destination for verifying a cluster owned by the ARO-HCP test scenario.
@@ -80,13 +82,13 @@ func RunHyperShiftV2Conditions(ctx context.Context, config HyperShiftV2Config, r
 	if _, err := azcorearm.ParseResourceID(resourceID); err != nil {
 		return fmt.Errorf("invalid ARO-HCP resource ID: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, hyperShiftV2RunTimeout)
 	defer cancel()
 	managementConfig, err := clientcmd.BuildConfigFromFlags("", config.ManagementKubeconfig)
 	if err != nil {
 		return fmt.Errorf("load management kubeconfig: %w", err)
 	}
-	managementConfig.Timeout = 30 * time.Second
+	managementConfig.Timeout = hyperShiftV2ClientTimeout
 	managementClient, err := dynamic.NewForConfig(managementConfig)
 	if err != nil {
 		return fmt.Errorf("create management client: %w", err)
@@ -107,7 +109,7 @@ func RunHyperShiftV2Conditions(ctx context.Context, config HyperShiftV2Config, r
 		ResourceID string               `json:"resourceID"`
 		Target     types.NamespacedName `json:"target"`
 		Label      string               `json:"label"`
-	}{resourceID, target, "hosted-cluster-conditions"}, "", "  ")
+	}{resourceID, target, hyperShiftV2ConditionsLabel}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode v2 target metadata: %w", err)
 	}
@@ -122,10 +124,10 @@ func RunHyperShiftV2Conditions(ctx context.Context, config HyperShiftV2Config, r
 	junitPath := filepath.Join(dir, "junit_hypershift_v2.xml")
 	cmd := exec.CommandContext(ctx, config.Binary,
 		"-test.run=^TestE2EV2$",
-		"--ginkgo.label-filter=hosted-cluster-conditions",
+		"--ginkgo.label-filter="+hyperShiftV2ConditionsLabel,
 		"--ginkgo.fail-on-empty",
 		"--ginkgo.no-color",
-		"--ginkgo.timeout=15m",
+		"--ginkgo.timeout="+hyperShiftV2ChildTimeout.String(),
 		"--e2e.junit-report="+junitPath,
 	)
 	cmd.Env = append(os.Environ(),
@@ -137,7 +139,7 @@ func RunHyperShiftV2Conditions(ctx context.Context, config HyperShiftV2Config, r
 	)
 	cmd.Stdout = io.MultiWriter(output, logFile)
 	cmd.Stderr = cmd.Stdout
-	cmd.WaitDelay = 5 * time.Second
+	cmd.WaitDelay = hyperShiftV2WaitDelay
 	runErr := cmd.Run()
 	if runErr != nil {
 		runErr = fmt.Errorf("run HyperShift v2 conditions for %s: %w", target, errors.Join(runErr, ctx.Err()))

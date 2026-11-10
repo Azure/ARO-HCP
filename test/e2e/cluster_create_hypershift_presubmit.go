@@ -151,7 +151,7 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 				By("running the upstream HyperShift v2 HostedCluster conditions check")
 				subscriptionID, err := tc.SubscriptionID(ctx)
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve the customer subscription for v2 cluster discovery")
-				resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s", subscriptionID, *resourceGroup.Name, clusterName)
+				resourceID := clusterResourceID(subscriptionID, *resourceGroup.Name, clusterName)
 				err = framework.RunHyperShiftV2Conditions(ctx, v2, resourceID, GinkgoWriter)
 				Expect(err).NotTo(HaveOccurred(), "upstream HyperShift v2 conditions check should pass for cluster %q", clusterName)
 			}
