@@ -732,6 +732,13 @@ func TestScanRepository(t *testing.T) {
 			name:  "ordinary repository",
 			setup: writeTracked("README.md", "# hello\n"),
 		},
+		{
+			// The composition the two unit tests do not cover: a real but
+			// empty index must reach checkPaths and come back clean, rather
+			// than erroring on the way through.
+			name:  "empty repository",
+			setup: func(t *testing.T, dir string) {},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := initRepo(t)
