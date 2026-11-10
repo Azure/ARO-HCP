@@ -7,10 +7,12 @@ No slot count, disabled pool selection, global identity pool size, or personal
 development identity changes are part of this rollout.
 
 Use the PR build of `aro-hcp-tests`. The operator needs an active, unconditional
-Owner assignment on the customer subscription (or an ancestor), directly to the
-invoking principal, plus Entra application/SP management and certificate access
-to `https://aro-hcp-dev-svc-kv.vault.azure.net`. Group-only Owner assignments are
-not resolved by the preflight. CI credentials must not have these write rights.
+Owner assignment on the customer subscription (or an ancestor), directly or
+through group membership, plus Entra application/SP management and certificate
+access to `https://aro-hcp-dev-svc-kv.vault.azure.net`. The preflight uses ARM's
+`atScope() and assignedTo(...)` filter, including transitive group assignments
+and inherited access; eligible Owner access must be activated before applying.
+CI credentials must not have these write rights.
 Deploy the existing subscription RBAC template first: its subscription-local
 `dev-msi-mock-<subscription-id>` role is reused rather than inventing a new role.
 

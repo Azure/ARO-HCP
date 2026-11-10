@@ -23,18 +23,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	"github.com/microsoftgraph/msgraph-sdk-go/applicationswithuniquename"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
+
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
@@ -178,13 +180,16 @@ func (store *azureStore) AuthorizeOwner(ctx context.Context, subscription string
 	}
 	objectID, ok := claims["oid"].(string)
 	if !ok || objectID == "" {
-		return fmt.Errorf("Owner credential has no object ID")
+		return fmt.Errorf("owner credential has no object ID")
+	}
+	if _, err := uuid.Parse(objectID); err != nil {
+		return fmt.Errorf("owner credential has an invalid object ID")
 	}
 	client, err := armauthorization.NewRoleAssignmentsClient(subscription, store.credential, store.armOptions)
 	if err != nil {
 		return err
 	}
-	pager := client.NewListForScopePager("/subscriptions/"+subscription, &armauthorization.RoleAssignmentsClientListForScopeOptions{Filter: ptr.To("atScope()")})
+	pager := client.NewListForScopePager("/subscriptions/"+subscription, &armauthorization.RoleAssignmentsClientListForScopeOptions{Filter: ptr.To("atScope() and assignedTo('" + objectID + "')")})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -195,12 +200,12 @@ func (store *azureStore) AuthorizeOwner(ctx context.Context, subscription string
 				continue
 			}
 			properties := assignment.Properties
-			if strings.EqualFold(ptr.Deref(properties.PrincipalID, ""), objectID) && strings.HasSuffix(strings.ToLower(ptr.Deref(properties.RoleDefinitionID, "")), "/8e3af657-a8ff-443c-a75c-2fe8c4bcb635") && ptr.Deref(properties.Condition, "") == "" {
+			if strings.HasSuffix(strings.ToLower(ptr.Deref(properties.RoleDefinitionID, "")), "/8e3af657-a8ff-443c-a75c-2fe8c4bcb635") && ptr.Deref(properties.Condition, "") == "" {
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("apply requires an unconditional Owner assignment to the invoking principal at the customer subscription or an ancestor; group-only and eligible-but-inactive Owner assignments are not accepted")
+	return fmt.Errorf("apply requires an active, unconditional Owner assignment at the customer subscription or an ancestor, directly or through group membership; activate eligible Owner access before retrying")
 }
 
 func bindings(bundle leaseenv.MockIdentityBundlePayload, msiRole string) []roleBinding {

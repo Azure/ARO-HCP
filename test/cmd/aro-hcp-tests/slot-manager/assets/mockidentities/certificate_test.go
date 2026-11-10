@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
+
 	"k8s.io/utils/ptr"
 )
 

@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/google/uuid"
 	"github.com/spf13/pflag"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"

@@ -285,10 +285,11 @@ the privileged pipeline is run.
 - [Dev-CI Topology](dev-ci-topology.md)
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Identity Leasing](identity-leasing.md)
-# Slot-bound CI bundles
+
+## Slot-bound CI bundles
 
 DEV/dev-xs slot-manager jobs use the dedicated asset described in
 [slot-bound mock identity operations](slot-mock-identities.md). Its bundle takes
 precedence over legacy pool leases. Personal-dev shared principals and all legacy
-pool infrastructure described below remain unchanged. Do not expand old pools
+pool infrastructure described above remain unchanged. Do not expand old pools
 to satisfy slot demand; capacity and retirement are a separate follow-up.
