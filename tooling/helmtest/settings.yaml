@@ -40,6 +40,8 @@ ResourceRequestsAllowlist:
 - Deployment/secrets-store-sync-controller-manager/manager
 - Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
 - Job/delete-sc-pre-upgrade/delete-sc
+- Job/finalize-mce/finalize
+- Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
@@ -93,6 +95,8 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/secrets-store-sync-controller-manager/manager
 - Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
 - Job/delete-sc-pre-upgrade/delete-sc
+- Job/finalize-mce/finalize
+- Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment

@@ -1,0 +1,14 @@
+apiVersion: config.open-cluster-management.io/v1alpha1
+kind: KlusterletConfig
+metadata:
+  name: global
+spec:
+  hubKubeAPIServerURL: "{{ .Values.localCluster.kubeApiUrl }}"
+  nodePlacement:
+    tolerations:
+    - effect: NoSchedule
+      key: infra
+      operator: "Equal"
+      value: "true"
+    nodeSelector:
+      aro-hcp.azure.com/role: infra
