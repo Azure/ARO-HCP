@@ -10,11 +10,11 @@ param tier string = 'Basic'
 @description('List of dSTS groups')
 param dstsGroups array
 
-@description('Name of the service logs database.')
-param serviceLogsDatabase string
+@description('Name of the single consolidated logs database (AllAroHcpLogs). Hosts the Event-Hub (aksEvents/kubeAudit, maestroMqttConnections) and CI (ci*) tables plus the forwarder routing table set (rawLogs landing table + routing helpers + typed target tables).')
+param allAroHcpLogsDatabase string = ''
 
-@description('Name of the hosted control plane logs database.')
-param hostedControlPlaneLogsDatabase string
+@description('DEPRECATED, for backward compatibility only. Alias of allAroHcpLogsDatabase, used only as a fallback when allAroHcpLogsDatabase is empty.')
+param serviceLogsDatabase string = ''
 
 @description('Name of the monitoring events database.')
 param monitoringEventsDatabase string
@@ -43,7 +43,7 @@ param kustoName string
 @description('ARO-HCP geography short ID used for global resource discovery')
 param geoShortId string
 
-@description('Whether to grant the global Grafana identity Viewer access to ServiceLogs')
+@description('Whether to grant the global Grafana identity Viewer access to AllAroHcpLogs')
 param enableGrafanaIntegration bool = false
 
 @description('Global Azure Managed Grafana principal ID')
@@ -59,29 +59,23 @@ param autoScaleMax int
 param enableAutoScale bool
 
 var db = {
-  serviceLogs: serviceLogsDatabase
-  hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
+  allAroHcpLogs: !empty(allAroHcpLogsDatabase) ? allAroHcpLogsDatabase : serviceLogsDatabase
   monitoringEvents: monitoringEventsDatabase
 }
 
-var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
+var databases = [db.allAroHcpLogs, db.monitoringEvents]
 var hasGrafana = enableGrafanaIntegration && grafanaPrincipalId != '' && grafanaPrincipalId != '__grafanaPrincipalId__'
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
+// AllAroHcpLogs is the single logs database. It hosts both the Event-Hub
+// (aksEvents/kubeAudit, maestroMqttConnections) and CI (ci*) tables below and the
+// forwarder routing table set (rawLogs landing table + routing helpers + typed
+// target tables) created further down. All forwarder logs land in AllAroHcpLogs via
+// the rawLogs table and are fanned out to the typed tables by ADX update policies;
+// there is no separate AllAroHcpLogs database (see docs/logging.md).
 var allServiceLogsTablesKQL = {
-  backendLogs: loadTextContent('tables/backendLogs.kql')
-  kubeApplierLogs: loadTextContent('tables/kubeApplierLogs.kql')
-  containerlogs: loadTextContent('tables/containerLogs.kql')
-  fleetLogs: loadTextContent('tables/fleetLogs.kql')
-  frontendLogs: loadTextContent('tables/frontendLogs.kql')
-  clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
-  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
   aksEvents: loadTextContent('tables/aksEvents.kql')
-  systemdLogs: loadTextContent('tables/systemdLogs.kql')
-  azureVnetLogs: loadTextContent('tables/azureVnetLogs.kql')
-  resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
-  cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
   ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
   ciDiscoveredJobs: loadTextContent('tables/ciDiscoveredJobs.kql')
   ciProcessedJobs: loadTextContent('tables/ciProcessedJobs.kql')
@@ -90,13 +84,33 @@ var allServiceLogsTablesKQL = {
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
 
-var allCustomerLogsTablesKQL = {
-  containerlogs: loadTextContent('tables/containerLogs.kql')
-  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
-}
-
 var allMonitoringEventsTablesKQL = {
   alertEvents: loadTextContent('tables/alertEvents.kql')
+}
+
+// Forwarder routing tables, deployed into the AllAroHcpLogs database (see
+// docs/logging.md). The foundation scripts (raw landing table + routing helper
+// functions) MUST be created before the target tables, whose (non-transactional)
+// update policies reference rawLogs and the routing helpers; the table scripts dependsOn
+// the foundation scripts to guarantee this.
+var routingFoundationKQL = {
+  rawLogs: loadTextContent('tables/routing/00_rawLogs.kql')
+  serviceRouting: loadTextContent('tables/routing/01_serviceRouting.kql')
+}
+
+var routingTablesKQL = {
+  hcpContainerLogs: loadTextContent('tables/routing/hcpContainerLogs.kql')
+  frontendLogs: loadTextContent('tables/routing/frontendLogs.kql')
+  backendLogs: loadTextContent('tables/routing/backendLogs.kql')
+  kubeApplierLogs: loadTextContent('tables/routing/kubeApplierLogs.kql')
+  clustersServiceLogs: loadTextContent('tables/routing/clustersServiceLogs.kql')
+  fleetLogs: loadTextContent('tables/routing/fleetLogs.kql')
+  kubernetesEvents: loadTextContent('tables/routing/kubernetesEvents.kql')
+  cosmosResourceSnapshots: loadTextContent('tables/routing/cosmosResourceSnapshots.kql')
+  kubernetesResourceSnapshots: loadTextContent('tables/routing/kubernetesResourceSnapshots.kql')
+  systemdLogs: loadTextContent('tables/routing/systemdLogs.kql')
+  azureVnetLogs: loadTextContent('tables/routing/azureVnetLogs.kql')
+  containerLogs: loadTextContent('tables/routing/containerLogs.kql')
 }
 
 // 1. Cluster
@@ -126,23 +140,11 @@ module serviceLogs 'database.bicep' = {
   params: {
     location: location
     kustoName: kustoName
-    databaseName: db.serviceLogs
+    databaseName: db.allAroHcpLogs
     softDeletePeriod: 'P90D'
     hotCachePeriod: 'P2D'
   }
   dependsOn: [cluster]
-}
-
-module hostedControlPlaneLogs 'database.bicep' = {
-  name: 'hostedControlPlaneLogs'
-  params: {
-    location: location
-    kustoName: kustoName
-    databaseName: db.hostedControlPlaneLogs
-    softDeletePeriod: 'P14D'
-    hotCachePeriod: 'P2D'
-  }
-  dependsOn: [serviceLogs]
 }
 
 module monitoringEvents 'database.bicep' = {
@@ -154,7 +156,7 @@ module monitoringEvents 'database.bicep' = {
     softDeletePeriod: 'P90D'
     hotCachePeriod: 'P2D'
   }
-  dependsOn: [hostedControlPlaneLogs]
+  dependsOn: [serviceLogs]
 }
 
 // 3. Create Tables
@@ -163,28 +165,13 @@ module serviceLogsTables 'script.bicep' = [
     name: 'serviceLogsTablesScript-${tableName}'
     params: {
       kustoName: kustoName
-      databaseName: db.serviceLogs
+      databaseName: db.allAroHcpLogs
       scriptName: tableName
       scriptContent: allServiceLogsTablesKQL[tableName]
       principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
       continueOnErrors: false
     }
     dependsOn: [serviceLogs]
-  }
-]
-
-module hostedControlPlaneLogsTables 'script.bicep' = [
-  for tableName in objectKeys(allCustomerLogsTablesKQL): {
-    name: 'customerLogsTablesScript-${tableName}'
-    params: {
-      kustoName: kustoName
-      databaseName: db.hostedControlPlaneLogs
-      scriptName: tableName
-      scriptContent: allCustomerLogsTablesKQL[tableName]
-      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-      continueOnErrors: false
-    }
-    dependsOn: [hostedControlPlaneLogs]
   }
 ]
 
@@ -203,6 +190,39 @@ module monitoringEventsTables 'script.bicep' = [
   }
 ]
 
+// 3b. Routing foundation scripts (raw landing table + routing helpers) run first
+// so the target-table update policies can reference rawLogs and the routing helper
+// functions. Deployed into the AllAroHcpLogs database.
+module routingFoundation 'script.bicep' = [
+  for scriptName in objectKeys(routingFoundationKQL): {
+    name: 'routingFoundation-${scriptName}'
+    params: {
+      kustoName: kustoName
+      databaseName: db.allAroHcpLogs
+      scriptName: scriptName
+      scriptContent: routingFoundationKQL[scriptName]
+      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [serviceLogs]
+  }
+]
+
+module routingTables 'script.bicep' = [
+  for tableName in objectKeys(routingTablesKQL): {
+    name: 'routingTablesScript-${tableName}'
+    params: {
+      kustoName: kustoName
+      databaseName: db.allAroHcpLogs
+      scriptName: tableName
+      scriptContent: routingTablesKQL[tableName]
+      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [routingFoundation]
+  }
+]
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -213,21 +233,19 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.hostedControlPlaneLogs
-      ? [hostedControlPlaneLogs]
-      : database == db.monitoringEvents ? [monitoringEvents] : [serviceLogs]
+    dependsOn: database == db.monitoringEvents ? [monitoringEvents] : [serviceLogs]
   }
 ]
 
-// 5. Grafana ServiceLogs access
+// 5. Grafana ServiceLogs access (AllAroHcpLogs is the single logs database).
 module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
   name: 'grafana-serviceLogs-viewer'
   params: {
     kustoName: kustoName
-    databaseName: db.serviceLogs
+    databaseName: db.allAroHcpLogs
     readAccessPrincipalIds: [grafanaPrincipalId]
   }
-  dependsOn: [serviceLogsTables]
+  dependsOn: [serviceLogsTables, routingTables]
 }
 
 // 6. Remove the caller principal
@@ -240,8 +258,8 @@ module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
 // The strip is database-scoped and only affects that deployment principal; it
 // does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
 // cluster.bicep grants the global rollout MSI, which is what lets the
-// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
-// databases (including MonitoringEvents) after deployment.
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on both
+// databases (AllAroHcpLogs and MonitoringEvents) after deployment.
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
     name: '${database}-removePermission-${i}'
@@ -256,8 +274,9 @@ module removePermission 'script.bicep' = [
     dependsOn: [
       databaseUserScripts
       serviceLogsTables
-      hostedControlPlaneLogsTables
       monitoringEventsTables
+      routingFoundation
+      routingTables
       grafanaServiceLogsAccess
     ]
   }

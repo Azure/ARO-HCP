@@ -37,7 +37,7 @@ func TestLoadCIJobOutcomesOnly(t *testing.T) {
 	for _, replacement := range []string{"", "workers: 0", "window: invalid"} {
 		content := string(data)
 		if replacement == "" {
-			content = strings.ReplaceAll(content, "database: ServiceLogs", "database: ''")
+			content = strings.ReplaceAll(content, "database: AllAroHcpLogs", "database: ''")
 		} else {
 			content += "  " + replacement + "\n"
 		}

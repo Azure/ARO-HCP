@@ -38,7 +38,7 @@ resourceGroups:
       resourceGroup: kusto
       step: kusto-lookup
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     identityFrom:
       resourceGroup: global
@@ -61,7 +61,7 @@ resourceGroups:
       resourceGroup: kusto
       step: kusto-lookup
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -90,7 +90,7 @@ resourceGroups:
       resourceGroup: kusto
       step: kusto-lookup
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -118,7 +118,7 @@ resourceGroups:
       resourceGroup: kusto
       step: kusto-lookup
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management

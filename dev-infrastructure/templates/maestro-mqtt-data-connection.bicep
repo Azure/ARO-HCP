@@ -1,7 +1,7 @@
 @description('Name of the existing Kusto cluster')
 param kustoName string
 
-@description('ServiceLogs database name')
+@description('AllAroHcpLogs database name')
 param databaseName string
 
 @description('Resource ID of the Maestro MQTT diagnostics Event Hub')

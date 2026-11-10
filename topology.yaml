@@ -4,6 +4,10 @@ entrypoints:
     name: Global
     scopeDoc: high-level-architecture.md
     incremental: "true"
+- identifier: 'Microsoft.Azure.ARO.HCP.Geography'
+  metadata:
+    name: Geography
+    scopeDoc: high-level-architecture.md#geography-scope
 - identifier: 'Microsoft.Azure.ARO.HCP.Region'
   metadata:
     name: Region
@@ -105,7 +109,6 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Grafana
   pipelinePath: dev-infrastructure/grafana-pipeline.yaml
   purpose: Test pipeline for Grafana reconciliation.
-# Kusto Infra pipeline
 - serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
   pipelinePath: dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml
   purpose: Delete the kusto instance.

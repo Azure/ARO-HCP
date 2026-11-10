@@ -86,14 +86,14 @@ func TestSwiftRecorderFluentBit(t *testing.T) {
 			}
 			var outputMatch string
 			for _, block := range strings.Split("\n"+data["output.conf"], "\n[")[1:] {
-				if property(block, "Table_Name") == "containerLogs" && property(block, "Match") == "kubernetes.*" {
-					outputMatch = property(block, "Match")
+				if property(block, "Table_Name") == "rawLogs" && strings.Contains(property(block, "Match_regex"), `kubernetes\..*`) {
+					outputMatch = property(block, "Match_regex")
 				}
 			}
 			require.NotEmpty(t, outputMatch, "containerLogs must receive the recorder tag")
-			mapping, err := os.ReadFile("../../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql")
+			mapping, err := os.ReadFile("../../../dev-infrastructure/modules/logs/kusto/tables/routing/containerLogs.kql")
 			require.NoError(t, err)
-			require.Contains(t, string(mapping), `{"column":"log","Properties":{"path":"$.log.log"}}`)
+			require.Contains(t, string(mapping), `log = parse_json(tostring(log.log)),`)
 
 			dir := t.TempDir()
 			write := func(name, contents string) {
@@ -119,7 +119,7 @@ func TestSwiftRecorderFluentBit(t *testing.T) {
 %s
 [OUTPUT]
     Name stdout
-    Match %s
+    Match_regex %s
     Format json_lines
     Json_Date_Key false
 `, dir, dir, dir, dir, strings.ReplaceAll(filters, "/forwarder/etc", dir), outputMatch))

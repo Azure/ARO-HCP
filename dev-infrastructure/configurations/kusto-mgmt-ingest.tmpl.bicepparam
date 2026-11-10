@@ -2,8 +2,7 @@ using '../templates/kusto-grant-ingest.bicep'
 
 param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 
-param svcDatabaseName = '{{ .kusto.serviceLogsDatabase }}'
-param hcpDatabaseName = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
+param svcDatabaseName = '{{ .kusto.allAroHcpLogsDatabase }}'
 
 param kustoResourceId = '__kustoResourceId__'
 

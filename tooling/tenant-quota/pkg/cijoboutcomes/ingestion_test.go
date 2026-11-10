@@ -87,7 +87,7 @@ func TestIngestPayloadHTTPRequestTimeout(t *testing.T) {
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			})}
 			ingestor, err := azkustoingest.New(azkustodata.NewConnectionStringBuilder("http://localhost"),
-				azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("ServiceLogs"),
+				azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("AllAroHcpLogs"),
 				azkustoingest.WithDefaultTable("ciJobOutcomes"))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ingestor.Close()) })
@@ -166,7 +166,7 @@ func TestIngestRowsWireFormat(t *testing.T) {
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			})}
 			ingestor, err := azkustoingest.New(azkustodata.NewConnectionStringBuilder("http://localhost"),
-				azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("ServiceLogs"),
+				azkustoingest.WithHttpClient(client), azkustoingest.WithDefaultDatabase("AllAroHcpLogs"),
 				azkustoingest.WithDefaultTable(tc.table))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ingestor.Close()) })
@@ -189,7 +189,7 @@ func TestIngestRowsWireFormat(t *testing.T) {
 			decoded, err := base64.StdEncoding.DecodeString(string(<-messages))
 			require.NoError(t, err)
 			require.NoError(t, json.Unmarshal(decoded, &message))
-			require.Equal(t, "ServiceLogs", message.Database)
+			require.Equal(t, "AllAroHcpLogs", message.Database)
 			require.Equal(t, tc.table, message.Table)
 			require.Equal(t, "multijson", message.Extra.Format)
 			require.Equal(t, target.mapping, message.Extra.Mapping)

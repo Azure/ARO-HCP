@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero BackupStorageLocations: snapshot history of the BSL CRs on the management cluster(s)
   // hosting the target HCP, for backup-failure debugging (ARO-28989). BSLs are shared, cluster-scoped

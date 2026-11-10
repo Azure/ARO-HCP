@@ -2,7 +2,7 @@ let _startTime = {{.TimestampMin }};
 let _endTime = {{.TimestampMax }};
 // Discover all cluster IDs over the full range, not each output window.
 let _cs_cluster_ids = (
-    database('ServiceLogs').table('clustersServiceLogs')
+    database('AllAroHcpLogs').table('clustersServiceLogs')
     | where timestamp between ({{.DiscoveryTimestampMin}} .. {{.DiscoveryTimestampMax}})
 {{- if .SubscriptionId}}
     | where resource_id startswith '{{.SubResourceGroupId}}/'
@@ -16,7 +16,7 @@ union
     (
         // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
         // Includes the CR reconciliation logs
-        database('ServiceLogs').table('containerLogs')
+        database('AllAroHcpLogs').table('containerLogs')
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "hypershift"
         | extend logStr = tostring(log)
@@ -26,7 +26,7 @@ union
     (
         // ACM Agent logs: ManifestWork reconciliation on the managed cluster
         // Includes: work agent operations, manifest application, status feedback
-        database('ServiceLogs').table('containerLogs')
+        database('AllAroHcpLogs').table('containerLogs')
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "open-cluster-management-agent"
         | extend logStr = tostring(log)

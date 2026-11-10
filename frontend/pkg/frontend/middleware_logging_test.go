@@ -186,6 +186,7 @@ func TestFrontendLogsKustoMappingContract(t *testing.T) {
 		"logs",
 		"kusto",
 		"tables",
+		"routing",
 		"frontendLogs.kql",
 	)
 
@@ -193,50 +194,46 @@ func TestFrontendLogsKustoMappingContract(t *testing.T) {
 	require.NoError(t, err)
 
 	mappings := parseFrontendKustoMappings(t, string(kqlContent))
-	columnToPath := map[string]string{}
-	for _, mapping := range mappings {
-		columnToPath[mapping.Column] = mapping.Properties.Path
-	}
 
-	assert.Equal(t, "$.log.method", columnToPath["request_method"])
-	assert.Equal(t, "$.log.path", columnToPath["request_path"])
-
-	assert.Equal(t, "$.log.request_id", columnToPath["request_id"])
-	assert.Equal(t, "$.log.client_request_id", columnToPath["client_request_id"])
-	assert.Equal(t, "$.log.correlation_request_id", columnToPath["correlation_request_id"])
-	assert.Equal(t, "$.log.resource_id", columnToPath["resource_id"])
-	assert.Equal(t, "$.log.resource_name", columnToPath["resource_name"])
-	assert.Equal(t, "$.log.kubernetes.container_hash", columnToPath["container_status_image_id"])
+	assert.Equal(t, "tostring(log.method)", mappings["request_method"])
+	assert.Equal(t, "tostring(log.path)", mappings["request_path"])
+	assert.Equal(t, "tostring(log.request_id)", mappings["request_id"])
+	assert.Equal(t, "tostring(log.client_request_id)", mappings["client_request_id"])
+	assert.Equal(t, "tostring(log.correlation_request_id)", mappings["correlation_request_id"])
+	assert.Equal(t, "tostring(log.resource_id)", mappings["resource_id"])
+	assert.Equal(t, "tostring(log.resource_name)", mappings["resource_name"])
+	assert.Equal(t, "tostring(log.kubernetes.container_hash)", mappings["container_status_image_id"])
 }
 
-type frontendKustoMapping struct {
-	Column     string `json:"column"`
-	Properties struct {
-		Path string `json:"path"`
-	} `json:"Properties"`
-}
-
-func parseFrontendKustoMappings(t *testing.T, kqlContent string) []frontendKustoMapping {
+func parseFrontendKustoMappings(t *testing.T, kqlContent string) map[string]string {
 	t.Helper()
 
 	// Find the ingestion json mapping section to avoid matching brackets in the schema
-	mappingIdx := strings.Index(kqlContent, "ingestion json mapping")
-	require.NotEqual(t, -1, mappingIdx, "ingestion json mapping section not found")
+	mappingIdx := strings.Index(kqlContent, "rawToFrontendLogs()")
+	require.NotEqual(t, -1, mappingIdx, "mapping function not found")
 
 	// Find the opening backtick block after the mapping declaration
 	rest := kqlContent[mappingIdx:]
-	openTick := strings.Index(rest, "```")
-	require.NotEqual(t, -1, openTick, "opening backtick block not found")
+	projectIdx := strings.Index(rest, "| project")
+	require.NotEqual(t, -1, projectIdx, "projection statement not found")
 
-	// Skip past the opening backticks to find the JSON content
-	afterOpenTick := rest[openTick+3:]
+	projectStatement := rest[projectIdx+10:]
 
 	// Find the closing backtick block
-	closeTick := strings.Index(afterOpenTick, "```")
-	require.NotEqual(t, -1, closeTick, "closing backtick block not found")
+	functionEndIdx := strings.Index(projectStatement, "}")
+	require.NotEqual(t, -1, functionEndIdx, "function end not found")
 
-	var mappings []frontendKustoMapping
-	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(afterOpenTick[:closeTick])), &mappings))
+	projectStatement = projectStatement[:functionEndIdx]
+
+	mappings := map[string]string{}
+	for _, line := range strings.Split(projectStatement, ",\n") {
+		parts := strings.Split(line, " = ")
+		if len(parts) != 2 {
+			continue
+		}
+		mappings[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	}
+
 	return mappings
 }
 

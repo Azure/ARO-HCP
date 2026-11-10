@@ -181,7 +181,7 @@ explicit `--ingest` permits writes. `--dry-run=false` is rejected.
 
 The collector-only [`ci-outcomes.example.yaml`](ci-outcomes.example.yaml) selects
 bucket `test-platform-results-public` and job-name substring `e2e-parallel`, with
-Kusto database `ServiceLogs`. Its `enabled: false` disables daemon collection, not
+Kusto database `AllAroHcpLogs`. Its `enabled: false` disables daemon collection, not
 these commands. Discovery previews do not use the configured Kusto endpoints.
 
 ```bash

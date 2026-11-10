@@ -67,4 +67,5 @@ go run github.com/Azure/ARO-HCP/tooling/kustoctl \
   ${VERBOSE_FLAG} \
   validate kql \
   --endpoint "${ENDPOINT}" \
+  --database validationdb \
   --kql-dir "${KQL_DIR}"

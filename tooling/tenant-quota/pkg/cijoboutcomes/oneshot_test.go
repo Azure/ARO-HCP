@@ -106,7 +106,7 @@ func TestOneShotDefaultChecksLiveTagsWithoutIngestors(t *testing.T) {
 		w.initializeReadOnly = func(ctx context.Context) error { return w.initializeKustoWithCredential(ctx, false, nil) }
 		w.config.CIJobOutcomes.ClusterURI = "http://localhost"
 		w.config.CIJobOutcomes.IngestionURI = ":invalid-ingestion-endpoint"
-		w.config.CIJobOutcomes.Database = "ServiceLogs"
+		w.config.CIJobOutcomes.Database = "AllAroHcpLogs"
 		for _, kind := range batchKinds {
 			w.batches.put(kind.tag(testBuildID), struct{}{})
 		}

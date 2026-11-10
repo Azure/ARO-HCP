@@ -95,10 +95,9 @@ func TestGeneratedHTML(t *testing.T) {
 	tmpdir := t.TempDir()
 
 	kusto := KustoInfo{
-		KustoName:                      "hcp-dev-us-2",
-		KustoRegion:                    "eastus2",
-		ServiceLogsDatabase:            "ServiceLogs",
-		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+		KustoName:             "hcp-dev-us-2",
+		KustoRegion:           "eastus2",
+		AllAroHcpLogsDatabase: "AllAroHcpLogs",
 	}
 
 	opts := Options{
@@ -133,10 +132,9 @@ func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
 	tmpdir := t.TempDir()
 
 	kusto := KustoInfo{
-		KustoName:                      "hcp-dev-us-2",
-		KustoRegion:                    "eastus2",
-		ServiceLogsDatabase:            "ServiceLogs",
-		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+		KustoName:             "hcp-dev-us-2",
+		KustoRegion:           "eastus2",
+		AllAroHcpLogsDatabase: "AllAroHcpLogs",
 	}
 
 	opts := Options{
@@ -162,10 +160,9 @@ func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
 
 func TestGetServiceLogLinksWithExplicitTimeWindow(t *testing.T) {
 	kusto := KustoInfo{
-		KustoName:                      "hcp-dev-us-2",
-		KustoRegion:                    "eastus2",
-		ServiceLogsDatabase:            "ServiceLogs",
-		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+		KustoName:             "hcp-dev-us-2",
+		KustoRegion:           "eastus2",
+		AllAroHcpLogsDatabase: "AllAroHcpLogs",
 	}
 
 	tw := timing.TimeWindow{
@@ -198,10 +195,9 @@ func TestGetServiceLogLinksUsesCLIStartFallbackWhenStepsAndTimingUnavailable(t *
 	}
 
 	kusto := KustoInfo{
-		KustoName:                      "hcp-dev-us-2",
-		KustoRegion:                    "eastus2",
-		ServiceLogsDatabase:            "ServiceLogs",
-		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+		KustoName:             "hcp-dev-us-2",
+		KustoRegion:           "eastus2",
+		AllAroHcpLogsDatabase: "AllAroHcpLogs",
 	}
 
 	fakeClock := clocktesting.NewFakePassiveClock(time.Date(2022, 3, 17, 19, 0, 0, 0, time.UTC))
@@ -232,8 +228,7 @@ mgmt:
 kusto:
   kustoName: hcp-dev-us-2
   location: eastus2
-  serviceLogsDatabase: ServiceLogs
-  hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
+  allAroHcpLogsDatabase: AllAroHcpLogs
 `), 0644)
 	if err != nil {
 		t.Fatalf("failed to write rendered config fixture: %v", err)

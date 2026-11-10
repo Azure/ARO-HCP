@@ -1,4 +1,4 @@
-database: ServiceLogs
+database: AllAroHcpLogs
 kql: |
   // Velero Schedules: snapshot history of Velero Schedule CRs captured on management clusters, for
   // backup-failure debugging (ARO-28989). Mirrors veleroBackups: scoped to the mgmt cluster(s)

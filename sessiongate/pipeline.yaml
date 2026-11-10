@@ -74,7 +74,7 @@ resourceGroups:
     valuesFile: ./values.yaml
     namespaceFiles:
     - namespace.yaml
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     kustoEndpoint:
       resourceGroup: kusto

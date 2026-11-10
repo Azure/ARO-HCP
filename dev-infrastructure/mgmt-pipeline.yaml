@@ -759,7 +759,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     inputVariables:
       dcrRemoteWriteUrl:
@@ -807,7 +807,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -839,7 +839,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -894,7 +894,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -935,7 +935,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -972,7 +972,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -1006,7 +1006,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -1053,7 +1053,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
@@ -1099,7 +1099,7 @@ resourceGroups:
       resourceGroup: kusto
       step: output
       name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management

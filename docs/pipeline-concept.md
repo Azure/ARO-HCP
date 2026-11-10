@@ -157,7 +157,7 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
     - namespace.yaml
     chartDir: ./deploy                                  (7)
     valuesFile: ./values.yaml                           (8)
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'   (9)
+    kustoDatabase: '{{ .kusto.allAroHcpLogsDatabase }}'   (9)
     kustoTable: 'frontendLogs'                          (10)
     kustoEndpoint:                                      (11)
       resourceGroup: kusto

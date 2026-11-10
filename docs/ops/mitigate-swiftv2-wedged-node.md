@@ -7,7 +7,7 @@ Azure SWIFT v2 management-cluster nodes can enter a failure state where every po
 Two things to know before you start digging:
 
 - **CNS is not the culprit, so do not spend time there.** On the cases we have analysed, `azure-cns` assigned and released the pod's IP cleanly on every single retry with `ReturnCode:Success`, and the `MultitenantPodNetworkConfig` resolved a secondary IP within about a second of the pod being scheduled. IP pool exhaustion is ruled out too. The fault is in the `azure-vnet` CNI plugin's endpoint-creation step, which consumes the CNS response and programs the interface into the pod netns.
-- **`azure-vnet` is a host binary, not a pod.** After the Azure VNet file collector is deployed, its active log is available in `ServiceLogs.azureVnetLogs`; filter by both `cluster` and `hostname` (see [query and coverage details](../logging.md#azure-vnet-cni-logs)). This does not backfill rotated files or earlier incidents. Keep using the appendix's collection script to preserve retained files and CNS state before recycling a node.
+- **`azure-vnet` is a host binary, not a pod.** After the Azure VNet file collector is deployed, its active log is available in `AllAroHcpLogs.azureVnetLogs`; filter by both `cluster` and `hostname` (see [query and coverage details](../logging.md#azure-vnet-cni-logs)). This does not backfill rotated files or earlier incidents. Keep using the appendix's collection script to preserve retained files and CNS state before recycling a node.
 
 The node will not self-heal in the hard-wedge variant. In the intermittent flapping variant (AROSLSRE-1717), the node alternates between healthy and failing states, self-resolving between bursts but recurring under pod scheduling pressure. The standing mitigation for both variants is to **cordon and delete the VMSS instance** so pods reschedule onto healthy nodes and AKS replaces the instance.
 
@@ -48,7 +48,7 @@ Fall back to the Kusto queries below if the label is not present (e.g. on a clus
 
 ```kql
 // Look for sustained FailedCreatePodSandBox, per node.
-// Run against the region's cluster, database ServiceLogs.
+// Run against the region's cluster, database AllAroHcpLogs.
 kubernetesEvents
 | where timestamp > ago(7d)
 | where reason == "FailedCreatePodSandBox"
@@ -101,7 +101,7 @@ kubernetesEvents
 > - 0 successful sandbox creations for >= 30-60 min of continuous route errors → **wedge** → proceed with cordon + delete
 > - Any successes interleaved with the failures → **flap** → alert only, do not recycle
 >
-> Both are queryable in `hcp-prod-{region}` ServiceLogs.
+> Both are queryable in `hcp-prod-{region}` AllAroHcpLogs.
 
 ### 3. Confirm the node is still failing
 
@@ -278,7 +278,7 @@ kubectl get events -A --field-selector reason=FailedCreatePodSandBox --sort-by='
 ### 1. Verify no new sandbox failures (Kusto)
 
 ```kql
-// Run against the region's cluster, database ServiceLogs, after node deletion.
+// Run against the region's cluster, database AllAroHcpLogs, after node deletion.
 // Expect 0 results for the deleted node, and no new nodes showing the same pattern.
 kubernetesEvents
 | where timestamp > ago(30m)
@@ -324,7 +324,7 @@ Collected from operational incidents AROSLSRE-1524, 1563, 1604, 1717, 1723.
 
 ### kubectl events have a ~1h TTL
 
-Do not rely on `kubectl get events` alone to confirm or rule out the wedge. If the last failure burst was more than ~1h ago, events will be empty even though the fault is still latent. Always cross-reference with Kusto (`kubernetesEvents` in `ServiceLogs`), which retains data for days.
+Do not rely on `kubectl get events` alone to confirm or rule out the wedge. If the last failure burst was more than ~1h ago, events will be empty even though the fault is still latent. Always cross-reference with Kusto (`kubernetesEvents` in `AllAroHcpLogs`), which retains data for days.
 
 ### The fault can be intermittent (flapping variant)
 

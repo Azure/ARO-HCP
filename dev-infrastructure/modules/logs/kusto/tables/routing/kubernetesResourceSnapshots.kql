@@ -1,0 +1,41 @@
+// Kubernetes resource snapshots (emitted by mgmt-agent with
+// snapshotType=kubernetes). Schema identical to the legacy
+// ServiceLogs.kubernetesResourceSnapshots table.
+.create-merge table kubernetesResourceSnapshots (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  event: string,
+  apiVersion: string,
+  objectKind: string,
+  namespace: string,
+  name: string,
+  uid: string,
+  object: dynamic
+)
+with (docstring = "Kubernetes resource snapshots routed from rawLogs by snapshotType")
+
+.create-or-alter function with (skipvalidation = "true", docstring = "Route snapshotType=kubernetes records to kubernetesResourceSnapshots")
+rawToKubernetesResourceSnapshots() {
+    rawLogs
+    | where tostring(log.snapshotType) == "kubernetes"
+    // kube-applier is not a snapshot source; its snapshotType-carrying records were
+    // dropped in the forwarder (filter.drop_kube_applier_snapshots) and are excluded
+    // here so they land in no table (kubeApplierLogs/containerLogs also drop them).
+    | where tostring(log.kubernetes.container_name) !startswith "kube-applier"
+    | project
+        timestamp,
+        environment = tostring(log.environment),
+        region = tostring(log.region),
+        cluster = tostring(log.cluster),
+        event = tostring(log.event),
+        apiVersion = tostring(log.object.apiVersion),
+        objectKind = tostring(log.object.kind),
+        namespace = tostring(log.namespace),
+        name = tostring(log.name),
+        uid = tostring(log.object.metadata.uid),
+        object = log.object
+}
+
+.alter table kubernetesResourceSnapshots policy update @'[{"IsEnabled": true, "Source": "rawLogs", "Query": "rawToKubernetesResourceSnapshots()", "IsTransactional": false, "PropagateIngestionProperties": false}]'

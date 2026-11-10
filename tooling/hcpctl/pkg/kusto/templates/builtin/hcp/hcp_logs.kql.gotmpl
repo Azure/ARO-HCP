@@ -1,6 +1,6 @@
 {{- if .NoTruncation}}set notruncation;
 {{end -}}
-containerLogs
+hcpContainerLogs
 {{- if .SplitByPod}}
 | extend pod_name = column_ifexists("pod_name", "")
 | project timestamp, log, cluster, namespace_name, container_name, pod_name
