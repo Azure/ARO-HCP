@@ -1,5 +1,29 @@
 # Slot-manager
 
+## Dedicated DEV mock identities
+
+DEV and dev-xs slots declare `mock_identities: {allocation: dedicated}`.
+Each primary slot owns one MSI mock and two distinct authenticating ARM helpers
+(backend and Clusters Service). There is no additional identity lease or lock.
+The names are `aro-hcp-slot-<UUIDv5>-{msi,backend,cs}`; the UUID input is the
+lowercase customer subscription ID, `/`, and the primary slot resource name.
+Changing region does not change identities. Graph's immutable `uniqueName`
+application key and service-principal `appId` alternate key make concurrent
+Owner retries converge without choosing an arbitrary display-name match.
+Display-name collisions fail closed. No identity-ID catalog is maintained.
+
+Acquisition and every admission read Graph, public Key Vault certificates, and
+subscription RBAC. They never create, reset, rotate, repair, or clean up this
+asset. Resolution is persisted only as acquired runtime state, not as discovery
+input; admission detects identity changes while the lease is held. Publication
+requires a complete validated three-principal bundle. Release retains all backing
+resources. These rules do not change other assets' existing cleanup semantics.
+
+The nonsecret `LEASED_MOCK_IDENTITY_BUNDLE` contains slot/subscription identity
+and `msi`, `backend`, `clustersService` entries with client ID, principal ID and
+certificate name. Consumers reject malformed provided bundles rather than falling
+back to legacy pools. See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
+
 Slot-manager is a CI-only allocator of a complete E2E environment, not a raw
 Boskos resource. A **slot** is one allocatable E2E environment instance. A
 **pool** groups slots with compatible deployment, subscription, region, and asset

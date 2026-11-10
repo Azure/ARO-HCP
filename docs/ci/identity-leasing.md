@@ -602,3 +602,10 @@ When you need to change or debug identity leasing, start here:
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)
+# Slot-bound mock identity rollout
+
+DEV/dev-xs slot-manager jobs now require a dedicated three-principal mock asset.
+Read [slot-bound mock identity operations](slot-mock-identities.md) for the
+Owner deployment sequence, read-only admission, runtime contract, upgrade bridge
+and remaining legacy lease concurrency gates. The legacy pools described below
+remain available for non-slot compatibility and are not retired by this change.

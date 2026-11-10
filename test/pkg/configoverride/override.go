@@ -40,6 +40,8 @@ import (
 const RunCostTagKey = "jobID.aro-hcp-ci.redhat.com"
 
 type Inputs struct {
+	MockIdentityBundle           string
+	MockIdentityBundleProvided   bool
 	DeployEnvironment            string
 	BuildID                      string
 	RunCostTagValue              string
@@ -94,6 +96,9 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 	for _, entry := range environ {
 		name, value, _ := strings.Cut(entry, "=")
 		switch name {
+		case leaseenv.MockIdentityBundle:
+			input.MockIdentityBundle = value
+			input.MockIdentityBundleProvided = true
 		case leaseenv.DeployEnvironment:
 			input.DeployEnvironment = value
 		case leaseenv.MSIMockSP:
@@ -190,7 +195,7 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 	if input.DeployEnvironment == "" {
 		return Result{}, errors.New("deployment environment must not be empty")
 	}
-	if len(input.ARMHelperLeases) > 2 {
+	if !input.MockIdentityBundleProvided && input.MockIdentityBundle == "" && len(input.ARMHelperLeases) > 2 {
 		return Result{}, fmt.Errorf("%s must contain at most two lease names, got %d", leaseenv.ARMHelperSP, len(input.ARMHelperLeases))
 	}
 	if input.CIRPAllowedSource != "" {
@@ -212,7 +217,21 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		return Result{}, err
 	}
 
-	if input.MSIMockLease != "" {
+	hasMockBundle := input.MockIdentityBundleProvided || input.MockIdentityBundle != ""
+	if hasMockBundle {
+		bundle, err := leaseenv.ParseMockIdentityBundle(input.MockIdentityBundle)
+		if err != nil {
+			return Result{}, err
+		}
+		defaults["miMockClientId"] = bundle.MSI.ClientID
+		defaults["miMockPrincipalId"] = bundle.MSI.PrincipalID
+		defaults["miMockCertName"] = bundle.MSI.CertificateName
+		defaults["armHelperClientId"] = bundle.Backend.ClientID
+		defaults["armHelperCertName"] = bundle.Backend.CertificateName
+		defaults["clustersServiceArmHelperClientId"] = bundle.ClustersService.ClientID
+		defaults["clustersServiceArmHelperCertName"] = bundle.ClustersService.CertificateName
+	}
+	if !hasMockBundle && input.MSIMockLease != "" {
 		entries, err := readPool(paths.MSIMockCatalog, "miMockPool")
 		if err != nil {
 			return Result{}, err
@@ -225,7 +244,7 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		defaults["miMockPrincipalId"] = principal.principalID
 		defaults["miMockCertName"] = principal.certName
 	}
-	if len(input.ARMHelperLeases) > 0 {
+	if !hasMockBundle && len(input.ARMHelperLeases) > 0 {
 		entries, err := readPool(paths.ARMHelperCatalog, "armHelperPool")
 		if err != nil {
 			return Result{}, err

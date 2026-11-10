@@ -29,6 +29,7 @@ type AssetKind string
 type Allocation string
 
 const (
+	KindMockIdentities           AssetKind  = "mock_identities"
 	KindE2EIdentities            AssetKind  = "e2e_identities"
 	KindInfrastructureIdentities AssetKind  = "infrastructure_identities"
 	AllocationDedicated          Allocation = "dedicated"
@@ -39,6 +40,10 @@ type LeasedAsset struct {
 	Allocation   Allocation `yaml:"allocation"`
 	AssetPool    string     `yaml:"asset_pool"`
 	UnitsPerSlot int        `yaml:"units_per_slot,omitempty"`
+}
+
+type MockIdentitiesAsset struct {
+	Allocation Allocation `yaml:"allocation"`
 }
 
 func (a *LeasedAsset) UnmarshalYAML(node *yaml.Node) error {
@@ -106,6 +111,9 @@ type ResolvedInfrastructureIdentities struct {
 
 func (p Pool) Requirements() []AssetRequirement {
 	var assetRequirements []AssetRequirement
+	if p.SlotAssets.MockIdentities != nil {
+		assetRequirements = append(assetRequirements, AssetRequirement{Kind: KindMockIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
+	}
 	if p.SlotAssets.E2EIdentities != nil {
 		assetRequirements = append(assetRequirements, AssetRequirement{Kind: KindE2EIdentities, Allocation: AllocationDedicated, UnitsPerSlot: 1})
 	}
@@ -122,6 +130,17 @@ func (p Pool) Requirements() []AssetRequirement {
 func (s ExpandedSlot) ValidateResolvedAssets() error {
 	for _, assetRequirement := range s.AssetRequirements {
 		switch assetRequirement.Kind {
+		case KindMockIdentities:
+			bundle := s.Assets.MockIdentities
+			if assetRequirement.Allocation != AllocationDedicated || assetRequirement.UnitsPerSlot != 1 || bundle == nil {
+				return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
+			}
+			if err := bundle.Validate(); err != nil {
+				return err
+			}
+			if bundle.SlotName != s.ResourceName || !strings.EqualFold(bundle.SubscriptionID, s.Subscriptions.E2E.ID) {
+				return fmt.Errorf("mock identity bundle does not match slot customer subscription")
+			}
 		case KindE2EIdentities:
 			if err := s.validateResolvedE2EIdentities(assetRequirement); err != nil {
 				return err

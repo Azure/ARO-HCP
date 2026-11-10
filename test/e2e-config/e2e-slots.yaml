@@ -30,6 +30,8 @@ environments:
       resource_type: aro-hcp-dev-shard0-slot
       slot_count: 5
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -49,6 +51,8 @@ environments:
       resource_type: aro-hcp-dev-shard1-slot
       slot_count: 5
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -68,6 +72,8 @@ environments:
       resource_type: aro-hcp-dev-shard2-slot
       slot_count: 5
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -87,6 +93,8 @@ environments:
       resource_type: aro-hcp-dev-shard3-slot
       slot_count: 5
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -107,6 +115,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -127,6 +137,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -147,6 +159,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -167,6 +181,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -187,6 +203,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -207,6 +225,8 @@ environments:
       slot_count: 5
       identity_container_provisioning_count: 100
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -232,6 +252,8 @@ environments:
         - standardDASv5Family
         - StandardDsv6Family
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning: unmanaged
@@ -269,6 +291,8 @@ environments:
       resource_type: aro-hcp-dev-shard4-slot
       slot_count: 30
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning_region: westus3
@@ -297,6 +321,8 @@ environments:
         - standardDASv5Family
         - StandardDsv6Family
       slot_assets:
+        mock_identities:
+          allocation: dedicated
         e2e_identities:
           allocation: dedicated
           provisioning: unmanaged

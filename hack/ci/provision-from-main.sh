@@ -9,6 +9,14 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+if [[ -v LEASED_MOCK_IDENTITY_BUNDLE ]]; then
+  : "${LEASED_MOCK_IDENTITY_BUNDLE:?slot mock identity bundle must not be empty}"
+  mkdir -p "${SHARED_DIR}/slot-mock-baseline"
+  cp "${ARO_HCP_TESTS_BINARY:-${PWD}/test/aro-hcp-tests}" "${SHARED_DIR}/slot-mock-baseline/aro-hcp-tests"
+  cp "$(dirname "$0")/build-config-override.sh" "${SHARED_DIR}/slot-mock-baseline/build-config-override.sh"
+  export ARO_HCP_TESTS_BINARY="${SHARED_DIR}/slot-mock-baseline/aro-hcp-tests"
+fi
+
 # shellcheck source=hack/ci/az-login.sh
 source "$(dirname "$0")/az-login.sh"
 
@@ -45,6 +53,14 @@ else
   git checkout -f "${PULL_BASE_SHA}"
 fi
 echo "Checked out base at $(git rev-parse --short HEAD)"
+
+if [[ -v LEASED_MOCK_IDENTITY_BUNDLE ]]; then
+  if ! grep -q 'source .*build-config-override.sh' hack/ci/provision-environment.sh; then
+    echo "ERROR: baseline lacks the configuration adapter seam required for slot mock identities"
+    exit 1
+  fi
+  cp "${SHARED_DIR}/slot-mock-baseline/build-config-override.sh" hack/ci/build-config-override.sh
+fi
 
 # The images-push-postsubmit job runs the aro-hcp-images-push step on every
 # merge to main (DEPLOY_ENV=dev), mirroring CI-built service images into the

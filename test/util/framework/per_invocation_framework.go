@@ -424,6 +424,16 @@ func location() string {
 // per-cluster operators authenticate as in environments where the Managed Identities Data Plane is
 // mocked (dev/CI). Return nothing if no mock exists to avoid spurious role assignments in e2e.
 func MIMockPrincipalID() string {
+	if payload, provided := os.LookupEnv(leaseenv.MockIdentityBundle); provided {
+		bundle, err := leaseenv.ParseMockIdentityBundle(payload)
+		if err != nil {
+			panic(err)
+		}
+		if explicit := os.Getenv("MI_MOCK_PRINCIPAL_ID"); explicit != "" && !strings.EqualFold(explicit, bundle.MSI.PrincipalID) {
+			panic("MI_MOCK_PRINCIPAL_ID conflicts with slot mock identity bundle")
+		}
+		return bundle.MSI.PrincipalID
+	}
 	if fromEnv := os.Getenv("MI_MOCK_PRINCIPAL_ID"); fromEnv != "" {
 		return fromEnv
 	}
