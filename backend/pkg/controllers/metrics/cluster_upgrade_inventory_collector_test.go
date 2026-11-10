@@ -17,10 +17,13 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
@@ -60,7 +63,7 @@ func TestClusterUpgradeInventorySurvivesCoalescedSPCDeletion(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, count, "SPC metrics can be gone without losing the primary deletion evidence")
 
-	expected := `# HELP backend_cluster_upgrade_inventory_size Number of primary clusters in a complete cache snapshot. Absent before initial cache synchronization.
+	expected := `# HELP backend_cluster_upgrade_inventory_size Expected primary cluster inventory rows, including invalid cache entries. Absent before initial cache synchronization.
 # TYPE backend_cluster_upgrade_inventory_size gauge
 backend_cluster_upgrade_inventory_size{backend_process="original"} 1
 # HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1; deletion_confirmed records RP deletion or a durable CS uninstallation observation.
@@ -81,9 +84,12 @@ backend_cluster_upgrade_inventory_size{backend_process="original"} 1
 	require.NoError(t, err)
 	require.Zero(t, count)
 	synced = true
-	expected = `# HELP backend_cluster_upgrade_inventory_size Number of primary clusters in a complete cache snapshot. Absent before initial cache synchronization.
+	expected = `# HELP backend_cluster_upgrade_inventory_size Expected primary cluster inventory rows, including invalid cache entries. Absent before initial cache synchronization.
 # TYPE backend_cluster_upgrade_inventory_size gauge
 backend_cluster_upgrade_inventory_size{backend_process="restarted"} 0
+# HELP backend_cluster_upgrade_inventory_invalid_objects Number of invalid entries in the primary cluster inventory snapshot.
+# TYPE backend_cluster_upgrade_inventory_invalid_objects gauge
+backend_cluster_upgrade_inventory_invalid_objects{backend_process="restarted"} 0
 `
 	require.NoError(t, testutil.GatherAndCompare(restarted, strings.NewReader(expected)))
 }
@@ -112,4 +118,70 @@ func TestClusterUpgradeInventoryReadsDeletionWithoutMetricsQueue(t *testing.T) {
 		}
 	}
 	t.Fatal("missing primary lifecycle observation")
+}
+
+func TestClusterUpgradeInventoryMalformedEntriesDoNotFailScrape(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		invalid      interface{}
+		includeValid bool
+	}{
+		{"unexpected object", &struct{}{}, true},
+		{"missing resource ID", &coreapi.Cluster{}, true},
+		{"only malformed objects", &struct{}{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
+			parents := cache.NewStore(func(obj interface{}) (string, error) {
+				return fmt.Sprintf("%T:%p", obj, obj), nil
+			})
+			if tc.includeValid {
+				require.NoError(t, parents.Add(parent))
+			}
+			require.NoError(t, parents.Add(tc.invalid))
+			registry := prometheus.NewRegistry()
+			registry.MustRegister(newClusterUpgradeInventoryCollector(parents, func() bool { return true }, "snapshot"))
+			unrelated := prometheus.NewGauge(prometheus.GaugeOpts{
+				Name: "unrelated_test_metric", Help: "Unrelated metrics must remain available.",
+			})
+			unrelated.Set(42)
+			registry.MustRegister(unrelated)
+
+			for _, invalidPresent := range []bool{true, false} {
+				if !invalidPresent {
+					require.NoError(t, parents.Delete(tc.invalid))
+				}
+				response := httptest.NewRecorder()
+				promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(
+					response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+				require.Equal(t, http.StatusOK, response.Code, "malformed inventory must not fail the entire scrape: %s", response.Body.String())
+				require.Contains(t, response.Body.String(), "unrelated_test_metric 42")
+
+				expectedSize, invalidCount := 0, 0
+				if tc.includeValid {
+					expectedSize++
+				}
+				if invalidPresent {
+					expectedSize++
+					invalidCount++
+				}
+				expected := fmt.Sprintf(`# HELP backend_cluster_upgrade_inventory_size Expected primary cluster inventory rows, including invalid cache entries. Absent before initial cache synchronization.
+# TYPE backend_cluster_upgrade_inventory_size gauge
+backend_cluster_upgrade_inventory_size{backend_process="snapshot"} %d
+# HELP backend_cluster_upgrade_inventory_invalid_objects Number of invalid entries in the primary cluster inventory snapshot.
+# TYPE backend_cluster_upgrade_inventory_invalid_objects gauge
+backend_cluster_upgrade_inventory_invalid_objects{backend_process="snapshot"} %d
+`, expectedSize, invalidCount)
+				if tc.includeValid {
+					expected += fmt.Sprintf(`# HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1; deletion_confirmed records RP deletion or a durable CS uninstallation observation.
+# TYPE backend_cluster_upgrade_inventory_info gauge
+backend_cluster_upgrade_inventory_info{backend_process="snapshot",deletion_confirmed="false",resource_id="%s",subscription_id="%s"} 1
+`, resourceIDMetricLabel(parent.ID), subscriptionIDMetricLabel(parent.ID))
+				}
+				require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected),
+					"backend_cluster_upgrade_inventory_size", "backend_cluster_upgrade_inventory_info",
+					"backend_cluster_upgrade_inventory_invalid_objects"))
+			}
+		})
+	}
 }

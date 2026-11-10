@@ -40,9 +40,10 @@ type clusterVersionMetricsHandler struct {
 	upgradeConverged   *prometheus.Desc
 	monitoringEnabled  *prometheus.Desc
 	readDesireLister   kubeapplierlisters.ReadDesireLister
-	processID          string
-	mu                 sync.RWMutex
-	snapshots          map[string]clusterVersionMetricSnapshot
+	// Stable for this exporter lifetime; a new epoch separates container restarts.
+	processID string
+	mu        sync.RWMutex
+	snapshots map[string]clusterVersionMetricSnapshot
 }
 
 type clusterVersionMetricSnapshot struct {

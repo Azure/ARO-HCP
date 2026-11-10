@@ -79,6 +79,8 @@ func upgradeString(t *testing.T, raw json.RawMessage) string {
 	return value
 }
 
+// Accept only reviewed compiler forms: parameter references alone do not prove
+// mode selection or non-paging delivery. Unknown forms must fail closed.
 func upgradeEvaluationEnabled(t *testing.T, raw json.RawMessage, mode string) bool {
 	t.Helper()
 	expression := upgradeString(t, upgradeParameterValue(t, raw))

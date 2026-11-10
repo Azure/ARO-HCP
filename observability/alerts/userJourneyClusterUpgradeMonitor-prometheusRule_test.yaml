@@ -1050,3 +1050,57 @@ tests:
   - eval_time: 72m
     alertname: userJourneyClusterUpgradeStuck
     exp_alerts: []
+- name: malformed inventory rows prevent absence recovery without hiding valid rows
+  interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.41", state="completed"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43", state="partial"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.20.43"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_target_count{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_converged{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "0x45 stale"
+  - series: 'backend_cluster_upgrade_monitoring_enabled{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1"}'
+    values: "1x45 stale"
+  - series: 'backend_cluster_upgrade_inventory_size{cluster="svc-1", backend_process="snapshot"}'
+    values: "_x65 2x9 1x26"
+  - series: 'backend_cluster_upgrade_inventory_info{cluster="svc-1", backend_process="snapshot", resource_id="/sub/1/rg/other", subscription_id="sub-1", deletion_confirmed="false"}'
+    values: "_x65 1x35"
+  - series: 'backend_cluster_upgrade_inventory_invalid_objects{cluster="svc-1", backend_process="snapshot"}'
+    values: "_x65 1x9 0x26"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:inventory_observations_complete:bool
+    eval_time: 70m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:inventory_observations_complete:bool{cluster="svc-1", backend_process="snapshot"}'
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 70m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 76m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 1
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 77m
+    exp_samples:
+    - labels: *monitorLabels
+      value: 0
+  - expr: hosted_control_plane_upgrade:stuck:bool
+    eval_time: 80m
+    exp_samples: []
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts:
+    - exp_labels: *stuckLabels
+      exp_annotations: *stuckAnnotations
+  - eval_time: 77m
+    alertname: userJourneyClusterUpgradeStuck
+    exp_alerts: []

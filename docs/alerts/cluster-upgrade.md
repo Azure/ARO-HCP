@@ -171,6 +171,17 @@ absence can prove removal. Thus a scrape outage spanning cleanup, followed by
 an exporter restart, can recover from authoritative inventory without relying on
 the SPC's transient final zero or its 30-second Cosmos soft-delete document.
 
+Malformed cache entries are logged and counted in
+`backend_cluster_upgrade_inventory_invalid_objects`. The collector continues
+exporting valid rows without failing unrelated metrics in the backend scrape.
+The expected `_size` includes **all** cache entries, including malformed ones;
+it is never reduced to the successfully exported subset. Thus a bad entry makes
+the inventory incomplete for absence-based recovery instead of falsely proving
+resource removal. A valid row with positive deletion evidence remains usable.
+An inventory containing only a malformed entry reports size 1, invalid count 1
+and no info rows, not an authoritative empty inventory. Once the bad entry is
+removed, the next scrape reports invalid count 0.
+
 A confirmed deletion/uninstallation immediately prevents creating another
 upgrade policy. Alert clearing is separate: the monitor becomes explicitly zero
 after three valid lifecycle observations, even while Partial version metrics
@@ -184,6 +195,38 @@ an upgrade-serialization policy, or a worker-health gate.
 There is an unavoidable interval between observing lifecycle and posting a
 policy. CS must also enforce lifecycle admission to reject a concurrent
 uninstall; the RP check alone is not atomic.
+
+### Exporter lifetime and cardinality
+
+`backend_process` is an exporter-lifetime epoch. Each collector/handler creates
+one UUID at construction and reuses it across every scrape and cluster update;
+it is not generated per scrape, per observation or per cluster. New instances
+get new epochs so their rows and expected counts are not combined with a
+previous exporter lifetime. This label is excluded from incident identity.
+
+The current-snapshot series counts per backend replica, before Prometheus/source
+labels and ordinary version, UUID-observation or lifecycle transitions, are:
+
+| Epoch-labelled metric | Series per snapshot |
+| --- | --- |
+| Inventory size | 1 |
+| Invalid inventory objects | 1 |
+| Inventory info | N valid primary clusters |
+| Target count | C ServiceProviderCluster snapshots |
+| Converged | C ServiceProviderCluster snapshots |
+| Target info | T current-target tuples, at most 2C |
+
+That is N + 2 + 2C + T epoch-labelled series across the two exporters. Restarting
+introduces new series identities; frequent restarts can therefore increase
+retained cardinality and ingestion cost. Workspace retention governs the old
+raw series: the monitor's 24-hour history lookup is **not** a retention policy.
+Shadow promotion must include measured series churn and normal restart rates,
+not assume the UUID has no cost.
+
+A pod name or stable ring ID does not distinguish every in-place container
+restart, and a pod UID also changes on pod replacement. Any future replacement
+for the UUID must preserve exporter-lifetime separation; substituting another
+per-lifetime identifier does not inherently remove that lifetime's series churn.
 
 ## Rollout and review
 
@@ -263,6 +306,7 @@ raise an IcM.
 | Old confirmation counts exist but current clearing evidence is absent | Do not newly clear from stored counts alone |
 | Stored state contains an older `1` followed by a newer `0` | Restore the latest `0`; do not resurrect the old failure |
 | Resource removal overlaps evaluator recovery | Retirement waits until a confirmed zero has been published |
+| A malformed primary inventory entry exists alongside valid rows | Valid rows and unrelated backend metrics remain available; the total expected size prevents absence-based clearing |
 | Retained history approaches or reaches its 24-hour boundary | Recover within the tested bound; do not claim recovery of state that is no longer in the lookup window |
 
 The rule cases live in
