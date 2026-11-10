@@ -378,3 +378,51 @@ tests:
     exp_samples:
     - labels: 'errors:ingress_canary:error_rate_5m{_id="divergent", cluster="mgmt-1", region="uksouth"}'
       value: 0
+# ========================================
+# Test 14: HA replicas diverging on latency buckets must not be paired
+# across replicas
+# ========================================
+# Replica "a" reports le="200" rate 4/min and le="Infinity" rate 5/min (its
+# own ratio: 4/5 = 0.8, mostly fast). Replica "b" reports le="200" rate
+# 1/min and le="Infinity" rate 10/min (its own ratio: 1/10 = 0.1, mostly
+# slow, but a much larger total volume). Deduping each bucket independently
+# with max without (prometheus_replica) would pick replica "a"'s larger
+# le="200" value (20 over the window) together with replica "b"'s larger
+# le="Infinity" value (50 over the window), giving error_rate = (50-20)/50 =
+# 0.6 -- a figure that matches neither replica's actual observations and
+# that "20 of 50 fast" never occurred (replica "a" only ever saw 25 total
+# checks). topk(1, ...) on le="Infinity" picks replica "b" as the more
+# complete scrape (50 > 25) and the on(..., prometheus_replica) join keeps
+# le="200" pinned to that same replica (5, not 20), giving error_rate =
+# (50-5)/50 = 0.9 -- exactly replica "b"'s own observed ratio.
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="a"}'
+    values: "0+4x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="Infinity", prometheus_replica="a"}'
+    values: "0+5x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="200", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="latency-divergent", cluster="mgmt-1", region="uksouth", host="canary.apps.latency-divergent.example.io", instance="10.0.0.1:60000", le="Infinity", prometheus_replica="b"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: errors:ingress_canary_latency:total_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:total_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 50
+  - expr: errors:ingress_canary_latency:fast_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:fast_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 5
+  - expr: errors:ingress_canary_latency:error_rate_5m
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate_5m{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0.9
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="latency-divergent", cluster="mgmt-1", region="uksouth"}'
+      value: 0.1
