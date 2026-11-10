@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -175,5 +176,32 @@ func TestDeterministicIsolation(t *testing.T) {
 	slot.MockIdentityConfig.Allocation = slots.AllocationLeased
 	if _, err := reconcile(context.Background(), nil, slot, false); err == nil {
 		t.Fatal("accepted leased allocation")
+	}
+}
+
+func TestPublishRejectsMismatchedSlotBundle(t *testing.T) {
+	slot := testSlot()
+	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
+	bundle, err := reconcile(t.Context(), store, slot, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*leaseenv.MockIdentityBundlePayload){
+		func(bundle *leaseenv.MockIdentityBundlePayload) { bundle.SubscriptionID = uuid.NewString() },
+		func(bundle *leaseenv.MockIdentityBundlePayload) { bundle.SlotName += "-other" },
+	} {
+		invalid := *bundle
+		mutate(&invalid)
+		slot.Assets.MockIdentities = &invalid
+		request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slot}}
+		if err := NewHandler().PublishLease(t.Context(), request, slots.NewRuntimeContractBuilder()); err == nil || !strings.Contains(err.Error(), "does not match slot customer subscription") {
+			t.Fatalf("expected slot isolation failure, got %v", err)
+		}
+	}
+	message := ownerRepair(slot, errors.New("missing persistent role")).Error()
+	for _, expected := range []string{"missing persistent role", "Owner", "make -C test apply-pool-assets", "ASSET=mock_identities", "CI never repairs identities or rotates credentials"} {
+		if !strings.Contains(message, expected) {
+			t.Fatalf("repair instruction missing %q: %s", expected, message)
+		}
 	}
 }

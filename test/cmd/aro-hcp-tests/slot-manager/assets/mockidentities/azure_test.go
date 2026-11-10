@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/microsoft/kiota-abstractions-go/authentication"
+	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -46,8 +48,146 @@ func (credential testCredential) GetToken(context.Context, policy.TokenRequestOp
 
 type ownerTransport func(*http.Request) (*http.Response, error)
 
+func (transport ownerTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
 func (transport ownerTransport) Do(request *http.Request) (*http.Response, error) {
 	return transport(request)
+}
+
+type graphExchange struct {
+	method, path, response string
+	status                 int
+	query                  map[string]string
+	body                   map[string]string
+}
+
+func graphTestClient(t *testing.T, exchanges []graphExchange) *msgraph.GraphServiceClient {
+	t.Helper()
+	index := 0
+	transport := ownerTransport(func(request *http.Request) (*http.Response, error) {
+		if index >= len(exchanges) {
+			t.Fatalf("unexpected Graph request %s %s", request.Method, request.URL)
+		}
+		expected := exchanges[index]
+		index++
+		if request.Method != expected.method || request.URL.Path != "/v1.0/"+expected.path || request.URL.Host != "graph.microsoft.com" {
+			t.Fatalf("Graph request %d: got %s %s, want %s %s", index, request.Method, request.URL, expected.method, expected.path)
+		}
+		for key, value := range expected.query {
+			if request.URL.Query().Get(key) != value {
+				t.Fatalf("Graph query %s = %q, want %q", key, request.URL.Query().Get(key), value)
+			}
+		}
+		if expected.body != nil {
+			var body map[string]string
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if len(body) != len(expected.body) {
+				t.Fatalf("unexpected Graph mutation fields: %v", body)
+			}
+			for key, value := range expected.body {
+				if body[key] != value {
+					t.Fatalf("Graph mutation field %s = %q, want %q", key, body[key], value)
+				}
+			}
+		}
+		status := expected.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, ContentLength: int64(len(expected.response)), Body: io.NopCloser(strings.NewReader(expected.response)), Request: request}, nil
+	})
+	adapter, err := msgraph.NewGraphRequestAdapterWithParseNodeFactoryAndSerializationWriterFactoryAndHttpClient(&authentication.AnonymousAuthenticationProvider{}, nil, nil, &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if index != len(exchanges) {
+			t.Errorf("consumed %d of %d expected Graph requests", index, len(exchanges))
+		}
+	})
+	return msgraph.NewGraphServiceClient(adapter)
+}
+
+func TestGraphResolveReadOnly(t *testing.T) {
+	name := "aro-hcp-slot-test-msi"
+	applicationID, clientID, principalID := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	application := fmt.Sprintf(`{"id":%q,"appId":%q,"displayName":%q}`, applicationID, clientID, name)
+	principal := fmt.Sprintf(`{"id":%q,"appId":%q,"accountEnabled":true}`, principalID, clientID)
+	applicationPath := "applications(uniqueName='" + name + "')"
+	principalPath := "servicePrincipals(appId='" + clientID + "')"
+	lookup := graphExchange{method: "GET", path: applicationPath, response: application}
+	matches := graphExchange{method: "GET", path: "applications", response: fmt.Sprintf(`{"value":[{"id":%q}]}`, applicationID), query: map[string]string{"$filter": "displayName eq '" + name + "'", "$select": "id"}}
+	servicePrincipal := graphExchange{method: "GET", path: principalPath, response: principal}
+	missing := `{"error":{"code":"Request_ResourceNotFound","message":"missing test object"}}`
+	for _, test := range []struct {
+		name      string
+		exchanges []graphExchange
+		wantError string
+	}{
+		{name: "exact identities", exchanges: []graphExchange{lookup, matches, servicePrincipal}},
+		{name: "missing application", exchanges: []graphExchange{{method: "GET", path: applicationPath, status: 404, response: missing}}, wantError: "missing test object"},
+		{name: "mismatched application name", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, name, "wrong", 1)}}, wantError: "unexpected identity"},
+		{name: "missing application client ID", exchanges: []graphExchange{{method: "GET", path: applicationPath, response: strings.Replace(application, clientID, "", 1)}}, wantError: "unexpected identity"},
+		{name: "missing display name result", exchanges: []graphExchange{lookup, {method: "GET", path: "applications", response: `{"value":[]}`}}, wantError: "missing or ambiguous"},
+		{name: "different display name match", exchanges: []graphExchange{lookup, {method: "GET", path: "applications", response: fmt.Sprintf(`{"value":[{"id":%q}]}`, uuid.NewString())}}, wantError: "missing or ambiguous"},
+		{name: "ambiguous later page", exchanges: []graphExchange{lookup,
+			{method: "GET", path: "applications", response: fmt.Sprintf(`{"value":[{"id":%q}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/applications?$skiptoken=next"}`, applicationID)},
+			{method: "GET", path: "applications", query: map[string]string{"$skiptoken": "next"}, response: fmt.Sprintf(`{"value":[{"id":%q}]}`, uuid.NewString())}}, wantError: "ambiguous (2 matches)"},
+		{name: "missing service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, status: 404, response: missing}}, wantError: "missing test object"},
+		{name: "disabled service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, response: strings.Replace(principal, "true", "false", 1)}}, wantError: "disabled or mismatched"},
+		{name: "mismatched service principal", exchanges: []graphExchange{lookup, matches, {method: "GET", path: principalPath, response: strings.Replace(principal, clientID, uuid.NewString(), 1)}}, wantError: "disabled or mismatched"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &azureStore{graph: graphTestClient(t, test.exchanges)}
+			actual, err := store.Resolve(t.Context(), name, false)
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("got error %v, want %q", err, test.wantError)
+				}
+				return
+			}
+			if err != nil || actual != (leaseenv.MockPrincipal{ClientID: clientID, PrincipalID: principalID, CertificateName: name}) {
+				t.Fatalf("resolved identity = %+v, error %v", actual, err)
+			}
+		})
+	}
+}
+
+func TestGraphResolvePartialApplyRetry(t *testing.T) {
+	name := "aro-hcp-slot-test-backend"
+	applicationID, clientID, principalID := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	applicationPath := "applications(uniqueName='" + name + "')"
+	principalPath := "servicePrincipals(appId='" + clientID + "')"
+	application := fmt.Sprintf(`{"id":%q,"appId":%q,"displayName":%q}`, applicationID, clientID, name)
+	principal := fmt.Sprintf(`{"id":%q,"appId":%q,"accountEnabled":true}`, principalID, clientID)
+	missing := `{"error":{"code":"Request_ResourceNotFound","message":"missing test object"}}`
+	lookup := graphExchange{method: "GET", path: applicationPath, response: application}
+	matches := graphExchange{method: "GET", path: "applications", response: fmt.Sprintf(`{"value":[{"id":%q}]}`, applicationID)}
+	missingPrincipal := graphExchange{method: "GET", path: principalPath, status: 404, response: missing}
+	store := &azureStore{graph: graphTestClient(t, []graphExchange{
+		{method: "GET", path: applicationPath, status: 404, response: missing},
+		{method: "PATCH", path: applicationPath, response: application, body: map[string]string{"@odata.type": "#microsoft.graph.application", "displayName": name, "signInAudience": "AzureADMyOrg"}},
+		matches, missingPrincipal,
+		{method: "PATCH", path: principalPath, status: 403, response: `{"error":{"code":"Authorization_RequestDenied","message":"injected partial failure"}}`, body: map[string]string{"@odata.type": "#microsoft.graph.servicePrincipal", "displayName": name}},
+		lookup, matches, missingPrincipal,
+		{method: "PATCH", path: principalPath, response: principal, body: map[string]string{"@odata.type": "#microsoft.graph.servicePrincipal", "displayName": name}},
+		lookup, matches, {method: "GET", path: principalPath, response: principal},
+	})}
+	if _, err := store.Resolve(t.Context(), name, true); err == nil || !strings.Contains(err.Error(), "injected partial failure") {
+		t.Fatalf("expected partial provisioning failure, got %v", err)
+	}
+	repaired, err := store.Resolve(t.Context(), name, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.Resolve(t.Context(), name, true)
+	if err != nil || again != repaired || again.PrincipalID != principalID || again.ClientID != clientID {
+		t.Fatalf("idempotent reconciliation = %+v, previous %+v, error %v", again, repaired, err)
+	}
 }
 
 func TestAuthorizeOwner(t *testing.T) {

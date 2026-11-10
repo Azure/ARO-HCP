@@ -20,16 +20,25 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/x509"
+	"encoding/base64"
+	"fmt"
+	"io"
 	"math/big"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
 
-func TestCertificateValidation(t *testing.T) {
+func publicTestCertificate(t *testing.T) ([]byte, *x509.Certificate) {
+	t.Helper()
 	now := time.Now().UTC().Truncate(time.Second)
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -40,6 +49,55 @@ func TestCertificateValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return certificate, template
+}
+
+func TestCertificateAdmissionReadOnly(t *testing.T) {
+	certificate, template := publicTestCertificate(t)
+	thumbprint := sha1.Sum(certificate)
+	name := "aro-hcp-slot-test-cs"
+	for _, test := range []struct {
+		name, thumbprint, wantError string
+		enabled                     bool
+	}{
+		{name: "healthy", enabled: true, thumbprint: base64.StdEncoding.EncodeToString(thumbprint[:])},
+		{name: "disabled", thumbprint: base64.StdEncoding.EncodeToString(thumbprint[:]), wantError: "certificate is disabled"},
+		{name: "mismatched pin", enabled: true, thumbprint: base64.StdEncoding.EncodeToString([]byte("wrong")), wantError: "thumbprint is not pinned"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reads := 0
+			transport := ownerTransport(func(request *http.Request) (*http.Response, error) {
+				if request.Method != http.MethodGet || strings.TrimSuffix(request.URL.Path, "/") != "/certificates/"+name {
+					t.Fatalf("unexpected certificate admission request %s %s", request.Method, request.URL)
+				}
+				reads++
+				response := fmt.Sprintf(`{"cer":%q,"attributes":{"enabled":%t}}`, base64.StdEncoding.EncodeToString(certificate), test.enabled)
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(response)), Request: request}, nil
+			})
+			certificateAPI, err := azcertificates.NewClient(VaultURL, testCredential{}, &azcertificates.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: transport}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := fmt.Sprintf(`{"keyCredentials":[{"customKeyIdentifier":%q,"type":"AsymmetricX509Cert","usage":"Verify","startDateTime":%q,"endDateTime":%q}]}`, test.thumbprint, template.NotBefore.Format(time.RFC3339), template.NotAfter.Format(time.RFC3339))
+			store := &azureStore{certificateAPI: certificateAPI, graph: graphTestClient(t, []graphExchange{{method: "GET", path: "applications(uniqueName='" + name + "')", query: map[string]string{"$select": "keyCredentials"}, response: response}})}
+			err = store.Certificate(t.Context(), name, false)
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("got error %v, want %q", err, test.wantError)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if reads != 1 {
+				t.Fatalf("expected one public certificate read, got %d", reads)
+			}
+		})
+	}
+}
+
+func TestCertificateValidation(t *testing.T) {
+	certificate, template := publicTestCertificate(t)
+	now := time.Now().UTC().Truncate(time.Second)
 	thumbprint := sha1.Sum(certificate)
 	key := models.NewKeyCredential()
 	key.SetCustomKeyIdentifier(thumbprint[:])
