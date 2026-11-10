@@ -225,6 +225,20 @@ suite:
 ./test/aro-hcp-tests run-suite "stage/parallel/all"
 ```
 
+The `expect-failure` suite collects exactly the tests labeled
+`labels.ExpectFailure("ARO-123")` — reproducers for known, unfixed bugs or work
+in progress features that are expected to fail. The label takes a mandatory JIRA
+tracking-issue ID and renders as `ExpectFailure:ARO-123`, so each expected failure
+carries its tracking ticket. These tests are excluded from every other suite so
+their failures do not pollute normal CI. The suite is used to verify a fix has
+landed: each test flips from failing to passing once its bug is fixed, at which
+point the label is removed.
+
+```bash
+./test/aro-hcp-tests list tests --suite "expect-failure" --output names
+./test/aro-hcp-tests run-suite "expect-failure"
+```
+
 ### Test cases with per-run cluster
 > **Important**
 > - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.

@@ -334,6 +334,7 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 		"prod/parallel": 19, "prod/parallel/slow": 19,
 		"dev-cd-check/parallel": 20, "rp-api-compat-all/parallel": 24,
 		"rp-api-compat-all/parallel/slow": 24, "hypershift-presubmit/parallel": 24,
+		"expect-failure":   24,
 		"upgrade/in-place": baseline["upgrade/in-place"].Parallelism,
 	}
 	for name, want := range fallbacks {
@@ -367,7 +368,7 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 							want = 60
 						}
 						usesAcquired := strings.HasPrefix(name, "integration/") || strings.HasPrefix(name, "stage/") || strings.HasPrefix(name, "prod/") ||
-							strings.HasPrefix(name, "rp-api-compat-all/") || name == "hypershift-presubmit/parallel"
+							strings.HasPrefix(name, "rp-api-compat-all/") || name == "hypershift-presubmit/parallel" || name == "expect-failure"
 						if override == "unset" && lease == acquired && usesAcquired {
 							want = 2
 						}
@@ -930,4 +931,145 @@ func readMetadataFile(t *testing.T, dir string) map[string]interface{} {
 		t.Fatalf("failed to parse %s: %v", ev2RetryMetadataFile, err)
 	}
 	return got
+}
+
+// extensionSource matches e.NewExtension("aro-hcp", "payload", "cuj-e2e-tests")
+// in setupCli. Registered suite qualifiers are wrapped with a
+// `source == "<extensionSource>"` guard, so synthetic specs must carry it to be
+// considered members.
+const extensionSource = "aro-hcp:payload:cuj-e2e-tests"
+
+// specWithLabels builds a single synthetic spec carrying exactly the given label
+// strings, for exercising suite CEL qualifiers.
+func specWithLabels(name string, labelStrings ...string) *et.ExtensionTestSpec {
+	return &et.ExtensionTestSpec{Name: name, Source: extensionSource, Labels: sets.New(labelStrings...)}
+}
+
+// selectedBy reports whether spec is selected by the suite's OR'd CEL qualifiers,
+// i.e. whether it is a member of that suite.
+func selectedBy(t *testing.T, suite e.Suite, spec *et.ExtensionTestSpec) bool {
+	t.Helper()
+	filtered, err := et.ExtensionTestSpecs{spec}.Filter(suite.Qualifiers)
+	if err != nil {
+		t.Fatalf("filtering spec %q with suite %q qualifiers %v: %v", spec.Name, suite.Name, suite.Qualifiers, err)
+	}
+	return len(filtered) == 1
+}
+
+// TestExpectFailureSuiteSelection verifies the ExpectFailure label routing end to
+// end against the registered suite qualifiers: specs labeled ExpectFailure(JIRA)
+// are collected exclusively by the expect-failure suite and excluded from every
+// other suite, while unlabeled specs keep their normal membership. The exclusion
+// is matched on the ExpectFailure label prefix, so it must hold for any JIRA ID.
+func TestExpectFailureSuiteSelection(t *testing.T) {
+	expectFailureLabel := labels.ExpectFailure("ARO-123")[0] // "ExpectFailure:ARO-123"
+
+	// For each normal suite, base is the minimal label set that makes a spec a
+	// member. Adding an ExpectFailure label must flip membership off while the
+	// plain base spec stays a member (so the exclusion is actually load-bearing).
+	normalSuites := []struct {
+		name string
+		base []string
+	}{
+		{"integration/parallel", []string{labels.RequireNothing[0]}},
+		{"integration/parallel/slow", []string{labels.RequireNothing[0], labels.Slow[0]}},
+		{"integration/parallel/all", []string{labels.RequireNothing[0]}},
+		{"stage/parallel", []string{labels.RequireNothing[0]}},
+		{"stage/parallel/slow", []string{labels.RequireNothing[0], labels.Slow[0]}},
+		{"stage/parallel/all", []string{labels.RequireNothing[0]}},
+		{"prod/parallel", []string{labels.RequireNothing[0]}},
+		{"prod/parallel/slow", []string{labels.RequireNothing[0], labels.Slow[0]}},
+		{"dev-cd-check/parallel", []string{labels.AroRpApiCompatible[0], labels.Positive[0]}},
+		{"rp-api-compat-all/parallel", []string{labels.AroRpApiCompatible[0]}},
+		{"rp-api-compat-all/parallel/slow", []string{labels.AroRpApiCompatible[0], labels.Slow[0]}},
+		{"hypershift-presubmit/parallel", []string{labels.HypershiftPresubmit[0]}},
+		{"upgrade/in-place", []string{labels.UpgradeInPlace[0]}},
+	}
+
+	t.Run("non-development", func(t *testing.T) {
+		t.Setenv("AROHCP_ENV", "")
+		suites := listSuites(t)
+
+		for _, ns := range normalSuites {
+			t.Run(ns.name, func(t *testing.T) {
+				suite, ok := suites[ns.name]
+				if !ok {
+					t.Fatalf("suite %q is not registered", ns.name)
+				}
+				base := specWithLabels("base", ns.base...)
+				if !selectedBy(t, suite, base) {
+					t.Fatalf("base spec with labels %v should be a member of %q but was excluded", ns.base, ns.name)
+				}
+				xfailLabels := append(append([]string{}, ns.base...), expectFailureLabel)
+				xfail := specWithLabels("xfail", xfailLabels...)
+				if selectedBy(t, suite, xfail) {
+					t.Fatalf("ExpectFailure spec with labels %v must be excluded from %q", xfailLabels, ns.name)
+				}
+			})
+		}
+
+		t.Run("expect-failure", func(t *testing.T) {
+			suite, ok := suites["expect-failure"]
+			if !ok {
+				t.Fatal(`suite "expect-failure" is not registered`)
+			}
+			xfail := specWithLabels("xfail", labels.RequireNothing[0], expectFailureLabel)
+			if !selectedBy(t, suite, xfail) {
+				t.Fatalf(`ExpectFailure spec must be a member of "expect-failure", labels %v`, xfail.Labels.UnsortedList())
+			}
+			normal := specWithLabels("normal", labels.RequireNothing[0])
+			if selectedBy(t, suite, normal) {
+				t.Fatal(`non-ExpectFailure spec must not be a member of "expect-failure"`)
+			}
+			// Invariant: a spec that is both ExpectFailure and UpgradeInPlace is
+			// excluded, because upgrade specs need the UpgradeCoordinator that only
+			// the upgrade/in-place suite starts.
+			upgradeXfail := specWithLabels("upgrade-xfail", labels.UpgradeInPlace[0], expectFailureLabel)
+			if selectedBy(t, suite, upgradeXfail) {
+				t.Fatal(`spec labeled both ExpectFailure and UpgradeInPlace must be excluded from "expect-failure"`)
+			}
+		})
+
+		t.Run("prefix match holds for any JIRA ID", func(t *testing.T) {
+			expectedFailure := suites["expect-failure"]
+			integrationAll := suites["integration/parallel/all"]
+			for _, id := range []string{"ARO-1", "ARO-99999", "OCPBUGS-42"} {
+				spec := specWithLabels("xfail-"+id, labels.RequireNothing[0], labels.ExpectFailure(id)[0])
+				if !selectedBy(t, expectedFailure, spec) {
+					t.Fatalf(`ExpectFailure(%q) spec should be a member of "expect-failure"`, id)
+				}
+				if selectedBy(t, integrationAll, spec) {
+					t.Fatalf(`ExpectFailure(%q) spec must be excluded from "integration/parallel/all"`, id)
+				}
+			}
+		})
+	})
+
+	// Development mode changes the rp-api-compat qualifier to
+	// (AroRpApiCompatible || DevelopmentOnly) && !ExpectFailure. Verify the
+	// ExpectFailure exclusion still covers the DevelopmentOnly side of the OR.
+	t.Run("development rp-api-compat covers both OR sides", func(t *testing.T) {
+		t.Setenv("AROHCP_ENV", "development")
+		suite := listSuites(t)["rp-api-compat-all/parallel"]
+
+		for _, c := range []struct {
+			name string
+			base []string
+		}{
+			{"api-compatible", []string{labels.AroRpApiCompatible[0]}},
+			{"development-only", []string{labels.DevelopmentOnly[0]}},
+		} {
+			t.Run(c.name, func(t *testing.T) {
+				base := specWithLabels("base", c.base...)
+				if !selectedBy(t, suite, base) {
+					t.Fatalf("in development, base spec with labels %v should be a member of rp-api-compat-all/parallel", c.base)
+				}
+				xfailLabels := append(append([]string{}, c.base...), expectFailureLabel)
+				xfail := specWithLabels("xfail", xfailLabels...)
+				if selectedBy(t, suite, xfail) {
+					t.Fatalf("in development, ExpectFailure spec with labels %v must be excluded from rp-api-compat-all/parallel", xfailLabels)
+				}
+			})
+		}
+	})
 }
