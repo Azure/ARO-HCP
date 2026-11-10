@@ -60,10 +60,9 @@ type DeploymentStackDesire struct {
 	// CosmosMetadata identifies the stored desire and its owning HCP cluster.
 	// PartitionKey must be set to the lowercased subscription ID of the owning
 	// HCP cluster before creation, independently of the Azure target's scope.
-	// Written by: IdentityRoleAssignments (resource identity and partition), Cosmos storage (persistence metadata)
+	// Written by: Cosmos storage (persistence metadata)
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
 	// Spec describes the Azure stack operation the producer wants reconciled.
-	// Written by: IdentityRoleAssignments
 	Spec DeploymentStackDesireSpec `json:"spec"`
 	// Status records the outcome of the controller's latest observation or attempt.
 	// Written by: AzureDeploymentStackDesires
@@ -73,30 +72,24 @@ type DeploymentStackDesire struct {
 type DeploymentStackDesireSpec struct {
 	// TargetResourceID is the full Azure deployment stack ID, including its scope.
 	// Producers must not change it for the lifetime of this desire.
-	// Written by: IdentityRoleAssignments
 	TargetResourceID *azcorearm.ResourceID `json:"targetResourceID"`
 	// Authentication selects the identity used to manage the target stack.
-	// Written by: IdentityRoleAssignments
 	Authentication DeploymentStackDesireAuthentication `json:"authentication"`
 	// Action selects Apply to create or update the stack, or Delete to remove it.
-	// Written by: IdentityRoleAssignments
 	Action DeploymentStackDesireActionType `json:"action"`
 	// Stack describes the deployment stack for both Apply and Delete. Apply sends
 	// the stack to Azure; Delete uses Properties.ActionOnUnmanage and
 	// Properties.BypassStackOutOfSyncError as its deletion policy.
-	// Written by: IdentityRoleAssignments
 	Stack *armdeploymentstacks.DeploymentStack `json:"stack"`
 	// ReconcileInterval is the cooldown before reconciling unchanged intent again
 	// after success or an invalid-intent outcome. Non-positive values select the
 	// controller's six-hour default; pending operations and transient failures use
 	// separate polling and retry delays.
-	// Written by: IdentityRoleAssignments
 	ReconcileInterval metav1.Duration `json:"reconcileInterval,omitempty"`
 }
 
 type DeploymentStackDesireAuthentication struct {
 	// Type selects first-party application (FPA) or service managed identity (SMI) credentials.
-	// Written by: IdentityRoleAssignments
 	Type                   DeploymentStackDesireAuthenticationType                    `json:"type"`
 	ServiceManagedIdentity *DeploymentStackDesireAuthenticationServiceManagedIdentity `json:"serviceManagedIdentity,omitempty"`
 	FirstPartyApplication  *DeploymentStackDesireAuthenticationFirstPartyApplication  `json:"firstPartyApplication,omitempty"`
@@ -104,16 +97,15 @@ type DeploymentStackDesireAuthentication struct {
 
 type DeploymentStackDesireAuthenticationServiceManagedIdentity struct {
 	// ServiceManagedIdentityResourceID identifies the service managed identity used for SMI authentication.
-	// Written by: DeploymentStackDesire producer (unused by IdentityRoleAssignments)
+	// Written by: DeploymentStackDesire producer
 	ServiceManagedIdentityResourceID *azcorearm.ResourceID `json:"serviceManagedIdentityResourceID,omitempty"`
 	// ClusterIdentityURL is the cluster identity endpoint used to obtain SMI credentials.
-	// Written by: DeploymentStackDesire producer (unused by IdentityRoleAssignments)
+	// Written by: DeploymentStackDesire producer
 	ClusterIdentityURL string `json:"clusterIdentityURL,omitempty"`
 }
 
 type DeploymentStackDesireAuthenticationFirstPartyApplication struct {
 	// TenantID is the Azure tenant in which the FPA obtains credentials.
-	// Written by: IdentityRoleAssignments
 	TenantID string `json:"tenantID,omitempty"`
 }
 

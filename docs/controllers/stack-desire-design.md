@@ -128,21 +128,6 @@ match the desire's spec hash; stale outcomes, missing conditions and
 independent of role-assignment readiness, with no child `Controller` document for
 the stack executor. Invalid intent is not service degradation.
 
-## Role Assignments
-
-`IdentityRoleAssignments` publishes one complete, sorted/deduplicated MRG template
-with deterministic role names and FPA authentication. Missing prerequisites never
-produce partial intent: omission deletes previously stack-managed assignments.
-The template keeps the public [ARM schema](https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#).
-Deny assignments are independent. All nondeleting clusters use this producer;
-obsolete assignments outside the adopted set are not discovered.
-
-`StackReady` requires current desired/spec/observed hash equality,
-`SuccessfullyApplied=True` and a typed stack in `Succeeded` state. Pending or
-failed repair, absence, changed intent or missing prerequisites revoke readiness.
-Cluster creation consumes this boolean; it is not continuous RBAC propagation
-proof. Cluster deletion purges intent and relies on MRG cascade, without Delete.
-
 ## Validation
 
 Before rollout, validate existing-role adoption, managed omissions, RBAC propagation

@@ -672,10 +672,10 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteRead
 // container and is therefore never reached by the generic resourcesDBClient
 // recursive sweep below, so it needs its own explicit hard-delete here. This
 // mirrors today's behavior for the resource before the container split: an
-// unconditional Cosmos document delete, no Azure-side call. The
-// IdentityRoleAssignments producer already deletes its own desire on cluster
-// teardown (relying on MRG cascade deletion in Azure); this is a backstop for
-// any desire that producer missed, not a stronger guarantee.
+// unconditional Cosmos document delete, no Azure-side call. This is a backstop for
+// any desire that a producer missed, not a stronger guarantee. Gating should be implemented
+// if delete coordination is needed so this does not delete desires that are still needed as part of the
+// teardown process.
 func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
