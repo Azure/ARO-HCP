@@ -38,6 +38,7 @@ _artifacts
 must-gather-*
 snapshot-*/
 /hcpctl
+/tooling/depctl/depctl
 timing-metadata-*
 /.claude/
 .tmp

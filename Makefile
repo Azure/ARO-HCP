@@ -233,6 +233,10 @@ build-hcpctl:
 	$(MAKE) -C tooling/hcpctl build
 .PHONY: build-hcpctl
 
+build-depctl:
+	$(MAKE) -C tooling/depctl build
+.PHONY: build-depctl
+
 e2e/local: e2e-local/setup build-hcpctl
 	$(MAKE) e2e-local/run
 .PHONY: e2e/local
