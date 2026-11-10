@@ -199,7 +199,6 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
 		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
 		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
-		{"invalid kube-applier utilization", func(o *StorageFactoryOptions) { o.KubeApplierUtilization = 1.1 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -211,6 +210,26 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 	}
 	_, err := newStorageFactory(":invalid URL", "test", storageTestOptions(t, nil), testStorageAllocations())
 	require.ErrorContains(t, err, `controller "one"`)
+}
+
+func TestStorageFactoryRejectsInvalidMCUtilization(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		utilization float64
+	}{
+		{name: "negative", utilization: -0.1},
+		{name: "above one", utilization: 1.1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			options := testStorageAllocations()
+			options.KubeApplierUtilization = tc.utilization
+			factory, err := newStorageFactory("https://cosmos.test", "test", storageTestOptions(t, nil), options)
+			require.NoError(t, err)
+
+			_, err = factory.kubeApplierTokenBucket("mc", 1000, "one")
+			require.ErrorContains(t, err, "controller RU utilization must be in (0, 1]")
+		})
+	}
 }
 
 func TestStorageFactoryConcurrentMCContainerLookups(t *testing.T) {

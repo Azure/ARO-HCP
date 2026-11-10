@@ -26,7 +26,7 @@ type containerThroughputReader interface {
 	ContainerThroughput(context.Context, string) (float64, error)
 }
 
-func discoverStorageOptions(ctx context.Context, account containerThroughputReader, controllerContext app.ControllerContext) (app.StorageFactoryOptions, error) {
+func discoverStorageFactoryOptions(ctx context.Context, account containerThroughputReader, controllerContext app.ControllerContext) (app.StorageFactoryOptions, error) {
 	var resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond float64
 	for _, container := range []struct {
 		name  string

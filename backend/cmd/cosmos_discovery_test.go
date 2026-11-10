@@ -53,7 +53,9 @@ func testAccount(t *testing.T, respond func(*http.Request) (string, error)) *Cos
 
 func testAccountWithID(t *testing.T, id string, respond func(*http.Request) (string, error)) *CosmosAccountDiscoverer {
 	t.Helper()
-	account, err := NewCosmosAccountDiscoverer(id, testCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+	resourceID, err := azcorearm.ParseResourceID(id)
+	require.NoError(t, err)
+	account, err := NewCosmosAccountDiscoverer(resourceID, testCredential{}, &azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
 		Retry: policy.RetryOptions{MaxRetries: -1},
 		Transport: testTransport(func(request *http.Request) (*http.Response, error) {
 			body, err := respond(request)
@@ -94,8 +96,8 @@ func TestMixedCaseAccountDiscovery(t *testing.T) {
 			})
 			discovered, err := account.Discover(t.Context())
 			require.NoError(t, err)
-			require.Equal(t, "account", discovered.DatabaseName())
-			require.Equal(t, "https://account.documents.test/", discovered.Endpoint())
+			require.Equal(t, "account", discovered.DatabaseName)
+			require.Equal(t, "https://account.documents.test/", discovered.Endpoint)
 			limit, err := discovered.ContainerThroughput(t.Context(), "Resources")
 			require.NoError(t, err)
 			require.Equal(t, throughput.want, limit)
@@ -105,16 +107,16 @@ func TestMixedCaseAccountDiscovery(t *testing.T) {
 	}
 }
 
-func TestParseAccountID(t *testing.T) {
+func TestParseCosmosAccountResourceID(t *testing.T) {
 	for _, value := range []string{testAccountID, strings.Replace(testAccountID, "Microsoft.DocumentDB/databaseAccounts", "microsoft.documentdb/databaseaccounts", 1)} {
-		id, err := ParseAccountID(value)
+		id, err := ParseCosmosAccountResourceID(value)
 		require.NoError(t, err)
 		require.Equal(t, "sub", id.SubscriptionID)
 		require.Equal(t, "rg", id.ResourceGroupName)
 		require.Equal(t, "account", id.Name)
 	}
 	for _, value := range []string{"", "account", "/subscriptions/sub", testAccountID + "/sqlDatabases/account", testAccountID + "/", testAccountID + "?query", strings.Replace(testAccountID, "Microsoft.DocumentDB", "Microsoft.Storage", 1), "/providers/Microsoft.DocumentDB/databaseAccounts/account"} {
-		t.Run(value, func(t *testing.T) { _, err := ParseAccountID(value); require.Error(t, err) })
+		t.Run(value, func(t *testing.T) { _, err := ParseCosmosAccountResourceID(value); require.Error(t, err) })
 	}
 }
 
@@ -166,8 +168,8 @@ func TestDiscover(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, "https://account.documents.test/", discovered.Endpoint())
-			require.Equal(t, "account", discovered.DatabaseName())
+			require.Equal(t, "https://account.documents.test/", discovered.Endpoint)
+			require.Equal(t, "account", discovered.DatabaseName)
 		})
 	}
 }

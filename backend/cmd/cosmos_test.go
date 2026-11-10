@@ -36,7 +36,7 @@ func (reader throughputReaderFunc) ContainerThroughput(ctx context.Context, name
 	return reader(ctx, name)
 }
 
-func TestDiscoverStorageOptions(t *testing.T) {
+func TestDiscoverStorageFactoryOptions(t *testing.T) {
 	for _, testCase := range []struct {
 		name                 string
 		controllerContext    app.ControllerContext
@@ -53,7 +53,7 @@ func TestDiscoverStorageOptions(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			var calls []string
-			options, err := discoverStorageOptions(t.Context(), throughputReaderFunc(func(ctx context.Context, name string) (float64, error) {
+			options, err := discoverStorageFactoryOptions(t.Context(), throughputReaderFunc(func(ctx context.Context, name string) (float64, error) {
 				calls = append(calls, name)
 				return map[string]float64{"Resources": testCase.resourcesRU, "Billing": testCase.billingRU, "Fleet": testCase.fleetRU}[name], nil
 			}), testCase.controllerContext)
@@ -81,7 +81,7 @@ func TestDiscoverStorageOptions(t *testing.T) {
 	}
 }
 
-func TestDiscoverStorageOptionsFailsWithoutFallback(t *testing.T) {
+func TestDiscoverStorageFactoryOptionsFailsWithoutFallback(t *testing.T) {
 	containers := []string{"Resources", "Billing", "Fleet"}
 	for index, name := range containers {
 		for _, testCase := range []struct {
@@ -98,7 +98,7 @@ func TestDiscoverStorageOptionsFailsWithoutFallback(t *testing.T) {
 		} {
 			t.Run(name+"/"+testCase.name, func(t *testing.T) {
 				var calls []string
-				options, err := discoverStorageOptions(t.Context(), throughputReaderFunc(func(ctx context.Context, container string) (float64, error) {
+				options, err := discoverStorageFactoryOptions(t.Context(), throughputReaderFunc(func(ctx context.Context, container string) (float64, error) {
 					calls = append(calls, container)
 					if container == name {
 						return testCase.value, testCase.lookupError

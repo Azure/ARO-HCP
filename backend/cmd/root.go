@@ -30,6 +30,8 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
@@ -257,7 +259,7 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--clusters-service-url is required"))
 	}
 
-	if _, err := ParseAccountID(f.CosmosAccountResourceID); err != nil {
+	if _, err := ParseCosmosAccountResourceID(f.CosmosAccountResourceID); err != nil {
 		return utils.TrackError(fmt.Errorf("--cosmos-account-resource-id: %w", err))
 	}
 
@@ -449,7 +451,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
-	defaultAzureCredential, err := newBackendIdentityCredential(azureConfig)
+	defaultAzureCredential, err := newBackendDefaultAzureCredential(azureConfig)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
 	}
@@ -540,7 +542,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		HasRealFPA:               !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
 		OrphanedMRGCleanupConfig: orphanedMRGCleanupConfig,
 	}
-	cosmosAccountDiscoverer, err := NewCosmosAccountDiscoverer(f.CosmosAccountResourceID, defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
+	cosmosAccountResourceID, err := azcorearm.ParseResourceID(f.CosmosAccountResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	cosmosAccountDiscoverer, err := NewCosmosAccountDiscoverer(cosmosAccountResourceID, defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -548,11 +554,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	storageOptions, err := discoverStorageOptions(ctx, discoveredAccount, storageControllerContext)
+	storageOptions, err := discoverStorageFactoryOptions(ctx, discoveredAccount, storageControllerContext)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	storageFactory, err := app.NewStorageFactory(discoveredAccount.Endpoint(), discoveredAccount.DatabaseName(), cosmosclient.Options{ClientOptions: azCoreClientOptions}, storageOptions)
+	storageFactory, err := app.NewStorageFactory(discoveredAccount.Endpoint, discoveredAccount.DatabaseName, cosmosclient.Options{ClientOptions: azCoreClientOptions}, storageOptions)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
