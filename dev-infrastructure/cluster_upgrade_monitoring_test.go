@@ -177,6 +177,10 @@ func TestClusterUpgradeMonitoringModes(t *testing.T) {
 		})
 	}
 	groupNames := map[string]bool{}
+	legacyExpressions := map[string]string{
+		"userJourneyClusterUpgradeStuckInDesired":  `(hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)`,
+		"userJourneyClusterUpgradeStuckInProgress": `(hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)`,
+	}
 	for name, wantName := range map[string]string{
 		"legacyClusterUpgradeAlerts": "rp-user-journey-cluster-upgrade-monitor-rules",
 		"shadowClusterUpgradeAlerts": "shadow-rp-user-journey-cluster-upgrade-monitor-rules-v2",
@@ -202,7 +206,12 @@ func TestClusterUpgradeMonitoringModes(t *testing.T) {
 			if upgradeString(t, rule.Enabled) != "[parameters('alertRulesEnabled')]" {
 				t.Fatalf("%s rule %s ignores the evaluation switch", name, rule.Alert)
 			}
-			if name != "legacyClusterUpgradeAlerts" && rule.Expression != "hosted_control_plane_upgrade:stuck:bool == 1" {
+			if name == "legacyClusterUpgradeAlerts" {
+				expected, found := legacyExpressions[rule.Alert]
+				if !found || rule.Expression != expected {
+					t.Fatalf("legacy rule %s must retain the upstream deleting-state exclusion: %s", rule.Alert, rule.Expression)
+				}
+			} else if rule.Expression != "hosted_control_plane_upgrade:stuck:bool == 1" {
 				t.Fatalf("%s does not consume the shared cluster monitor", name)
 			}
 		}

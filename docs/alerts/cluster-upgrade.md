@@ -213,9 +213,15 @@ will be replayed. Both new detectors use the same recording rule and alert
 definition. Other RP rules and the shared Action Group are unaffected.
 
 The old `userJourneyClusterUpgradeStuckInDesired` and
-`userJourneyClusterUpgradeStuckInProgress` detectors retain their expressions,
-labels and correlation IDs during `legacy` and `shadow`. They do not gain the
-new lifecycle-clear behavior. They remain deployed but are disabled in `active`.
+`userJourneyClusterUpgradeStuckInProgress` detectors retain the current upstream
+per-version expressions, labels and correlation IDs during `legacy` and
+`shadow`, including the deleting-state exclusion from
+[Azure/ARO-HCP#8004](https://github.com/Azure/ARO-HCP/pull/8004).
+That exclusion stops legacy alerts while
+`backend_cluster_provision_state{phase="deleting"} == 1` is observed. It does
+not add the new monitor's durable uninstallation/removal evidence or
+three-observation clearing contract. The legacy groups remain deployed but are
+disabled in `active`.
 Existing incidents do not inherit the new correlation key, and disabling a rule
 must not be assumed to close its existing incidents.
 

@@ -7192,7 +7192,24 @@
           - operator: '>='
             value: 1
         unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+- source: dev-infrastructure/modules/metrics/rules/generatedRPUpgradeAlertingRules.bicep
+  group: rp-user-journey-cluster-upgrade-monitor-rules-v2
+  alert: userJourneyClusterUpgradeStuck
+  occurrence: 1
+  input: hosted_control_plane_upgrade:stuck:bool == 1
+  plan:
+    expression: hosted_control_plane_upgrade:stuck:bool == 1
+    conditions:
+      - expression: hosted_control_plane_upgrade:stuck:bool == 1
+        path: root
+        queries:
+          - expression: hosted_control_plane_upgrade:stuck:bool
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPUpgradeLegacyAlertingRules.bicep
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
@@ -7209,7 +7226,7 @@
           - operator: '>'
             value: 1200
         unsupported: ""
-- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+- source: dev-infrastructure/modules/metrics/rules/generatedRPUpgradeLegacyAlertingRules.bicep
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
@@ -7225,6 +7242,23 @@
         thresholds:
           - operator: '>'
             value: 1800
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPUpgradeShadowAlertingRules.bicep
+  group: shadow-rp-user-journey-cluster-upgrade-monitor-rules-v2
+  alert: userJourneyClusterUpgradeStuck
+  occurrence: 1
+  input: hosted_control_plane_upgrade:stuck:bool == 1
+  plan:
+    expression: hosted_control_plane_upgrade:stuck:bool == 1
+    conditions:
+      - expression: hosted_control_plane_upgrade:stuck:bool == 1
+        path: root
+        queries:
+          - expression: hosted_control_plane_upgrade:stuck:bool
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: fleet/alerts/fleet-prometheusRule.yaml
   group: fleet
@@ -12562,7 +12596,7 @@
           - operator: '>'
             value: 2
         unsupported: ""
-- source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
+- source: observability/alerts/userJourneyClusterUpgradeLegacyMonitor-prometheusRule.yaml
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInDesired
   occurrence: 1
@@ -12585,7 +12619,7 @@
           - operator: '>'
             value: 1200
         unsupported: ""
-- source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
+- source: observability/alerts/userJourneyClusterUpgradeLegacyMonitor-prometheusRule.yaml
   group: rp-user-journey-cluster-upgrade-monitor-rules
   alert: userJourneyClusterUpgradeStuckInProgress
   occurrence: 1
@@ -12607,6 +12641,24 @@
         thresholds:
           - operator: '>'
             value: 1800
+        unsupported: ""
+- source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
+  group: rp-user-journey-cluster-upgrade-monitor-rules-v2
+  alert: userJourneyClusterUpgradeStuck
+  occurrence: 1
+  input: |
+    hosted_control_plane_upgrade:stuck:bool == 1
+  plan:
+    expression: hosted_control_plane_upgrade:stuck:bool == 1
+    conditions:
+      - expression: hosted_control_plane_upgrade:stuck:bool == 1
+        path: root
+        queries:
+          - expression: hosted_control_plane_upgrade:stuck:bool
+            role: signal
+        thresholds:
+          - operator: ==
+            value: 1
         unsupported: ""
 - source: tooling/tenant-quota/alerting.bicep
   group: e2e-expired-resource-group-alerts
