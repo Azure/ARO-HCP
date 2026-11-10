@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
 	github.com/google/go-cmp v0.7.0
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20261026111431-8782e72e5a1f
 	github.com/openshift/hypershift/api v0.0.0-20261002220447-d1eba2a7a57c
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spf13/cobra v1.10.2
