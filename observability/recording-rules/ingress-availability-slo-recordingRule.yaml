@@ -135,10 +135,20 @@ spec:
   # `sum`/`count by (_id, cluster, region)` still rolls the per-HCP total
   # across hosts/instances. The 1m tick matches the ~1/min scrape cadence
   # this file's volume floors assume.
+  #
+  # Split into two groups (fast/medium windows here, slow window below)
+  # because Microsoft.AlertsManagement/prometheusRuleGroups caps Rules.Count
+  # at 20: the 1m-tick pair plus all five windows' succeeded/total/failed/
+  # error_rate would be 22. `errors:ingress_canary:succeeded_1m`/`total_1m`
+  # are duplicated in both groups rather than computed once and shared,
+  # since a rule can only read another rule's current-evaluation output when
+  # both are in the same group (cross-group evaluation order isn't
+  # guaranteed) -- the dedup itself is O(1) per tick, so recomputing it in
+  # the second group costs nothing material.
   - name: arohcp_ingress_availability_slo_windowed_recording_rules
     interval: 1m
     rules:
-    # --- 1m tick (per-sample dedup, computed once and reused by every window) ---
+    # --- 1m tick (per-sample dedup, computed once and reused by every window in this group) ---
     - record: errors:ingress_canary:succeeded_1m
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
@@ -184,6 +194,25 @@ spec:
     - record: errors:ingress_canary:error_rate_1h
       expr: |
         errors:ingress_canary:failed_1h / clamp_min(errors:ingress_canary:total_1h, 1)
+  # ========================================
+  # Ingress Availability SLO Recording Rules: Windowed Errors, slow tier
+  # ========================================
+  # Continuation of the group above, split out solely to stay under the
+  # 20-rules-per-group ARM limit -- see that group's header comment for the
+  # full rationale (MWMBR pairing, per-sample dedup, the windowed-rules
+  # split). errors:ingress_canary:succeeded_1m/total_1m are recomputed here
+  # (same expressions as above) so the 6h/3d windows below can reference
+  # them within this group's own evaluation.
+  - name: arohcp_ingress_availability_slo_windowed_recording_rules_slow
+    interval: 1m
+    rules:
+    # --- 1m tick (duplicated from the group above; see its comment) ---
+    - record: errors:ingress_canary:succeeded_1m
+      expr: |
+        sum by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
+    - record: errors:ingress_canary:total_1m
+      expr: |
+        count by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
     # --- 6h window (medium burn long / slow burn short) ---
     - record: errors:ingress_canary:succeeded_6h
       expr: |
