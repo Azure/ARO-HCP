@@ -39,17 +39,18 @@ import (
 // from environment variables so a misconfigured pod fails fast instead of
 // silently picking up a stale operator-shell value.
 type KubeApplierRootCmdFlags struct {
-	Kubeconfig                  string
-	KubeNamespace               string
-	ManagementClusterResourceID string
-	AzureCosmosDBName           string
-	AzureCosmosDBURL            string
-	AzureCosmosContainerName    string
-	MetricsServerListenAddress  string
-	HealthzServerListenAddress  string
-	LeaderElectionID            string
-	LogVerbosity                int
-	ExitOnPanic                 bool
+	Kubeconfig                   string
+	KubeNamespace                string
+	ManagementClusterResourceID  string
+	AzureCosmosDBName            string
+	AzureCosmosDBURL             string
+	AzureCosmosContainerName     string
+	AzureCosmosContainerMaxScale int32
+	MetricsServerListenAddress   string
+	HealthzServerListenAddress   string
+	LeaderElectionID             string
+	LogVerbosity                 int
+	ExitOnPanic                  bool
 }
 
 func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -62,6 +63,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.AzureCosmosDBName, "cosmos-name", f.AzureCosmosDBName, "Cosmos database name.")
 	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL.")
 	cmd.Flags().StringVar(&f.AzureCosmosContainerName, "cosmos-container", f.AzureCosmosContainerName, "Cosmos container name.")
+	cmd.Flags().Int32Var(&f.AzureCosmosContainerMaxScale, "cosmos-container-max-scale", f.AzureCosmosContainerMaxScale, "Autoscale maximum throughput (RU/s) configured for the Cosmos container.")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress,
 		"Address on which to expose Prometheus metrics.")
 	cmd.Flags().StringVar(&f.HealthzServerListenAddress, "healthz-listen-address", f.HealthzServerListenAddress,
@@ -73,7 +75,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, the process exits on any goroutine panic via apimachinery's HandleCrash.")
 
-	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url", "cosmos-container"} {
+	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url", "cosmos-container", "cosmos-container-max-scale"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			// MarkFlagRequired only fails if the flag does not exist on the command,
 			// which is a programming error in this very function.
@@ -96,6 +98,9 @@ func (f *KubeApplierRootCmdFlags) validate() error {
 	}
 	if len(f.AzureCosmosContainerName) == 0 {
 		return utils.TrackError(fmt.Errorf("--cosmos-container must not be empty"))
+	}
+	if f.AzureCosmosContainerMaxScale <= 0 {
+		return utils.TrackError(fmt.Errorf("--cosmos-container-max-scale must be positive"))
 	}
 	if len(f.KubeNamespace) == 0 {
 		return utils.TrackError(fmt.Errorf("--namespace must not be empty"))
@@ -130,9 +135,7 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions() (*app.Options, error) {
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to parse management cluster resource ID: %w", err))
 	}
-	// Each MC container has 19,000 RU/s. Reserve 50% for this binary; the
-	// backend takes 30%, leaving 20% headroom without an additional discount.
-	const kubeApplierRUsPerSecond = 19000 * 0.5
+	kubeApplierRUsPerSecond := f.cosmosRUsPerSecond()
 	bucket, err := cosmosratelimit.NewTokenBucket("kube-applier", kubeApplierRUsPerSecond, kubeApplierRUsPerSecond)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -156,6 +159,10 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions() (*app.Options, error) {
 		HealthzServerListenAddress: f.HealthzServerListenAddress,
 		ExitOnPanic:                f.ExitOnPanic,
 	}, nil
+}
+
+func (f *KubeApplierRootCmdFlags) cosmosRUsPerSecond() float64 {
+	return float64(f.AzureCosmosContainerMaxScale) * 0.5
 }
 
 func NewKubeApplierRootCmdFlags() *KubeApplierRootCmdFlags {
@@ -187,6 +194,7 @@ func NewCmdRoot() *cobra.Command {
 	# in-cluster kubeconfig.
 	%s --management-cluster ${MANAGEMENT_CLUSTER} \
 		--cosmos-container ${CONTAINER_NAME} \
+		--cosmos-container-max-scale ${COSMOS_CONTAINER_MAX_SCALE} \
 		--cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} \
 		--namespace ${RP_NAMESPACE}
 `, app.AppShortDescriptionName, processName),
