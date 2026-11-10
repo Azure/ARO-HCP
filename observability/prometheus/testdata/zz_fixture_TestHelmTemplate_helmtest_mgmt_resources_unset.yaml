@@ -67786,6 +67786,10 @@ data:
                 namespace:
                 - metadata
                 - namespace
+                schedule:
+                - metadata
+                - labels
+                - velero.io/schedule-name
             type: Info
           help: Backup CR presence indicator, independent of status.phase - one row per
             existing CR
@@ -67832,6 +67836,59 @@ data:
           help: DeleteBackupRequest CR presence indicator, independent of status.phase
             - one row per existing CR
           name: info
+      - groupVersionKind:
+          group: velero.io
+          kind: Schedule
+          version: v1
+        labelsFromPath:
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+          schedule:
+          - metadata
+          - name
+        metricNamePrefix: veleroSchedule
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - Enabled
+              - FailedValidation
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: Schedule phase
+          name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+                schedule:
+                - metadata
+                - name
+            type: Info
+          help: Schedule CR presence indicator - one row per existing Schedule
+          name: info
+        - each:
+            gauge:
+              nilIsZero: true
+              path:
+              - spec
+              - paused
+            type: Gauge
+          help: 1 when Schedule.spec.paused is true, 0 otherwise
+          name: paused
       - groupVersionKind:
           group: cluster.x-k8s.io
           kind: Machine
@@ -68072,6 +68129,13 @@ rules:
   - velero.io
   resources:
   - deletebackuprequests
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - schedules
   verbs:
   - list
   - watch
@@ -71203,6 +71267,34 @@ spec:
   endpoints:
     - port: http
       honorLabels: true
+      metricRelabelings:
+        - action: replace
+          regex: velero\.io;Schedule;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*
+          replacement: ${1}
+          separator: ;
+          sourceLabels:
+          - customresource_group
+          - customresource_kind
+          - name
+          targetLabel: namespace
+        - action: replace
+          regex: velero\.io;Backup;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*
+          replacement: ${1}
+          separator: ;
+          sourceLabels:
+          - customresource_group
+          - customresource_kind
+          - name
+          targetLabel: namespace
+        - action: replace
+          regex: velero\.io;DeleteBackupRequest;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*
+          replacement: ${1}
+          separator: ;
+          sourceLabels:
+          - customresource_group
+          - customresource_kind
+          - backupName
+          targetLabel: namespace
       relabelings:
         - action: replace
           replacement: service
