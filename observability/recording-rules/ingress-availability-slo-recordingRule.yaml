@@ -139,12 +139,15 @@ spec:
   # Split into two groups (fast/medium windows here, slow window below)
   # because Microsoft.AlertsManagement/prometheusRuleGroups caps Rules.Count
   # at 20: the 1m-tick pair plus all five windows' succeeded/total/failed/
-  # error_rate would be 22. `errors:ingress_canary:succeeded_1m`/`total_1m`
-  # are duplicated in both groups rather than computed once and shared,
-  # since a rule can only read another rule's current-evaluation output when
-  # both are in the same group (cross-group evaluation order isn't
-  # guaranteed) -- the dedup itself is O(1) per tick, so recomputing it in
-  # the second group costs nothing material.
+  # error_rate would be 22. The slow group below recomputes its own 1m-tick
+  # pair under distinct names (succeeded_1m_slow/total_1m_slow) rather than
+  # reusing these two -- a rule can only read another rule's current-
+  # evaluation output when both are in the same group, and recording rules
+  # are ingested back into the workspace as real time series, so two
+  # separate prometheusRuleGroups resources both writing the *same* record
+  # name and label set would be two independent writers racing on one
+  # series. Distinct names avoid that; the dedup math itself is O(1) per
+  # tick, so recomputing it in the second group costs nothing material.
   - name: arohcp_ingress_availability_slo_windowed_recording_rules
     interval: 1m
     rules:
@@ -200,26 +203,36 @@ spec:
   # Continuation of the group above, split out solely to stay under the
   # 20-rules-per-group ARM limit -- see that group's header comment for the
   # full rationale (MWMBR pairing, per-sample dedup, the windowed-rules
-  # split). errors:ingress_canary:succeeded_1m/total_1m are recomputed here
-  # (same expressions as above) so the 6h/3d windows below can reference
-  # them within this group's own evaluation.
+  # split).
+  #
+  # This group recomputes its own 1m-tick pair under distinct names
+  # (*_1m_slow, not *_1m) rather than reusing errors:ingress_canary:
+  # succeeded_1m/total_1m from the group above. Recording rules are ingested
+  # back into the Azure Monitor workspace as real time series (not just
+  # evaluated in-memory), so two separate prometheusRuleGroups resources
+  # both writing a record with the *same* name and label set would be two
+  # independent writers targeting one series -- the backend's duplicate-
+  # sample handling for that (reject, last-write-wins, or something else)
+  # isn't something to depend on. Distinct names make each group's pair an
+  # independently-owned series with exactly one writer; the per-tick dedup
+  # math itself is still O(1) and cheap to recompute per group.
   - name: arohcp_ingress_availability_slo_windowed_recording_rules_slow
     interval: 1m
     rules:
-    # --- 1m tick (duplicated from the group above; see its comment) ---
-    - record: errors:ingress_canary:succeeded_1m
+    # --- 1m tick (own copy, distinct names -- see this group's header comment) ---
+    - record: errors:ingress_canary:succeeded_1m_slow
       expr: |
         sum by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
-    - record: errors:ingress_canary:total_1m
+    - record: errors:ingress_canary:total_1m_slow
       expr: |
         count by (_id, cluster, region) (max without (prometheus_replica) (ingress_canary_route_reachable))
     # --- 6h window (medium burn long / slow burn short) ---
     - record: errors:ingress_canary:succeeded_6h
       expr: |
-        sum_over_time(errors:ingress_canary:succeeded_1m[6h])
+        sum_over_time(errors:ingress_canary:succeeded_1m_slow[6h])
     - record: errors:ingress_canary:total_6h
       expr: |
-        sum_over_time(errors:ingress_canary:total_1m[6h])
+        sum_over_time(errors:ingress_canary:total_1m_slow[6h])
     - record: errors:ingress_canary:failed_6h
       expr: |
         errors:ingress_canary:total_6h - errors:ingress_canary:succeeded_6h
@@ -229,10 +242,10 @@ spec:
     # --- 3d window (slow burn, long) ---
     - record: errors:ingress_canary:succeeded_3d
       expr: |
-        sum_over_time(errors:ingress_canary:succeeded_1m[3d])
+        sum_over_time(errors:ingress_canary:succeeded_1m_slow[3d])
     - record: errors:ingress_canary:total_3d
       expr: |
-        sum_over_time(errors:ingress_canary:total_1m[3d])
+        sum_over_time(errors:ingress_canary:total_1m_slow[3d])
     - record: errors:ingress_canary:failed_3d
       expr: |
         errors:ingress_canary:total_3d - errors:ingress_canary:succeeded_3d
