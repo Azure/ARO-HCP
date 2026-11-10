@@ -120,3 +120,27 @@ func formatConditions(conditions []configv1.ClusterOperatorStatusCondition) stri
 func VerifyAllClusterOperatorsAvailable() HostedClusterVerifier {
 	return verifyAllClusterOperatorsAvailableImpl{}
 }
+
+// DegradedClusterOperators returns a snapshot of the ClusterOperators whose Available
+// condition is not True, mapping each operator name to a human-readable condition summary.
+// An empty (non-nil) result means every operator is Available=True.
+func DegradedClusterOperators(ctx context.Context, adminRESTConfig *rest.Config) (map[string]string, error) {
+	configClient, err := configv1client.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ClusterOperators: %w", err)
+	}
+
+	degraded := map[string]string{}
+	for _, co := range clusterOperators.Items {
+		availableCondition := getClusterOperatorCondition(co.Status.Conditions, configv1.OperatorAvailable)
+		if availableCondition == nil || availableCondition.Status != configv1.ConditionTrue {
+			degraded[co.Name] = formatConditions(co.Status.Conditions)
+		}
+	}
+	return degraded, nil
+}

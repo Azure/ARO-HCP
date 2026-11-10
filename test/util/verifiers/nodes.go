@@ -411,22 +411,27 @@ func nodeReadyAndSchedulable(node *corev1.Node) bool {
 	return nodeReady(node) && !node.Spec.Unschedulable
 }
 
-// ocpToK8sMinor maps known OCP 4.x minor versions to the Kubernetes minor version they ship.
+// ocpToK8sMinor maps known OCP major versions to a per-minor map of Kubernetes minor versions.
 // This is an explicit allowlist rather than an arithmetic offset: the OCP-to-Kubernetes minor
 // mapping has held steady at +13 across 4.14-4.22, but that's not a guarantee that holds
 // forever (in particular across an OCP major version bump), so an unlisted OCP version fails
 // loudly here instead of silently producing an unverified expected value. Add an entry whenever
 // we start testing against a new OCP minor.
-var ocpToK8sMinor = map[uint64]uint64{
-	14: 27, // OCP 4.14 = k8s 1.27
-	15: 28, // OCP 4.15 = k8s 1.28
-	16: 29, // OCP 4.16 = k8s 1.29
-	17: 30, // OCP 4.17 = k8s 1.30
-	18: 31, // OCP 4.18 = k8s 1.31
-	19: 32, // OCP 4.19 = k8s 1.32
-	20: 33, // OCP 4.20 = k8s 1.33
-	21: 34, // OCP 4.21 = k8s 1.34
-	22: 35, // OCP 4.22 = k8s 1.35
+var ocpToK8sMinor = map[uint64]map[uint64]uint64{
+	4: {
+		14: 27, // OCP 4.14 = k8s 1.27
+		15: 28, // OCP 4.15 = k8s 1.28
+		16: 29, // OCP 4.16 = k8s 1.29
+		17: 30, // OCP 4.17 = k8s 1.30
+		18: 31, // OCP 4.18 = k8s 1.31
+		19: 32, // OCP 4.19 = k8s 1.32
+		20: 33, // OCP 4.20 = k8s 1.33
+		21: 34, // OCP 4.21 = k8s 1.34
+		22: 35, // OCP 4.22 = k8s 1.35
+	},
+	5: {
+		0: 36, // OCP 5.0 = k8s 1.36 (verified from 5.0.0-rc.7 release stream)
+	},
 }
 
 // nodeVersionInMinor returns a non-empty reason if the node's KubeletVersion minor does not match
@@ -445,15 +450,16 @@ func (v verifyNodePoolUpgrade) nodeVersionInMinor(node *corev1.Node, expectedSem
 			node.Name, kubeletVer, kv.Major)
 	}
 
-	if expectedSemver.Major != 4 {
+	minorMap, ok := ocpToK8sMinor[expectedSemver.Major]
+	if !ok {
 		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP major %d; add it to ocpToK8sMinor in nodes.go)",
 			node.Name, expectedSemver.Major)
 	}
 
-	expectedK8sMinor, ok := ocpToK8sMinor[expectedSemver.Minor]
+	expectedK8sMinor, ok := minorMap[expectedSemver.Minor]
 	if !ok {
-		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP 4.%d; add it to ocpToK8sMinor in nodes.go)",
-			node.Name, expectedSemver.Minor)
+		return fmt.Sprintf("%s (no known Kubernetes minor mapping for OCP %d.%d; add it to ocpToK8sMinor in nodes.go)",
+			node.Name, expectedSemver.Major, expectedSemver.Minor)
 	}
 
 	if kv.Minor != expectedK8sMinor {
