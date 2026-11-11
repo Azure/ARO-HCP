@@ -414,7 +414,7 @@ resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prome
     rules: [
       {
         record: 'latency:ingress_canary:ratio'
-        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="Infinity"}[5m])))) / sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="Infinity"}[5m])))'
+        expression: 'sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m])))) / sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m])))'
       }
       {
         record: 'errors:ingress_canary_latency:error_rate'
@@ -436,11 +436,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
     rules: [
       {
         record: 'errors:ingress_canary_latency:total_5m'
-        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[5m])))'
+        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_5m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[5m]))))'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[5m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m]))))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_5m'
@@ -452,11 +452,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_30m'
-        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[30m])))'
+        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_30m'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[30m]))))'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[30m]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m]))))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_30m'
@@ -468,11 +468,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_1h'
-        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[1h])))'
+        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_1h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[1h]))))'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[1h]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h]))))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_1h'
@@ -484,11 +484,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_6h'
-        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[6h])))'
+        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_6h'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[6h]))))'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[6h]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h]))))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_6h'
@@ -500,11 +500,11 @@ resource arohcpIngressLatencySloWindowedRecordingRules 'Microsoft.AlertsManageme
       }
       {
         record: 'errors:ingress_canary_latency:total_3d'
-        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[3d])))'
+        expression: 'sum by (_id, cluster, region) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d])))'
       }
       {
         record: 'errors:ingress_canary_latency:fast_3d'
-        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="Infinity"}[3d]))))'
+        expression: 'sum by (_id, cluster, region) (increase(ingress_canary_check_duration_bucket{le="200"}[3d]) and on (_id, cluster, region, host, instance, prometheus_replica) (topk by (_id, cluster, region, host, instance) (1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d]))))'
       }
       {
         record: 'errors:ingress_canary_latency:slow_3d'
