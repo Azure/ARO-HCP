@@ -45,12 +45,10 @@ type runFunc func(context.Context, *config.Config, string, updater.ProviderFacto
 
 func newCommand(action string, run runFunc) *cobra.Command {
 	var (
-		configPath      string
-		subscriptionID  string
-		components      []string
-		timeout         time.Duration
-		materialize     = true
-		skipMaterialize bool
+		configPath     string
+		subscriptionID string
+		components     []string
+		timeout        time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -114,11 +112,10 @@ func newCommand(action string, run runFunc) *cobra.Command {
 					return err
 				}
 			}
-			if skipMaterialize {
-				materialize = false
-			}
-			if runErr == nil || hasSuccessfulUpdate(results) {
-				if err := materializeUpdates(cmd.Context(), cfg, configDir, results, materialize, func(ctx context.Context, directory string) error {
+			// check is read-only: it never writes, so it must not report
+			// materialization status at all.
+			if action == "update" && (runErr == nil || hasSuccessfulUpdate(results)) {
+				if err := materializeUpdates(cmd.Context(), cfg, configDir, results, func(ctx context.Context, directory string) error {
 					executable, err := lookPathMake()
 					if err != nil {
 						return err
@@ -150,11 +147,6 @@ func newCommand(action string, run runFunc) *cobra.Command {
 	cmd.Flags().StringVar(&subscriptionID, "subscription-id", "", "Azure subscription ID (or AZURE_SUBSCRIPTION_ID; if omitted, uses the sole Enabled subscription visible to the credential)")
 	cmd.Flags().StringSliceVar(&components, "component", nil, "specific components to check (default: all)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "overall discovery/update deadline, including retries")
-	if action == "update" {
-		cmd.Flags().BoolVar(&materialize, "materialize", true, "run make materialize after a successful source edit (default true)")
-		cmd.Flags().BoolVar(&skipMaterialize, "skip-materialize", false, "edit source configuration only; do not run make materialize")
-	}
-
 	return cmd
 }
 

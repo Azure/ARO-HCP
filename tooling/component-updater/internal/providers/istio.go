@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
@@ -80,15 +80,22 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 	if !ok {
 		return Result{}, fmt.Errorf("invalid configured Istio revision %q", req.Current)
 	}
-	kubernetes := kubernetesVersionPattern.FindStringSubmatch(req.ConstraintVersion)
-	if kubernetes == nil {
-		return Result{}, fmt.Errorf("invalid configured Kubernetes version %q", req.ConstraintVersion)
+	if len(req.ConstraintVersions) == 0 {
+		return Result{}, errors.New("at least one constraint Kubernetes version is required")
+	}
+	var kubeVersions []string
+	for _, constraint := range req.ConstraintVersions {
+		kubernetes := kubernetesVersionPattern.FindStringSubmatch(constraint)
+		if kubernetes == nil {
+			return Result{}, fmt.Errorf("invalid configured Kubernetes version %q", constraint)
+		}
+		kubeVersions = append(kubeVersions, kubernetes[1])
 	}
 	locations := append([]string(nil), req.Locations...)
 	if len(locations) == 0 {
 		return Result{}, fmt.Errorf("at least one discovery location is required")
 	}
-	result := Result{Compatibility: "AKS " + req.ConstraintVersion}
+	result := Result{Compatibility: "AKS " + strings.Join(req.ConstraintVersions, ", ")}
 	discover := slices.Contains(locations, "all")
 	if discover {
 		discovered, err := p.locations(ctx)
@@ -154,7 +161,7 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 	for _, candidate := range candidates {
 		ready := true
 		for _, catalog := range catalogs {
-			if catalog.err != nil || istioUpgradeBlocker(catalog.revisions, req.Current, candidate, kubernetes[1]) != "" {
+			if catalog.err != nil || istioUpgradeBlocker(catalog.revisions, req.Current, candidate, kubeVersions) != "" {
 				ready = false
 				break
 			}
@@ -176,7 +183,7 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 		}
 		compatible := map[string]bool{}
 		for revision, profile := range revisions {
-			if supportsKubernetes(profile, kubernetes[1]) {
+			if supportsAllKubernetes(profile, kubeVersions) {
 				compatible[revision] = true
 				region.Compatible = append(region.Compatible, revision)
 			}
@@ -193,9 +200,9 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 		}
 		source := revisions[req.Current]
 		region.Current = "VALID"
-		if source == nil || !supportsKubernetes(source, kubernetes[1]) {
+		if source == nil || !supportsAllKubernetes(source, kubeVersions) {
 			region.Current = "INVALID"
-			failures = append(failures, fmt.Errorf("%s: configured %s is unavailable or incompatible with AKS %s", location, req.Current, kubernetes[1]))
+			failures = append(failures, fmt.Errorf("%s: configured %s is unavailable or incompatible with AKS %s", location, req.Current, strings.Join(kubeVersions, ", ")))
 		}
 		if source != nil {
 			for _, upgrade := range source.Upgrades {
@@ -206,7 +213,7 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 		}
 		region.Candidate = "READY"
 		region.Detail = "advertised upgrade and Kubernetes compatibility confirmed"
-		if reason := istioUpgradeBlocker(revisions, req.Current, next, kubernetes[1]); reason != "" {
+		if reason := istioUpgradeBlocker(revisions, req.Current, next, kubeVersions); reason != "" {
 			region.Candidate, region.Detail = "BLOCKED", reason
 			blocked = true
 		}
@@ -235,10 +242,10 @@ func (p *IstioProvider) Check(ctx context.Context, req CheckRequest) (Result, er
 	return result, nil
 }
 
-func istioUpgradeBlocker(revisions map[string]*armcontainerservice.MeshRevision, current, candidate, kubernetes string) string {
+func istioUpgradeBlocker(revisions map[string]*armcontainerservice.MeshRevision, current, candidate string, kubeVersions []string) string {
 	source := revisions[current]
 	switch {
-	case source == nil || !supportsKubernetes(source, kubernetes):
+	case source == nil || !supportsAllKubernetes(source, kubeVersions):
 		return "configured revision unavailable or incompatible with configured AKS"
 	case candidate == "":
 		return "no newer revision discovered within n+2"
@@ -246,7 +253,7 @@ func istioUpgradeBlocker(revisions map[string]*armcontainerservice.MeshRevision,
 		return "next revision unavailable"
 	case !contains(source.Upgrades, candidate):
 		return "upgrade path not advertised"
-	case !supportsKubernetes(revisions[candidate], kubernetes):
+	case !supportsAllKubernetes(revisions[candidate], kubeVersions):
 		return "Kubernetes compatibility not confirmed"
 	default:
 		return ""
@@ -349,15 +356,25 @@ func (p *IstioProvider) revisions(ctx context.Context, location string) (map[str
 	return result, nil
 }
 
-func supportsKubernetes(revision *armcontainerservice.MeshRevision, version string) bool {
+// supportsAllKubernetes reports whether the revision's KubernetesOfficial
+// compatibility covers every configured AKS version; a candidate must be
+// compatible with each environment's version, not just the newest default.
+func supportsAllKubernetes(revision *armcontainerservice.MeshRevision, versions []string) bool {
 	// Match the support plan configured in dev-infrastructure/modules/aks-cluster-base.bicep.
-	for _, compatibility := range revision.CompatibleWith {
-		if compatibility != nil && compatibility.Name != nil &&
-			strings.EqualFold(*compatibility.Name, "KubernetesOfficial") && contains(compatibility.Versions, version) {
-			return true
+	for _, version := range versions {
+		supported := false
+		for _, compatibility := range revision.CompatibleWith {
+			if compatibility != nil && compatibility.Name != nil &&
+				strings.EqualFold(*compatibility.Name, "KubernetesOfficial") && contains(compatibility.Versions, version) {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func contains(values []*string, target string) bool {

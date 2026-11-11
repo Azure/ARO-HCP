@@ -36,9 +36,10 @@ func main() {
 		Long: `component-updater is a shared tool for configured ARO-HCP component version
 bumps (providers registered per component; Istio mesh revision is wired today).
 It proposes at most one safe increment per selected component. Check is
-read-only. Update edits local configuration and, by default, runs make
-materialize to regenerate rendered configs and Helm fixtures (use
---skip-materialize to edit source only). Neither command deploys resources.`,
+read-only. Update edits local configuration and always runs make
+materialize to regenerate rendered configs and Helm fixtures; a failure
+exits nonzero so automation never picks up a half-rendered change.
+Neither command deploys resources.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		CompletionOptions: cobra.CompletionOptions{

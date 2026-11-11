@@ -52,7 +52,7 @@ func TestCommandDefersAzureUntilProviderFactory(t *testing.T) {
 	})
 	command.SetOut(&output)
 	command.SetErr(&output)
-	command.SetArgs([]string{"--config", "../config.yaml", "--subscription-id", "fake-sub", "--skip-materialize"})
+	command.SetArgs([]string{"--config", "../config.yaml", "--subscription-id", "fake-sub"})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("paused-only update must not require Azure credentials: %v\n%s", err, output.String())
 	}
@@ -80,12 +80,17 @@ func TestCommandMaterializesSuccessfulWritesOnPartialFailure(t *testing.T) {
 	if err := os.WriteFile(targetPath, []byte("istio: asm-1-29\naks: '1.35'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	// update always materializes; give the temp dir a Makefile so the
+	// materialization step can actually run.
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("materialize:\n\t@:\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(configPath, []byte(`
 components:
   istio:
     provider: azure-istio
     locations: [all]
-    kubernetesVersionPath: aks
+    constraintVersionPath: aks
     targets:
     - jsonPath: istio
       filePath: config.yaml
@@ -102,13 +107,29 @@ components:
 	})
 	command.SetOut(&output)
 	command.SetErr(&output)
-	command.SetArgs([]string{"--config", configPath, "--subscription-id", "fake-sub", "--skip-materialize"})
+	command.SetArgs([]string{"--config", configPath, "--subscription-id", "fake-sub"})
 	err := command.Execute()
 	if err == nil || !strings.Contains(err.Error(), "other component failed") {
 		t.Fatalf("partial failure must still be returned: %v", err)
 	}
-	if !strings.Contains(output.String(), "Run: make") {
-		t.Fatalf("successful writes must print materialization recovery instructions: %s", output.String())
+	if !strings.Contains(output.String(), "Materialization completed.") {
+		t.Fatalf("successful writes must still be materialized on partial failure: %s", output.String())
+	}
+}
+
+func TestCommandCheckDoesNotReportMaterialization(t *testing.T) {
+	var output bytes.Buffer
+	command := newCommand("check", func(_ context.Context, _ *config.Config, _ string, _ updater.ProviderFactory, _ []string) ([]updater.ComponentResult, error) {
+		return []updater.ComponentResult{{Name: "istio", Detail: "compatible"}}, nil
+	})
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"--config", "../config.yaml", "--subscription-id", "fake-sub"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "Materialization") {
+		t.Fatalf("read-only check must not report materialization status: %s", output.String())
 	}
 }
 

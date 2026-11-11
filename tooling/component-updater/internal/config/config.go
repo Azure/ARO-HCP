@@ -31,11 +31,23 @@ type Config struct {
 }
 
 type ComponentConfig struct {
-	Provider              string   `yaml:"provider"`
-	Paused                bool     `yaml:"paused"`
-	Locations             []string `yaml:"locations"`
-	Targets               []Target `yaml:"targets"`
-	KubernetesVersionPath string   `yaml:"kubernetesVersionPath"`
+	Provider  string   `yaml:"provider"`
+	Paused    bool     `yaml:"paused"`
+	Locations []string `yaml:"locations"`
+	Targets   []Target `yaml:"targets"`
+	// ConstraintVersionPath points at a second configured value in the target
+	// file that constrains candidate selection. Its meaning is
+	// provider-specific (for azure-istio: the configured AKS version); the
+	// live value is always included in the constraint set.
+	ConstraintVersionPath string `yaml:"constraintVersionPath"`
+	// ConstraintVersions lists additional constraint values a candidate must
+	// satisfy, beyond the live value read from ConstraintVersionPath. Use it
+	// to cover values pinned by out-of-repo overlays (for example sdp-pipelines
+	// pinning INT/STG/PROD AKS below the in-repo default). Entries that drift
+	// stale fail discovery instead of lingering silently: an entry equal to
+	// the live value is rejected here, and providers fail when the current
+	// version no longer satisfies a pinned entry.
+	ConstraintVersions []string `yaml:"constraintVersions"`
 }
 
 type Target struct {
@@ -90,8 +102,18 @@ func validateComponent(name string, comp ComponentConfig) error {
 		if len(comp.Locations) == 0 {
 			return fmt.Errorf("component %q: at least one location is required", name)
 		}
-		if comp.KubernetesVersionPath == "" {
-			return fmt.Errorf("component %q: kubernetesVersionPath is required", name)
+		if comp.ConstraintVersionPath == "" {
+			return fmt.Errorf("component %q: constraintVersionPath is required", name)
+		}
+		seenVersions := map[string]bool{}
+		for _, version := range comp.ConstraintVersions {
+			if strings.TrimSpace(version) == "" {
+				return fmt.Errorf("component %q: constraintVersions must not contain empty entries", name)
+			}
+			if seenVersions[version] {
+				return fmt.Errorf("component %q: duplicate constraintVersions entry %q", name, version)
+			}
+			seenVersions[version] = true
 		}
 		seen := map[string]bool{}
 		for _, location := range comp.Locations {

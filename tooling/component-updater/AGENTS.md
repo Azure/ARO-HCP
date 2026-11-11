@@ -38,8 +38,9 @@ go run . check --config config.yaml --component <component> --timeout 5m
 go run . update --config config.yaml --component <component> --timeout 5m
 ```
 
-`update` materializes by default after a successful source edit. Use
-`--skip-materialize` only to inspect the source edit first.
+`update` always materializes after a successful source edit: a source bump
+without its rendered artifacts is a half-written state. Use `check` to inspect
+a prospective bump without writing anything.
 
 Repo-root: `make component-updater-check` / `make component-updater-update`
 with `COMPONENT` (and `SUBSCRIPTION_ID` only if auto-discovery is ambiguous).
@@ -57,6 +58,20 @@ A tooling-only change (no version bump) does not need rendered config churn.
 4. Clear `paused` when automatic bumps should resume.
 
 `check` still works while paused.
+
+### Pinned constraint versions (any component using `constraintVersions`)
+
+`constraintVersions` lists values this repo cannot read (for Istio: AKS
+versions pinned by the sdp-pipelines overlay in INT/STG/PROD). It is maintained
+by hand, so it can drift:
+
+- Update the list **in the same change** as the overlay pin it mirrors.
+- Stale entries fail closed instead of lingering: an entry equal to the live
+  value (overlay caught up with the in-repo default) is rejected at discovery,
+  and discovery fails when the current version no longer supports a pinned
+  entry (the pinned environment cannot still be running it).
+- The one drift the tool cannot detect: the overlay moved but the pinned entry
+  is still independently plausible. When touching either side, verify both.
 
 ## Istio-only rules (`istio-mesh-revision`)
 

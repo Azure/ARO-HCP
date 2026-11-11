@@ -29,7 +29,7 @@ func TestLoadValidationErrors(t *testing.T) {
   istio:
     provider: azure-istio
     locations: [westus3]
-    kubernetesVersionPath: defaults.svc.aks.kubernetesVersion
+    constraintVersionPath: defaults.svc.aks.kubernetesVersion
     targets:
     - jsonPath: defaults.svc.istio.versions
       filePath: ../../config/config.yaml
@@ -42,7 +42,7 @@ func TestLoadValidationErrors(t *testing.T) {
 		{"missing locations", "    locations: [westus3]\n", "", "at least one location"},
 		{"duplicate locations", "[westus3]", "[westus3, westus3]", "empty or duplicate location"},
 		{"missing targets", "    targets:\n    - jsonPath: defaults.svc.istio.versions\n      filePath: ../../config/config.yaml\n", "", "exactly one target"},
-		{"missing AKS path", "    kubernetesVersionPath: defaults.svc.aks.kubernetesVersion\n", "", "kubernetesVersionPath is required"},
+		{"missing AKS path", "    constraintVersionPath: defaults.svc.aks.kubernetesVersion\n", "", "constraintVersionPath is required"},
 		{"unknown field", "components:", "unknown: true\ncomponents:", "field unknown not found"},
 		{"invalid pause flag", "    provider:", "    paused: invalid\n    provider:", "cannot unmarshal"},
 	}

@@ -51,7 +51,7 @@ func setup(t *testing.T) (string, *config.Config) {
 	}
 	return dir, &config.Config{Components: map[string]config.ComponentConfig{
 		"istio": {
-			Provider: "azure-istio", Locations: []string{"all"}, KubernetesVersionPath: "aks",
+			Provider: "azure-istio", Locations: []string{"all"}, ConstraintVersionPath: "aks",
 			Targets: []config.Target{{FilePath: "versions.yaml", JsonPath: "istio"}},
 		},
 	}}
@@ -233,8 +233,8 @@ func TestUpdateRejectsConstraintChangeDuringDiscovery(t *testing.T) {
 	dir, cfg := setup(t)
 	path := filepath.Join(dir, "versions.yaml")
 	provider := providerFunc(func(_ context.Context, req providers.CheckRequest) (providers.Result, error) {
-		if req.ConstraintVersion != "1.35" {
-			t.Fatalf("unexpected discovery constraint: %q", req.ConstraintVersion)
+		if len(req.ConstraintVersions) != 1 || req.ConstraintVersions[0] != "1.35" {
+			t.Fatalf("unexpected discovery constraint: %q", req.ConstraintVersions)
 		}
 		if err := os.WriteFile(path, []byte("istio: asm-1-29\naks: '1.36'\n"), 0600); err != nil {
 			t.Fatal(err)
@@ -248,6 +248,52 @@ func TestUpdateRejectsConstraintChangeDuringDiscovery(t *testing.T) {
 	current, readErr := config.ReadCurrentVersion(path, "istio")
 	if readErr != nil || current != "asm-1-29" {
 		t.Fatalf("constraint drift must not write mesh revision: %q, %v", current, readErr)
+	}
+}
+
+func TestCheckMergesConfiguredConstraintVersions(t *testing.T) {
+	dir, cfg := setup(t)
+	istio := cfg.Components["istio"]
+	istio.ConstraintVersions = []string{"1.34", "1.36"}
+	cfg.Components["istio"] = istio
+	var got providers.CheckRequest
+	provider := providerFunc(func(_ context.Context, req providers.CheckRequest) (providers.Result, error) {
+		got = req
+		return providers.Result{Next: "asm-1-30", Detail: "compatible"}, nil
+	})
+	if _, err := Check(context.Background(), cfg, dir, fixed(provider), nil); err != nil {
+		t.Fatal(err)
+	}
+	// The live value read from the target file leads; pinned literals follow.
+	want := []string{"1.35", "1.34", "1.36"}
+	if len(got.ConstraintVersions) != len(want) {
+		t.Fatalf("unexpected constraints: %q", got.ConstraintVersions)
+	}
+	for i := range want {
+		if got.ConstraintVersions[i] != want[i] {
+			t.Fatalf("unexpected constraints: %q", got.ConstraintVersions)
+		}
+	}
+}
+
+// A pinned literal that matches the live value means the overlay it tracked
+// has caught up; the stale entry must fail discovery so it gets removed.
+func TestCheckFailsOnStaleConstraintEntry(t *testing.T) {
+	dir, cfg := setup(t)
+	istio := cfg.Components["istio"]
+	istio.ConstraintVersions = []string{"1.35"}
+	cfg.Components["istio"] = istio
+	called := false
+	provider := providerFunc(func(_ context.Context, _ providers.CheckRequest) (providers.Result, error) {
+		called = true
+		return providers.Result{Next: "asm-1-30"}, nil
+	})
+	results, err := Check(context.Background(), cfg, dir, fixed(provider), nil)
+	if err == nil || results[0].Error == nil || !strings.Contains(results[0].Error.Error(), "stale constraintVersions entry") {
+		t.Fatalf("entry equal to the live value must fail: %+v, %v", results, err)
+	}
+	if called {
+		t.Fatal("stale entries must fail before discovery runs")
 	}
 }
 
@@ -270,7 +316,7 @@ func TestCheckRequestPassesOnlyConfiguredFields(t *testing.T) {
 	if _, err := Check(context.Background(), cfg, dir, fixed(provider), nil); err != nil {
 		t.Fatal(err)
 	}
-	if got.Current != "10.0.0" || len(got.Locations) != 0 || got.ConstraintVersion != "" {
+	if got.Current != "10.0.0" || len(got.Locations) != 0 || len(got.ConstraintVersions) != 0 {
 		t.Fatalf("non-Istio components must not invent locations or constraints: %+v", got)
 	}
 }

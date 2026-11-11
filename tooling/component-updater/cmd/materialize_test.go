@@ -29,16 +29,15 @@ import (
 func TestMaterializeUpdates(t *testing.T) {
 	failure := errors.New("materialize failed\nmake: *** [materialize] Error 2")
 	for _, tt := range []struct {
-		name             string
-		enabled, updated bool
-		runError         error
-		wantCalls        int
-		wantMessage      string
+		name      string
+		updated   bool
+		runError  error
+		wantCalls int
+		wantMsg   string
 	}{
-		{"skip materialize prints instructions", false, true, nil, 0, "Run: make"},
-		{"no change", true, false, nil, 0, "Materialization skipped: no source configuration changes."},
-		{"successful materialization stays quiet", true, true, nil, 1, "Materialization completed"},
-		{"failed materialization keeps recovery command", true, true, failure, 1, ""},
+		{"no change", false, nil, 0, "Materialization skipped: no source configuration changes."},
+		{"successful materialization stays quiet", true, nil, 1, "Materialization completed"},
+		{"failed materialization keeps recovery command", true, failure, 1, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{Components: map[string]config.ComponentConfig{
@@ -47,7 +46,7 @@ func TestMaterializeUpdates(t *testing.T) {
 			results := []updater.ComponentResult{{Name: "istio", Updated: tt.updated}}
 			var output bytes.Buffer
 			calls := 0
-			err := materializeUpdates(context.Background(), cfg, "root", results, tt.enabled, func(_ context.Context, directory string) error {
+			err := materializeUpdates(context.Background(), cfg, "root", results, func(_ context.Context, directory string) error {
 				calls++
 				if directory != filepath.Join("root", "config") {
 					t.Fatalf("wrong materialization directory: %s", directory)
@@ -63,10 +62,10 @@ func TestMaterializeUpdates(t *testing.T) {
 			if calls != tt.wantCalls {
 				t.Fatalf("unexpected materialization calls: got %d want %d", calls, tt.wantCalls)
 			}
-			if tt.wantMessage == "" && tt.runError == nil && output.Len() != 0 {
+			if tt.wantMsg == "" && tt.runError == nil && output.Len() != 0 {
 				t.Fatalf("unexpected materialization output: %s", &output)
 			}
-			if tt.wantMessage != "" && !strings.Contains(output.String(), tt.wantMessage) {
+			if tt.wantMsg != "" && !strings.Contains(output.String(), tt.wantMsg) {
 				t.Fatalf("unexpected materialization output: %s", &output)
 			}
 			if err != nil && (!strings.Contains(err.Error(), "source configuration was updated") || !strings.Contains(err.Error(), "rerun make")) {

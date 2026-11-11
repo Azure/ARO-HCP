@@ -33,15 +33,17 @@ type ComponentResult struct {
 	Candidate     string
 	Next          string
 	Compatibility string
-	// ConstraintVersion is the configured constraint read at discovery time
-	// (for example the AKS kubernetes version). Empty when unused.
-	ConstraintVersion string
-	Locations         []string
-	Detail            string
-	Error             error
-	Regions           []providers.RegionResult
-	Updated           bool
-	Paused            bool
+	// ConstraintVersions holds the constraint values read at discovery time
+	// (for example every AKS kubernetes version the environments run). The
+	// first entry is read from the target file; the rest are configured
+	// literals. Empty when unused.
+	ConstraintVersions []string
+	Locations          []string
+	Detail             string
+	Error              error
+	Regions            []providers.RegionResult
+	Updated            bool
+	Paused             bool
 }
 
 // ProviderFactory resolves a VersionProvider for a component's configured
@@ -140,14 +142,26 @@ func checkComponent(ctx context.Context, name string, comp config.ComponentConfi
 		Current:   current,
 		Locations: comp.Locations,
 	}
-	if comp.KubernetesVersionPath != "" {
-		constraint, err := config.ReadCurrentVersion(filePath, comp.KubernetesVersionPath)
+	if comp.ConstraintVersionPath != "" {
+		constraint, err := config.ReadCurrentVersion(filePath, comp.ConstraintVersionPath)
 		if err != nil {
 			result.Error = fmt.Errorf("reading constraint version: %w", err)
 			return result
 		}
-		req.ConstraintVersion = constraint
-		result.ConstraintVersion = constraint
+		// The live value always leads; configured literals (values pinned by
+		// out-of-repo overlays) extend the set a candidate must satisfy. A
+		// literal that matches the live value means the overlay it tracked has
+		// caught up: fail loudly so the stale entry is removed instead of
+		// silently deduplicated and forgotten.
+		req.ConstraintVersions = []string{constraint}
+		for _, version := range comp.ConstraintVersions {
+			if version == constraint {
+				result.Error = fmt.Errorf("stale constraintVersions entry %q equals the live value at %s; remove it from the component-updater configuration", version, comp.ConstraintVersionPath)
+				return result
+			}
+			req.ConstraintVersions = append(req.ConstraintVersions, version)
+		}
+		result.ConstraintVersions = req.ConstraintVersions
 	}
 	discovery, err := provider.Check(ctx, req)
 	result.Compatibility = discovery.Compatibility
@@ -200,15 +214,15 @@ func Update(ctx context.Context, cfg *config.Config, configDir string, factory P
 		comp := cfg.Components[r.Name]
 		target := comp.Targets[0]
 		filePath := resolveFilePath(configDir, target.FilePath)
-		if comp.KubernetesVersionPath != "" {
-			constraint, err := config.ReadCurrentVersion(filePath, comp.KubernetesVersionPath)
+		if comp.ConstraintVersionPath != "" {
+			constraint, err := config.ReadCurrentVersion(filePath, comp.ConstraintVersionPath)
 			if err != nil {
 				results[i].Error = fmt.Errorf("re-reading constraint version before write: %w", err)
 				failures = append(failures, results[i].Error)
 				continue
 			}
-			if constraint != r.ConstraintVersion {
-				results[i].Error = fmt.Errorf("constraint %q changed since discovery (was %q, now %q); refusing to write", comp.KubernetesVersionPath, r.ConstraintVersion, constraint)
+			if len(r.ConstraintVersions) == 0 || constraint != r.ConstraintVersions[0] {
+				results[i].Error = fmt.Errorf("constraint %q changed since discovery (was %q, now %q); refusing to write", comp.ConstraintVersionPath, r.ConstraintVersions, constraint)
 				failures = append(failures, results[i].Error)
 				continue
 			}

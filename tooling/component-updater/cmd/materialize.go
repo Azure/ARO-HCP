@@ -24,7 +24,11 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/component-updater/internal/updater"
 )
 
-func materializeUpdates(ctx context.Context, cfg *config.Config, configDir string, results []updater.ComponentResult, enabled bool, run func(context.Context, string) error, output io.Writer) error {
+// materializeUpdates runs `make materialize` once per directory that received
+// a source edit. update always materializes: a source edit without its
+// rendered artifacts is a half-written state, and read-only inspection is
+// what check is for.
+func materializeUpdates(ctx context.Context, cfg *config.Config, configDir string, results []updater.ComponentResult, run func(context.Context, string) error, output io.Writer) error {
 	seen := map[string]bool{}
 	for _, result := range results {
 		if !result.Updated || result.Error != nil {
@@ -39,12 +43,6 @@ func materializeUpdates(ctx context.Context, cfg *config.Config, configDir strin
 			continue
 		}
 		seen[directory] = true
-		if !enabled {
-			if _, err := fmt.Fprintf(output, "Source configuration updated. Run: make -C %q materialize\n", directory); err != nil {
-				return err
-			}
-			continue
-		}
 		if err := run(ctx, directory); err != nil {
 			return fmt.Errorf("source configuration was updated, but materialization failed; rerun make -C %q materialize: %w", directory, err)
 		}
@@ -52,7 +50,7 @@ func materializeUpdates(ctx context.Context, cfg *config.Config, configDir strin
 			return err
 		}
 	}
-	if enabled && len(seen) == 0 {
+	if len(seen) == 0 {
 		_, err := fmt.Fprintln(output, "Materialization skipped: no source configuration changes.")
 		return err
 	}

@@ -105,7 +105,7 @@ func TestIstioDiscovery(t *testing.T) {
 			p := testProvider(t, func(request *http.Request) (*http.Response, error) {
 				return response(request, 200, tt.body), nil
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: tt.current, Locations: []string{"uksouth"}, ConstraintVersion: tt.kubernetes})
+			result, err := p.Check(context.Background(), CheckRequest{Current: tt.current, Locations: []string{"uksouth"}, ConstraintVersions: []string{tt.kubernetes}})
 			if (err != nil) != tt.wantError || result.Next != tt.want {
 				t.Fatalf("got %+v, %v; want next %q, error %v", result, err, tt.want, tt.wantError)
 			}
@@ -113,6 +113,29 @@ func TestIstioDiscovery(t *testing.T) {
 				t.Fatalf("missing provider-specific compatibility context: %+v", result)
 			}
 		})
+	}
+}
+
+// A candidate compatible with the in-repo default AKS version but not with a
+// version pinned by an out-of-repo overlay must be rejected (review feedback:
+// sdp-pipelines pins INT/STG/PROD below the default).
+func TestIstioRejectsCandidateIncompatibleWithAnyConfiguredVersion(t *testing.T) {
+	body := `{"value":[{"name":"istio","properties":{"meshRevisions":[
+		{"revision":"asm-1-29","upgrades":["asm-1-30"],"compatibleWith":[{"name":"KubernetesOfficial","versions":["1.35","1.36"]}]},
+		{"revision":"asm-1-30","compatibleWith":[{"name":"KubernetesOfficial","versions":["1.36"]}]}
+	]}}]}`
+	p := testProvider(t, func(request *http.Request) (*http.Response, error) {
+		return response(request, 200, body), nil
+	})
+	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.36", "1.35"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Next != "" {
+		t.Fatalf("candidate supporting only 1.36 must not be selected while 1.35 is pinned: %+v", result)
+	}
+	if result.Compatibility != "AKS 1.36, 1.35" {
+		t.Fatalf("compatibility must list every constraint: %+v", result)
 	}
 }
 
@@ -143,7 +166,7 @@ func TestDiscoveredCandidatesStayWithinTwoMinors(t *testing.T) {
 				}
 				return response(request, 200, body), nil
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-30", Locations: []string{"westus3", "uksouth"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-30", Locations: []string{"westus3", "uksouth"}, ConstraintVersions: []string{"1.35"}})
 			if err != nil || result.Candidate != tt.candidate || result.Next != tt.next {
 				t.Fatalf("unexpected discovered selection: %+v, %v; want candidate %q, next %q", result, err, tt.candidate, tt.next)
 			}
@@ -175,7 +198,7 @@ func TestDiscoveredRegionsMustAgree(t *testing.T) {
 		}
 		return response(request, 200, body), nil
 	})
-	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-30", Locations: []string{"all"}, ConstraintVersion: "1.35"})
+	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-30", Locations: []string{"all"}, ConstraintVersions: []string{"1.35"}})
 	if err != nil || result.Next != "" || strings.Join(result.Available, ",") != "asm-1-30" {
 		t.Fatalf("EUAP-only revision should not be proposed: %+v, %v", result, err)
 	}
@@ -212,7 +235,7 @@ func TestRetryAndErrors(t *testing.T) {
 				}
 				return response(request, 200, profile(`["asm-1-30"]`, `["1.35"]`)), nil
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 			if status == 403 {
 				if err == nil || calls != 1 {
 					t.Fatalf("permission error was retried or swallowed: calls=%d, err=%v", calls, err)
@@ -266,7 +289,7 @@ func TestDroppedConnectionUsesNewConnection(t *testing.T) {
 			})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 			if (err == nil) != recover || connections.Load() != 2 || requests.Load() != 2 {
 				t.Fatalf("broken connection recovery failed: connections=%d, requests=%d, result=%+v, err=%v", connections.Load(), requests.Load(), result, err)
 			}
@@ -290,7 +313,7 @@ func TestDefaultRetryBudgetIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 	if err == nil || result.Next != "" || calls != 4 {
 		t.Fatalf("expected one attempt plus three retries, then no proposal: calls=%d, result=%+v, err=%v", calls, result, err)
 	}
@@ -314,7 +337,7 @@ func TestPerTryTimeoutCanRecover(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+	result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 	if err != nil || result.Next != "asm-1-30" || calls != 2 {
 		t.Fatalf("per-try timeout did not recover within the run deadline: calls=%d, result=%+v, err=%v", calls, result, err)
 	}
@@ -349,7 +372,7 @@ func TestSubscriptionDiscovery(t *testing.T) {
 				}
 				return response(request, 200, profile(`["asm-1-30"]`, `["1.35"]`)), nil
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersions: []string{"1.35"}})
 			if (err != nil) != tt.wantError || len(result.Regions) != 2 {
 				t.Fatalf("unexpected subscription discovery: %+v, %v", result, err)
 			}
@@ -371,7 +394,7 @@ func TestSubscriptionDiscoveryFailsClosed(t *testing.T) {
 			p := testProvider(t, func(request *http.Request) (*http.Response, error) {
 				return response(request, 200, body), nil
 			})
-			if result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersion: "1.35"}); err == nil || result.Next != "" {
+			if result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersions: []string{"1.35"}}); err == nil || result.Next != "" {
 				t.Fatalf("invalid discovery should fail: %+v, %v", result, err)
 			}
 		})
@@ -419,7 +442,7 @@ func TestMeshSupportedLocationDiscovery(t *testing.T) {
 					return response(request, 200, profile(`["asm-1-30"]`, `["1.35"]`)), nil
 				}
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersions: []string{"1.35"}})
 			wantNext, wantCatalogs, wantMetadataCalls := "asm-1-30", int32(2), 1
 			if tt.wantError {
 				wantNext, wantCatalogs = "", 0
@@ -453,7 +476,7 @@ func TestSubscriptionLocationRetries(t *testing.T) {
 				catalogCalls.Add(1)
 				return response(request, 200, profile(`["asm-1-30"]`, `["1.35"]`)), nil
 			})
-			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersion: "1.35"})
+			result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"all"}, ConstraintVersions: []string{"1.35"}})
 			wantNext, wantCatalogs := "", int32(0)
 			if recover {
 				wantNext, wantCatalogs = "asm-1-30", 1
@@ -483,7 +506,7 @@ func TestMeshCatalogPagination(t *testing.T) {
 		}
 		return response(request, 200, body), nil
 	})
-	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+	result, err := p.Check(context.Background(), CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 	if err != nil || calls != 2 || result.Next != "asm-1-30" {
 		t.Fatalf("paginated catalog was not fully read: calls=%d, result=%+v, err=%v", calls, result, err)
 	}
@@ -523,7 +546,7 @@ func TestParallelDiscoveryIsBounded(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: locations, ConstraintVersion: "1.35"})
+		result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: locations, ConstraintVersions: []string{"1.35"}})
 		if err == nil && (result.Next != "asm-1-30" || len(result.Regions) != len(locations)) {
 			err = fmt.Errorf("unexpected discovery: %+v", result)
 		}
@@ -558,7 +581,7 @@ func TestDiscoveryCancellationStopsRetries(t *testing.T) {
 		cancel()
 		return nil, request.Context().Err()
 	})
-	result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"})
+	result, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}})
 	if !errors.Is(err, context.Canceled) || calls != 1 || result.Next != "" {
 		t.Fatalf("canceled discovery must stop retries and proposals: calls=%d, result=%+v, err=%v", calls, result, err)
 	}
@@ -579,7 +602,7 @@ func TestRetryAfterRespectsDeadline(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersion: "1.35"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := p.Check(ctx, CheckRequest{Current: "asm-1-29", Locations: []string{"uksouth"}, ConstraintVersions: []string{"1.35"}}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline while respecting Retry-After: %v", err)
 	}
 	if calls != 1 {

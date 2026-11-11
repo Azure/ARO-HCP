@@ -60,8 +60,7 @@ git diff -- ../../config/config.yaml ../../config/rendered
 | Command | Writes `config/config.yaml`? | Runs `make materialize`? |
 | --- | --- | --- |
 | `check` | no | no |
-| `update` (default) | yes, if a bump is selected | **yes** (after a successful source edit) |
-| `update --skip-materialize` | yes, if a bump is selected | no — prints `make -C … materialize` to run yourself |
+| `update` | yes, if a bump is selected | **yes** (after a successful source edit) |
 
 Materialization needs GNU Make 4.x. It is skipped when discovery fails or no
 source value changed. On success it prints a one-line confirmation and hides
@@ -80,8 +79,8 @@ and Helm fixtures together. A tooling-only change does not require a version bum
 digest bump you still run `make -C config materialize` (documented in
 `tooling/image-updater/AGENTS.md`). This component-updater runs that step by
 default on `update` so a local Istio bump produces a complete, reviewable diff
-in one command. Use `--skip-materialize` only when you want to inspect the
-source edit before rendering.
+in one command. To inspect a prospective bump without writing anything, run
+`check`.
 
 ## Configuration
 
@@ -93,7 +92,8 @@ component name selectable with `--component`. Fields:
 | `provider` | yes | `azure-istio` today; future values register in `providers.New` |
 | `targets` | yes | Exactly one `{jsonPath, filePath}` for now |
 | `locations` | Istio | Use `[all]` for update; subsets are check-only |
-| `kubernetesVersionPath` | Istio | Path to configured AKS version used for compatibility |
+| `constraintVersionPath` | provider-specific | Path to a second configured value that constrains candidates (for Istio: the AKS version); the live value is always checked |
+| `constraintVersions` | no | Extra constraint values a candidate must also support — list values pinned by out-of-repo overlays (sdp-pipelines pins INT/STG/PROD AKS below the in-repo default). Maintained by hand: update it in the same change as the overlay. Stale entries fail closed — an entry equal to the live value is rejected at discovery, and discovery fails when the current version no longer supports a pinned entry |
 | `paused` | no | `update` skips discovery/writes; `check` still works |
 
 ## Selection and safety (Istio)

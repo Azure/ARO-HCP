@@ -37,9 +37,12 @@ type CheckRequest struct {
 	// Locations optionally scopes regional discovery. Empty for non-regional providers.
 	Locations []string
 
-	// ConstraintVersion is an optional second configured value some providers
-	// use when selecting a candidate (for azure-istio: the configured AKS version).
-	ConstraintVersion string
+	// ConstraintVersions is an optional set of configured values some providers
+	// use when selecting a candidate (for azure-istio: every AKS version the
+	// managed environments run). The first entry is read live from the target
+	// configuration; the rest are pinned literals from the updater config.
+	// A candidate must satisfy all of them.
+	ConstraintVersions []string
 }
 
 // UpdateRequest carries pre-write validation inputs. Providers ignore unused fields.
