@@ -57,6 +57,31 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestNodePoolUpdateDesiredVersionRejectsMalformedVersion(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"", "not-a-version", "4.20"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			fixture := operationtesting.NewNodePoolTestFixture()
+			nodePool := fixture.NewNodePool()
+			nodePool.Properties.Version.ID = version
+			serviceProviderNodePool := fixture.NewServiceProviderNodePool()
+			serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion = ptr.To(semver.MustParse("4.20.0"))
+			check := &nodePoolUpdateDesiredVersionCheck{
+				nodePoolLister: &corelistertesting.SliceNodePoolLister{
+					NodePools: []*coreapi.NodePool{nodePool},
+				},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{
+					ServiceProviderNodePools: []*coreapi.ServiceProviderNodePool{serviceProviderNodePool},
+				},
+			}
+			state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), nil)
+			require.ErrorContains(t, err, fmt.Sprintf("failed to parse node pool version %q", version))
+			assert.Nil(t, state)
+		})
+	}
+}
+
 func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewNodePoolTestFixture()
@@ -538,6 +563,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)
 				controller.desiredVersionMismatchFirstSeen.Add(strings.ToLower(tc.existingOperation.ResourceID.String()), tc.seedMismatchFirstSeenAt)

@@ -50,6 +50,50 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	csCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+	check := &clusterUpdateClusterServiceStatusCheck{
+		clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(
+		t.Context(),
+		fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate),
+		clusterUpdateOperationStatusInput{
+			ClusterServiceOnceGetter: func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+				return csCluster, nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, coreapi.ProvisioningStateUpdating, state.ProvisioningState)
+	assert.Contains(t, state.Message, "cluster service ID is not set")
+}
+
+// spcListerForCluster returns a ServiceProviderCluster slice lister keyed so that
+// it resolves for the given cluster. The check reads the ServiceProviderCluster
+// from this lister (not from the operation status input), so its resource ID must
+// be the ServiceProviderCluster child of the cluster's resource ID.
+func spcListerForCluster(clusterID *azcorearm.ResourceID, spc *coreapi.ServiceProviderCluster) *corelistertesting.SliceServiceProviderClusterLister {
+	if spc == nil {
+		return &corelistertesting.SliceServiceProviderClusterLister{}
+	}
+	spc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		clusterID.String(),
+		coreapi.ServiceProviderClusterResourceTypeName,
+		coreapi.ServiceProviderClusterResourceName,
+	)))
+	return &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}}
+}
+
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 	for _, tc := range []struct {
 		name, desired, pin, exact string
@@ -78,11 +122,13 @@ func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 			}
 			// No DB client: resolution must not read or create a legacy controller
 			// document now that the rollout controllers own desired versions.
-			syncer := &operationClusterUpdate{
+			syncer := &clusterUpdateDesiredVersionCheck{
+				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister:    spcListerForCluster(cluster.ID, spc),
 				clock:                           clocktesting.NewFakeClock(time.Now()),
 				desiredVersionMismatchFirstSeen: lru.New(10),
 			}
-			state, err := syncer.desiredVersionResolutionOperationState(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), cluster, spc)
+			state, err := syncer.CalculateOperationStatus(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, state.ProvisioningState)
 		})
@@ -935,6 +981,8 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)
 				controller.desiredVersionMismatchFirstSeen.Add(tc.existingOperation.ResourceID.String(), tc.seedMismatchFirstSeenAt)

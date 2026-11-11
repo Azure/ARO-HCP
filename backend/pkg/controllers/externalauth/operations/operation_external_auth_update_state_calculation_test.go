@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -177,13 +178,14 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			controller := &operationExternalAuthUpdate{
+			check := &externalAuthUpdateHypershiftHostedClusterCheck{
+				externalAuthLister: &corelistertesting.SliceExternalAuthLister{ExternalAuths: []*coreapi.ExternalAuth{tt.externalAuth}},
 				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}
 
-			state, err := controller.hypershiftHostedClusterExternalAuthOperationState(ctx, tt.externalAuth)
+			state, err := check.CalculateOperationStatus(ctx, &coreapi.Operation{ExternalID: tt.externalAuth.ID}, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
@@ -196,7 +198,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationExternalAuthUpdate{}
+	controller := &externalAuthUpdateHypershiftHostedClusterCheck{}
 	matchingProvider := operationtesting.ExternalAuthUpdateMatchingOIDCProvider()
 
 	tests := []struct {
@@ -257,7 +259,7 @@ func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.
 func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationExternalAuthUpdate{}
+	controller := &externalAuthUpdateHypershiftHostedClusterCheck{}
 	matchingClients := operationtesting.ExternalAuthUpdateMatchingOIDCProvider().OIDCClients
 
 	tests := []struct {
@@ -402,7 +404,7 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationExternalAuthUpdate{}
+	controller := &externalAuthUpdateHypershiftHostedClusterCheck{}
 
 	newMatchingClaim := func() coreapi.ExternalAuthClaimProfile {
 		return operationtesting.NewExternalAuthUpdateTestExternalAuth().Properties.Claim
@@ -543,7 +545,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t *testing.T) {
 	t.Parallel()
 
-	controller := &operationExternalAuthUpdate{}
+	controller := &externalAuthUpdateHypershiftHostedClusterCheck{}
 	matchingRules := operationtesting.ExternalAuthUpdateMatchingOIDCProvider().ClaimValidationRules
 
 	tests := []struct {
@@ -663,8 +665,6 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 		return csExternalAuth
 	}
 
-	controller := &operationExternalAuthUpdate{}
-
 	tests := []struct {
 		name              string
 		externalAuth      *coreapi.ExternalAuth
@@ -707,7 +707,15 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			state, err := controller.clusterServiceExternalAuthSpecOperationState(tt.externalAuth, tt.csExternalAuth)
+			check := &externalAuthUpdateClusterServiceSpecCheck{
+				externalAuthLister: &corelistertesting.SliceExternalAuthLister{ExternalAuths: []*coreapi.ExternalAuth{tt.externalAuth}},
+			}
+			input := &externalAuthUpdateOperationStatusInput{
+				ClusterServiceExternalAuthOnceGetter: func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+					return tt.csExternalAuth, nil
+				},
+			}
+			state, err := check.CalculateOperationStatus(context.Background(), &coreapi.Operation{ExternalID: tt.externalAuth.ID}, input)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
