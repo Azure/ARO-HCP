@@ -25,7 +25,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -140,7 +139,7 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 		crud, err := db.DeploymentStackDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		require.NoError(t, err)
 		names := make([]string, 0)
-		for _, name := range []string{mockfparoleassignments.MockFPARoleAssignmentsDesireName, otherDesireName} {
+		for _, name := range []string{azureresourcesapi.MockFPARoleAssignmentsDesireName, otherDesireName} {
 			_, err := crud.Get(ctx, name)
 			if cosmosstorageutils.IsNotFoundError(err) {
 				continue
@@ -159,12 +158,12 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 		{
 			name:          "mock FPA desire kept while MRG confirmed, other swept",
 			reference:     coreapi.AzureReference{AzureResource: managedResourceGroupID},
-			wantRemaining: []string{mockfparoleassignments.MockFPARoleAssignmentsDesireName},
+			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDesireName},
 		},
 		{
 			name:          "mock FPA desire kept while MRG pending, other swept",
 			reference:     coreapi.AzureReference{PendingAzureResource: managedResourceGroupID},
-			wantRemaining: []string{mockfparoleassignments.MockFPARoleAssignmentsDesireName},
+			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDesireName},
 		},
 		{
 			name:          "mock FPA desire swept once MRG references cleared",
@@ -193,7 +192,7 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 			require.NoError(t, err)
 
 			mockAzureResourcesDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{
-				newDesire(mockfparoleassignments.MockFPARoleAssignmentsDesireName),
+				newDesire(azureresourcesapi.MockFPARoleAssignmentsDesireName),
 				newDesire(otherDesireName),
 			})
 			require.NoError(t, err)

@@ -23,6 +23,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -48,6 +51,60 @@ func TestManagedResourceGroupScope(t *testing.T) {
 		t.Parallel()
 		scope := managedResourceGroupScope(coreapi.AzureReference{})
 		assert.Nil(t, scope, "no scope when the MRG is absent")
+	})
+}
+
+func TestServiceProviderClusterWithReservedAzureResourceIDs(t *testing.T) {
+	t.Parallel()
+
+	scope, err := azcorearm.ParseResourceID(testManagedRGScope)
+	require.NoError(t, err)
+
+	desiredKey := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	wantReservedID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), desiredKey.PrincipalID, desiredKey.RoleDefinitionResourceID)
+
+	s := &mockFPARoleAssignmentsSyncer{}
+
+	t.Run("assigns a deterministic reserved ID to a non-draining key that lacks one", func(t *testing.T) {
+		t.Parallel()
+		existing := &coreapi.ServiceProviderCluster{}
+		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
+			desiredKey: {},
+		}
+
+		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
+		require.NoError(t, err)
+		gotStatus := got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey]
+		require.NotNil(t, gotStatus.ReservedAzureResourceID, "non-draining key should get a reserved ID")
+		assert.Equal(t, wantReservedID, gotStatus.ReservedAzureResourceID.String(), "reserved ID must be the deterministic name")
+
+		assert.Nil(t, existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID, "input must not be mutated")
+	})
+
+	t.Run("does not reserve for a draining key", func(t *testing.T) {
+		t.Parallel()
+		stamp := metav1.NewTime(time.Now())
+		existing := &coreapi.ServiceProviderCluster{}
+		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
+			desiredKey: {DeconfigureTimestamp: &stamp},
+		}
+
+		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
+		require.NoError(t, err)
+		assert.Nil(t, got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID, "draining key must not get a reserved ID")
+	})
+
+	t.Run("preserves an existing reserved ID, never recomputes", func(t *testing.T) {
+		t.Parallel()
+		preset := mustReservedID(t, "11111111-1111-1111-1111-111111111111")
+		existing := &coreapi.ServiceProviderCluster{}
+		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
+			desiredKey: {ReservedAzureResourceID: preset},
+		}
+
+		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
+		require.NoError(t, err)
+		assert.Equal(t, preset.String(), got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID.String(), "existing reserved ID must be preserved")
 	})
 }
 

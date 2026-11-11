@@ -338,7 +338,9 @@ func instantiateClusterClusterServiceCreateController(controllerContext controll
 		controllerContext.ClustersServiceClient,
 		managementClusterLister,
 		controllerContext.BackendInformers,
+		controllerContext.AzureResourcesInformers,
 		controllerContext.HasRealFPA,
+		!controllerContext.HasRealFPA,
 	), nil
 }
 

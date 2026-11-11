@@ -23,7 +23,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
@@ -704,7 +703,7 @@ func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDel
 		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped deployment stack desires: %w", err))
 	}
 	for _, desire := range desireIterator.Items(ctx) {
-		if managedResourceGroupPresent && desire.ResourceID.Name == mockfparoleassignments.MockFPARoleAssignmentsDesireName {
+		if managedResourceGroupPresent && desire.ResourceID.Name == azureresourcesapi.MockFPARoleAssignmentsDesireName {
 			logger.Info("keeping mock FPA role assignments deployment stack desire until the managed resource group is deleted",
 				"deploymentStackDesireResourceID", desire.ResourceID)
 			continue

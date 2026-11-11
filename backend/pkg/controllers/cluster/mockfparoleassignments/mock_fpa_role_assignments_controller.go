@@ -49,9 +49,6 @@ import (
 const MockFPARoleAssignmentsControllerName = "MockFPARoleAssignments"
 
 const (
-	// MockFPARoleAssignmentsDesireName identifies the mock FPA Owner role
-	// assignment intent as a StackDesire.
-	MockFPARoleAssignmentsDesireName = "mock-fpa-role-assignments"
 	// MockFPARoleAssignmentsStackName is the deployment stack name, stable within
 	// each cluster's managed resource group.
 	MockFPARoleAssignmentsStackName = "aro-hcp-mock-fpa-role-assignments"
@@ -126,7 +123,7 @@ func NewMockFPARoleAssignmentsController(
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
 		panic(err)
 	}
-	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, MockFPARoleAssignmentsDesireName)
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDesireName)
 
 	return controller
 }
@@ -355,11 +352,11 @@ func sortRoleAssignmentKeys(keys []coreapi.RoleAssignmentKey) {
 // not exist yet, or replaces it only when desiredSpec actually differs from what
 // is already published.
 func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.Context, key controllerutils.HCPClusterKey, desiredSpec azureresourcesapi.DeploymentStackDesireSpec, logger logr.Logger) error {
-	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
+	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
 	}
-	existing, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
+	existing, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		newDesire := &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -419,7 +416,7 @@ func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.
 
 func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
+	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
 	}
