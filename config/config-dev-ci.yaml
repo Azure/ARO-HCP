@@ -170,6 +170,9 @@ clouds:
             baseURL: "https://prow.ci.openshift.org"
             jobRegex: "^periodic-ci-Azure-ARO-HCP-main-image-updater-"
             interval: "5m"
+          # GCS bucket holding Prow run artifacts, read to classify failure
+          # reasons on the consecutive-failures metric.
+          resultsBucket: "test-platform-results-public"
         tenantQuota:
           exitOnPanic: false
           image:

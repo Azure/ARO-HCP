@@ -73,6 +73,10 @@ type jobSnapshot struct {
 	// instead of by position in a window. Its size is bounded by the
 	// number of failures since the last success.
 	countedFailures map[string]run
+
+	// failureReason is the classified reason of latestFailure, empty when
+	// no classification is available.
+	failureReason string
 }
 
 // Collector polls Prow on an interval and exposes gauges describing the most
@@ -84,6 +88,7 @@ type jobSnapshot struct {
 // next success or fresh failures re-establish it.
 type Collector struct {
 	client   ProwClient
+	reasons  ReasonClient
 	jobRegex *regexp.Regexp
 	logger   *slog.Logger
 	now      func() time.Time
@@ -93,6 +98,19 @@ type Collector struct {
 	scrapeSuccess float64
 	lastScrape    float64
 	jobsMatched   int
+
+	// reasonCache memoizes classified failure reasons per build ID so a
+	// stable failure streak costs one reason fetch, not one per poll.
+	reasonCache map[string]string
+
+	// reasonMisses counts consecutive failed classifications per build ID.
+	// Empty results are retried because artifacts land in GCS
+	// asynchronously, but a build whose junit is permanently unclassifiable
+	// (truncated past the 1 MiB read limit, malformed XML) would otherwise
+	// be re-fetched every poll for as long as it stays the latest failure.
+	// The cap is generous enough that any realistically late artifact
+	// upload still lands while retries remain.
+	reasonMisses map[string]int
 
 	lastRunDesc         *prometheus.Desc
 	lastRunDurationDesc *prometheus.Desc
@@ -104,14 +122,19 @@ type Collector struct {
 }
 
 // NewCollector returns a Collector monitoring Prow jobs whose name matches
-// jobRegex (e.g. `^periodic-ci-Azure-ARO-HCP-main-image-updater-`).
-func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logger) *Collector {
+// jobRegex (e.g. `^periodic-ci-Azure-ARO-HCP-main-image-updater-`). reasons
+// may be nil, in which case consecutive-failure metrics carry an empty
+// failure_reason label.
+func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logger, reasons ReasonClient) *Collector {
 	return &Collector{
-		client:    client,
-		jobRegex:  jobRegex,
-		logger:    logger,
-		now:       time.Now,
-		snapshots: make(map[string]jobSnapshot),
+		client:       client,
+		reasons:      reasons,
+		jobRegex:     jobRegex,
+		logger:       logger,
+		now:          time.Now,
+		snapshots:    make(map[string]jobSnapshot),
+		reasonCache:  make(map[string]string),
+		reasonMisses: make(map[string]int),
 		lastRunDesc: prometheus.NewDesc(
 			metricLastRun,
 			"Unix timestamp of the most recent completed run; build_id, result and url labels identify that run",
@@ -132,8 +155,8 @@ func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logge
 		),
 		consecutiveDesc: prometheus.NewDesc(
 			metricConsecutive,
-			"Number of consecutive failed or errored completed runs since the most recent success; build_id and url labels identify the most recent failing run",
-			[]string{"job_name", "build_id", "url"},
+			"Number of consecutive failed or errored completed runs since the most recent success; build_id, failure_reason and url labels identify the most recent failing run and its classified failure reason",
+			[]string{"job_name", "build_id", "failure_reason", "url"},
 			nil,
 		),
 		scrapeSuccessDesc: prometheus.NewDesc(
@@ -181,6 +204,12 @@ func (c *Collector) poll(ctx context.Context) {
 	snapshots, matched, err := c.computeSnapshots(ctx, prev)
 	now := c.now().UTC()
 
+	// Enrich before taking the lock: reason fetches are slow network calls,
+	// and blocking Collect would fail the scrape.
+	if err == nil {
+		c.enrichFailureReasons(ctx, snapshots)
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lastScrape = float64(now.Unix())
@@ -192,6 +221,50 @@ func (c *Collector) poll(ctx context.Context) {
 	c.scrapeSuccess = 1
 	c.jobsMatched = matched
 	c.snapshots = snapshots
+}
+
+// enrichFailureReasons classifies the latest failure of each failing job.
+// Reason fetches must not fail the poll: an unavailable classification
+// degrades to an empty failure_reason label.
+func (c *Collector) enrichFailureReasons(ctx context.Context, snapshots map[string]jobSnapshot) {
+	if c.reasons == nil {
+		return
+	}
+	for jobName, snapshot := range snapshots {
+		if snapshot.latestFailure == nil {
+			continue
+		}
+		snapshot.failureReason = c.failureReason(ctx, jobName, snapshot.latestFailure.buildID)
+		snapshots[jobName] = snapshot
+	}
+}
+
+// maxReasonMisses caps how often an unclassifiable build is retried. Empty
+// results are usually transient (artifacts land in GCS asynchronously), but
+// a permanently unclassifiable junit (truncated past the read limit,
+// malformed XML) would otherwise be re-fetched every poll for as long as it
+// stays the latest failure.
+const maxReasonMisses = 8
+
+// failureReason returns the classified reason for a build, memoized so a
+// stable failure streak costs one fetch. Empty results are not memoized,
+// only miss-capped: artifacts land in GCS asynchronously, so a miss is
+// often transient.
+func (c *Collector) failureReason(ctx context.Context, jobName, buildID string) string {
+	if reason, ok := c.reasonCache[buildID]; ok {
+		return reason
+	}
+	if c.reasonMisses[buildID] >= maxReasonMisses {
+		return ""
+	}
+	reason := c.reasons.FailureReason(ctx, jobName, buildID)
+	if reason != "" {
+		c.reasonCache[buildID] = reason
+		delete(c.reasonMisses, buildID)
+		return reason
+	}
+	c.reasonMisses[buildID]++
+	return reason
 }
 
 // computeSnapshots fetches all Prow jobs, keeps completed runs of monitored
@@ -373,7 +446,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(
 				c.consecutiveDesc, prometheus.GaugeValue,
 				float64(snapshot.consecutiveFailures),
-				jobName, snapshot.latestFailure.buildID, snapshot.latestFailure.url,
+				jobName, snapshot.latestFailure.buildID, snapshot.failureReason, snapshot.latestFailure.url,
 			)
 		}
 	}
