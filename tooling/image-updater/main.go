@@ -61,6 +61,7 @@ checking for new image versions and updating configuration files accordingly.`,
 
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 	rootCmd.AddCommand(cmd.NewPublishCommand())
+	rootCmd.AddCommand(cmd.NewMonitorCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error(err, "command failed")
