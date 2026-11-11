@@ -148,7 +148,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
 				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
-			HardcodedIdentity: hardcodedIdentity,
+			HardcodedIdentity:                    hardcodedIdentity,
+			MockFirstPartyApplicationPrincipalID: "test-mock-fpa-principal-id",
 		}
 
 		backendErrCh := make(chan error, 1)

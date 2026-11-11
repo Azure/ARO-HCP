@@ -180,12 +180,12 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 
 	reservedServiceProviderCluster, err := s.reserveAzureResourceIDs(ctx, existingCluster, existingServiceProviderCluster, scope)
 	if err != nil {
-		return err
+		return utils.TrackError(fmt.Errorf("failed to reserve mock FPA role assignment resource IDs: %w", err))
 	}
 
-	desiredSpec, err := s.desiredStackDesireSpec(reservedServiceProviderCluster, scope)
+	desiredSpec, err := s.desiredDeploymentStackDesireSpec(reservedServiceProviderCluster, scope)
 	if err != nil {
-		return err
+		return utils.TrackError(fmt.Errorf("failed to build desired mock FPA role assignments DeploymentStackDesire spec: %w", err))
 	}
 
 	err = s.publishDeploymentStackDesire(ctx, key, desiredSpec, logger)
@@ -255,10 +255,10 @@ func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
 	return persisted, nil
 }
 
-// desiredStackDesireSpec builds the StackDesire spec that applies every
+// desiredDeploymentStackDesireSpec builds the StackDesire spec that applies every
 // non-draining key as one ARM template, authenticated as the ARM permissions
 // manager identity.
-func (s *mockFPARoleAssignmentsSyncer) desiredStackDesireSpec(
+func (s *mockFPARoleAssignmentsSyncer) desiredDeploymentStackDesireSpec(
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	scope *azcorearm.ResourceID,
 ) (azureresourcesapi.DeploymentStackDesireSpec, error) {
@@ -269,7 +269,7 @@ func (s *mockFPARoleAssignmentsSyncer) desiredStackDesireSpec(
 
 	resources, err := roleAssignmentTemplateResources(serviceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup)
 	if err != nil {
-		return azureresourcesapi.DeploymentStackDesireSpec{}, err
+		return azureresourcesapi.DeploymentStackDesireSpec{}, utils.TrackError(fmt.Errorf("failed to build role assignment template resources: %w", err))
 	}
 
 	return azureresourcesapi.DeploymentStackDesireSpec{

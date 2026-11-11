@@ -96,6 +96,14 @@ func NewMockFPARoleAssignmentsIntentController(
 	mockFPAPrincipalID string,
 	desiredRoleDefinitionResourceID string,
 ) controllerutils.Controller {
+
+	if len(mockFPAPrincipalID) == 0 {
+		panic("mock FPA principal ID is not configured")
+	}
+	if len(desiredRoleDefinitionResourceID) == 0 {
+		panic("desired role definition resource ID is not configured")
+	}
+
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
@@ -131,7 +139,6 @@ func NewMockFPARoleAssignmentsIntentController(
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
 		panic(err) // coding error
 	}
-
 	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, MockFPARoleAssignmentsDesireName)
 
 	return controller
@@ -174,31 +181,25 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 		return nil
 	}
 
-	if len(s.mockFPAPrincipalID) == 0 {
-		return utils.TrackError(fmt.Errorf("mock FPA principal ID is not configured"))
-	}
-	if len(s.desiredRoleDefinitionResourceID) == 0 {
-		return utils.TrackError(fmt.Errorf("owner role definition resource ID is not configured"))
-	}
-
-	// The published StackDesire tells us whether a stamped key has actually been
+	// The published DeploymentStackDesire tells us whether a stamped key has actually been
 	// removed from Azure. Not-found means it was never published, so a stamped key
 	// is not yet reconciled and is kept.
-	var stackDesire *azureresourcesapi.DeploymentStackDesire
-	stackDesire, err = s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		stackDesire = nil
-	} else if err != nil {
+	var existingDeploymentStackDesire *azureresourcesapi.DeploymentStackDesire
+	existingDeploymentStackDesire, err = s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
 	}
+	if cosmosstorageutils.IsNotFoundError(err) {
+		existingDeploymentStackDesire = nil
+	}
 
-	desired := s.mergeRoleAssignments(
+	desiredMockFPARoleAssignmentsStatus := s.mergeRoleAssignments(
 		existingServiceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup,
-		stackDesire,
+		existingDeploymentStackDesire,
 	)
 
 	replacement := existingServiceProviderCluster.DeepCopy()
-	replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = desired
+	replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = desiredMockFPARoleAssignmentsStatus
 
 	if !controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
 		return nil
@@ -215,9 +216,9 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 	return nil
 }
 
-// desiredKey is the single role assignment key this controller wants: the mock
+// desiredRoleAssignmentKey is the single role assignment key this controller wants: the mock
 // FPA principal paired with the Owner role definition.
-func (s *mockFPARoleAssignmentsIntentSyncer) desiredKey() coreapi.RoleAssignmentKey {
+func (s *mockFPARoleAssignmentsIntentSyncer) desiredRoleAssignmentKey() coreapi.RoleAssignmentKey {
 	return coreapi.RoleAssignmentKey{
 		PrincipalID:              s.mockFPAPrincipalID,
 		RoleDefinitionResourceID: s.desiredRoleDefinitionResourceID,
@@ -240,50 +241,57 @@ func (s *mockFPARoleAssignmentsIntentSyncer) desiredKey() coreapi.RoleAssignment
 //   - Once the stack has reconciled that removal (RoleAssignmentRemovedAndReconciled),
 //     the key is dropped from the map.
 func (s *mockFPARoleAssignmentsIntentSyncer) mergeRoleAssignments(
-	existing map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus,
-	stackDesire *azureresourcesapi.DeploymentStackDesire,
+	existingMockFPARoleAssignments map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus,
+	existingDeploymentStackDesire *azureresourcesapi.DeploymentStackDesire,
 ) map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus {
-	desiredKey := s.desiredKey()
-	next := make(map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus, len(existing)+1)
+	desiredRoleAssignmentKey := s.desiredRoleAssignmentKey()
+	desiredMockFPARoleAssignments := make(map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus)
 
-	// Desired key: keep or add, clearing any deconfigure stamp.
-	if existingStatus, ok := existing[desiredKey]; ok && existingStatus != nil {
-		status := existingStatus.DeepCopy()
-		status.DeconfigureTimestamp = nil
-		next[desiredKey] = status
-	} else {
-		next[desiredKey] = &coreapi.MockFPARoleAssignmentStatus{}
+	// Desired key: add or keep. If it's keep, clear any deconfigure timestamp.
+	existingMockFPARoleAssignmentStatus, ok := existingMockFPARoleAssignments[desiredRoleAssignmentKey]
+	desiredMockFPARoleAssignments[desiredRoleAssignmentKey] = &coreapi.MockFPARoleAssignmentStatus{}
+	if ok {
+		newStatus := existingMockFPARoleAssignmentStatus.DeepCopy()
+		newStatus.DeconfigureTimestamp = nil
+		desiredMockFPARoleAssignments[desiredRoleAssignmentKey] = newStatus
 	}
 
 	// Whether the desired assignment is actually live in Azure. A superseded
 	// assignment is only removed once this is true, so we never lose the Owner
 	// grant over the managed resource group during an identity replacement.
-	desiredConfigured := coreapihelpers.MockFPARoleAssignmentStatusManaged(next[desiredKey], stackDesire)
+	desiredConfigured := coreapihelpers.MockFPARoleAssignmentStatusManaged(desiredMockFPARoleAssignments[desiredRoleAssignmentKey], existingDeploymentStackDesire)
+
+	timeForEntriesToDeconfigure := s.clock.Now()
 
 	// Any other key has left the desired set.
-	for existingKey, existingStatus := range existing {
-		if existingKey == desiredKey || existingStatus == nil {
+	for existingKey, existingStatus := range existingMockFPARoleAssignments {
+		// If we are processing the currently desired key we skip the iteration as we don't want to deconfigure it.
+		if existingKey == desiredRoleAssignmentKey {
 			continue
 		}
-		if existingStatus.DeconfigureTimestamp == nil {
-			if !desiredConfigured {
-				// Keep the superseded assignment live until the replacement is
-				// configured in Azure.
-				next[existingKey] = existingStatus.DeepCopy()
+
+		if existingStatus.DeconfigureTimestamp != nil {
+			// Already stamped: drop only once the stack has reconciled the removal.
+			if coreapihelpers.MockFPARoleAssignmentRemovedAndReconciled(existingStatus, existingDeploymentStackDesire) {
 				continue
 			}
-			status := existingStatus.DeepCopy()
-			stamp := metav1.NewTime(s.clock.Now())
-			status.DeconfigureTimestamp = &stamp
-			next[existingKey] = status
+			desiredMockFPARoleAssignments[existingKey] = existingStatus.DeepCopy()
 			continue
 		}
-		// Already stamped: drop only once the stack has reconciled the removal.
-		if coreapihelpers.MockFPARoleAssignmentRemovedAndReconciled(existingStatus, stackDesire) {
+
+		// At this point we know the assignment is not stamped yet.
+
+		if !desiredConfigured {
+			// Keep the superseded assignment live until the replacement is
+			// configured in Azure.
+			desiredMockFPARoleAssignments[existingKey] = existingStatus.DeepCopy()
 			continue
 		}
-		next[existingKey] = existingStatus.DeepCopy()
+		desiredStatus := existingStatus.DeepCopy()
+		stamp := metav1.NewTime(timeForEntriesToDeconfigure)
+		desiredStatus.DeconfigureTimestamp = &stamp
+		desiredMockFPARoleAssignments[existingKey] = desiredStatus
 	}
 
-	return next
+	return desiredMockFPARoleAssignments
 }
