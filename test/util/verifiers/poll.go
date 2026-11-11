@@ -48,6 +48,17 @@ func (failure *pollObservationError) Unwrap() []error {
 	return []error{failure.observation, failure.interruption}
 }
 
+// isContextExpiration reports whether err merely signals that ctx has ended (its
+// deadline passing or its cancellation) rather than carrying a fresh observation.
+// When a polling context expires while a request is in flight, client-go surfaces
+// the expired context as "client rate limiter Wait returned an error: context
+// deadline exceeded" even though no throttling occurred (golang.org/x/time/rate
+// returns ctx.Err() before reserving any tokens). Polling loops that retain their
+// last observation must not let such an error replace it.
+func isContextExpiration(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && errors.Is(err, ctx.Err())
+}
+
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
 // Logs to GinkgoLogr (structured) and GinkgoWriter (visible in default CI output).
 func logVerifierTiming(name, outcome string, elapsed time.Duration) {
@@ -91,7 +102,7 @@ func pollUntilReady(
 		if err == nil {
 			return true, nil
 		}
-		if lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		if lastErr != nil && isContextExpiration(ctx, err) {
 			lastErr = &pollObservationError{observation: lastErr, interruption: err}
 			return false, nil
 		}

@@ -306,3 +306,44 @@ func TestPollUntilReady_IndependentContextErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestIsContextExpiration(t *testing.T) {
+	for _, scenario := range []struct {
+		name     string
+		expire   bool
+		cancel   bool
+		err      error
+		expected bool
+	}{
+		{name: "live context with any error", err: context.DeadlineExceeded, expected: false},
+		{name: "expired context with unrelated error", expire: true, err: errors.New("connection refused"), expected: false},
+		{name: "expired context with its own deadline error", expire: true, err: context.DeadlineExceeded, expected: true},
+		{name: "canceled context with its own cancellation error", cancel: true, err: context.Canceled, expected: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if scenario.expire {
+				ctx, cancel = context.WithTimeout(ctx, time.Millisecond)
+				defer cancel()
+				time.Sleep(5 * time.Millisecond)
+			}
+			if scenario.cancel {
+				cancel()
+			}
+			require.Equal(t, scenario.expected, isContextExpiration(ctx, scenario.err))
+		})
+	}
+
+	t.Run("client-go rate limiter deadline artifact", func(t *testing.T) {
+		// The exact wrap chain client-go produces when a poll deadline fires
+		// mid-request: x/time/rate returns ctx.Err() before reserving tokens,
+		// and both the verifier and rest.Request wrap it with %w.
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		defer cancel()
+		time.Sleep(5 * time.Millisecond)
+		err := fmt.Errorf("failed to list pods in namespace test: %w",
+			fmt.Errorf("client rate limiter Wait returned an error: %w", ctx.Err()))
+		require.True(t, isContextExpiration(ctx, err))
+	})
+}
