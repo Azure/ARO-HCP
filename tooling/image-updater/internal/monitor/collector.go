@@ -61,6 +61,10 @@ type jobSnapshot struct {
 	latestSuccess       *run
 	consecutiveFailures int
 	latestFailure       *run
+
+	// failureReason is the classified reason of latestFailure, empty when
+	// no classification is available.
+	failureReason string
 }
 
 // Collector polls Prow on an interval and exposes gauges describing the most
@@ -68,6 +72,7 @@ type jobSnapshot struct {
 // from the API response on every poll, so no retention window is needed.
 type Collector struct {
 	client   ProwClient
+	reasons  ReasonClient
 	jobRegex *regexp.Regexp
 	logger   *slog.Logger
 	now      func() time.Time
@@ -77,6 +82,10 @@ type Collector struct {
 	scrapeSuccess float64
 	lastScrape    float64
 	jobsMatched   int
+
+	// reasonCache memoizes classified failure reasons per build ID so a
+	// stable failure streak costs one reason fetch, not one per poll.
+	reasonCache map[string]string
 
 	lastRunDesc         *prometheus.Desc
 	lastRunDurationDesc *prometheus.Desc
@@ -88,14 +97,18 @@ type Collector struct {
 }
 
 // NewCollector returns a Collector monitoring Prow jobs whose name matches
-// jobRegex (e.g. `^periodic-ci-Azure-ARO-HCP-main-image-updater-`).
-func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logger) *Collector {
+// jobRegex (e.g. `^periodic-ci-Azure-ARO-HCP-main-image-updater-`). reasons
+// may be nil, in which case consecutive-failure metrics carry an empty
+// failure_reason label.
+func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logger, reasons ReasonClient) *Collector {
 	return &Collector{
-		client:    client,
-		jobRegex:  jobRegex,
-		logger:    logger,
-		now:       time.Now,
-		snapshots: make(map[string]jobSnapshot),
+		client:      client,
+		reasons:     reasons,
+		jobRegex:    jobRegex,
+		logger:      logger,
+		now:         time.Now,
+		snapshots:   make(map[string]jobSnapshot),
+		reasonCache: make(map[string]string),
 		lastRunDesc: prometheus.NewDesc(
 			metricLastRun,
 			"Unix timestamp of the most recent completed run; build_id, result and url labels identify that run",
@@ -116,8 +129,8 @@ func NewCollector(client ProwClient, jobRegex *regexp.Regexp, logger *slog.Logge
 		),
 		consecutiveDesc: prometheus.NewDesc(
 			metricConsecutive,
-			"Number of consecutive failed or errored completed runs since the most recent success; build_id and url labels identify the most recent failing run",
-			[]string{"job_name", "build_id", "url"},
+			"Number of consecutive failed or errored completed runs since the most recent success; build_id, failure_reason and url labels identify the most recent failing run and its classified failure reason",
+			[]string{"job_name", "build_id", "failure_reason", "url"},
 			nil,
 		),
 		scrapeSuccessDesc: prometheus.NewDesc(
@@ -168,8 +181,36 @@ func (c *Collector) poll(ctx context.Context) {
 		return
 	}
 	c.scrapeSuccess = 1
-	c.snapshots = snapshots
 	c.jobsMatched = len(snapshots)
+	c.enrichFailureReasons(ctx, snapshots)
+	c.snapshots = snapshots
+}
+
+// enrichFailureReasons classifies the latest failure of each failing job.
+// Reason fetches must not fail the poll: an unavailable classification
+// degrades to an empty failure_reason label.
+func (c *Collector) enrichFailureReasons(ctx context.Context, snapshots map[string]jobSnapshot) {
+	if c.reasons == nil {
+		return
+	}
+	for jobName, snapshot := range snapshots {
+		if snapshot.latestFailure == nil {
+			continue
+		}
+		snapshot.failureReason = c.failureReason(ctx, jobName, snapshot.latestFailure.buildID)
+		snapshots[jobName] = snapshot
+	}
+}
+
+// failureReason returns the classified reason for a build, memoized so a
+// stable failure streak costs one fetch.
+func (c *Collector) failureReason(ctx context.Context, jobName, buildID string) string {
+	if reason, ok := c.reasonCache[buildID]; ok {
+		return reason
+	}
+	reason := c.reasons.FailureReason(ctx, jobName, buildID)
+	c.reasonCache[buildID] = reason
+	return reason
 }
 
 // computeSnapshots fetches all Prow jobs, keeps completed runs of monitored
@@ -272,7 +313,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(
 				c.consecutiveDesc, prometheus.GaugeValue,
 				float64(snapshot.consecutiveFailures),
-				jobName, snapshot.latestFailure.buildID, snapshot.latestFailure.url,
+				jobName, snapshot.latestFailure.buildID, snapshot.failureReason, snapshot.latestFailure.url,
 			)
 		}
 	}

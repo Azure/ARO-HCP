@@ -49,7 +49,7 @@ func completedJob(name, buildID, state, url string, start, completion time.Time)
 
 func newTestCollector(client ProwClient) *Collector {
 	logger := slog.New(slog.DiscardHandler)
-	return NewCollector(client, regexp.MustCompile(`^periodic-ci-Azure-ARO-HCP-main-image-updater-`), logger)
+	return NewCollector(client, regexp.MustCompile(`^periodic-ci-Azure-ARO-HCP-main-image-updater-`), logger, nil)
 }
 
 func TestCollectorIgnoresUnrelatedAndIncompleteJobs(t *testing.T) {
@@ -161,9 +161,9 @@ func TestCollectorMetricsEmitted(t *testing.T) {
 	}
 
 	expected := `
-# HELP image_updater_consecutive_failures Number of consecutive failed or errored completed runs since the most recent success; build_id and url labels identify the most recent failing run
+# HELP image_updater_consecutive_failures Number of consecutive failed or errored completed runs since the most recent success; build_id, failure_reason and url labels identify the most recent failing run and its classified failure reason
 # TYPE image_updater_consecutive_failures gauge
-image_updater_consecutive_failures{build_id="2",job_name="periodic-ci-Azure-ARO-HCP-main-image-updater-tooling",url="gs://b/2"} 1
+image_updater_consecutive_failures{build_id="2",failure_reason="",job_name="periodic-ci-Azure-ARO-HCP-main-image-updater-tooling",url="gs://b/2"} 1
 # HELP image_updater_last_run_duration_seconds Duration in seconds of the most recent completed run; build_id and url labels identify that run
 # TYPE image_updater_last_run_duration_seconds gauge
 image_updater_last_run_duration_seconds{build_id="2",job_name="periodic-ci-Azure-ARO-HCP-main-image-updater-tooling",url="gs://b/2"} 3600

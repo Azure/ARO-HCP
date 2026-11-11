@@ -48,10 +48,11 @@ const (
 // periodic jobs and serves run-level health metrics for scraping.
 func NewMonitorCommand() *cobra.Command {
 	var (
-		prowBaseURL string
-		jobRegex    string
-		interval    time.Duration
-		port        int
+		prowBaseURL   string
+		jobRegex      string
+		resultsBucket string
+		interval      time.Duration
+		port          int
 	)
 
 	cmd := &cobra.Command{
@@ -69,19 +70,20 @@ Serves /metrics for scraping and /healthz for liveness/readiness probes.`,
 			if ctxErr := cmd.Context().Err(); ctxErr != nil {
 				return ctxErr
 			}
-			return runMonitor(cmd.Context(), slog.Default(), prowBaseURL, jobRegex, interval, port)
+			return runMonitor(cmd.Context(), slog.Default(), prowBaseURL, jobRegex, resultsBucket, interval, port)
 		},
 	}
 
 	cmd.Flags().StringVar(&prowBaseURL, "prow-base-url", defaultProwBaseURL, "base URL of the Prow API")
 	cmd.Flags().StringVar(&jobRegex, "job-regex", defaultJobRegex, "regular expression matching the Prow job names to monitor")
+	cmd.Flags().StringVar(&resultsBucket, "results-bucket", monitor.DefaultResultsBucket, "GCS bucket holding Prow run artifacts, read to classify failure reasons")
 	cmd.Flags().DurationVar(&interval, "interval", defaultInterval, "how often to poll the Prow API")
 	cmd.Flags().IntVar(&port, "port", defaultPort, "port to serve /metrics and /healthz on")
 
 	return cmd
 }
 
-func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex string, interval time.Duration, port int) error {
+func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex, resultsBucket string, interval time.Duration, port int) error {
 	if interval <= 0 {
 		return fmt.Errorf("interval must be positive, got %s", interval)
 	}
@@ -94,6 +96,7 @@ func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex 
 		monitor.NewProwClient(prowBaseURL, prowRequestTimeout),
 		compiled,
 		logger,
+		monitor.NewGCSReasonClient(resultsBucket, prowRequestTimeout),
 	)
 	registry := prometheus.NewRegistry()
 	if err := registry.Register(collector); err != nil {
@@ -127,6 +130,7 @@ func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex 
 	logger.Info("image-updater monitor started",
 		"prowBaseURL", prowBaseURL,
 		"jobRegex", jobRegex,
+		"resultsBucket", resultsBucket,
 		"interval", interval.String(),
 		"port", port,
 	)

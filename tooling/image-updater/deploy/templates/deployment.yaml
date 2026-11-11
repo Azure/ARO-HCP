@@ -27,6 +27,7 @@ spec:
         - --prow-base-url={{ .Values.prowBaseURL }}
         - --job-regex={{ .Values.jobRegex }}
         - --interval={{ .Values.interval }}
+        - --results-bucket={{ .Values.resultsBucket }}
         - --port=8080
         ports:
         - containerPort: 8080
