@@ -178,12 +178,26 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	// stack (which lives in and cascades away with the managed resource group anyway) and
 	// avoids create/delete churn if a key is later re-added.
 
-	reservedServiceProviderCluster, err := s.reserveAzureResourceIDs(ctx, existingCluster, existingServiceProviderCluster, scope)
+	// Reserve the mock FPA role assignment resource IDs onto the ServiceProviderCluster as a first step. This ensures
+	// that the role assignments references are not lost if the DeploymentStackDesire is not published yet. In the future
+	// the references will be generated randomly and non deterministically.
+	desiredServiceProviderCluster, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existingServiceProviderCluster, scope)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to reserve mock FPA role assignment resource IDs: %w", err))
 	}
+	if controllerutil.NeedsUpdate(existingServiceProviderCluster, desiredServiceProviderCluster) {
+		logger.Info("reserving mock FPA role assignment resource IDs onto ServiceProviderCluster")
+		persisted, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, desiredServiceProviderCluster, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
+		desiredServiceProviderCluster = persisted
+	}
 
-	desiredSpec, err := s.desiredDeploymentStackDesireSpec(reservedServiceProviderCluster, scope)
+	desiredSpec, err := s.desiredDeploymentStackDesireSpec(desiredServiceProviderCluster, scope)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build desired mock FPA role assignments DeploymentStackDesire spec: %w", err))
 	}
@@ -211,19 +225,16 @@ func managedResourceGroupScope(ref coreapi.AzureReference) *azcorearm.ResourceID
 	return ref.PendingAzureResource
 }
 
-// reserveAzureResourceIDs assigns ReservedAzureResourceID to every non-draining
-// key that does not have one yet, and persists the result before returning, so
-// the reserved ID is never lost to a crash between being chosen and being used.
-// Draining keys keep whatever reserved ID they already had; naming is a one-time
-// reservation, never recomputed.
-func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
-	ctx context.Context,
-	existingCluster *coreapi.Cluster,
-	existingServiceProviderCluster *coreapi.ServiceProviderCluster,
-	scope *azcorearm.ResourceID,
-) (*coreapi.ServiceProviderCluster, error) {
-	logger := utils.LoggerFromContext(ctx)
-	replacement := existingServiceProviderCluster.DeepCopy()
+// serviceProviderClusterWithReservedAzureResourceIDs returns a copy of existing with a
+// ReservedAzureResourceID assigned to every non-draining role assignment key that does not
+// have one yet. Draining keys keep whatever reserved ID they already had; naming is a
+// one-time reservation, never recomputed.
+//
+// It is pure (no I/O): the caller persists the result, so the reserved ID is recorded
+// durably before it is rendered into the deployment stack. An error is returned only for
+// an internal failure building the deterministic resource ID.
+func (s *mockFPARoleAssignmentsSyncer) serviceProviderClusterWithReservedAzureResourceIDs(existing *coreapi.ServiceProviderCluster, scope *azcorearm.ResourceID) (*coreapi.ServiceProviderCluster, error) {
+	replacement := existing.DeepCopy()
 
 	keys := make([]coreapi.RoleAssignmentKey, 0, len(replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup))
 	for key := range replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup {
@@ -243,16 +254,7 @@ func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
 		status.ReservedAzureResourceID = reservedID
 	}
 
-	if !controllerutil.NeedsUpdate(existingServiceProviderCluster, replacement) {
-		return existingServiceProviderCluster, nil
-	}
-
-	logger.Info("reserving mock FPA role assignment resource IDs onto ServiceProviderCluster", "reservedRoleAssignmentResourceIDs", keys)
-	persisted, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-	}
-	return persisted, nil
+	return replacement, nil
 }
 
 // desiredDeploymentStackDesireSpec builds the StackDesire spec that applies every
