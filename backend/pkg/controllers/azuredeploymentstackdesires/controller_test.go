@@ -1309,15 +1309,17 @@ type memoryCRUD struct {
 }
 
 // No Get implementation: the controller must not read/merge after an ETag conflict.
-func (storage *memoryCRUD) Replace(_ context.Context, desire *azureresourcesapi.DeploymentStackDesire, options *azcosmos.ItemOptions) (*azureresourcesapi.DeploymentStackDesire, error) {
+//
+// Mirrors the real replace(): the precondition is the object's own CosmosETag, which the
+// CRUD layer sets regardless of the ItemOptions the caller passes. The options argument is
+// therefore ignored here, just as the real layer overwrites it.
+func (storage *memoryCRUD) Replace(_ context.Context, desire *azureresourcesapi.DeploymentStackDesire, _ *azcosmos.ItemOptions) (*azureresourcesapi.DeploymentStackDesire, error) {
 	storage.writes++
-	if options != nil && options.IfMatchEtag != nil {
-		storage.lastETag = *options.IfMatchEtag
-	}
+	storage.lastETag = desire.CosmosETag
 	if storage.writeErr != nil {
 		return nil, storage.writeErr
 	}
-	if options == nil || options.IfMatchEtag == nil || *options.IfMatchEtag != storage.doc.CosmosETag {
+	if desire.CosmosETag != storage.doc.CosmosETag {
 		return nil, &azcore.ResponseError{StatusCode: 412}
 	}
 	storage.doc = desire.DeepCopy()

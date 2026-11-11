@@ -39,7 +39,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -284,7 +283,10 @@ func (c *controller) SyncOnce(ctx context.Context, key Key) error {
 			logger.Info("Could not resolve DeploymentStackDesire CRUD; reconciliation will observe Azure again", "observedSpecHash", status.ObservedSpecHash)
 			return errors.Join(executionErr, err)
 		}
-		_, err = crud.Replace(ctx, updated, &azcosmos.ItemOptions{IfMatchEtag: &desire.CosmosETag})
+		// The CRUD layer always guards Replace with the object's own CosmosETag, so this
+		// write still fails with a precondition error if the producer changed the spec
+		// since we read it. No explicit IfMatchEtag is needed.
+		_, err = crud.Replace(ctx, updated, nil)
 		if err != nil {
 			logger.Info("Could not persist stack observation; reconciliation will observe Azure again", "observedSpecHash", status.ObservedSpecHash)
 		}
