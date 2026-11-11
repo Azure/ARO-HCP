@@ -139,7 +139,7 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 		crud, err := db.DeploymentStackDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		require.NoError(t, err)
 		names := make([]string, 0)
-		for _, name := range []string{azureresourcesapi.MockFPARoleAssignmentsDesireName, otherDesireName} {
+		for _, name := range []string{azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName, otherDesireName} {
 			_, err := crud.Get(ctx, name)
 			if cosmosstorageutils.IsNotFoundError(err) {
 				continue
@@ -158,12 +158,12 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 		{
 			name:          "mock FPA desire kept while MRG confirmed, other swept",
 			reference:     coreapi.AzureReference{AzureResource: managedResourceGroupID},
-			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDesireName},
+			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName},
 		},
 		{
 			name:          "mock FPA desire kept while MRG pending, other swept",
 			reference:     coreapi.AzureReference{PendingAzureResource: managedResourceGroupID},
-			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDesireName},
+			wantRemaining: []string{azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName},
 		},
 		{
 			name:          "mock FPA desire swept once MRG references cleared",
@@ -192,7 +192,7 @@ func TestEnsureDeploymentStackDesiresDeletedMockFPAGate(t *testing.T) {
 			require.NoError(t, err)
 
 			mockAzureResourcesDB, err := azureresourcescosmosstoragetesting.NewMockAzureResourcesDBClientWithResources(ctx, []any{
-				newDesire(azureresourcesapi.MockFPARoleAssignmentsDesireName),
+				newDesire(azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName),
 				newDesire(otherDesireName),
 			})
 			require.NoError(t, err)

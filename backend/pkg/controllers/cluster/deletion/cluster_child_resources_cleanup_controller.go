@@ -703,7 +703,7 @@ func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDel
 		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped deployment stack desires: %w", err))
 	}
 	for _, desire := range desireIterator.Items(ctx) {
-		if managedResourceGroupPresent && desire.ResourceID.Name == azureresourcesapi.MockFPARoleAssignmentsDesireName {
+		if managedResourceGroupPresent && desire.ResourceID.Name == azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName {
 			logger.Info("keeping mock FPA role assignments deployment stack desire until the managed resource group is deleted",
 				"deploymentStackDesireResourceID", desire.ResourceID)
 			continue

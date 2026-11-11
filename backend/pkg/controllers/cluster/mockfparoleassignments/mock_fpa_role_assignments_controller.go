@@ -49,9 +49,9 @@ import (
 const MockFPARoleAssignmentsControllerName = "MockFPARoleAssignments"
 
 const (
-	// MockFPARoleAssignmentsStackName is the deployment stack name, stable within
+	// mockFPARoleAssignmentsAzureDeploymentStackName is the deployment stack name, stable within
 	// each cluster's managed resource group.
-	MockFPARoleAssignmentsStackName = "aro-hcp-mock-fpa-role-assignments"
+	mockFPARoleAssignmentsAzureDeploymentStackName = "mock-fpa-role-assignments-over-mrg"
 	// roleAssignmentAPIVersion is the ARM API version embedded in each
 	// Microsoft.Authorization/roleAssignments template resource.
 	roleAssignmentAPIVersion = "2022-04-01"
@@ -123,7 +123,7 @@ func NewMockFPARoleAssignmentsController(
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
 		panic(err)
 	}
-	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 
 	return controller
 }
@@ -261,7 +261,7 @@ func (s *mockFPARoleAssignmentsSyncer) desiredDeploymentStackDesireSpec(
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	scope *azcorearm.ResourceID,
 ) (azureresourcesapi.DeploymentStackDesireSpec, error) {
-	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + MockFPARoleAssignmentsStackName)
+	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + mockFPARoleAssignmentsAzureDeploymentStackName)
 	if err != nil {
 		return azureresourcesapi.DeploymentStackDesireSpec{}, utils.TrackError(fmt.Errorf("failed to parse mock FPA role assignments stack resource ID: %w", err))
 	}
@@ -352,11 +352,11 @@ func sortRoleAssignmentKeys(keys []coreapi.RoleAssignmentKey) {
 // not exist yet, or replaces it only when desiredSpec actually differs from what
 // is already published.
 func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.Context, key controllerutils.HCPClusterKey, desiredSpec azureresourcesapi.DeploymentStackDesireSpec, logger logr.Logger) error {
-	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
 	}
-	existing, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	existing, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		newDesire := &azureresourcesapi.DeploymentStackDesire{
 			CosmosMetadata: coreapi.CosmosMetadata{
@@ -416,7 +416,7 @@ func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.
 
 func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
 	}

@@ -142,7 +142,7 @@ func NewMockFPARoleAssignmentsIntentController(
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
 		panic(err) // coding error
 	}
-	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 
 	return controller
 }
@@ -188,7 +188,7 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 	// removed from Azure. Not-found means it was never published, so a stamped key
 	// is not yet reconciled and is kept.
 	var existingDeploymentStackDesire *azureresourcesapi.DeploymentStackDesire
-	existingDeploymentStackDesire, err = s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDesireName)
+	existingDeploymentStackDesire, err = s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
 	}
