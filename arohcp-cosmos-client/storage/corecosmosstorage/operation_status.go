@@ -20,9 +20,9 @@ import (
 
 	"k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 var localClock clock.Clock = clock.RealClock{}
@@ -40,7 +40,7 @@ func CancelActiveOperations(ctx context.Context, resourcesDBClient ResourcesDBCl
 	iterator := resourcesDBClient.Operations(subscriptionID).ListActiveOperations(opts)
 	for _, operation := range iterator.Items(ctx) {
 		operationToWrite := operation.DeepCopy()
-		apihelpers.CancelOperation(operationToWrite, now)
+		coreapihelpers.CancelOperation(operationToWrite, now)
 
 		_, err := resourcesDBClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, operationToWrite, nil)
 		if err != nil {

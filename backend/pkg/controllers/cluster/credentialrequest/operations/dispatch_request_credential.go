@@ -33,7 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type dispatchRequestCredential struct {
@@ -121,7 +120,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 
 		replacement := operation.DeepCopy()
-		apihelpers.CancelOperation(replacement, c.clock.Now())
+		coreapihelpers.CancelOperation(replacement, c.clock.Now())
 
 		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
