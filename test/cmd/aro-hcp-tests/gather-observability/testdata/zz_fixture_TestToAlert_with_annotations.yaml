@@ -1,11 +1,12 @@
 alert:
   annotations:
-    description: More than 5% of REST API requests are returning 5xx status codes.
-    summary: Maestro REST API error rate above 5%
+    description: Backend controller workqueue depth has exceeded 10 for more than
+      15 minutes.
+    summary: Backend controller workqueue depth is high
   condition: ""
   labels:
-    alertname: MaestroRESTAPIErrorRate
-  name: MaestroRESTAPIErrorRate
+    alertname: BackendControllerQueueDepthHigh
+  name: BackendControllerQueueDepthHigh
   severity: Sev3
   state: ""
 metadata:

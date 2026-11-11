@@ -42,7 +42,7 @@ func TestCheckMetricsRoutingLabel_PodMonitorWithLabel(t *testing.T) {
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: maestro-agent
+  name: mgmt-agent
 spec:
   podMetricsEndpoints:
   - port: metrics
@@ -74,13 +74,13 @@ func TestCheckMetricsRoutingLabel_PodMonitorMissingLabel(t *testing.T) {
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: maestro-agent
+  name: mgmt-agent
 spec:
   podMetricsEndpoints:
   - port: metrics
 `
 	assert.Equal(t, []string{
-		`PodMonitor/maestro-agent spec.podMetricsEndpoints[0] is missing a target relabeling (relabelings) that sets microsoft_metrics_include_label=service; metrics without it are dropped by the filtered data collection rule, and setting it via metricRelabelings omits synthetic series like up (add to MetricsRoutingLabelAllowlist if intentional, or MetricsRoutingLabelOverrides to change the expected value)`,
+		`PodMonitor/mgmt-agent spec.podMetricsEndpoints[0] is missing a target relabeling (relabelings) that sets microsoft_metrics_include_label=service; metrics without it are dropped by the filtered data collection rule, and setting it via metricRelabelings omits synthetic series like up (add to MetricsRoutingLabelAllowlist if intentional, or MetricsRoutingLabelOverrides to change the expected value)`,
 	}, checkMetricsRoutingLabel(manifest, emptyAllowlist, nil))
 }
 

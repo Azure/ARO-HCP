@@ -6,7 +6,7 @@ The ARO HCP architecture integrates Istio as a core component to secure and mana
 
 Istio was introduced to fulfill two critical requirements in ARO HCP:
 
-* **Intra-cluster traffic security:** In the absence of OCM AMS, which traditionally handled authorization logic between components such as CS and Maestro, Istio authorization policies provide controls for communication within the service cluster. This ensures only explicitly allowed service interactions can occur.
+* **Intra-cluster traffic security:** In the absence of OCM AMS, which traditionally handled authorization logic between service components, Istio authorization policies provide controls for communication within the service cluster. This ensures only explicitly allowed service interactions can occur.
 
 * **Ingress with delegated authorization:** For handling incoming traffic to the RP, Istio’s ingress gateway is used in combination with its external authorization capability. This allows the RP frontend to delegate authorization decisions to [MISE](https://aka.ms/mise) while maintaining a secure, scalable entry point into the system.
 
@@ -41,6 +41,7 @@ graph TB
         subgraph "aro-hcp"
             RPLabel[label<br/>istio.io/rev=prod-stable]
             RP[aro-hcp-frontend]
+            Backend[aro-hcp-backend]
             RPDeny[AuthorizationPolicy<br/>allow-nothing]
             ExtAuthz[AuthorizationPolicy<br/>ext-authz<br/>References MISE]
         end
@@ -52,18 +53,11 @@ graph TB
             CSDeny[AuthorizationPolicy<br/>allow-nothing]
         end
 
-        subgraph "maestro"
-            MLabel[label<br/>istio.io/rev=prod-stable]
-            Maestro[Maestro]
-            MPolicy[AuthorizationPolicy<br/>allow-cluster-service]
-            MDeny[AuthorizationPolicy<br/>allow-nothing]
-        end
     end
 
     Client -->|HTTPS| Gateway
     Gateway -->|Strict mTLS| RP
-    RP -->|Strict mTLS| CS
-    CS -->|Strict mTLS| Maestro
+    Backend -->|Strict mTLS| CS
     Tag -.->|aliases| Rev2
     ExtAuthz -->|Delegates authorization| MISE
 ```

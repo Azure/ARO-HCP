@@ -40,7 +40,7 @@ During burst cluster creation (15+ clusters), provisioning times can breach the 
 
 **What to look for:**
 - High restart rates (>0.1/sec) indicating crash loops
-- Restarts in critical namespaces (hypershift, OCM, maestro)
+- Restarts in critical namespaces (hypershift, OCM, kube-applier)
 - Specific pods repeatedly restarting during provisioning windows
 
 ### 3. Node Resource Pressure
@@ -133,7 +133,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 
 3. **Check each section:**
    - **Pod Health:** Were there failed/pending pods in `ocm-*` or `hypershift` namespaces?
-   - **Restarts:** Were critical pods (maestro-agent, hypershift-operator) restarting?
+   - **Restarts:** Were critical pods (kube-applier, hypershift-operator) restarting?
    - **Node Pressure:** Were management cluster nodes under memory/disk/PID pressure?
    - **Scheduling:** Were pods unschedulable due to resource constraints?
 
@@ -173,7 +173,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 **Common Causes:**
 - Memory limits too low on HCP components (OOMKilled)
 - Liveness probe configured too aggressively
-- External dependency issues (maestro MQTT, postgres)
+- External dependency issues (Cosmos DB, PostgreSQL)
 
 ### Scenario 3: Failed Pods Block Provisioning
 
@@ -213,13 +213,12 @@ https://<grafana-url>/d/hcp-k8s-provisioning-diagnostics
   - Common namespaces to monitor:
     - `ocm-*` - Open Cluster Management (HCP orchestration)
     - `hypershift` - HCP control plane operator
-    - `maestro` - Event distribution
+    - `kube-applier` - Kubernetes resource reconciliation
     - `clusters-*` - Per-HCP cluster namespaces
 
 ## Related Dashboards
 
 - **Cluster Service SLO** - API-level provisioning metrics and SLO tracking
-- **Maestro Server** - Event delivery metrics (MQTT, postgres, gRPC)
 - **AKS Performance** - Management cluster infrastructure metrics
 
 ## Metrics Reference

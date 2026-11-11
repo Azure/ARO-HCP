@@ -108,10 +108,9 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&f.LogVerbosity, "log-verbosity", f.LogVerbosity, "Log verbosity. 0 is the default verbosity level, equivalent to INFO. It must be a value >= 0, where a higher value means more verbose output.")
 
 	cmd.Flags().StringVar(&f.MaestroSourceEnvironmentIdentifier, "maestro-source-environment-identifier", f.MaestroSourceEnvironmentIdentifier,
-		"The environment name part used when generating Maestro Source IDs using the backend/pkg/maestro.GenerateMaestroSourceID function. "+
-			"It must be between 1 and 10 characters and can contain only lowercase letters. Example value: arohcpdev."+
-			"Changing the value causes the Maestro Source IDs generated to change which impacts visibility of previously existing resources. It is "+
-			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
+		"The environment identifier used in hosted cluster namespace names. "+
+			"It must be between 1 and 10 characters. Example value: arohcpdev. "+
+			"Keep this value stable for existing clusters; changing it changes namespace names and requires a migration plan.",
 	)
 
 	cmd.Flags().BoolVar(

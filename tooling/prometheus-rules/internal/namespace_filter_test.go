@@ -55,8 +55,8 @@ func TestInjectNamespaceFilter(t *testing.T) {
 		{
 			name:       "binary expression with and",
 			expr:       `kube_resourcequota{type="used"} > 0.9 and kube_resourcequota{type="hard"} > 0`,
-			namespaces: []string{"maestro", "aro-hcp"},
-			expected:   `kube_resourcequota{namespace=~"maestro|aro-hcp",type="used"} > 0.9 and kube_resourcequota{namespace=~"maestro|aro-hcp",type="hard"} > 0`,
+			namespaces: []string{"fleet", "aro-hcp"},
+			expected:   `kube_resourcequota{namespace=~"fleet|aro-hcp",type="used"} > 0.9 and kube_resourcequota{namespace=~"fleet|aro-hcp",type="hard"} > 0`,
 		},
 		{
 			name:       "expression with ignoring clause",
@@ -73,14 +73,14 @@ func TestInjectNamespaceFilter(t *testing.T) {
 		{
 			name:       "empty entries are filtered out",
 			expr:       `up`,
-			namespaces: []string{"aro-hcp", "", "maestro"},
-			expected:   `up{namespace=~"aro-hcp|maestro"}`,
+			namespaces: []string{"aro-hcp", "", "fleet"},
+			expected:   `up{namespace=~"aro-hcp|fleet"}`,
 		},
 		{
 			name:       "whitespace-only entries are filtered out",
 			expr:       `up`,
-			namespaces: []string{"aro-hcp", "  ", "maestro"},
-			expected:   `up{namespace=~"aro-hcp|maestro"}`,
+			namespaces: []string{"aro-hcp", "  ", "fleet"},
+			expected:   `up{namespace=~"aro-hcp|fleet"}`,
 		},
 		{
 			name:       "all empty namespaces returns expression unmodified",
