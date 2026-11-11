@@ -45,6 +45,7 @@ var _ = Describe("Customer", func() {
 		labels.CreateCluster,
 		labels.Slow,
 		labels.MIContainers(1),
+		labels.StartPriority(50),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "priv-np-scale"

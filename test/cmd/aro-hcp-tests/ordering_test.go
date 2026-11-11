@@ -18,49 +18,86 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
-
-	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-func TestSlowSpecsFirstMovesSlowSpecsAheadWithoutReorderingGroups(t *testing.T) {
-	spec := func(name string, slow bool) *et.ExtensionTestSpec {
-		labelSet := sets.New[string]()
-		if slow {
-			labelSet.Insert(labels.Slow[0])
-		}
-		return &et.ExtensionTestSpec{Name: name, Labels: labelSet}
-	}
-
-	specs := et.ExtensionTestSpecs{
-		spec("fast-a", false),
-		spec("slow-a", true),
-		spec("fast-b", false),
-		spec("slow-b", true),
-	}
-
-	slowSpecsFirst(specs)
-
-	names := make([]string, 0, len(specs))
-	for _, s := range specs {
-		names = append(names, s.Name)
-	}
-	assert.Equal(t, []string{"slow-a", "slow-b", "fast-a", "fast-b"}, names)
+func specWithStartPriority(name string, labelStrings ...string) *et.ExtensionTestSpec {
+	return &et.ExtensionTestSpec{Name: name, Labels: sets.New(labelStrings...)}
 }
 
-func TestSlowSpecsFirstLeavesAnAllFastSuiteUnchanged(t *testing.T) {
-	spec := func(name string) *et.ExtensionTestSpec {
-		return &et.ExtensionTestSpec{Name: name, Labels: sets.New[string]()}
-	}
-	specs := et.ExtensionTestSpecs{spec("a"), spec("b"), spec("c")}
-
-	slowSpecsFirst(specs)
-
+func specNames(specs et.ExtensionTestSpecs) []string {
 	names := make([]string, 0, len(specs))
-	for _, s := range specs {
-		names = append(names, s.Name)
+	for _, spec := range specs {
+		names = append(names, spec.Name)
 	}
-	assert.Equal(t, []string{"a", "b", "c"}, names)
+	return names
+}
+
+func TestOrderSpecsForStartPlacesHigherPrioritiesFirst(t *testing.T) {
+	specs := et.ExtensionTestSpecs{
+		specWithStartPriority("default-a"),
+		specWithStartPriority("first-a", "StartPriority:50"),
+		specWithStartPriority("second-a", "StartPriority:20"),
+		specWithStartPriority("first-b", "StartPriority:50"),
+		specWithStartPriority("default-b"),
+	}
+
+	require.NoError(t, orderSpecsForStart(specs))
+
+	assert.Equal(t, []string{"first-a", "first-b", "second-a", "default-a", "default-b"}, specNames(specs))
+}
+
+func TestOrderSpecsForStartLeavesSuitesWithoutPrioritiesUnchanged(t *testing.T) {
+	specs := et.ExtensionTestSpecs{
+		specWithStartPriority("a"),
+		specWithStartPriority("b"),
+		specWithStartPriority("c"),
+	}
+
+	require.NoError(t, orderSpecsForStart(specs))
+
+	assert.Equal(t, []string{"a", "b", "c"}, specNames(specs))
+}
+
+func TestOrderSpecsForStartIgnoresUnrelatedLabels(t *testing.T) {
+	specs := et.ExtensionTestSpecs{
+		specWithStartPriority("slow", "Speed:Slow"),
+		specWithStartPriority("prioritized", "StartPriority:20"),
+	}
+
+	require.NoError(t, orderSpecsForStart(specs))
+
+	assert.Equal(t, []string{"prioritized", "slow"}, specNames(specs))
+}
+
+func TestParseStartPriorityRejectsInvalidLabels(t *testing.T) {
+	testCases := []struct {
+		name   string
+		labels []string
+		err    string
+	}{
+		{name: "no label", labels: nil},
+		{name: "zero", labels: []string{"StartPriority:0"}},
+		{name: "maximum", labels: []string{"StartPriority:1000"}},
+		{name: "not an integer", labels: []string{"StartPriority:high"}, err: "not an integer"},
+		{name: "negative", labels: []string{"StartPriority:-1"}, err: "outside the allowed range"},
+		{name: "above maximum", labels: []string{"StartPriority:1001"}, err: "outside the allowed range"},
+		{name: "duplicate keys", labels: []string{"StartPriority:20", "StartPriority:50"}, err: "multiple start priority labels"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := specWithStartPriority("spec", tc.labels...)
+			_, err := parseStartPriority(spec)
+			if tc.err == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.err)
+		})
+	}
 }

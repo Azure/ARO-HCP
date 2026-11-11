@@ -387,6 +387,19 @@ unknown outcomes are labeled rather than reconstructed. Regenerate a report with
 ./test/aro-hcp-tests visualize --timing-input "$SHARED_DIR" --output "$ARTIFACT_DIR/test-timing"
 ```
 
+#### Suite queue order
+
+The suite scheduler is FIFO: it hands out the first spec whose conflict group,
+taints and MI pool capacity allow it to run. Specs declaring `labels.StartPriority(N)`
+enter the queue ahead of lower priority specs, and `0` is the default. The
+`Speed:Slow` label only selects the `/parallel` and `/parallel/slow` suites and
+has no effect on queue order.
+
+Priority values come from measured durations, not from guesses. Rank a spec set
+from the `timing-metadata-*.yaml` files of recent runs, then assign a tier only
+to the specs whose measured duration puts them in the suite's first wave. Keep
+the prioritized set near the suite concurrency so the tiers stay meaningful.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 

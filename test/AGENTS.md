@@ -251,6 +251,19 @@ Every test MUST include appropriate labels from these categories:
 ### Speed Labels (when applicable):
 - `labels.Slow`: For tests that take significantly longer than average
 
+### Suite Ordering Labels (optional):
+- `labels.StartPriority(N)`: Declares where the spec sits in the suite queue. Higher values start earlier, `0` is the default, and the range is `0..1000`. The suite scheduler is FIFO and non-preempting, so a high priority spec that cannot start yet because its conflict group, taints or MI pool capacity block it does not delay the specs behind it. Specs in the same tier keep their registration order. Ordering never changes suite membership. Reserve it for specs whose measured duration puts them in the suite's first wave, and keep the prioritized set near the suite's concurrency.
+
+```go
+It("should create a cluster with the full feature set",
+    labels.RequireNothing,
+    labels.Positive,
+    labels.CreateCluster,
+    labels.MIContainers(1),
+    labels.StartPriority(50),
+    func(ctx context.Context) {
+```
+
 **Example**:
 ```go
 It("should create cluster successfully", 
