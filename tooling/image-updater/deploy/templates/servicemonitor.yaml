@@ -1,0 +1,24 @@
+# Purpose: Prometheus scraping - tells Prometheus Operator to scrape metrics from the image-updater-monitor service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: image-updater-monitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: image-updater-monitor
+    release: arohcp-monitor
+spec:
+  selector:
+    matchLabels:
+      app: image-updater-monitor
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  endpoints:
+  - port: metrics
+    interval: 5m
+    path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label

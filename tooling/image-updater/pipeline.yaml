@@ -1,0 +1,47 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.ImageUpdater
+rolloutName: Image Updater Monitor Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../dev-infrastructure/templates/output-opstool-cluster.bicep
+    parameters: ../../dev-infrastructure/configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'image-updater-monitor'
+    releaseNamespace: 'image-updater'
+    namespaceFiles:
+    - deploy/namespace.yaml
+    chartDir: deploy
+    valuesFile: deploy/values.yaml.tmpl
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+  - name: alerting
+    action: ARM
+    template: alerting.bicep
+    parameters: ../../dev-infrastructure/configurations/image-updater-alerting.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: azureMonitorWorkspaceId
+      input:
+        resourceGroup: opstool
+        step: output
+        name: azureMonitorWorkspaceId
+    - name: sharedActionGroupId
+      input:
+        resourceGroup: opstool
+        step: output
+        name: sharedActionGroupId
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    - resourceGroup: opstool
+      step: deploy

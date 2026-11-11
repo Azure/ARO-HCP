@@ -273,6 +273,23 @@
                 "enabled": { "type": "boolean", "description": "Enable or disable alerting" }
               }
             },
+            "imageUpdaterMonitor": {
+              "type": "object",
+              "description": "Image-updater monitor exporter configuration",
+              "properties": {
+                "image": { "$ref": "#/$defs/Image" },
+                "prow": {
+                  "type": "object",
+                  "description": "Prow API and job selection for the monitored image-updater periodic jobs",
+                  "properties": {
+                    "baseURL": { "type": "string", "format": "uri" },
+                    "jobRegex": { "type": "string", "description": "Regular expression matching the Prow job names to monitor" },
+                    "interval": { "type": "string", "description": "Prow polling interval as a Go duration" }
+                  }
+                },
+                "resultsBucket": { "type": "string", "description": "GCS bucket holding Prow run artifacts, read to classify failure reasons on the consecutive-failures metric" }
+              }
+            },
             "tenantQuota": {
               "type": "object",
               "description": "Tenant quota collector configuration",
