@@ -331,7 +331,7 @@ func TestSuiteConcurrencyMetadata(t *testing.T) {
 	fallbacks := map[string]int{
 		"integration/parallel": 24, "integration/parallel/slow": 24, "integration/parallel/all": 24,
 		"stage/parallel": 34, "stage/parallel/slow": 34, "stage/parallel/all": 34,
-		"prod/parallel": 19, "prod/parallel/slow": 19,
+		"prod/parallel": 19, "prod/parallel/slow": 19, "prod/parallel/all": 19,
 		"dev-cd-check/parallel": 20, "rp-api-compat-all/parallel": 24,
 		"rp-api-compat-all/parallel/slow": 24, "hypershift-presubmit/parallel": 24,
 		"expect-failure":   24,
@@ -798,6 +798,12 @@ func TestCombinedParallelAllSuitesIncludeFastAndSlow(t *testing.T) {
 			slow: "stage/parallel/slow",
 			all:  "stage/parallel/all",
 		},
+		{
+			env:  "Prod",
+			fast: "prod/parallel",
+			slow: "prod/parallel/slow",
+			all:  "prod/parallel/all",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.env, func(t *testing.T) {
@@ -979,6 +985,7 @@ func TestExpectFailureSuiteSelection(t *testing.T) {
 		{"stage/parallel/all", []string{labels.RequireNothing[0]}},
 		{"prod/parallel", []string{labels.RequireNothing[0]}},
 		{"prod/parallel/slow", []string{labels.RequireNothing[0], labels.Slow[0]}},
+		{"prod/parallel/all", []string{labels.RequireNothing[0]}},
 		{"dev-cd-check/parallel", []string{labels.AroRpApiCompatible[0], labels.Positive[0]}},
 		{"rp-api-compat-all/parallel", []string{labels.AroRpApiCompatible[0]}},
 		{"rp-api-compat-all/parallel/slow", []string{labels.AroRpApiCompatible[0], labels.Slow[0]}},

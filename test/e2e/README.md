@@ -212,17 +212,19 @@ Or `integration/parallel` test suite:
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
-The `integration/parallel/all` and `stage/parallel/all` suites select the union
-of their fast (`integration/parallel` / `stage/parallel`) and Slow
-(`integration/parallel/slow` / `stage/parallel/slow`) suites. Each retains its
-environment exclusions and runs both Slow-labeled and non-Slow tests in one
-suite:
+The `integration/parallel/all`, `stage/parallel/all` and `prod/parallel/all`
+suites select the union of their fast (`*/parallel`) and Slow (`*/parallel/slow`)
+suites. Each retains its environment exclusions and runs both Slow-labeled and
+non-Slow tests in one suite. The stage and prod periodics use the `/all` suites
+so a single job covers the whole spec set:
 
 ```bash
 ./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
 ./test/aro-hcp-tests run-suite "integration/parallel/all"
 ./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
 ./test/aro-hcp-tests run-suite "stage/parallel/all"
+./test/aro-hcp-tests list tests --suite "prod/parallel/all" --output names
+./test/aro-hcp-tests run-suite "prod/parallel/all"
 ```
 
 The `expect-failure` suite collects exactly the tests labeled
