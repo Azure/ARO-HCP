@@ -70,15 +70,19 @@ has failed or errored on `maxConsecutiveFailures` (default 3) consecutive
 scheduled runs, from the image-updater monitor exporter. The job runs at
 06:00/14:00/22:00 UTC on weekdays only, so the default threshold is roughly
 one full weekday of failed runs. The alert description links the most recent
-failing run directly.
+failing run directly and carries a classified failure reason (the failing
+ci-operator step and its first error line, read from the run's junit step
+graph; empty when the run produced no artifacts).
 
-1. Open the run link in the alert description and skim the failure log.
-2. If the failure reason is not obvious from the log, run the triage-job
+1. Check the failure reason in the alert description first; it names the
+   failing step and error, e.g. a registry or GitHub API failure.
+2. Open the run link in the alert description and skim the failure log.
+3. If the failure reason is not obvious from the log, run the triage-job
    workflow on the run URL.
-3. See [`tooling/image-updater/`](../../tooling/image-updater/) and
+4. See [`tooling/image-updater/`](../../tooling/image-updater/) and
    [image-lifecycle.md](image-lifecycle.md) for what the job does; a
    persistent failure means image bumps into ARO-HCP are delayed.
-4. If a recent bump itself broke CI, consider reverting the offending
+5. If a recent bump itself broke CI, consider reverting the offending
    image-updater PR and letting the next scheduled run retry.
 
 > **Overlap with `ProwCIScheduledJobPermafailing`:** the tenant-quota Prow
@@ -98,11 +102,15 @@ failing run directly.
 `ImageUpdaterRunStalled` fires when the image-updater Prow periodic has not
 completed a run within the schedule-derived stall threshold: 9h
 (`weekdayStallSeconds`) on Tuesday-Friday — the 8h gap between the
-06:00/14:00/22:00 slots plus run time — and 34h (`mondayStallSeconds`) on
-Monday, spanning the weekend gap since the Friday 22:00 run. A hung run
-never completes, so no failure result ever appears — the missing completion
-is the only signal. Common causes are the updater waiting on GitHub or Tide
-state, or a wedged registry client.
+06:00/14:00/22:00 slots plus run time — and 58h (`mondayStallSeconds`) on
+Monday, spanning the ~56h weekend gap since the Friday 22:00 run (the job
+does not run Saturday or Sunday). A hung run never completes, so no failure
+result ever appears — the missing completion is the only signal. Common
+causes are the updater waiting on GitHub or Tide state, or a wedged registry
+client. Both thresholds were backtested against all completed runs
+(Sep-Nov 2026): the weekday rule fired only on three genuinely missed
+slots, and the Monday budget leaves ~2h grace for the 06:00 run before
+firing ~08:00 UTC.
 
 1. Open the job history link in the alert description and check whether a
    run is currently in progress and for how long.
@@ -111,7 +119,7 @@ state, or a wedged registry client.
    clean.
 3. Note the weekday-only schedule when interpreting gaps: the rule does not
    fire on Saturday/Sunday, and a Friday-night stall is detected Monday
-   morning (~09:00 UTC) rather than over the weekend.
+   morning (~08:00 UTC) rather than over the weekend.
 
 ### ImageUpdaterRunDurationExceeded: image-updater run too slow
 

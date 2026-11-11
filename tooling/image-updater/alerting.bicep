@@ -21,8 +21,8 @@ param maxRunDurationSeconds int = 3600
 @description('Maximum time in seconds between completed runs on Tue-Fri before a run is considered stalled; 9h covers the 8h gap between the 06:00/14:00/22:00 schedule plus run time')
 param weekdayStallSeconds int = 32400
 
-@description('Maximum time in seconds between completed runs before a Monday alert; 34h spans the weekend gap (Friday 22:00 slot completes ~23:00, Monday 06:00 run completes by ~07:00), so a merely slow Monday run has ~2h of grace before this fires at ~09:00 UTC')
-param mondayStallSeconds int = 122400
+@description('Maximum time in seconds between completed runs before a Monday alert; the job does not run on weekends, so the real gap from Friday ~22:25 completion to Monday ~06:25 completion is ~56h. 58h leaves ~2h grace for the Monday 06:00 run before firing ~08:00 UTC. Backtested against all 120 runs Sep-Nov 2026: 34h (an earlier value) fired at Monday 00:00 every week.')
+param mondayStallSeconds int = 208800
 
 // day_of_week(): Sunday=0, Monday=1 ... Saturday=6. The stall rule is
 // day-aware rather than hour-gated: an hour gate would false-fire Monday
@@ -52,7 +52,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           summary: 'image-updater Prow job has ${maxConsecutiveFailures}+ consecutive failed runs'
-          description: '{{ $labels.job_name }} has failed ${maxConsecutiveFailures} or more consecutive scheduled runs (job runs 06:00/14:00/22:00 UTC on weekdays). Most recent failing run: {{ $labels.url }} (build {{ $labels.build_id }}).'
+          description: '{{ $labels.job_name }} has failed ${maxConsecutiveFailures} or more consecutive scheduled runs (job runs 06:00/14:00/22:00 UTC on weekdays). Most recent failing run: {{ $labels.url }} (build {{ $labels.build_id }}). Failure reason: {{ $labels.failure_reason }}.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
@@ -76,7 +76,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           summary: 'image-updater Prow job has not completed a run in over the schedule-derived stall threshold'
-          description: '{{ $labels.job_name }} last completed a run {{ $value | humanizeDuration }} ago, longer than the schedule allows (schedule: 06:00/14:00/22:00 UTC weekdays; thresholds: ${weekdayStallSeconds}s Tue-Fri, ${mondayStallSeconds}s Monday to span the weekend gap). The current run may be hung, e.g. waiting on GitHub or Tide state. Job history: https://prow.ci.openshift.org/?job={{ $labels.job_name }}.'
+          description: '{{ $labels.job_name }} last completed a run {{ $value | humanizeDuration }} ago, longer than the schedule allows (schedule: 06:00/14:00/22:00 UTC weekdays, none Sat/Sun; thresholds: ${weekdayStallSeconds}s Tue-Fri, ${mondayStallSeconds}s Monday spanning the ~56h weekend gap). The current run may be hung, e.g. waiting on GitHub or Tide state. Job history: https://prow.ci.openshift.org/?job={{ $labels.job_name }}.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [

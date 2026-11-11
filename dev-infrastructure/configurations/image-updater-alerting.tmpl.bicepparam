@@ -8,5 +8,5 @@ param sharedActionGroupId = '__sharedActionGroupId__'
 param alertingEnabled = false
 param maxConsecutiveFailures = 3
 param weekdayStallSeconds = 32400
-param mondayStallSeconds = 122400
+param mondayStallSeconds = 208800
 param maxRunDurationSeconds = 3600
