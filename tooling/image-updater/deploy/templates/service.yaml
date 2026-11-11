@@ -1,0 +1,15 @@
+# Purpose: Metrics endpoint - exposes the Prometheus metrics endpoint on port 8080 for scraping
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-updater-monitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: image-updater-monitor
+spec:
+  selector:
+    app: image-updater-monitor
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080

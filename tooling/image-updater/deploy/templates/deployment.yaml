@@ -1,0 +1,52 @@
+# Purpose: Main workload - deploys the image-updater monitor pod that exports
+# image-updater Prow job health metrics for scraping
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-updater-monitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: image-updater-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-updater-monitor
+  template:
+    metadata:
+      labels:
+        app: image-updater-monitor
+    spec:
+      serviceAccountName: image-updater-monitor
+      containers:
+      - name: image-updater-monitor
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}{{ if .Values.imageDigest }}@{{ .Values.imageDigest }}{{ else if .Values.imageTag }}:{{ .Values.imageTag }}{{ end }}'
+        imagePullPolicy: IfNotPresent
+        args:
+        - monitor
+        - --prow-base-url={{ .Values.prowBaseURL }}
+        - --job-regex={{ .Values.jobRegex }}
+        - --interval={{ .Values.interval }}
+        - --port=8080
+        ports:
+        - containerPort: 8080
+          name: metrics
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "10m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10

@@ -63,6 +63,90 @@ knowledge should be recorded in the Jira bug during the investigation and
 promoted into a dedicated operational knowledge base once the response is
 understood and repeatable.
 
+### ImageUpdaterConsecutiveFailures: image-updater failing repeatedly
+
+`ImageUpdaterConsecutiveFailures` fires when the image-updater Prow periodic
+has failed or errored on `maxConsecutiveFailures` (default 3) consecutive
+scheduled runs, from the image-updater monitor exporter. The job runs at
+06:00/14:00/22:00 UTC on weekdays only, so the default threshold is roughly
+one full weekday of failed runs. The alert description links the most recent
+failing run directly.
+
+1. Open the run link in the alert description and skim the failure log.
+2. If the failure reason is not obvious from the log, run the triage-job
+   workflow on the run URL.
+3. See [`tooling/image-updater/`](../../tooling/image-updater/) and
+   [image-lifecycle.md](image-lifecycle.md) for what the job does; a
+   persistent failure means image bumps into ARO-HCP are delayed.
+4. If a recent bump itself broke CI, consider reverting the offending
+   image-updater PR and letting the next scheduled run retry.
+
+> **Overlap with `ProwCIScheduledJobPermafailing`:** the tenant-quota Prow
+> collector ingests all ARO-HCP jobs (including image-updater), so that
+> generic rule can also page on image-updater permafailing. This rule is
+> intentionally kept separate: it fires faster (3 consecutive runs, roughly
+> one weekday, vs the generic rule's 24h all-fail window) and its alert
+> carries the offending run's URL and build ID. The same failure may
+> therefore produce two alerts; treat the one with the run link as primary.
+> The image-updater rules are also deliberately severity 3 (warning) rather
+> than the severity 2 the tenant-quota staleness rules use, until they have
+> been validated against live metrics; promote them when enabling
+> `alertingEnabled`.
+
+### ImageUpdaterRunStalled: image-updater run hung or missing
+
+`ImageUpdaterRunStalled` fires when the image-updater Prow periodic has not
+completed a run within the schedule-derived stall threshold: 9h
+(`weekdayStallSeconds`) on Tuesday-Friday — the 8h gap between the
+06:00/14:00/22:00 slots plus run time — and 34h (`mondayStallSeconds`) on
+Monday, spanning the weekend gap since the Friday 22:00 run. A hung run
+never completes, so no failure result ever appears — the missing completion
+is the only signal. Common causes are the updater waiting on GitHub or Tide
+state, or a wedged registry client.
+
+1. Open the job history link in the alert description and check whether a
+   run is currently in progress and for how long.
+2. If a run has been pending for hours, inspect the Prow job payload and
+   consider interrupting the stuck run so the next scheduled run starts
+   clean.
+3. Note the weekday-only schedule when interpreting gaps: the rule does not
+   fire on Saturday/Sunday, and a Friday-night stall is detected Monday
+   morning (~09:00 UTC) rather than over the weekend.
+
+### ImageUpdaterRunDurationExceeded: image-updater run too slow
+
+`ImageUpdaterRunDurationExceeded` fires when the most recent completed run
+took longer than `maxRunDurationSeconds` (default 1h). A slow success is
+also actionable: it usually indicates registry or ACR throttling, or retry
+backoff on transient API errors.
+
+1. Open the offending run link in the alert description.
+2. Look for repeated retry/backoff log lines to identify which registry or
+   API is slow.
+
+### ImageUpdaterScrapeFailed: monitor exporter unhealthy
+
+`ImageUpdaterScrapeFailed` fires when the image-updater monitor exporter
+has failed its Prow poll, has not scraped in over 15 minutes, or has
+stopped emitting metrics entirely (pod down or scrape target lost — the
+`absent_over_time` term in the rule expression covers the case where the
+series go stale). While it fires, the other image-updater alerts cannot be
+trusted. Check the exporter pod (namespace `image-updater`) as described in
+[Exporter Health Checks](#exporter-health-checks), and connectivity to
+`prow.ci.openshift.org`.
+
+### ImageUpdaterMonitorBlind: monitor watching zero jobs
+
+`ImageUpdaterMonitorBlind` fires when the monitor polls Prow successfully
+but no monitored job has a completed run (`image_updater_jobs_matched == 0`).
+This means the Prow job was renamed, aged out of Prow retention, the
+monitor's `--job-regex` flag is wrong, or every recent run is hung and
+never completed — and every other image-updater alert is blind while it
+fires (empty metrics never trip the other rules). Check the
+[job history](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-image-updater)
+for a rename or a run pending for hours, then the monitor deployment's
+`--job-regex` argument.
+
 ### AzureQuotaCritical: Bumping a Quota
 
 `AzureQuotaCritical` fires when `azure_quota_usage / azure_quota_limit` exceeds
@@ -174,6 +258,9 @@ kubectl -n tenant-quota get deployment,pods,service,endpoints
 kubectl -n tenant-quota logs deployment/tenant-quota-collector --since=1h
 kubectl -n tenant-quota port-forward service/tenant-quota-collector 8080:8080
 ```
+
+The image-updater monitor exporter is checked the same way in the
+`image-updater` namespace (`deployment/image-updater-monitor`).
 
 While the port-forward is running, use another terminal:
 

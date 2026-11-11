@@ -1,0 +1,6 @@
+apiVersion: v2
+name: image-updater-monitor
+version: 0.1.0
+appVersion: 0.1.0
+kubeVersion: ">=1.27.0"
+description: Exposes image-updater Prow job health metrics for alerting.

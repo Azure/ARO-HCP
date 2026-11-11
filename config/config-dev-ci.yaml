@@ -159,6 +159,17 @@ clouds:
         alerting:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true
+        imageUpdaterMonitor:
+          image:
+            registry: "arohcpsvcdev.azurecr.io"
+            repository: "image-updater-monitor"
+            # TODO: pin a digest once the image-updater-monitor image is built
+            # and pushed by CI (follows the tenant-quota-collector convention).
+            digest: ""
+          prow:
+            baseURL: "https://prow.ci.openshift.org"
+            jobRegex: "^periodic-ci-Azure-ARO-HCP-main-image-updater-"
+            interval: "5m"
         tenantQuota:
           exitOnPanic: false
           image:
