@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -236,8 +237,14 @@ const (
 	shoeboxAFECFeature   = "testinproduction"
 
 	// mgmtSubscriptionNameSegment is the display name segment identifying
-	// management subscriptions: "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>".
+	// management subscriptions. Prod names follow
+	// "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>"; Stage names carry
+	// the environment as an extra segment so they are distinguishable from the
+	// identically-named prod ones (see config/config.msft.clouds-overlay.yaml):
+	// "Azure Red Hat OpenShift HCP - stg - <Region> - MGMT - <stamp>".
 	mgmtSubscriptionNameSegment = "mgmt"
+	stageEnvSubscriptionSegment = "stg"
+	deployEnvVarName            = "ARO_HCP_DEPLOY_ENV"
 )
 
 // verifyShoeboxLogDeliveryPrerequisites fast-fails when any management
@@ -246,9 +253,15 @@ const (
 // prerequisite only surfaces after the full 45-minute verification window
 // has timed out waiting for logs that can never arrive.
 //
-// When no management subscriptions are visible to the test identity, the
-// check logs a warning and passes: delivery verification remains the
-// authoritative signal in that case.
+// Credential limitation: management subscriptions live in the service tenant,
+// while the e2e CI identity (OpenShift Release Bot) is a Red Hat tenant
+// service principal (see docs/ci/execution.md). The subscription list API
+// only returns subscriptions in the authenticated tenant, so in current
+// Stage/PROD CI runs this preflight finds no management subscriptions and
+// logs a warning instead of failing: delivery verification remains the
+// authoritative signal. The check activates as designed as soon as the test
+// identity is granted visibility into the region's management subscriptions
+// (tracked in ARO-30014).
 func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.TokenCredential, location string) error {
 	clientOptions := &azcorearm.ClientOptions{
 		ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
@@ -259,6 +272,8 @@ func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.Tok
 		return fmt.Errorf("failed to create subscriptions client factory: %w", err)
 	}
 
+	deployEnv := os.Getenv(deployEnvVarName)
+
 	var mgmtSubscriptions []*armsubscriptions.Subscription
 	pager := subscriptionsFactory.NewClient().NewListPager(nil)
 	for pager.More() {
@@ -267,7 +282,7 @@ func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.Tok
 			return fmt.Errorf("failed to list subscriptions during AFEC preflight: %w", err)
 		}
 		for _, sub := range page.Value {
-			if isManagementSubscriptionForLocation(sub, location) {
+			if isManagementSubscriptionForLocation(sub, location, deployEnv) {
 				mgmtSubscriptions = append(mgmtSubscriptions, sub)
 			}
 		}
@@ -276,6 +291,7 @@ func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.Tok
 	if len(mgmtSubscriptions) == 0 {
 		GinkgoLogr.Info("no management subscriptions visible for location; skipping AFEC registration preflight",
 			"location", location,
+			deployEnvVarName, deployEnv,
 		)
 		return nil
 	}
@@ -323,26 +339,39 @@ func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.Tok
 
 // isManagementSubscriptionForLocation reports whether the subscription display
 // name matches the management subscription pattern for the given Azure
-// location: "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>".
-// Segments are compared case-insensitively with whitespace removed so that
-// e.g. "East US 2" matches location "eastus2" but not "eastus".
-func isManagementSubscriptionForLocation(sub *armsubscriptions.Subscription, location string) bool {
+// location and deployment environment. Prod names are
+// "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>"; Stage names
+// additionally carry the environment segment
+// ("Azure Red Hat OpenShift HCP - stg - <Region> - MGMT - <stamp>") so they are
+// distinguishable from identically-named prod ones. Segments are compared
+// case-insensitively with whitespace removed so that e.g. "East US 2" matches
+// location "eastus2" but not "eastus".
+func isManagementSubscriptionForLocation(sub *armsubscriptions.Subscription, location, deployEnv string) bool {
 	if sub.DisplayName == nil || sub.SubscriptionID == nil {
 		return false
 	}
 
+	expectStage := strings.EqualFold(deployEnv, "stg")
 	locationMatch := false
 	mgmtMatch := false
+	stageSegmentMatch := false
 	for _, segment := range strings.Split(*sub.DisplayName, " - ") {
 		normalized := normalizeLocationSegment(segment)
-		if normalized == normalizeLocationSegment(location) {
+		switch normalized {
+		case normalizeLocationSegment(location):
 			locationMatch = true
-		}
-		if normalized == mgmtSubscriptionNameSegment {
+		case mgmtSubscriptionNameSegment:
 			mgmtMatch = true
+		case stageEnvSubscriptionSegment:
+			stageSegmentMatch = true
 		}
 	}
-	return locationMatch && mgmtMatch
+	if !locationMatch || !mgmtMatch {
+		return false
+	}
+	// A prod run must not match Stage subscriptions and vice versa: the stage
+	// environment segment must be present exactly when running against stage.
+	return expectStage == stageSegmentMatch
 }
 
 func normalizeLocationSegment(segment string) string {
