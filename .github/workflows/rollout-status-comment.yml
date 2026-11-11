@@ -1,0 +1,29 @@
+name: "Rollout Status Comment"
+# Post a link to the rollout status page once a PR is merged, so the author and
+# reviewers can track the change through the release pipeline without hand-building
+# the URL.
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+permissions:
+  pull-requests: write
+jobs:
+  comment:
+    # Only merged PRs - a closed-without-merge PR never rolls out.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+    - name: Post rollout status link
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        script: |
+          const pr = context.payload.pull_request.number;
+          const url = `https://releases.dev.aro.azure-test.net/releases/versions?mode=pr&repo=aro-hcp&pr=${pr}`;
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: pr,
+            body: `Rollout Status: ${url}`,
+          });
