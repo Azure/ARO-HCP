@@ -26,6 +26,7 @@ use (
 	./tooling/azutils
 	./tooling/cifailurepatterns
 	./tooling/cleanup-sweeper
+	./tooling/component-updater
 	./tooling/depctl
 	./tooling/e2e-cost
 	./tooling/entra-app-credentials
