@@ -508,9 +508,9 @@
             "uid": "$ds_hcps"
           },
           "editorMode": "code",
-          "expr": "hostedClusterAPI_kubeapiserver_available:sli_sum_15m{namespace=~\"$namespace\"} / hostedClusterAPI_kubeapiserver_available:sli_count_15m{namespace=~\"$namespace\"}",
+          "expr": "max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available{status=\"True\", namespace=~\"$namespace\"})",
           "range": true,
-          "legendFormat": "KAS Availability (15m window)",
+          "legendFormat": "KAS Availability",
           "refId": "A"
         }
       ],
