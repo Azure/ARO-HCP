@@ -316,6 +316,7 @@ frontend:
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   cosmosDB:
+    azureResourcesContainerMaxScale: 4000
     billingContainerMaxScale: 4000
     disableLocalAuth: true
     enableBurstCapacity: true

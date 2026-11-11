@@ -366,6 +366,9 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments/f
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1
 ## explicit; go 1.23.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks
+# github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2 v2.0.0
+## explicit; go 1.24.0
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2
 # github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures

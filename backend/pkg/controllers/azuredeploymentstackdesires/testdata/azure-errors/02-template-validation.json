@@ -1,0 +1,212 @@
+{
+  "apiVersion": "2024-03-01",
+  "azureCLI": "2.90.0",
+  "responses": [
+    {
+      "case": "02-template-validation/submit",
+      "method": "PUT",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation?api-version=2024-03-01",
+      "status": 201,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": "17",
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:43.342627Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:43.342627Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "validation"
+      },
+      "requestBody": {
+        "properties": {
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "resources": [
+              {
+                "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "apiVersion": "2023-01-31",
+                "name": "[parameters('notDeclared')]",
+                "location": "westus3"
+              }
+            ]
+          },
+          "actionOnUnmanage": {
+            "resources": "delete"
+          },
+          "denySettings": {
+            "mode": "none"
+          }
+        }
+      },
+      "requestSHA256": "8bd9b459260eeccc2c3b42842e7929f96d910309f340813a9ad8cfc4f8a7b0de"
+    },
+    {
+      "case": "02-template-validation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "initializing",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:43.342627Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:43.342627Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "validation"
+      }
+    },
+    {
+      "case": "02-template-validation/get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation?api-version=2024-03-01",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "properties": {
+          "actionOnUnmanage": {
+            "resources": "delete",
+            "resourceGroups": "detach",
+            "managementGroups": "detach",
+            "resourcesWithoutDeleteSupport": "fail"
+          },
+          "duration": "PT3.2411197S",
+          "denySettings": {
+            "mode": "none",
+            "applyToChildScopes": false,
+            "excludedPrincipals": [],
+            "excludedActions": []
+          },
+          "resources": [],
+          "provisioningState": "failed",
+          "detachedResources": [],
+          "deletedResources": [],
+          "failedResources": [],
+          "error": {
+            "code": "DeploymentStackDeploymentFailed",
+            "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+            "details": [
+              {
+                "code": "InvalidTemplate",
+                "message": "Deployment template validation failed: 'The template parameter 'notDeclared' is not found. Please see https://aka.ms/arm-syntax-parameters for usage details.'.",
+                "additionalInfo": [
+                  {
+                    "type": "TemplateViolation",
+                    "info": {
+                      "lineNumber": 8,
+                      "linePosition": 43,
+                      "path": "properties.template.resources[0].name"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "correlationId": "REDACTED_UUID"
+        },
+        "systemData": {
+          "createdBy": "REDACTED_EMAIL",
+          "createdByType": "User",
+          "createdAt": "2026-10-14T23:26:43.342627Z",
+          "lastModifiedBy": "REDACTED_EMAIL",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2026-10-14T23:26:43.342627Z"
+        },
+        "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/PROBE_RESOURCE_GROUP/providers/Microsoft.Resources/deploymentStacks/validation",
+        "type": "Microsoft.Resources/deploymentStacks",
+        "name": "validation"
+      }
+    },
+    {
+      "case": "02-template-validation/async-operation-get",
+      "method": "GET",
+      "url": "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID?api-version=2024-03-01&t=REDACTED&c=REDACTED&s=REDACTED&h=REDACTED",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "id": "/subscriptions/SUBSCRIPTION_ID/providers/Microsoft.Resources/locations/westus2/deploymentStackOperationStatus/REDACTED_UUID",
+        "name": "REDACTED_UUID",
+        "status": "failed",
+        "error": {
+          "code": "DeploymentStackDeploymentFailed",
+          "message": "One or more resources could not be deployed. Correlation id: 'REDACTED_UUID'.",
+          "details": [
+            {
+              "code": "InvalidTemplate",
+              "message": "Deployment template validation failed: 'The template parameter 'notDeclared' is not found. Please see https://aka.ms/arm-syntax-parameters for usage details.'.",
+              "additionalInfo": [
+                {
+                  "type": "TemplateViolation",
+                  "info": {
+                    "lineNumber": 8,
+                    "linePosition": 43,
+                    "path": "properties.template.resources[0].name"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

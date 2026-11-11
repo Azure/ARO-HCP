@@ -49,18 +49,19 @@ func listAllContainerDocuments(containers map[string][]*cosmosstorageutils.Typed
 
 // CosmosContentLoader implements ContentLoader and DocumentLister using a real Cosmos DB container.
 type CosmosContentLoader struct {
-	resourcesContainer *azcosmos.ContainerClient
-	fleetContainer     *azcosmos.ContainerClient
+	resourcesContainer      *azcosmos.ContainerClient
+	fleetContainer          *azcosmos.ContainerClient
+	azureResourcesContainer *azcosmos.ContainerClient
 }
 
 // NewCosmosContentLoader creates a new CosmosContentLoader from a Cosmos container.
-func NewCosmosContentLoader(resourcesContainer, fleetContainer *azcosmos.ContainerClient) *CosmosContentLoader {
-	return &CosmosContentLoader{resourcesContainer: resourcesContainer, fleetContainer: fleetContainer}
+func NewCosmosContentLoader(resourcesContainer, fleetContainer, azureResourcesContainer *azcosmos.ContainerClient) *CosmosContentLoader {
+	return &CosmosContentLoader{resourcesContainer: resourcesContainer, fleetContainer: fleetContainer, azureResourcesContainer: azureResourcesContainer}
 }
 
 // LoadContent loads a single JSON document into Cosmos DB.
 func (c *CosmosContentLoader) LoadContent(ctx context.Context, content []byte) error {
-	return LoadCosmosContent(ctx, c.resourcesContainer, c.fleetContainer, content)
+	return LoadCosmosContent(ctx, c.resourcesContainer, c.fleetContainer, c.azureResourcesContainer, content)
 }
 
 // ListAllDocuments returns all documents in the Cosmos container.
@@ -74,7 +75,7 @@ func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*cosmosst
 
 func (c *CosmosContentLoader) ListDocumentsByContainer(ctx context.Context) (map[string][]*cosmosstorageutils.TypedDocument, error) {
 	results := map[string][]*cosmosstorageutils.TypedDocument{}
-	for name, container := range map[string]*azcosmos.ContainerClient{"Resources": c.resourcesContainer, "Fleet": c.fleetContainer} {
+	for name, container := range map[string]*azcosmos.ContainerClient{"Resources": c.resourcesContainer, "Fleet": c.fleetContainer, "AzureResources": c.azureResourcesContainer} {
 		documents, err := listCosmosContainerDocuments(ctx, container)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list %s documents: %w", name, err)

@@ -28,10 +28,12 @@ import (
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/controllerregistry"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -48,6 +50,7 @@ type ControllerContext struct {
 	// tenant, and permissions granted here are not scoped to any individual
 	// customer's HostedCluster or subscription.
 	ServiceTenantID                                     string
+	AzureResourcesDBClient                              azureresourcescosmosstorage.AzureResourcesDBClient
 	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
 	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
 	BackupConfig                                        *clusterbackups.BackupConfig
@@ -76,6 +79,7 @@ type ControllerContext struct {
 
 	BackendInformers                                 coreinformers.BackendInformers
 	FleetInformers                                   fleetinformers.FleetInformers
+	AzureResourcesInformers                          azureresourcesinformers.AzureResourcesInformers
 	UnionKubeApplierInformers                        *unionkubeapplierinformers.UnionKubeApplierInformers
 	UnionKubeApplierInformersController              *unionkubeapplierinformers.UnionKubeApplierInformersController
 	VirtualMachineResourceSKUsCachedReaderController *cachedreader.FPAVirtualMachineResourceSKUsCachedReaderController

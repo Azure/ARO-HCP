@@ -25,9 +25,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -45,9 +47,10 @@ import (
 // deletion pipelines. The orphan scraper handles controller status after the
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
-	clusterLister        corelisters.ClusterLister
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
+	clusterLister          corelisters.ClusterLister
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient
+	kubeApplierDBClients   kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
@@ -56,15 +59,17 @@ const ClusterChildResourcesCleanupControllerControllerName = "ClusterChildResour
 
 func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
+		clusterLister:          clusterLister,
+		resourcesDBClient:      resourcesDBClient,
+		azureResourcesDBClient: azureResourcesDBClient,
+		kubeApplierDBClients:   kubeApplierDBClients,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -85,6 +90,7 @@ func NewClusterChildResourcesCleanupController(
 	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, "*")
 	nodePoolInformer, _ := informers.NodePools()
 	externalAuthInformer, _ := informers.ExternalAuths()
 	requestInformer, _ := informers.SystemAdminCredentialRequests()
@@ -196,6 +202,10 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier content: %w", err))
+	}
+
+	if err := c.ensureDeploymentStackDesiresDeleted(ctx, clusterResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped deployment stack desires: %w", err))
 	}
 
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*clusterResourceID)
@@ -654,4 +664,43 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteRead
 
 		return true, nil
 	}
+}
+
+// ensureDeploymentStackDesiresDeleted removes every DeploymentStackDesire scoped
+// directly under this cluster from the AzureResources container. Unlike the rest
+// of this controller's children, DeploymentStackDesire lives in its own Cosmos
+// container and is therefore never reached by the generic resourcesDBClient
+// recursive sweep below, so it needs its own explicit hard-delete here. This
+// mirrors today's behavior for the resource before the container split: an
+// unconditional Cosmos document delete, no Azure-side call. The
+// IdentityRoleAssignments producer already deletes its own desire on cluster
+// teardown (relying on MRG cascade deletion in Azure); this is a backstop for
+// any desire that producer missed, not a stronger guarantee.
+func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	desires, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create cluster-scoped DeploymentStackDesire CRUD: %w", err))
+	}
+
+	desireIterator, err := desires.List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped deployment stack desires: %w", err))
+	}
+	for _, desire := range desireIterator.Items(ctx) {
+		if desire.ResourceID == nil {
+			return utils.TrackError(fmt.Errorf("deployment stack desire has no resourceID; refusing to delete"))
+		}
+		logger.Info("deleting cluster-scoped deployment stack desire", "deploymentStackDesireResourceID", desire.ResourceID)
+		if err := desires.Delete(ctx, desire.ResourceID.Name); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to delete deployment stack desire %q: %w", desire.ResourceID.String(), err))
+		}
+	}
+	if err := desireIterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("error iterating cluster-scoped deployment stack desires: %w", err))
+	}
+
+	return nil
 }

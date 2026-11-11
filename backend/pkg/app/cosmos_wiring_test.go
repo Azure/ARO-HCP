@@ -89,13 +89,14 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			}, nil
 		})
 		factory, err := newStorageFactory("https://cosmos.test", "test", options, StorageFactoryOptions{
-			ResourcesRUsPerSecond:   3.75, // 1 RU per controller after 80% utilization.
-			BillingRUsPerSecond:     7.5,  // 2 RUs per controller.
-			FleetRUsPerSecond:       15,   // 4 RUs per controller.
-			KubeApplierRUsPerSecond: 80,   // 8 RUs per controller at 30% utilization.
-			KubeApplierUtilization:  0.3,
-			ControllerNames:         []string{"normal", "other", "cleanup"},
-			ControllerFractions:     map[string]float64{"cleanup": 0.1},
+			ResourcesRUsPerSecond:      3.75, // 1 RU per controller after 80% utilization.
+			BillingRUsPerSecond:        7.5,  // 2 RUs per controller.
+			FleetRUsPerSecond:          15,   // 4 RUs per controller.
+			AzureResourcesRUsPerSecond: 15,   // 4 RUs per controller.
+			KubeApplierRUsPerSecond:    80,   // 8 RUs per controller at 30% utilization.
+			KubeApplierUtilization:     0.3,
+			ControllerNames:            []string{"normal", "other", "cleanup"},
+			ControllerFractions:        map[string]float64{"cleanup": 0.1},
 		})
 		require.NoError(t, err)
 		require.Same(t, factory.ResourcesStorageClient("normal"), factory.ResourcesStorageClient("normal"))
@@ -175,8 +176,9 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 func testStorageAllocations() StorageFactoryOptions {
 	return StorageFactoryOptions{
 		ResourcesRUsPerSecond: 10, BillingRUsPerSecond: 10,
-		FleetRUsPerSecond: 10, KubeApplierRUsPerSecond: 10,
-		ControllerNames: []string{"one"},
+		FleetRUsPerSecond: 10, AzureResourcesRUsPerSecond: 10,
+		KubeApplierRUsPerSecond: 10,
+		ControllerNames:         []string{"one"},
 	}
 }
 
@@ -199,6 +201,7 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
 		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
 		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
+		{"invalid AzureResources budget", func(o *StorageFactoryOptions) { o.AzureResourcesRUsPerSecond = 0 }},
 		{"invalid kube-applier budget", func(o *StorageFactoryOptions) { o.KubeApplierRUsPerSecond = 0 }},
 		{"invalid kube-applier utilization", func(o *StorageFactoryOptions) { o.KubeApplierUtilization = 1.1 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},

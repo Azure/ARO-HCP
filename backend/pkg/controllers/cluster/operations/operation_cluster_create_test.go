@@ -510,7 +510,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
+									RoleAssignments: coreapi.RoleAssignments{
+										StackReady: true,
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
 												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
@@ -1286,7 +1287,8 @@ func TestDetermineOperationState(t *testing.T) {
 								AzureResources: coreapi.AzureResources{
 									KubeAPIServerCertificate: confirmedTLSCertificate("kas"),
 									IngressCertificate:       confirmedTLSCertificate("ingress"),
-									RoleAssignments: coreapi.AzureMultiReference{
+									RoleAssignments: coreapi.RoleAssignments{
+										StackReady: true,
 										AzureResources: []*azcorearm.ResourceID{
 											metadataapi.Must(azcorearm.ParseResourceID(
 												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
@@ -1565,7 +1567,7 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
 	}
 
-	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+	spcLister := func(ra coreapi.RoleAssignments) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
 				{
@@ -1587,26 +1589,42 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		roleAssignments coreapi.AzureMultiReference
+		roleAssignments coreapi.RoleAssignments
 		expectedState   coreapi.ProvisioningState
 		wantMsgSubstr   string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
-			roleAssignments: coreapi.AzureMultiReference{
+			name: "current stack succeeded without legacy lists",
+			roleAssignments: coreapi.RoleAssignments{
+				StackReady: true,
+			},
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name: "legacy confirmed lists do not establish stack readiness",
+			roleAssignments: coreapi.RoleAssignments{
 				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			},
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+		{
+			name: "current stack success supersedes legacy pending lists",
+			roleAssignments: coreapi.RoleAssignments{
+				StackReady:            true,
+				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
 			},
 			expectedState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name:            "none confirmed → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{},
+			roleAssignments: coreapi.RoleAssignments{},
 			expectedState:   coreapi.ProvisioningStateProvisioning,
 			wantMsgSubstr:   "role assignments not yet confirmed",
 		},
 		{
 			name: "some still pending → Provisioning",
-			roleAssignments: coreapi.AzureMultiReference{
+			roleAssignments: coreapi.RoleAssignments{
 				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
 				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
 			},
