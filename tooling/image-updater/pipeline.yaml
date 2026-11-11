@@ -21,6 +21,20 @@ resourceGroups:
     - deploy/namespace.yaml
     chartDir: deploy
     valuesFile: deploy/values.yaml.tmpl
+    # The monitor needs no Azure identity and no Kusto log ingestion; these
+    # satisfy the Helm-step schema the same way tenant-quota's collector
+    # does (placeholder opstool Kusto outputs, generic opstool workload
+    # identity).
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: opstoolUAMIId
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
     dependsOn:
     - resourceGroup: opstool
       step: output
