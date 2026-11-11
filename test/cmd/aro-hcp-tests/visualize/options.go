@@ -556,6 +556,21 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	let currentLabels = groups.map(group => group.name);
 	let currentOffsets = allOffsets;
 	let currentDurations = allDurations;
+	/* The detail is pinned explicitly rather than relying on triggerOn alone:
+	   ECharts still hides a tooltip when the pointer leaves the chart or the HTML
+	   tooltip, so while pinned the tooltip is kept visible until another row is
+	   pinned or the click lands outside the plot. */
+	let pinnedIndex = null;
+	const pin = (index, x, y) => {
+		pinnedIndex = index;
+		chart.setOption({tooltip: {alwaysShowContent: true}});
+		chart.dispatchAction({type: 'showTip', x, y});
+	};
+	const unpin = () => {
+		pinnedIndex = null;
+		chart.setOption({tooltip: {alwaysShowContent: false}});
+		chart.dispatchAction({type: 'hideTip'});
+	};
 	const sort = document.getElementById('timing-sort');
 	const outcomeFilters = {
 		skipped: document.getElementById('timing-show-skipped'),
@@ -756,6 +771,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		chart.dispatchAction({type: 'dataZoom', dataZoomId: 'timing-time', start: startPercent, end: endPercent});
 	};
 	const update = () => {
+		if (pinnedIndex !== null) unpin();
 		const visible = groups.filter(isVisible);
 		const mode = sort.value;
 		visible.sort((a, b) => {
@@ -793,7 +809,7 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		currentDurations = durations;
 		chart.setOption({
 			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
-			tooltip: {trigger:'axis', axisPointer:{axis:'y',type:'shadow'}, confine:true, enterable:true, hideDelay:200, formatter:tooltip},
+			tooltip: {trigger:'axis', triggerOn:'click', axisPointer:{axis:'y',type:'shadow'}, confine:true, enterable:true, hideDelay:200, formatter:tooltip},
 			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
 				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
 			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]
@@ -809,6 +825,32 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		const rows = updates.find(item => item.dataZoomId === 'timing-rows');
 		if (!rows) return;
 		fitTimeRange(rows.start, rows.end);
+	});
+	/* A click inside the plot pins that row's detail, so moving the pointer over
+	   another row, into the tooltip or out of the chart keeps it. Clicks outside
+	   the plot dismiss it. Rows are resolved from the grid geometry rather than the
+	   event target so rows with no drawn bar, such as zero-duration tests, remain
+	   inspectable. */
+	chart.getZr().on('click', event => {
+		const grid = chart.getModel().getComponent('grid');
+		const rect = grid.coordinateSystem.getRect();
+		const inside = event.offsetX >= rect.x && event.offsetX <= rect.x + rect.width &&
+			event.offsetY >= rect.y && event.offsetY <= rect.y + rect.height;
+		if (!inside) {
+			unpin();
+			return;
+		}
+		const rows = Math.max(1, currentLabels.length);
+		const row = Math.max(0, Math.min(rows - 1, Math.floor((event.offsetY - rect.y) / (rect.height / rows))));
+		pin(row, event.offsetX, event.offsetY);
+	});
+	/* The chart surface only sees its own clicks. A pinned detail is also dismissed
+	   by clicking anywhere else on the page, while clicks inside the chart, including
+	   its tooltip, stay with the chart handler above. */
+	document.addEventListener?.('click', event => {
+		if (pinnedIndex === null) return;
+		if (chart.getDom().contains?.(event.target)) return;
+		unpin();
 	});
 	update();
 	window.addEventListener('load', fitViewportHeight);

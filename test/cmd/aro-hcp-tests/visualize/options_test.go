@@ -118,6 +118,7 @@ func TestTestTimingTooltipAndEscaping(t *testing.T) {
 			if (option.tooltip) state.tooltip = {...state.tooltip, ...option.tooltip};
 		},
 		getOption: () => state,
+		getZr: () => ({on: () => {}}),
 		getHeight: () => chart.height,
 		getDom: () => chart.dom,
 		resize: ({height}) => chart.height = height,
@@ -189,7 +190,7 @@ const listeners = {};
 const windowListeners = {};
 const sort = {value: 'start', addEventListener: (event, handler) => listeners[event] = handler};
 let containerTop = 405;
-const document = {getElementById: id => id === 'timing-sort' ? sort : null, querySelector: selector => selector === '.container' ? {getBoundingClientRect:()=>({top:containerTop})} : null};
+const document = {getElementById: id => id === 'timing-sort' ? sort : null, querySelector: selector => selector === '.container' ? {getBoundingClientRect:()=>({top:containerTop})} : null, addEventListener: (event, handler) => listeners['document:' + event] = handler};
 const window = {innerHeight:1000,scrollY:0,addEventListener:(event,handler)=>windowListeners[event]=handler};
 window.top = window;
 const labels = ['alpha', 'beta'];
@@ -199,8 +200,10 @@ const state = {yAxis:[{data:labels}],series:[{data:offsets},{data:durations}],da
 const chart = {
   updates: [],
   height: 600,
-  dom: {style:{height:'60vh'},getBoundingClientRect:()=>({top:435})},
+  dom: {style:{height:'60vh'},getBoundingClientRect:()=>({top:435}), contains: target => Boolean(target && target.inside)},
   getOption: () => state,
+  getZr: () => ({on: (event, handler) => listeners['zr:' + event] = handler}),
+  getModel: () => ({getComponent: () => ({coordinateSystem: {getRect: () => ({x:0, y:0, width:100, height:100})}})}),
   getHeight: () => chart.height,
   getDom: () => chart.dom,
 	resize: ({height}) => chart.height = height,
@@ -210,8 +213,12 @@ const chart = {
 		if (option.yAxis) state.yAxis = [{...state.yAxis[0], ...option.yAxis}];
 		if (option.series) state.series = option.series.map((s, i) => ({...state.series[i], ...s}));
 		if (option.dataZoom) state.dataZoom = option.dataZoom;
+		if (option.tooltip) state.tooltip = {...(state.tooltip || {}), ...option.tooltip};
 	},
 	dispatchAction: action => {
+		chart.actions = chart.actions || [];
+		chart.actions.push(action);
+		if (!action.dataZoomId) return;
 		const zoom = state.dataZoom.find(item => item.id === action.dataZoomId);
 		Object.assign(zoom, {start:action.start,end:action.end});
 		listeners['chart:datazoom']({batch:[action]});
@@ -220,6 +227,26 @@ const chart = {
 require('node:vm').runInNewContext(` + string(sorting) + `, {mockChart:chart, document, window, Math, Number, echarts:{graphic:{clipRectByRect:shape=>shape}}});
 containerTop = 435;
 windowListeners.load();
+assert.equal(chart.updates[chart.updates.length - 1].tooltip.triggerOn, 'click', 'the timeline detail must be pinned by a click, not by hover');
+assert.ok(!state.tooltip.alwaysShowContent, 'the detail starts unpinned');
+const showTips = () => (chart.actions || []).filter(action => action.type === 'showTip').map(action => [action.x, action.y]);
+const hideTips = () => (chart.actions || []).filter(action => action.type === 'hideTip').length;
+listeners['zr:click']({offsetX:50, offsetY:25});
+assert.equal(state.tooltip.alwaysShowContent, true, 'an in-plot click pins the detail');
+assert.deepEqual(showTips(), [[50,25]], 'the clicked position is the pinned one');
+listeners['zr:click']({offsetX:50, offsetY:75});
+assert.deepEqual(showTips(), [[50,25],[50,75]], 'another row replaces the pinned detail');
+assert.equal(state.tooltip.alwaysShowContent, true, 'the replacement stays pinned');
+listeners['document:click']({target:{inside:true}});
+assert.equal(state.tooltip.alwaysShowContent, true, 'a page click inside the chart keeps the pin');
+listeners['document:click']({target:{}});
+assert.equal(state.tooltip.alwaysShowContent, false, 'a page click outside the chart dismisses the pin');
+assert.equal(hideTips(), 1, 'dismissal asks ECharts to hide the tooltip');
+listeners['zr:click']({offsetX:50, offsetY:25});
+assert.equal(state.tooltip.alwaysShowContent, true, 'an in-plot click pins again');
+listeners['zr:click']({offsetX:150, offsetY:150});
+assert.equal(state.tooltip.alwaysShowContent, false, 'an in-chart click outside the plot dismisses the pin');
+assert.equal(hideTips(), 2);
 const sortedLabels = () => state.yAxis[0].data;
 assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels())), ['beta','alpha']);
 assert.ok(chart.height >= 640);
@@ -310,7 +337,7 @@ const state = {
 };
 const chart = {
 	height:600, dom:{style:{}, getBoundingClientRect:()=>({top:400})},
-	getOption:()=>state, getHeight:()=>chart.height, getDom:()=>chart.dom,
+	getOption:()=>state, getZr:()=>({on:()=>{}}), getHeight:()=>chart.height, getDom:()=>chart.dom,
 	resize:({height})=>chart.height=height,
 	on:(event, handler)=>listeners[event]=handler,
 	setOption:option=>{
@@ -465,7 +492,7 @@ const sort = {value:'start', addEventListener:()=>{}};
 const offsets = [50000,50000,50000,50000,10000.000001];
 const state = {yAxis:[{data:[]}],series:[{data:groups.map((g,i)=>({value:offsets[i]}))},{data:groups.map(g=>({value:g.duration}))}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
 const chart = {
-	height:600, dom:{style:{}}, getOption:()=>state, getHeight:()=>chart.height, getDom:()=>chart.dom,
+	height:600, dom:{style:{}}, getOption:()=>state, getZr:()=>({on:()=>{}}), getHeight:()=>chart.height, getDom:()=>chart.dom,
 	resize:({height})=>chart.height=height, on:()=>{}, dispatchAction:()=>{},
 	setOption:option=>{
 		if (option.yAxis) state.yAxis = [{...state.yAxis[0], ...option.yAxis}];
@@ -592,7 +619,7 @@ const state = {
 const chart = {
 	height:600,
 	dom:{style:{height:'600px'}},
-	getOption:()=>state, getDom:()=>chart.dom, getHeight:()=>chart.height,
+	getOption:()=>state, getZr:()=>({on:()=>{}}), getDom:()=>chart.dom, getHeight:()=>chart.height,
 	resize:({height})=>chart.height=height,
 	on:(event,handler)=>listeners['chart:'+event]=[handler],
 	setOption:option=>{
@@ -707,7 +734,7 @@ const state = {
 const dom = {style:{height:'600px'}};
 let height = 600;
 const chart = {
-	getOption:()=>state, getDom:()=>dom, getHeight:()=>height, resize:o=>height=o.height,
+	getOption:()=>state, getZr:()=>({on:()=>{}}), getDom:()=>dom, getHeight:()=>height, resize:o=>height=o.height,
 	on:(event,handler)=>listeners[event]=handler,
 	setOption:option=>{
 		if (option.yAxis) state.yAxis=[option.yAxis];
