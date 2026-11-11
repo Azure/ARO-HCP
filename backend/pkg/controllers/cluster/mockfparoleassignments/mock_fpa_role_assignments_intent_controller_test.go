@@ -177,3 +177,113 @@ func TestMergeRoleAssignments(t *testing.T) {
 		require.Contains(t, got, wantKey)
 	})
 }
+
+// desireWithOutcome builds a DeploymentStackDesire whose Status.ObservedSpecHash matches
+// its Spec (so it is treated as the current outcome), with the given action, condition,
+// and observed managed resources (all in the managed state).
+func desireWithOutcome(t *testing.T, action azureresourcesapi.DeploymentStackDesireActionType, condType string, condStatus metav1.ConditionStatus, managedIDs ...*azcorearm.ResourceID) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(managedIDs))
+	for _, id := range managedIDs {
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{
+			ID:     ptr.To(id.String()),
+			Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged),
+		})
+	}
+	desire := &azureresourcesapi.DeploymentStackDesire{
+		Spec: azureresourcesapi.DeploymentStackDesireSpec{Action: action},
+		Status: azureresourcesapi.DeploymentStackDesireStatus{
+			Stack: &armdeploymentstacks.DeploymentStack{
+				Properties: &armdeploymentstacks.DeploymentStackProperties{Resources: resources},
+			},
+		},
+	}
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
+	require.NoError(t, err)
+	desire.Status.ObservedSpecHash = hash
+	desire.Status.Conditions = []metav1.Condition{{Type: condType, Status: condStatus}}
+	return desire
+}
+
+func TestMockFPARoleAssignmentRemovedAndReconciled(t *testing.T) {
+	t.Parallel()
+	reserved := mustReservedID(t, "11111111-1111-1111-1111-111111111111")
+
+	staleHashDesire := desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue)
+	staleHashDesire.Status.ObservedSpecHash = "does-not-match"
+
+	// The reserved assignment is still in the stack's resource set but Azure failed to
+	// delete it (pending retry), so it is still present in Azure: not removed.
+	deleteFailedDesire := desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue, reserved)
+	deleteFailedDesire.Status.Stack.Properties.Resources[0].Status = ptr.To(armdeploymentstacks.ResourceStatusModeDeleteFailed)
+
+	tests := []struct {
+		name     string
+		status   *coreapi.MockFPARoleAssignmentStatus
+		desire   *azureresourcesapi.DeploymentStackDesire
+		expected bool
+	}{
+		{
+			name:     "never reserved means never materialized, so removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{},
+			desire:   nil,
+			expected: true,
+		},
+		{
+			name:     "reserved but no desire yet, not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   nil,
+			expected: false,
+		},
+		{
+			name:     "observed outcome does not match current spec, not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   staleHashDesire,
+			expected: false,
+		},
+		{
+			name:     "apply succeeded and reserved no longer managed, removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue),
+			expected: true,
+		},
+		{
+			name:     "apply succeeded but reserved still managed, not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue, reserved),
+			expected: false,
+		},
+		{
+			name:     "apply succeeded but reserved delete failed (still present), not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   deleteFailedDesire,
+			expected: false,
+		},
+		{
+			name:     "apply not yet successful, not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionFalse),
+			expected: false,
+		},
+		{
+			name:     "delete confirmed, removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeDelete, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, metav1.ConditionTrue),
+			expected: true,
+		},
+		{
+			name:     "delete not yet confirmed, not removed",
+			status:   &coreapi.MockFPARoleAssignmentStatus{ReservedAzureResourceID: reserved},
+			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeDelete, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted, metav1.ConditionFalse),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := (&mockFPARoleAssignmentsIntentSyncer{}).roleAssignmentRemovedAndReconciled(tt.status, tt.desire)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}

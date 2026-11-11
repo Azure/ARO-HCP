@@ -17,14 +17,17 @@ package mockfparoleassignments
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -278,7 +281,7 @@ func (s *mockFPARoleAssignmentsIntentSyncer) mergeRoleAssignments(
 
 		if existingStatus.DeconfigureTimestamp != nil {
 			// Already stamped: drop only once the stack has reconciled the removal.
-			removedAndReconciled, err := coreapihelpers.MockFPARoleAssignmentRemovedAndReconciled(existingStatus, existingDeploymentStackDesire)
+			removedAndReconciled, err := s.roleAssignmentRemovedAndReconciled(existingStatus, existingDeploymentStackDesire)
 			if err != nil {
 				return nil, utils.TrackError(fmt.Errorf("failed to check if mock FPA role assignment %+v has been removed and reconciled: %w", existingKey, err))
 			}
@@ -304,4 +307,77 @@ func (s *mockFPARoleAssignmentsIntentSyncer) mergeRoleAssignments(
 	}
 
 	return desiredMockFPARoleAssignments, nil
+}
+
+// roleAssignmentRemovedAndReconciled reports whether a role assignment that has
+// left the desired set (its DeconfigureTimestamp is stamped) has actually been
+// removed from Azure by a successful, current reconciliation of desire. It is the
+// drop criterion for reconciliation-based deconfigure (no time-based cooldown):
+// the new desired set must be published in the stack and that stack must have
+// reconciled successfully with it.
+//
+//   - A status whose ReservedAzureResourceID is nil was never materialized into a
+//     stack, so there is nothing in Azure to remove: removed.
+//   - Otherwise desire must exist, its observed outcome must correspond to the
+//     currently published spec (ObservedSpecHash equals StackDesireSpecHash of
+//     desire.Spec), and that outcome must be a success: a confirmed Delete, or an
+//     Apply after which the reserved assignment is no longer managed by the stack
+//     (dropped from the template and deleted via ActionOnUnmanage).
+//
+// desire may be nil: the caller passes nil when the mock FPA DeploymentStackDesire has
+// not been published yet (a lister NotFound). With no published/observed stack a stamped
+// assignment cannot have been reconciled, so a nil desire returns (false, nil).
+func (s *mockFPARoleAssignmentsIntentSyncer) roleAssignmentRemovedAndReconciled(status *coreapi.MockFPARoleAssignmentStatus, desire *azureresourcesapi.DeploymentStackDesire) (bool, error) {
+	// No reserved name was ever assigned, so the assignment was never rendered into a
+	// stack and never created in Azure: there is nothing to remove, treat it as removed.
+	if status.ReservedAzureResourceID == nil {
+		return true, nil
+	}
+	// The StackDesire has not been published/observed yet, so we have no evidence the
+	// removal reconciled: not removed.
+	if desire == nil {
+		return false, nil
+	}
+
+	specHash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash mock FPA role assignments DeploymentStackDesire spec: %w", err)
+	}
+	// The observed spec belongs to an older spec than the one currently published, so
+	// it says nothing about whether the current desired set (which drops this assignment)
+	// has reconciled: not removed until a fresh observation lands.
+	if desire.Status.ObservedSpecHash != specHash {
+		return false, nil
+	}
+
+	// Delete intent: the assignment is removed only once the stack is confirmed deleted.
+	if desire.Spec.Action == azureresourcesapi.DeploymentStackDesireActionTypeDelete {
+		return meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted), nil
+	}
+
+	// Apply intent: nothing can be concluded until the current apply has succeeded.
+	if !meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
+		return false, nil
+	}
+	// Apply succeeded but the observation carries no managed-resource list, so our
+	// assignment is not among the managed resources: removed.
+	if desire.Status.Stack == nil || desire.Status.Stack.Properties == nil {
+		return true, nil
+	}
+	// Apply succeeded: look for our reserved assignment among the stack's resources.
+	for _, resource := range desire.Status.Stack.Properties.Resources {
+		if resource == nil || resource.ID == nil {
+			continue
+		}
+		if strings.EqualFold(*resource.ID, status.ReservedAzureResourceID.String()) {
+			// Still present in the stack's resource set, in ANY state. managed means it
+			// is still owned; deleteFailed and removeDenyFailed mean Azure could not
+			// remove it yet and will retry. None of these mean removed - a successfully
+			// removed resource drops out of the list entirely (the return below). So if
+			// we find it at all, it is not yet removed.
+			return false, nil
+		}
+	}
+	// Absent from the stack's resource set after a successful apply: removed.
+	return true, nil
 }
