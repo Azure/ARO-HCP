@@ -36,36 +36,41 @@ spec:
   # the backend. Creates rejected at the frontend (validation, quota, etc.)
   # never produce a backend operation and are only visible in the fleet-wide
   # frontend HTTP error ratio.
+  #
+  # Records are grouped by operation_type so each verb is evaluated on its own.
+  # Backend create, update, and delete run different code paths, and a combined
+  # ratio would hide a single broken verb (100% create failures next to healthy
+  # updates and deletes would read as a 33% error rate).
   - name: arohcp_nodepool_slo_recording_rules
     interval: 1m
     rules:
-    # Instantaneous count of succeeded node pool operations per cluster
+    # Instantaneous count of succeeded node pool operations per cluster and operation type
     - record: errors:backend_nodepool_operation:succeeded_total
       expr: |
-        count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete",
           phase="succeeded"
         }))
-    # Instantaneous count of all terminal node pool operations per cluster
+    # Instantaneous count of all terminal node pool operations per cluster and operation type
     - record: errors:backend_nodepool_operation:terminal_total
       expr: |
-        count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete",
           phase=~"succeeded|failed"
         }))
-    # Instantaneous error rate per cluster: fraction of terminal operations that failed
+    # Instantaneous error rate per cluster and operation type: fraction of terminal operations that failed
     - record: errors:backend_nodepool_operation:error_rate
       expr: |
         (
-          count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+          count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
             phase="failed"
           }))
           or
-          0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+          0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
             phase=~"succeeded|failed"
@@ -73,7 +78,7 @@ spec:
         )
         /
         clamp_min(
-          count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+          count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
             phase=~"succeeded|failed"
@@ -111,7 +116,7 @@ spec:
     # --- 5m window (short window for fast burn): terminal transition within 300s ---
     - record: errors:backend_nodepool_operation:failed_5m
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -124,13 +129,13 @@ spec:
           })) < 300)
         )
         or
-        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete"
         }))
     - record: errors:backend_nodepool_operation:total_5m
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -150,7 +155,7 @@ spec:
     # --- 30m window (short window for medium burn): terminal transition within 1800s ---
     - record: errors:backend_nodepool_operation:failed_30m
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -163,13 +168,13 @@ spec:
           })) < 1800)
         )
         or
-        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete"
         }))
     - record: errors:backend_nodepool_operation:total_30m
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -189,7 +194,7 @@ spec:
     # --- 1h window (fast burn): terminal transition within 3600s ---
     - record: errors:backend_nodepool_operation:failed_1h
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -202,13 +207,13 @@ spec:
           })) < 3600)
         )
         or
-        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete"
         }))
     - record: errors:backend_nodepool_operation:total_1h
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -228,7 +233,7 @@ spec:
     # --- 6h window (medium burn): terminal transition within 21600s ---
     - record: errors:backend_nodepool_operation:failed_6h
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -241,13 +246,13 @@ spec:
           })) < 21600)
         )
         or
-        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete"
         }))
     - record: errors:backend_nodepool_operation:total_6h
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -267,7 +272,7 @@ spec:
     # --- 3d window (slow burn / budget): terminal transition within 259200s ---
     - record: errors:backend_nodepool_operation:failed_3d
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",
@@ -280,13 +285,13 @@ spec:
           })) < 259200)
         )
         or
-        0 * count by (cluster) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
+        0 * count by (cluster, operation_type) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
           operation_type=~"create|update|delete"
         }))
     - record: errors:backend_nodepool_operation:total_3d
       expr: |
-        count by (cluster) (
+        count by (cluster, operation_type) (
           (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             operation_type=~"create|update|delete",

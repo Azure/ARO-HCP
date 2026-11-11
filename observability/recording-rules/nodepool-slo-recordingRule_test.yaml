@@ -30,17 +30,23 @@ tests:
   - expr: "errors:backend_nodepool_operation:succeeded_total"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
-      value: 8
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1", operation_type="delete"}'
+      value: 4
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1", operation_type="update"}'
+      value: 4
   - expr: "errors:backend_nodepool_operation:terminal_total"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
-      value: 10
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1", operation_type="delete"}'
+      value: 5
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1", operation_type="update"}'
+      value: 5
   - expr: "errors:backend_nodepool_operation:error_rate"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1", operation_type="delete"}'
+      value: 0.2
+    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1", operation_type="update"}'
       value: 0.2
 # Verify create operations are counted by the instantaneous recording rules.
 - interval: 1m
@@ -60,17 +66,17 @@ tests:
   - expr: "errors:backend_nodepool_operation:succeeded_total"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1", operation_type="create"}'
       value: 3
   - expr: "errors:backend_nodepool_operation:terminal_total"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1", operation_type="create"}'
       value: 5
   - expr: "errors:backend_nodepool_operation:error_rate"
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate{cluster="mgmt-1", operation_type="create"}'
       value: 0.4
 # ========================================
 # Windowed recording rule tests (stateless, last_transition-windowed)
@@ -96,12 +102,12 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_1h
     eval_time: 95m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:error_rate_1h
     eval_time: 95m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="update"}'
       value: 0.5
 # Zero in-window failures: the `or 0 * ...` term pins the failure rate to 0.
 - interval: 1m
@@ -114,7 +120,7 @@ tests:
   - expr: errors:backend_nodepool_operation:error_rate_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="update"}'
       value: 0
 # Duplicate prometheus_replica scrapes (HA) must collapse: max by(<identity>)
 # de-dups the two replica series per operation, so one succeeded plus one failed
@@ -141,27 +147,27 @@ tests:
   - expr: errors:backend_nodepool_operation:succeeded_total
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:terminal_total
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:terminal_total{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:failed_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:total_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:error_rate_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="update"}'
       value: 0.5
 # Canceled operations must never count toward the windowed SLIs. One recent
 # succeeded, one recent failed and one recent canceled op all land inside the
@@ -185,38 +191,89 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:total_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:error_rate_1h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="update"}'
       value: 0.5
   - expr: errors:backend_nodepool_operation:total_6h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:error_rate_6h
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1", operation_type="update"}'
       value: 0.5
   - expr: errors:backend_nodepool_operation:total_3d
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:error_rate_3d
     eval_time: 30m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1", operation_type="update"}'
       value: 0.5
+# Per-verb windowed SLIs: every create fails while every update succeeds, all
+# inside the 1h window. Records are grouped by operation_type, so create reads a
+# 100% error rate and update reads 0% instead of a blended 50%.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc1", phase="failed"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc1", phase="failed"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc2", phase="failed"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc2", phase="failed"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc3", phase="failed"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-v", resource_id="/vc3", phase="failed"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu1", phase="succeeded"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu1", phase="succeeded"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu2", phase="succeeded"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu2", phase="succeeded"}'
+    values: "_x89 5400x111"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu3", phase="succeeded"}'
+    values: "_x89 1x111"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-v", resource_id="/vu3", phase="succeeded"}'
+    values: "_x89 5400x111"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:failed_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1", operation_type="create"}'
+      value: 3
+    - labels: 'errors:backend_nodepool_operation:failed_1h{cluster="mgmt-1", operation_type="update"}'
+      value: 0
+  - expr: errors:backend_nodepool_operation:total_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1", operation_type="create"}'
+      value: 3
+    - labels: 'errors:backend_nodepool_operation:total_1h{cluster="mgmt-1", operation_type="update"}'
+      value: 3
+  - expr: errors:backend_nodepool_operation:error_rate_1h
+    eval_time: 95m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="create"}'
+      value: 1
+    - labels: 'errors:backend_nodepool_operation:error_rate_1h{cluster="mgmt-1", operation_type="update"}'
+      value: 0
 # HA replica dedup: backend_nodepool_provision_state is scraped once per
 # prometheus_replica, so counting the raw gauge would inflate the phase
 # distribution. The rule collapses replicas via max by (identity labels), so two

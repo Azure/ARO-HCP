@@ -159,7 +159,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count((time() - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", phase=~\"accepted|provisioning|updating|deleting\"}) > 3600) or vector(0)",
+          "expr": "count(max by (cluster, resource_id, operation_type) ((time() - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", phase=~\"accepted|provisioning|updating|deleting\"}) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck Operations",
           "refId": "A"

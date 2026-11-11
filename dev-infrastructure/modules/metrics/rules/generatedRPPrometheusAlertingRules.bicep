@@ -535,14 +535,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           severity: '4'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
           title: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
         }
-        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -620,12 +620,12 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of completed node pool operations (create/update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
-          info: 'More than 72% of completed node pool operations (create/update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
+          info: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
-          title: '{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
         }
         expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72'
         for: 'PT5M'
@@ -651,12 +651,12 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
-          info: 'More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
+          info: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
         }
         expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3'
         for: 'PT30M'
@@ -681,12 +681,12 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}'
-          description: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
-          info: 'More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
+          info: 'More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
-          title: '{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
         }
         expression: 'errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05'
         for: 'PT6H'
@@ -712,12 +712,12 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}'
-          description: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
-          info: 'More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          description: 'More than 15% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
+          info: 'More than 15% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
-          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h'
+          summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
+          title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
         }
         expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15'
         for: 'PT30M'

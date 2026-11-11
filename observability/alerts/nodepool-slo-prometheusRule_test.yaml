@@ -31,7 +31,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-3"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-3//sub/3/np/stuck"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/3/np/stuck"
         summary: "mgmt-1: Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -106,7 +106,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-c2"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-c2//sub/c2/np/stuck-create"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/c2/np/stuck-create"
         summary: "mgmt-1: Node Pool operation for /sub/c2/np/stuck-create stuck in provisioning for over 2 hours"
         description: "Node pool operation for /sub/c2/np/stuck-create has been in provisioning phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -136,7 +136,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-c3"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-c3//sub/c3/np/stuck-accepted"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/c3/np/stuck-accepted"
         summary: "mgmt-1: Node Pool operation for /sub/c3/np/stuck-accepted stuck in accepted for over 2 hours"
         description: "Node pool operation for /sub/c3/np/stuck-accepted has been in accepted phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -165,7 +165,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-7"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-7//sub/7/np/stuck-del"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/7/np/stuck-del"
         summary: "mgmt-1: Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -204,7 +204,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-8//sub/8/np/flap-del"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -224,7 +224,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-8//sub/8/np/flap-del"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -243,7 +243,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-8//sub/8/np/flap-del"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -276,7 +276,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-9//sub/9/np/done-del"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/9/np/done-del"
         summary: "mgmt-1: Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -312,7 +312,7 @@ tests:
         component: slo
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/00000000-0000-0000-0000-000000000001//sub/e2e/np/stuck"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/e2e/np/stuck"
         summary: "mgmt-1: Node Pool operation for /sub/e2e/np/stuck stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/e2e/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -355,7 +355,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
-        correlationId: "NodePoolStuckOperation/sub-10//sub/10/np/dup"
+        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/10/np/dup"
         summary: "mgmt-1: Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/10/np/dup has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -394,14 +394,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrors1h5m
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (create/update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool update operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # Volume guard: a single recent failed node pool op (ratio 100% but one failure)
 # must NOT fire, because failed_1h < 3 and the 6h/3d completion floors are unmet.
@@ -449,17 +451,17 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
       value: 3
   - expr: errors:backend_nodepool_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
       value: 5
   - expr: errors:backend_nodepool_operation:error_rate_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1", operation_type="update"}'
       value: 0.6
   alert_rule_test:
   - eval_time: 60m
@@ -470,14 +472,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrors6h30m
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation error rate elevated (>30% over 6h)"
-        description: "More than 30% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors6h30m/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 140m
     alertname: userJourneyNodePoolErrors1h5m
@@ -532,17 +536,17 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:total_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1", operation_type="update"}'
       value: 10
   - expr: errors:backend_nodepool_operation:error_rate_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1", operation_type="update"}'
       value: 0.2
   alert_rule_test:
   - eval_time: 300m
@@ -553,13 +557,15 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrors3d
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 3d
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation error budget burning (>5% over 3d)"
-        description: "More than 5% of completed node pool operations on mgmt-1 failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
+        correlationId: "userJourneyNodePoolErrors3d/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operation error budget burning (>5% over 3d)"
+        description: "More than 5% of completed node pool update operations on mgmt-1 failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 365m
     alertname: userJourneyNodePoolErrors6h30m
@@ -615,17 +621,17 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:total_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1", operation_type="update"}'
       value: 10
   - expr: errors:backend_nodepool_operation:error_rate_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1", operation_type="update"}'
       value: 0.1
   alert_rule_test:
   - eval_time: 365m
@@ -674,17 +680,17 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
       value: 2
   - expr: errors:backend_nodepool_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
       value: 8
   - expr: errors:backend_nodepool_operation:error_rate_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1", operation_type="update"}'
       value: 0.25
   alert_rule_test:
   - eval_time: 60m
@@ -697,14 +703,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrorsDegradation
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation failure rate exceeds 15% over 6h"
-        description: "More than 15% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
+        correlationId: "userJourneyNodePoolErrorsDegradation/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # Degradation (early warning) negative: a single failure on an otherwise quiet window
 # must not fire. 1 failed + 4 succeeded node pool ops reach terminal at 40m, so
@@ -736,12 +744,12 @@ tests:
   - expr: errors:backend_nodepool_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
       value: 1
   - expr: errors:backend_nodepool_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1"}'
+    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
       value: 5
   alert_rule_test:
   - eval_time: 140m
@@ -808,14 +816,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrors1h5m
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
         short_window: 5m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (create/update/delete) on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool update operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # At 115m, failures have aged out of the 5m short window → alert resolves
   - eval_time: 115m
@@ -856,14 +866,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrors6h30m
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation error rate elevated (>30% over 6h)"
-        description: "More than 30% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors6h30m/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m
@@ -916,14 +928,16 @@ tests:
     - exp_labels:
         alertname: userJourneyNodePoolErrorsDegradation
         cluster: mgmt-1
+        operation_type: update
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation failure rate exceeds 15% over 6h"
-        description: "More than 15% of completed node pool operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
+        correlationId: "userJourneyNodePoolErrorsDegradation/mgmt-1/update"
+        summary: "mgmt-1: Node Pool update operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m

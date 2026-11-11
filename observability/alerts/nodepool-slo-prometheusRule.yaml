@@ -57,7 +57,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"provisioning|updating|deleting"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"accepted|provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
@@ -67,7 +67,7 @@ spec:
         exclude_internal_subscriptions: "true"
         severity: "4"
       annotations:
-        correlationId: "NodePoolStuckOperation/{{ $labels.subscription_id }}/{{ $labels.resource_id }}"
+        correlationId: "userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}"
         summary: "{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
@@ -108,7 +108,8 @@ spec:
   # ratio. Stateless, no new metric, no backend change. Severities mirror the
   # existing node pool tiers (non-paging "info" per approver request) and are
   # owner-tunable; volume floors mirror cluster-provision and should be tuned to
-  # real node pool traffic.
+  # real node pool traffic. The records carry operation_type, so each tier fires
+  # per verb (create, update, delete) and gets its own IcM via correlationId.
   - name: arohcp_nodepool_slo_windowed_error_alerts
     labels:
       component: slo
@@ -128,8 +129,9 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operations failing fast (>72% of recent operations)"
-        description: "More than 72% of completed node pool operations (create/update/delete) on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
     - alert: userJourneyNodePoolErrors6h30m
@@ -146,8 +148,9 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate elevated (>30% over 6h)"
-        description: "More than 30% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
+        correlationId: "userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)"
+        description: "More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Slow Burn / Budget. 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
     - alert: userJourneyNodePoolErrors3d
@@ -163,8 +166,9 @@ spec:
         slo: nodepool-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error budget burning (>5% over 3d)"
-        description: "More than 5% of completed node pool operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
+        correlationId: "userJourneyNodePoolErrors3d/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)"
+        description: "More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Early Warning / Degradation. Precursor: >15% failures over 6h before the burn-rate alerts fire.
     - alert: userJourneyNodePoolErrorsDegradation
@@ -183,6 +187,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% over 6h"
-        description: "More than 15% of completed node pool operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
+        correlationId: "userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h"
+        description: "More than 15% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
