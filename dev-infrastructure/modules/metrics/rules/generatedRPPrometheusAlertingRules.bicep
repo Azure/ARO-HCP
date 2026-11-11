@@ -1865,8 +1865,8 @@ resource arohcpBackupSloOverloadAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         annotations: {
           correlationId: 'userJourneyBackupQueueBacklog/{{ $labels.cluster }}'
-          description: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
-          info: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes backups sequentially, so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
+          description: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs still enqueued (no status.phase, or phase New/Queued/ReadyToStart — not yet past the queued states), sustained for 30m. Velero processes a limited number of backups concurrently (default 4), so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
+          info: 'Management cluster {{ $labels.cluster }} has more than 300 Backup CRs still enqueued (no status.phase, or phase New/Queued/ReadyToStart — not yet past the queued states), sustained for 30m. Velero processes a limited number of backups concurrently (default 4), so a sustained backlog this large indicates Velero is stuck or multiple schedule cycles have piled up without draining - check the Velero server logs/pod health and the Backup Schedule Controller before assuming individual HostedClusters are at fault.'
           runbook_url: 'https://aka.ms/arohcp-runbook-backup'
           summary: 'more than 300 Backup CRs are enqueued (not yet started) on {{ $labels.cluster }}'
           title: 'more than 300 Backup CRs are enqueued (not yet started) on {{ $labels.cluster }}'
@@ -1893,14 +1893,42 @@ resource arohcpBackupSloOverloadAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         annotations: {
           correlationId: 'userJourneyBackupDeletionQueueBacklog/{{ $labels.cluster }}'
-          description: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
-          info: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs with no status.phase set yet (enqueued, not yet picked up by Velero), sustained for 30m. Velero processes deletions sequentially, so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
+          description: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs still enqueued (no status.phase, or phase New — not yet InProgress/Processed), sustained for 30m. Velero processes a limited number of deletions concurrently (default 4), so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
+          info: 'Management cluster {{ $labels.cluster }} has more than 300 DeleteBackupRequest CRs still enqueued (no status.phase, or phase New — not yet InProgress/Processed), sustained for 30m. Velero processes a limited number of deletions concurrently (default 4), so a sustained backlog this large indicates Velero is stuck or deletion requests are accumulating faster than they can drain - check the Velero server logs/pod health before assuming individual HostedClusters are at fault.'
           runbook_url: 'https://aka.ms/arohcp-runbook-backup'
           summary: 'more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on {{ $labels.cluster }}'
           title: 'more than 300 DeleteBackupRequest CRs are enqueued (not yet started) on {{ $labels.cluster }}'
         }
         expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_info) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase!="New"} == 1)) > 300'
         for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyBackupDeletionStuckInProgress'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+        }
+        annotations: {
+          correlationId: 'userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster.'
+          info: 'Management cluster {{ $labels.cluster }} has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-backup'
+          summary: 'at least one DeleteBackupRequest stuck InProgress for 1h on {{ $labels.cluster }}'
+          title: 'at least one DeleteBackupRequest stuck InProgress for 1h on {{ $labels.cluster }}'
+        }
+        expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0'
+        for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {

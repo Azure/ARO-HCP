@@ -6034,6 +6034,23 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionStuckInProgress
+  occurrence: 1
+  input: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0
+  plan:
+    expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0
+    conditions:
+      - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_backup_slo_overload_alerts
   alert: userJourneyBackupNonTerminalBacklog
   occurrence: 1
   input: count by (cluster, region) (group by (cluster, name, namespace, region) (veleroBackup_phase) unless on (cluster, name, namespace) group by (cluster, name, namespace, region) (veleroBackup_phase{phase=~"Completed|InProgress|New|Queued|ReadyToStart|Failed|PartiallyFailed|FailedValidation"} == 1)) > 100
@@ -8418,6 +8435,26 @@
         thresholds:
           - operator: '>'
             value: 300
+        unsupported: ""
+- source: observability/alerts/backup-slo-prometheusRule.yaml
+  group: arohcp_backup_slo_overload_alerts
+  alert: userJourneyBackupDeletionStuckInProgress
+  occurrence: 1
+  input: |
+    count by (cluster) (
+      group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
+    ) > 0
+  plan:
+    expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0
+    conditions:
+      - expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0
+        path: root
+        queries:
+          - expression: count by (cluster) (group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1))
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/backup-slo-prometheusRule.yaml
   group: arohcp_backup_slo_overload_alerts
