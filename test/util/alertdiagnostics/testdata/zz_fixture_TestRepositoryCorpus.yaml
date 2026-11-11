@@ -7129,14 +7129,14 @@
   group: arohcp_workload_identity_slo_alerts
   alert: userJourneyWorkloadIdentityRefresherStalled
   occurrence: 1
-  input: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+  input: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
   plan:
-    expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+    expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
     conditions:
-      - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+      - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{namespace="msi-credential-refresher"} == 1))
         path: root/or:left/unless:left
         queries:
-          - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+          - expression: (group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster, region) (up{namespace="msi-credential-refresher"} == 1))
             role: signal
         thresholds: []
         unsupported: ""
@@ -12629,19 +12629,19 @@
     (
       group by (cluster) (kube_deployment_status_replicas_available{namespace="msi-credential-refresher", deployment="credential-refresher"})
       unless on (cluster)
-      max by (cluster) (up{namespace="msi-credential-refresher", container="credential-refresher"} == 1)
+      max by (cluster) (up{namespace="msi-credential-refresher"} == 1)
     )
     or
     (
       sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0
     )
   plan:
-    expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
+    expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster) (up{namespace="msi-credential-refresher"} == 1)) or (sum by (cluster) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)
     conditions:
-      - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+      - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{namespace="msi-credential-refresher"} == 1))
         path: root/or:left/unless:left
         queries:
-          - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1))
+          - expression: (group by (cluster) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"})) unless on (cluster) (max by (cluster) (up{namespace="msi-credential-refresher"} == 1))
             role: signal
         thresholds: []
         unsupported: ""

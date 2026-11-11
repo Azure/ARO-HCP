@@ -2026,7 +2026,7 @@ resource arohcpWorkloadIdentitySloAlerts 'Microsoft.AlertsManagement/prometheusR
           summary: 'Credential refresher is down or not reconciling'
           title: 'Credential refresher is down or not reconciling'
         }
-        expression: '(group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{container="credential-refresher",namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)'
+        expression: '(group by (cluster, region) (kube_deployment_status_replicas_available{deployment="credential-refresher",namespace="msi-credential-refresher"}) unless on (cluster) max by (cluster, region) (up{namespace="msi-credential-refresher"} == 1)) or (sum by (cluster, region) (max without (prometheus_replica) (increase(credential_refresher_refresh_controller_reconcile_latency_seconds_count[1h]))) == 0)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

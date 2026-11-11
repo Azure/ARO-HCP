@@ -133,7 +133,7 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
     values: "1x400"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher"}'
     values: "1x400"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
     values: "0+1x400"
@@ -147,7 +147,7 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
     values: "1x400"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher"}'
     values: "1x400"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
     values: "0+1x400"
@@ -163,7 +163,7 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
     values: "1x300"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher"}'
     values: "1x60 0x240"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
     values: "0+1x60 _x240"
@@ -189,7 +189,7 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
     values: "1x12000"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher"}'
     values: "1x60 _x11940"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
     values: "0+1x60 _x11940"
@@ -212,7 +212,7 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher"}'
     values: "1x400"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher"}'
     values: "1x400"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1"}'
     values: "0+1x120 120x280"
@@ -238,13 +238,13 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher",prometheus_replica="prometheus-0"}'
     values: "1x400"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher",prometheus_replica="prometheus-0"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",prometheus_replica="prometheus-0"}'
     values: "1x400"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1",prometheus_replica="prometheus-0"}'
     values: "0+1x120 120x280"
   - series: 'kube_deployment_status_replicas_available{cluster="svc-1",namespace="msi-credential-refresher",deployment="credential-refresher",prometheus_replica="prometheus-1"}'
     values: "1x400"
-  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",container="credential-refresher",prometheus_replica="prometheus-1"}'
+  - series: 'up{cluster="svc-1",namespace="msi-credential-refresher",prometheus_replica="prometheus-1"}'
     values: "1x400"
   - series: 'credential_refresher_refresh_controller_reconcile_latency_seconds_count{cluster="svc-1",prometheus_replica="prometheus-1"}'
     values: "0+1x120 120x280"
