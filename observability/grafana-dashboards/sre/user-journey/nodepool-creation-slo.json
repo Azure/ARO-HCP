@@ -22,6 +22,32 @@
   "links": [],
   "panels": [
     {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 35,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "mode": "markdown",
+        "content": "### Node Pool Creation SLO - Fleet Wide\n\nFleet-wide view of node pool create health from backend operation metrics on the service clusters.\n\n**SLO targets**\n- `Successful Creates`, `Availability Over Time` and `Availability (7d)` target **95%** successful terminal creates, matching the node pool error burn-rate alerts.\n- `Timeliness SLO` targets **95%** of successful creates completing within 15 minutes (provisional, see ARO-26185).\n- `Error Budget Remaining (7d)` uses the 5% budget implied by the 95% target.\n\n**How the time range works**\n- The time picker is the lookback window for the window panels (default `last 24 hours`).\n- `Availability (7d)` and `Error Budget Remaining (7d)` always use a fixed 7 day window, which is also the upper bound because operation documents expire from Cosmos after 7 days.\n- `Successful` means `phase=\"succeeded\"`. Canceled creates are excluded from the SLO ratio and shown with failures in `Failed / Canceled`.\n- `Create Operations Stuck > 30 min` counts in-flight creates by time since the operation started. The `userJourneyNodePoolStuckOperation` alert fires at 2 hours.\n\n**Datasource and filters**\n- Select a single service-cluster Prometheus datasource or `All` to fan out across `Managed_Prometheus_services-*`.\n- `exclude_subs` removes matching subscription IDs (regex) from every panel.\n\nRunbook: https://aka.ms/arohcp-runbook-nodepool"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -50,7 +76,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -134,7 +160,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -195,7 +221,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Windowed Success SLO: successful terminal create attempts divided by all terminal create attempts. Target: 99%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\" Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
+      "description": "Windowed Success SLO: successful terminal create attempts divided by all terminal create attempts. Target is 95%, matching the node pool error burn-rate alerts and the Node Pool Management dashboard. ARO-19995 (child of ARO-19992) originally proposed 99%, and the final node pool target is tracked in ARO-26185. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
@@ -211,11 +237,11 @@
               },
               {
                 "color": "orange",
-                "value": 97
+                "value": 90
               },
               {
                 "color": "green",
-                "value": 99
+                "value": 95
               }
             ]
           },
@@ -230,7 +256,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 8
       },
       "id": 4,
       "options": {
@@ -371,7 +397,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 8
       },
       "id": 5,
       "options": {
@@ -455,7 +481,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 4
+        "y": 12
       },
       "id": 31,
       "options": {
@@ -517,7 +543,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 16
       },
       "id": 6,
       "panels": [],
@@ -529,7 +555,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that succeeded. Green line marks the 99% SLO target. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that succeeded. Green line marks the 95% SLO target. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Target is 95%, matching the node pool error burn-rate alerts and the Node Pool Management dashboard. ARO-19995 (child of ARO-19992) originally proposed 99%, and the final node pool target is tracked in ARO-26185.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -562,7 +588,7 @@
               },
               {
                 "color": "green",
-                "value": 99
+                "value": 95
               }
             ]
           },
@@ -575,7 +601,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 17
       },
       "id": 7,
       "options": {
@@ -608,7 +634,7 @@
           "refId": "A"
         }
       ],
-      "title": "Availability Over Time (Create, SLO 99%)",
+      "title": "Availability Over Time (Create, SLO 95%)",
       "type": "timeseries"
     },
     {
@@ -616,7 +642,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that failed. Threshold line marks the 1% error budget implied by the 99% success SLO. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Per Steven Clarkson's SLO definition in ARO-19995 (child of ARO-19992, comment dated 2025-09-25): \"Percentage of Node Pools created in less than 15 minutes greater than 99%.\"",
+      "description": "Fraction of terminal create attempts, in the trailing 1h as of each point on the graph, that failed. Threshold line marks the 5% error budget implied by the 95% success SLO. Gaps mean no terminal attempts in that rolling window, not 0%. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. See \"Failed / Canceled Create Attempts\" for combined operational tracking of both. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50). Target is 95%, matching the node pool error burn-rate alerts and the Node Pool Management dashboard. ARO-19995 (child of ARO-19992) originally proposed 99%, and the final node pool target is tracked in ARO-26185.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -649,11 +675,11 @@
               },
               {
                 "color": "yellow",
-                "value": 1
+                "value": 5
               },
               {
                 "color": "red",
-                "value": 3
+                "value": 15
               }
             ]
           },
@@ -666,7 +692,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 17
       },
       "id": 8,
       "options": {
@@ -699,7 +725,7 @@
           "refId": "A"
         }
       ],
-      "title": "Error Rate Over Time (Create, SLO 1%)",
+      "title": "Error Rate Over Time (Create, SLO 5%)",
       "type": "timeseries"
     },
     {
@@ -708,7 +734,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 25
       },
       "id": 9,
       "panels": [],
@@ -736,11 +762,11 @@
               },
               {
                 "color": "orange",
-                "value": 97
+                "value": 90
               },
               {
                 "color": "green",
-                "value": 99
+                "value": 95
               }
             ]
           },
@@ -755,7 +781,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 26
       },
       "id": 10,
       "options": {
@@ -869,7 +895,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Remaining error budget against the 99% availability SLO, fixed 7-day window (matches the Cosmos operation-document TTL). 100% = no budget consumed, 0% = fully consumed. Floor-at-zero convention matches frontend-slo.json's Error Budget Remaining panel. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. This budget tracks the Availability SLI only (success vs. failure) -- it does not account for the Timeliness dimension of the original compound SLO (\"success AND within 15 min, 99% of the time\"). A create that succeeds slowly still consumes zero budget here. See the Timeliness SLO panel for that dimension separately. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
+      "description": "Remaining error budget against the 95% availability SLO, fixed 7-day window (matches the Cosmos operation-document TTL). 100% = no budget consumed, 0% = fully consumed. Floor-at-zero convention matches frontend-slo.json's Error Budget Remaining panel. Canceled creates are excluded from this SLO -- a customer-initiated cancellation isn't a service failure. This budget tracks the Availability SLI only (success vs. failure) -- it does not account for the Timeliness dimension of the original compound SLO proposed in ARO-19995 (success AND within 15 min). A create that succeeds slowly still consumes zero budget here. See the Timeliness SLO panel for that dimension separately. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -904,7 +930,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 18
+        "y": 26
       },
       "id": 11,
       "options": {
@@ -1019,7 +1045,7 @@
               "left": "Availability %",
               "operator": "-",
               "reducer": "sum",
-              "right": "99"
+              "right": "95"
             },
             "mode": "binary",
             "reduce": {
@@ -1036,7 +1062,7 @@
               "left": "Points Above Target",
               "operator": "*",
               "reducer": "sum",
-              "right": "100"
+              "right": "20"
             },
             "mode": "binary",
             "reduce": {
@@ -1084,7 +1110,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Number of create operations stuck in a non-terminal phase (accepted, provisioning, updating, deleting) for more than 30 minutes -- double the 15 minute SLO target, used as a distinct \"clearly hung\" signal rather than an SLO breach line. Target: 0. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
+      "description": "Number of create operations stuck in a non-terminal phase (accepted, provisioning, updating, deleting) for more than 30 minutes since the operation started -- double the 15 minute SLO target, used as a distinct \"clearly hung\" signal rather than an SLO breach line. Age is measured from the operation start time, the same way as the userJourneyNodePoolStuckOperation alert, which fires at 2 hours. Target: 0. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1115,7 +1141,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 18
+        "y": 26
       },
       "id": 12,
       "options": {
@@ -1143,7 +1169,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"})) > 1800)) or vector(0)",
+          "expr": "count((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) == 1) and ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{resource_type=\"$resource_type\", operation_type=\"create\", phase=~\"accepted|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"})) > 1800)) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "Stuck",
@@ -1177,7 +1203,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 30
       },
       "id": 13,
       "panels": [],
@@ -1215,7 +1241,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 23
+        "y": 31
       },
       "id": 14,
       "options": {
@@ -1298,7 +1324,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 23
+        "y": 31
       },
       "id": 15,
       "options": {
@@ -1381,7 +1407,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 23
+        "y": 31
       },
       "id": 16,
       "options": {
@@ -1434,7 +1460,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Timeliness, kept separate from Availability per review feedback -- Availability measures whether a create succeeded at all; this measures whether successful creates were also fast enough. Successful creates completed within 15 minutes, divided by all successful creates in the window. The 99% threshold shown here is a borrowed placeholder, not an independently derived target: Steven Clarkson's ARO-19995 SLO is a single compound statement (\"success AND within 15 min, 99% of the time\"), and Availability alone inherits 99% as a real mathematical floor from that compound statement, but Timeliness specifically does not -- P(timely | success) isn't bounded the same way. Treat this threshold as provisional pending an independent target from ARO-26179. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
+      "description": "Timeliness, kept separate from Availability per review feedback -- Availability measures whether a create succeeded at all; this measures whether successful creates were also fast enough. Successful creates completed within 15 minutes, divided by all successful creates in the window. The 95% target matches the cluster provisioning Timeliness SLO (95% within 20 minutes) and is provisional until ARO-26185 sets a node pool target. Reflects whichever create attempt the backend's informer processed last for this resource on its most recent relist/resync -- not guaranteed to be the temporally most recent attempt, since informer iteration order is unordered (see operation_phase_metrics_controller.go:42-50).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1453,11 +1479,11 @@
               },
               {
                 "color": "orange",
-                "value": 97
+                "value": 90
               },
               {
                 "color": "green",
-                "value": 99
+                "value": 95
               }
             ]
           },
@@ -1469,7 +1495,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 35
       },
       "id": 34,
       "options": {
@@ -1629,7 +1655,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 39
       },
       "id": 17,
       "options": {
@@ -1690,7 +1716,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 47
       },
       "id": 18,
       "panels": [],
@@ -1734,7 +1760,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "id": 19,
       "options": {
@@ -1805,7 +1831,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 48
       },
       "id": 20,
       "options": {
@@ -1845,7 +1871,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 56
       },
       "id": 21,
       "panels": [],
@@ -1906,7 +1932,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 49
+        "y": 57
       },
       "id": 22,
       "options": {
@@ -1994,7 +2020,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 49
+        "y": 57
       },
       "id": 23,
       "options": {
@@ -2077,7 +2103,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 49
+        "y": 57
       },
       "id": 24,
       "options": {
@@ -2165,7 +2191,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 57
+        "y": 65
       },
       "id": 32,
       "options": {
@@ -2249,7 +2275,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 57
+        "y": 65
       },
       "id": 33,
       "options": {
@@ -2289,7 +2315,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 65
+        "y": 73
       },
       "id": 25,
       "panels": [],
@@ -2413,7 +2439,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 66
+        "y": 74
       },
       "id": 26,
       "options": {
@@ -2495,7 +2521,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 66
+        "y": 74
       },
       "id": 27,
       "options": {
@@ -2571,7 +2597,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 82
       },
       "id": 28,
       "panels": [],
@@ -2612,7 +2638,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 75
+        "y": 83
       },
       "id": 29,
       "options": {
@@ -2719,7 +2745,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 91
       },
       "id": 30,
       "options": {
@@ -2791,6 +2817,194 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 99
+      },
+      "id": 36,
+      "panels": [],
+      "title": "SLO Alert Status",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current state of the node pool SLO alerts for create operations. Green = OK, Red = FIRING. Alerts are defined in nodepool-slo-prometheusRule.yaml and are filtered to operation_type=\"create\".",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "OK"
+                },
+                "1": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "FIRING"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 100
+      },
+      "id": 37,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"userJourneyNodePoolErrors1h5m\", alertstate=\"firing\", operation_type=\"create\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Fast Burn (1h/5m)",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"userJourneyNodePoolErrors6h30m\", alertstate=\"firing\", operation_type=\"create\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Medium Burn (6h/30m)",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"userJourneyNodePoolErrors3d\", alertstate=\"firing\", operation_type=\"create\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Slow Burn (3d/6h)",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"userJourneyNodePoolErrorsDegradation\", alertstate=\"firing\", operation_type=\"create\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Degradation (15%/30m)",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"userJourneyNodePoolStuckOperation\", alertstate=\"firing\", operation_type=\"create\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck Operation (2h)",
+          "range": false,
+          "refId": "E"
+        }
+      ],
+      "title": "Node Pool Create SLO Alerts",
+      "type": "stat",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "max"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (max)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "preload": false,
@@ -2861,7 +3075,7 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "utc",
   "title": "Node Pool Creation SLO",
   "uid": "nodepool-creation-slo",
   "version": 1
