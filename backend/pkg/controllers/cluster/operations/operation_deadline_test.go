@@ -209,6 +209,8 @@ func TestClusterOperationDeadlines(t *testing.T) {
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					case cosmosstorageutils.OperationRequestDelete:
 						controller := &operationClusterDelete{clock: clock, resourcesDBClient: db, readDesireLister: reads, clusterServiceClient: cs}
+						controller.statusCalculators, err = controller.newStatusCalculators()
+						require.NoError(t, err)
 						err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 					}
 					if want.reconcileError {
