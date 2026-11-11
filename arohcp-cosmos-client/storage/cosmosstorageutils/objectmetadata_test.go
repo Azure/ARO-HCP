@@ -21,18 +21,17 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
 func TestObjectMetadataForOperation(t *testing.T) {
 	// An operation's own ResourceID is subscription/location-scoped and has no resource group.
-	operationOwnID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + coreapitesting.TestSubscriptionID +
+	operationOwnID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/providers/" + coreapi.ProviderNamespace + "/locations/eastus/hcpOperationStatuses/op-123"))
 	if operationOwnID.ResourceGroupName != "" {
 		t.Fatalf("precondition: operation own ID unexpectedly has resource group %q", operationOwnID.ResourceGroupName)
 	}
 	// The ExternalID targets the cluster, which lives in a resource group.
-	externalID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID))
+	externalID := metadataapi.Must(azcorearm.ParseResourceID(testClusterResourceID))
 
 	t.Run("fills resourceGroup from ExternalID", func(t *testing.T) {
 		op := &coreapi.Operation{ExternalID: externalID}
@@ -43,8 +42,8 @@ func TestObjectMetadataForOperation(t *testing.T) {
 		if md.CosmosContainer != "resources" {
 			t.Errorf("CosmosContainer = %q, want %q", md.CosmosContainer, "resources")
 		}
-		if md.ResourceGroup != coreapitesting.TestResourceGroupName {
-			t.Errorf("ResourceGroup = %q, want %q (from ExternalID)", md.ResourceGroup, coreapitesting.TestResourceGroupName)
+		if md.ResourceGroup != testResourceGroupName {
+			t.Errorf("ResourceGroup = %q, want %q (from ExternalID)", md.ResourceGroup, testResourceGroupName)
 		}
 		if md.ClusterResourceID != externalID.String() {
 			t.Errorf("ClusterResourceID = %q, want %q (from ExternalID)", md.ClusterResourceID, externalID.String())
@@ -71,7 +70,7 @@ func TestObjectMetadataForOperation(t *testing.T) {
 }
 
 func TestObjectMetadataForTypedDocument(t *testing.T) {
-	clusterID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID))
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterResourceID))
 
 	t.Run("derives identity from the document and prefers its explicit resource type", func(t *testing.T) {
 		doc := &TypedDocument{
@@ -84,8 +83,8 @@ func TestObjectMetadataForTypedDocument(t *testing.T) {
 		if md.CosmosContainer != "resources" {
 			t.Errorf("CosmosContainer = %q, want %q", md.CosmosContainer, "resources")
 		}
-		if md.ResourceGroup != coreapitesting.TestResourceGroupName {
-			t.Errorf("ResourceGroup = %q, want %q", md.ResourceGroup, coreapitesting.TestResourceGroupName)
+		if md.ResourceGroup != testResourceGroupName {
+			t.Errorf("ResourceGroup = %q, want %q", md.ResourceGroup, testResourceGroupName)
 		}
 		if md.ResourceType != coreapi.ClusterResourceType.String() {
 			t.Errorf("ResourceType = %q, want %q (from the document)", md.ResourceType, coreapi.ClusterResourceType.String())

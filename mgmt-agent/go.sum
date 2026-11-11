@@ -1,5 +1,3 @@
-dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
-dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd h1:VBNwmVEAvvXwzSsaWw4Ftea1o3cMar4Qzgjr39hiIv4=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20261029184915-ae250b4c53dd/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3 h1:qgnWTiWs1G7AqcKZegFvkJD1bmXJcaDU3uC0ELSgZ5U=

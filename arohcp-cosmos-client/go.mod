@@ -2,11 +2,8 @@ module github.com/Azure/ARO-HCP/arohcp-cosmos-client
 
 go 1.26.0
 
-replace github.com/Azure/ARO-HCP/internal => ../internal
-
 require (
 	dario.cat/mergo v1.0.1
-	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
@@ -27,6 +24,7 @@ require (
 	k8s.io/apimachinery v0.37.1
 	k8s.io/component-base v0.37.1
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
+	sigs.k8s.io/randfill v1.0.0
 )
 
 require (
@@ -63,6 +61,5 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
-	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
