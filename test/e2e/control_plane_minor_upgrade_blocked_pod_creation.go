@@ -250,11 +250,11 @@ var _ = Describe("Customer", func() {
 			By("asserting probe pod CREATE is still denied by the ValidatingAdmissionPolicy")
 			Expect(verifiers.VerifyProbePodDeniedByAdmissionPolicy(ystreamDenyPolicyName, ystreamDenyPolicyMessage).Verify(ctx, adminRESTConfig)).To(Succeed(), "probe pod CREATE was no longer denied after upgrade on cluster %q", clusterName)
 		},
-		Entry("from 4.20 minor to 4.21 minor", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21"),
-		Entry("from 4.21 minor to 4.22 minor", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22"),
-		Entry("from 4.22 minor to 4.23 minor", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.23"),
-		Entry("from 4.22 minor to 5.0 minor", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.0"),
-		Entry("from 5.0 minor to 5.1 minor", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.1"),
+		Entry("from 4.20 minor to 4.21 minor", labels.StartPriority(70), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21"),
+		Entry("from 4.21 minor to 4.22 minor", labels.StartPriority(70), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22"),
+		Entry("from 4.22 minor to 4.23 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.23"),
+		Entry("from 4.22 minor to 5.0 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.0"),
+		Entry("from 5.0 minor to 5.1 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.1"),
 		Entry("from 5.1 minor to 5.2 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.2"),
 		Entry("from 5.2 minor to 5.3 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.3"),
 		Entry("from 5.3 minor to 5.4 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.4"),

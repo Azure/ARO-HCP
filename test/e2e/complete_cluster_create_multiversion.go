@@ -298,22 +298,22 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators on cluster %q", clusterName)
 		},
-		Entry("for 4.20", labels.StartPriority(20), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 4.20", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"4.20"),
-		Entry("for 4.21", labels.StartPriority(20), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 4.21", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"4.21"),
-		Entry("for 4.22", labels.StartPriority(20), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 4.22", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"4.22"),
-		Entry("for 4.23", labels.StartPriority(20), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 4.23", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"4.23"),
-		Entry("for 5.0", labels.StartPriority(20), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 5.0", labels.StartPriority(60), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"5.0"),
-		Entry("for 5.1", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+		Entry("for 5.1", labels.StartPriority(60), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @hbhushan3, tracking: AROSLSRE-1586. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			"5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),

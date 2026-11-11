@@ -556,12 +556,12 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyACMIngressCertificateAbsent().Verify(ctx, adminRESTConfig)).To(Succeed(), "ACM's ingress certificate must remain absent after the customer's override")
 		},
 		// TODO move to complete_cluster_create_multiversion.go test in a follow up PR
-		Entry("for cluster version 4.20", labels.StartPriority(20), "4.20"),
-		Entry("for cluster version 4.21", labels.StartPriority(20), "4.21"),
-		Entry("for cluster version 4.22", labels.StartPriority(20), "4.22"),
-		Entry("for cluster version 4.23", labels.StartPriority(20), "4.23"),
-		Entry("for cluster version 5.0", labels.StartPriority(20), "5.0"),
-		Entry("for cluster version 5.1", labels.StartPriority(20), "5.1"),
+		Entry("for cluster version 4.20", labels.StartPriority(50), "4.20"),
+		Entry("for cluster version 4.21", labels.StartPriority(40), "4.21"),
+		Entry("for cluster version 4.22", labels.StartPriority(40), "4.22"),
+		Entry("for cluster version 4.23", labels.StartPriority(40), "4.23"),
+		Entry("for cluster version 5.0", labels.StartPriority(50), "5.0"),
+		Entry("for cluster version 5.1", labels.StartPriority(50), "5.1"),
 		Entry("for cluster version 5.2", "5.2"),
 		Entry("for cluster version 5.3", "5.3"),
 		Entry("for cluster version 5.4", "5.4"),

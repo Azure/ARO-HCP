@@ -38,7 +38,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		labels.Slow,
 		labels.MIContainers(1),
-		labels.StartPriority(50),
+		labels.StartPriority(60),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "np-update-nodes-hcp-cluster"

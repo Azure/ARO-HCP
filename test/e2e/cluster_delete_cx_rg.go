@@ -39,7 +39,7 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.MIContainers(1),
-		labels.StartPriority(50),
+		labels.StartPriority(60),
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg"

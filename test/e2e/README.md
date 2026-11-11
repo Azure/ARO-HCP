@@ -396,9 +396,26 @@ enter the queue ahead of lower priority specs, and `0` is the default. The
 has no effect on queue order.
 
 Priority values come from measured durations, not from guesses. Rank a spec set
-from the `timing-metadata-*.yaml` files of recent runs, then assign a tier only
-to the specs whose measured duration puts them in the suite's first wave. Keep
-the prioritized set near the suite concurrency so the tiers stay meaningful.
+from the `timing-metadata-*.yaml` files of recent runs and assign the band that
+matches its average:
+
+| Priority | Measured average |
+|---:|---|
+| 90 | 50 minutes or more |
+| 80 | 45 to 50 minutes |
+| 70 | 40 to 45 minutes |
+| 60 | 35 to 40 minutes |
+| 50 | 30 to 35 minutes |
+| 40 | 25 to 30 minutes |
+| 30 | 20 to 25 minutes |
+| 20 | 15 to 20 minutes |
+
+Specs below 15 minutes carry no label and keep registration order. The bands
+cover the suite concurrency (75 containers in Stage, 58 in dev, 25 in Prod), so
+the first wave is made of the longest measured specs instead of file order.
+
+`./test/aro-hcp-tests list tests --suite <suite> --output names` prints the
+resulting queue order, so a priority change is reviewable before it runs in CI.
 
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
