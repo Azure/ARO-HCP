@@ -130,7 +130,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation, EgressPublicIPs
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
@@ -607,6 +607,9 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 
 // AzureResources groups the Azure resource references associated with a cluster.
 type AzureResources struct {
+	// EgressPublicIPs tracks expected node-egress public IPs and their confirmed existence.
+	// Written by: EgressPublicIPs
+	EgressPublicIPs AzureMultiReference `json:"egressPublicIPs,omitempty"`
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
 	// KubeAPIServerCertificate tracks the TLS certificate created for the kube-apiserver.
@@ -625,12 +628,12 @@ type AzureResources struct {
 	RoleAssignments AzureMultiReference `json:"roleAssignments,omitempty"`
 }
 
-// AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
-// PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
+// AzureMultiReference tracks expected Azure resources and their confirmed existence.
+// PendingAzureResources holds expected resource IDs not yet confirmed;
 // AzureResources holds resource IDs that have been confirmed to exist.
 type AzureMultiReference struct {
-	// PendingAzureResources contains resource IDs that have been requested but
-	// not yet confirmed to exist in Azure.
+	// PendingAzureResources contains expected resource IDs not yet confirmed to exist
+	// in Azure. Tracking a pending resource does not imply that this controller created it.
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
 	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
 	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`

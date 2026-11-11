@@ -230,6 +230,7 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
 	}
+	operationStates = append(operationStates, c.egressPublicIPsOperationStatus(ctx, cluster).WithSource("egressPublicIPs"))
 	if currState, err := c.tlsCertificatesOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
@@ -615,6 +616,26 @@ func (c *operationClusterCreate) dataPlaneOIDCFederationOperationStatus(ctx cont
 
 func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
+}
+
+func (c *operationClusterCreate) egressPublicIPsOperationStatus(ctx context.Context, cluster *coreapi.Cluster) *operationbase.OperationState {
+	if !coreapihelpers.UsesLoadBalancerEgress(cluster) {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
+	}
+	pending := operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "Expected public IP address resources (Microsoft.Network/publicIPAddresses) for node egress have not yet been confirmed.")
+	expected, err := coreapihelpers.EgressPublicIPResourceIDs(cluster)
+	if err != nil || len(expected) == 0 {
+		return pending
+	}
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, fmt.Sprintf("Expected %d public IP address resources (Microsoft.Network/publicIPAddresses) for node egress have not yet been confirmed; confirmed count is unavailable.", len(expected)))
+	}
+	references := coreapihelpers.EgressPublicIPReferences(expected, serviceProviderCluster.Status.AzureResources.EgressPublicIPs.AzureResources)
+	if len(references.PendingAzureResources) != 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, fmt.Sprintf("Expected %d public IP address resources (Microsoft.Network/publicIPAddresses) for node egress; %d confirmed. Some expected resources have not yet been confirmed.", len(expected), len(references.AzureResources)))
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and

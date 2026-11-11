@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -53,6 +54,7 @@ type FirstPartyApplicationClientBuilder interface {
 	GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error)
 	DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error)
 	RoleAssignmentsClient(tenantID string, subscriptionID string) (RoleAssignmentsClient, error)
+	PublicIPAddressesClient(tenantID string, subscriptionID string) (PublicIPAddressesClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -147,4 +149,12 @@ func (b *firstPartyApplicationClientBuilder) RoleAssignmentsClient(tenantID stri
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {
 	return FirstPartyApplicationClientBuilderTypeValue
+}
+
+func (b *firstPartyApplicationClientBuilder) PublicIPAddressesClient(tenantID string, subscriptionID string) (PublicIPAddressesClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return armnetwork.NewPublicIPAddressesClient(subscriptionID, creds, b.options)
 }
