@@ -68868,6 +68868,19 @@ spec:
         regex: 'velero_.+'
         targetLabel: namespace
         replacement: 'velero'
+      # TRANSITION — REVERT ME (ARO-30517). The Velero KSM ServiceMonitor
+      # (values-mgmt.yaml) rewrites namespace to ocm-* so these series route to
+      # the HCP workspace, which the ocm-* drop rule below would otherwise also
+      # drop from services. Reset their namespace back to "velero" so a
+      # services-workspace copy survives while the HCP-workspace dashboards are
+      # validated. Unlike the PodMonitor series above, KSM series are not renamed,
+      # so matching is by their veleroBackup_/veleroDeleteBackupRequest_/
+      # veleroSchedule_ prefixes. Remove once validated, together with the block
+      # above.
+      - sourceLabels: [__name__]
+        regex: '(veleroBackup|veleroDeleteBackupRequest|veleroSchedule)_.+'
+        targetLabel: namespace
+        replacement: 'velero'
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
         action: drop
