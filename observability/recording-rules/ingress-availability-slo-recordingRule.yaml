@@ -266,22 +266,26 @@ spec:
   # Production label set for ingress_canary_check_duration_bucket (confirmed 2026-08-17):
   #   _id, cluster, container, endpoint, environment, host, instance, job,
   #   le, namespace, pod, prometheus, prometheus_replica, region
-  # Histogram buckets: 25, 50, 100, 200, 400, 800, 1600, +inf (milliseconds).
-  # The overflow bucket's `le` value is the lowercase string "+inf", not the
-  # "+Inf" most Prometheus client libraries emit on the wire -- confirmed
-  # against prod via the Grafana metrics browser's label-values picker for
-  # `le` on 2026-11-11 (which reads the raw stored value; `count by (le)
-  # (...)`'s own table/graph rendering is not reliable evidence here -- it
-  # reformats recognized histogram `le` values for readability, displaying
-  # the overflow bucket as the word "Infinity" regardless of the actual
-  # stored string, which is what misled an earlier version of this comment
-  # into using le="Infinity" -- that matches zero series, same failure mode
-  # as the original "+Inf" bug it was meant to fix). Using the wrong case
-  # here silently matches zero series (total_Xm always empty), which
-  # neither errors nor shows up in unit tests seeded with matching fixtures
-  # -- it only surfaces as every latency alert being permanently
-  # un-fireable. If `le` casing drifts again, verify against the metrics
-  # browser's label-values list, not against any query *result* rendering.
+  # Histogram buckets, exact `le` strings confirmed against prod via the
+  # Grafana metrics browser's label-values picker for `le` on 2026-11-11:
+  # "25.0", "50.0", "100.0", "200.0", "400.0", "800.0", "1600.0" (milliseconds),
+  # "+inf" for the overflow bucket. Every numeric boundary carries a trailing
+  # ".0", and the overflow value is the lowercase string "+inf" -- NOT the
+  # bare "200" or "+Inf" most Prometheus client libraries emit on the wire,
+  # and NOT the word "Infinity" either (an earlier version of this comment
+  # used le="Infinity", which also matches zero series).
+  #
+  # The metrics browser is the only reliable way to confirm these strings.
+  # Every other Grafana surface we tried while chasing this -- `count by (le)
+  # (...)` in table or graph view, graph legends -- reformats histogram `le`
+  # values for readability (stripping ".0", rendering the overflow bucket as
+  # the word "Infinity") regardless of what's actually stored, and fooled
+  # this investigation twice. A wrong `le` string here silently matches zero
+  # series (total_Xm/fast_Xm always empty), which neither errors nor shows
+  # up in unit tests seeded with matching fixtures -- it only surfaces as
+  # every latency alert being permanently un-fireable. If `le` values drift
+  # again, re-verify against the metrics browser's label-values list, not
+  # against any query *result* rendering.
   #
   # 99.5% of checks within 200ms is closer to a P99 latency objective than a
   # P95 one (99.5% is much nearer 99% than 95%), so alerts on this SLI are
@@ -295,7 +299,7 @@ spec:
     #
     # HA replica dedup for a histogram cannot be `max without (prometheus_replica)`
     # applied separately to each `le` bucket: that picks the numerator's bucket
-    # from whichever replica happens to report the larger le="200" value and the
+    # from whichever replica happens to report the larger le="200.0" value and the
     # denominator's bucket from whichever replica happens to report the larger
     # le="+inf" value -- independently. If the two replicas' counters
     # genuinely diverge (not just redundantly duplicate each other), this can
@@ -305,7 +309,7 @@ spec:
     # `topk(1, ...) by (host, instance)` on le="+inf" instead picks ONE
     # winning replica (by total volume, the most complete-looking scrape) per
     # (host, instance), keeping its `prometheus_replica` label; `and on (...,
-    # prometheus_replica)` then restricts le="200" to that same winning
+    # prometheus_replica)` then restricts le="200.0" to that same winning
     # replica, so every host/instance's fast and total figures always come
     # from one consistent replica. This also keeps the dedup from
     # double-counting fully redundant replicas (Test 10/12's requirement):
@@ -314,7 +318,7 @@ spec:
     - record: latency:ingress_canary:ratio
       expr: |
         sum by (_id, cluster, region) (
-          rate(ingress_canary_check_duration_bucket{le="200"}[5m])
+          rate(ingress_canary_check_duration_bucket{le="200.0"}[5m])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, rate(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
           )
@@ -351,7 +355,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_5m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200"}[5m])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[5m])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[5m])) by (_id, cluster, region, host, instance)
           )
@@ -371,7 +375,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_30m
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200"}[30m])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[30m])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[30m])) by (_id, cluster, region, host, instance)
           )
@@ -391,7 +395,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_1h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200"}[1h])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[1h])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[1h])) by (_id, cluster, region, host, instance)
           )
@@ -411,7 +415,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_6h
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200"}[6h])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[6h])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[6h])) by (_id, cluster, region, host, instance)
           )
@@ -431,7 +435,7 @@ spec:
     - record: errors:ingress_canary_latency:fast_3d
       expr: |
         sum by (_id, cluster, region) (
-          increase(ingress_canary_check_duration_bucket{le="200"}[3d])
+          increase(ingress_canary_check_duration_bucket{le="200.0"}[3d])
           and on (_id, cluster, region, host, instance, prometheus_replica) (
             topk(1, increase(ingress_canary_check_duration_bucket{le="+inf"}[3d])) by (_id, cluster, region, host, instance)
           )
