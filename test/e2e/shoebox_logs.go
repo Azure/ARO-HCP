@@ -248,20 +248,21 @@ const (
 )
 
 // verifyShoeboxLogDeliveryPrerequisites fast-fails when any management
-// subscription in the test region is missing the AFEC feature registration
-// required for shoebox log delivery. Without this check, a missing
-// prerequisite only surfaces after the full 45-minute verification window
-// has timed out waiting for logs that can never arrive.
+// subscription in the test region is confirmed to be missing the AFEC feature
+// registration required for shoebox log delivery. Without this check, a
+// missing prerequisite only surfaces after the full 45-minute verification
+// window has timed out waiting for logs that can never arrive.
 //
-// Credential limitation: management subscriptions live in the service tenant,
-// while the e2e CI identity (OpenShift Release Bot) is a Red Hat tenant
-// service principal (see docs/ci/execution.md). The subscription list API
-// only returns subscriptions in the authenticated tenant, so in current
-// Stage/PROD CI runs this preflight finds no management subscriptions and
-// logs a warning instead of failing: delivery verification remains the
-// authoritative signal. The check activates as designed as soon as the test
-// identity is granted visibility into the region's management subscriptions
-// (tracked in ARO-30014).
+// Contract: the test fails only on a definitively unregistered AFEC state
+// (including a 404 on the registration query). When the prerequisite cannot
+// be confirmed, the check logs a warning and passes, and the delivery
+// verification remains the authoritative signal. Inability to confirm arises
+// when the test identity cannot see the region's management subscriptions
+// (they live in the service tenant, while the CI identity may be a Red Hat
+// tenant service principal depending on the leased customer subscription -
+// see docs/ci/execution.md), or when the registration query itself errors.
+// The check activates as designed whenever the identity does have
+// visibility, e.g. when an AME-tenant subscription is leased.
 func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.TokenCredential, location string) error {
 	clientOptions := &azcorearm.ClientOptions{
 		ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
@@ -310,7 +311,15 @@ func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.Tok
 				unregistered = append(unregistered, fmt.Sprintf("%s (%s, state: NotRegistered)", *sub.DisplayName, *sub.SubscriptionID))
 				continue
 			}
-			return fmt.Errorf("failed to query %s/%s AFEC registration on subscription %s: %w", shoeboxAFECNamespace, shoeboxAFECFeature, *sub.SubscriptionID, err)
+			// Unable to confirm (transient ARM failure, or the identity can list
+			// the subscription but lacks feature-registration read access): warn
+			// and continue rather than fail - only a definitively unregistered
+			// state fails the test. Delivery verification remains the backstop.
+			GinkgoLogr.Error(err, "unable to query AFEC registration state; skipping subscription",
+				"subscription", *sub.DisplayName,
+				"subscriptionID", *sub.SubscriptionID,
+			)
+			continue
 		}
 
 		state := "Unknown"
