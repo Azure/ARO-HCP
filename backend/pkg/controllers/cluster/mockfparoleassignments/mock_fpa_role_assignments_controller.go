@@ -124,7 +124,7 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 
 	existingCluster, err := s.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return s.deleteStackDesire(ctx, key)
+		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
@@ -132,7 +132,7 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 
 	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return s.deleteStackDesire(ctx, key)
+		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
@@ -149,7 +149,11 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	// the MRG is gone (both references cleared by the managed resource group controller).
 	// The assignment itself is MRG-scoped, so Azure removes it in cascade with the MRG.
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && scope == nil {
-		return s.deleteStackDesire(ctx, key)
+		err := s.deleteDeploymentStackDesireDatabaseEntry(ctx, key)
+		if err != nil {
+			return fmt.Errorf("failed to delete mock FPA role assignments DeploymentStackDesire: %w", err)
+		}
+		return nil
 	}
 
 	if scope == nil {
@@ -438,7 +442,7 @@ func (s *mockFPARoleAssignmentsSyncer) requestStackDeletion(ctx context.Context,
 	return nil
 }
 
-func (s *mockFPARoleAssignmentsSyncer) deleteStackDesire(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
