@@ -107,6 +107,8 @@ github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/a
 ## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000 => ./tooling/templatize
 ## explicit; go 1.26.0
+# github.com/Azure/ARO-HCP/tooling/tenant-quota v0.0.0-00010101000000-000000000000 => ./tooling/tenant-quota
+## explicit; go 1.26.0
 # github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000 => ./tooling/utilitytypes
 ## explicit; go 1.25.7
 # github.com/Azure/ARO-Tools/config v0.0.0-20261029184915-ae250b4c53dd

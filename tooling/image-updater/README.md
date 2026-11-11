@@ -654,3 +654,41 @@ make update-repositories
 ```
 
 > **Important**: A new repo existing does NOT mean it is GA. Always confirm GA status in the relevant release channel before merging any upgrade PR.
+
+## Monitoring
+
+The `monitor` subcommand is a long-running health exporter for the
+image-updater Prow periodic jobs (`periodic-ci-Azure-ARO-HCP-main-image-updater-*`,
+schedule 06:00/14:00/22:00 UTC weekdays). It polls the public Prow API and
+exposes Prometheus metrics so failures and stalls page PagerDuty through the
+dev-CI alerting pipeline (Azure Monitor rule group → `opstool-pagerduty` action
+group → the "ARO HCP Dev CI Alerts" PagerDuty service).
+
+Metrics (all recomputed statelessly from each poll):
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `image_updater_last_run_timestamp_seconds` | `job_name`, `build_id`, `result`, `url` | Completion time of the most recent run; `url` links the run's logs |
+| `image_updater_last_run_duration_seconds` | `job_name`, `build_id`, `url` | Duration of the most recent run |
+| `image_updater_last_success_timestamp_seconds` | `job_name` | Completion time of the most recent successful run |
+| `image_updater_consecutive_failures` | `job_name`, `build_id`, `url` | Consecutive failed/errored runs since the last success |
+| `image_updater_scrape_success` / `image_updater_last_scrape_timestamp_seconds` | – | Exporter self-health |
+| `image_updater_jobs_matched` | – | Number of monitored jobs; 0 means the regex matches nothing and the other metrics are blind |
+
+A hung run never completes, so no failure result ever appears in Prow — the
+stale `last_run_timestamp` is the only signal, which is why this exporter
+exists rather than relying on completed-run metrics alone.
+
+Alert rules live in [`alerting.bicep`](alerting.bicep) (thresholds are bicep
+params; deployed disabled by default until validated against live metrics).
+Run locally:
+
+```bash
+go run . monitor --interval 30s --port 8080
+```
+
+Deployment follows the tenant-quota-collector pattern: Helm chart in
+[`deploy/`](deploy/), rollout in [`pipeline.yaml`](pipeline.yaml), registered
+in `topology-dev-ci.yaml` under
+`Microsoft.Azure.ARO.HCP.DevCI.ImageUpdater`. Alert response is documented in
+[docs/ci/dev-ci-monitoring.md](../../docs/ci/dev-ci-monitoring.md).
