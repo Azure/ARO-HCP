@@ -42,6 +42,9 @@ const (
 	// ServiceProviderCluster is a singleton resource and ARM convention is to
 	// use the name "default" for singleton resources.
 	ServiceProviderClusterResourceName = "default"
+	// ControlPlaneUpgradeMonitoringEnabled is observed by TriggerControlPlaneUpgrade.
+	// False means deletion or uninstallation has been confirmed, not upgrade success.
+	ControlPlaneUpgradeMonitoringEnabled = "ControlPlaneUpgradeMonitoringEnabled"
 )
 
 // HostedClusterControlPlaneSize enumerates the SRE-selectable control-plane
@@ -188,6 +191,9 @@ type ServiceProviderClusterStatus struct {
 	// - "Progressing": True when the cluster is in the process of being created, updated, or deleted. Both end-user initiated actions as
 	//   well as internal actions such as upgrades or other maintenance operations are in progress are included in thsi condition.
 	// - "Degraded": True when the cluster is in a degraded state
+	// - "ControlPlaneUpgradeMonitoringEnabled": observed by TriggerControlPlaneUpgrade;
+	//   False for deleting/uninstalling clusters, True after observing another CS state.
+	//   Absence means lifecycle eligibility has not been observed.
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum. Take into consideration that conditions at other levels can be specified within

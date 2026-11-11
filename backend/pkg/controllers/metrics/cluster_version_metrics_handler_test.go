@@ -257,13 +257,135 @@ func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 
 	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", nil)
+	serviceProviderCluster.Status.Conditions = []metav1.Condition{{
+		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: metav1.ConditionTrue,
+	}}
 	handler.Sync(ctx, serviceProviderCluster)
 
 	spcKey, err := resourceIDStoreKey(serviceProviderCluster)
 	require.NoError(t, err)
 	handler.Delete(spcKey)
 
-	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""), "backend_cluster_version_info"))
+	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""),
+		"backend_cluster_version_info", "backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_converged", "backend_cluster_upgrade_monitoring_enabled"))
+}
+
+func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
+	tests := []struct {
+		name        string
+		desired     string
+		active      []coreapi.ServiceProviderClusterActiveVersion
+		lifecycle   metav1.ConditionStatus
+		wantTargets []string
+		wantEnabled string
+		converged   bool
+	}{
+		{
+			name: "matching current and desired completed", desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.43"}, converged: true,
+		},
+		{
+			name: "historical completed desired is not current", desired: "4.20.42",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.42")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.42", "4.20.43"},
+		},
+		{
+			name: "historical completion does not override newest partial", desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.PartialUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.43"},
+		},
+		{
+			name:    "superseded partial is diagnostic only",
+			desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.PartialUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.42")), State: configv1.PartialUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.41")), State: configv1.CompletedUpdate},
+			},
+			lifecycle: metav1.ConditionTrue, wantTargets: []string{"4.20.43"}, wantEnabled: "1",
+		},
+		{
+			name:    "new desired does not erase the running upgrade",
+			desired: "4.20.44",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.PartialUpdate},
+			},
+			lifecycle: metav1.ConditionTrue, wantTargets: []string{"4.20.43", "4.20.44"}, wantEnabled: "1",
+		},
+		{
+			name:    "rollback target need not be numerically highest",
+			desired: "4.20.41",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: ptr.To(semver.MustParse("4.20.41")), State: configv1.PartialUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.PartialUpdate},
+			},
+			lifecycle: metav1.ConditionTrue, wantTargets: []string{"4.20.41"}, wantEnabled: "1",
+		},
+		{
+			name:    "confirmed deletion explicitly disables monitoring",
+			desired: "4.20.43", lifecycle: metav1.ConditionFalse,
+			wantTargets: []string{"4.20.43"}, wantEnabled: "0",
+		},
+		{
+			name:    "unknown lifecycle is not zero",
+			desired: "4.20.43", lifecycle: metav1.ConditionUnknown,
+			wantTargets: []string{"4.20.43"},
+		},
+		{
+			name:    "unobserved lifecycle is not zero",
+			desired: "4.20.43", wantTargets: []string{"4.20.43"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			handler := newTestClusterVersionMetricsHandler(t, registry, nil)
+			metricsHandler, ok := handler.(*clusterVersionMetricsHandler)
+			require.True(t, ok)
+			cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
+			spc := newTestServiceProviderCluster(t, cluster, tt.desired, tt.active)
+			if tt.lifecycle != "" {
+				spc.Status.Conditions = []metav1.Condition{{
+					Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: tt.lifecycle,
+				}}
+			}
+			// A second sync must replace target and lifecycle series, not accumulate them.
+			handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.40", nil))
+			handler.Sync(context.Background(), spc)
+			var expected strings.Builder
+			expected.WriteString("# HELP backend_cluster_upgrade_target_info Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.\n# TYPE backend_cluster_upgrade_target_info gauge\n")
+			for _, target := range tt.wantTargets {
+				fmt.Fprintf(&expected, "backend_cluster_upgrade_target_info{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\",version=\"%s\"} 1\n",
+					metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), target)
+			}
+			expected.WriteString("# HELP backend_cluster_upgrade_target_count Expected current target rows in the same coherent cluster version snapshot.\n# TYPE backend_cluster_upgrade_target_count gauge\n")
+			fmt.Fprintf(&expected, "backend_cluster_upgrade_target_count{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
+				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), len(tt.wantTargets))
+			converged := 0
+			if tt.converged {
+				converged = 1
+			}
+			expected.WriteString("# HELP backend_cluster_upgrade_converged Whether resolved desired equals the newest observed current version and that entry is completed.\n# TYPE backend_cluster_upgrade_converged gauge\n")
+			fmt.Fprintf(&expected, "backend_cluster_upgrade_converged{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
+				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), converged)
+			if tt.wantEnabled != "" {
+				expected.WriteString("# HELP backend_cluster_upgrade_monitoring_enabled Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.\n# TYPE backend_cluster_upgrade_monitoring_enabled gauge\n")
+				fmt.Fprintf(&expected, "backend_cluster_upgrade_monitoring_enabled{cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %s\n",
+					resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), tt.wantEnabled)
+			}
+			require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected.String()),
+				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_converged", "backend_cluster_upgrade_monitoring_enabled"))
+		})
+	}
 }
 
 func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
@@ -294,6 +416,69 @@ func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
 `, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
+func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	handler := newTestClusterVersionMetricsHandler(t, registry, nil)
+	collector, ok := handler.(prometheus.Collector)
+	require.True(t, ok)
+	cluster := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
+	active := []coreapi.ServiceProviderClusterActiveVersion{{
+		Version: ptr.To(semver.MustParse("4.20.42")), State: configv1.CompletedUpdate,
+	}}
+	handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.42", active))
+
+	metrics := make(chan prometheus.Metric)
+	go func() {
+		collector.Collect(metrics)
+		close(metrics)
+	}()
+	first := <-metrics
+	// Change the desired target while the scrape is paused after its count.
+	handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.43", active))
+	observed := []prometheus.Metric{first}
+	for metric := range metrics {
+		observed = append(observed, metric)
+	}
+	require.Len(t, observed, 4)
+	frozen := prometheus.NewRegistry()
+	frozen.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		for _, metric := range observed {
+			ch <- metric
+		}
+	}))
+	oldFamilies, err := frozen.Gather()
+	require.NoError(t, err)
+	for _, family := range oldFamilies {
+		if family.GetName() == "backend_cluster_upgrade_target_count" {
+			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
+		}
+		if family.GetName() == "backend_cluster_upgrade_converged" {
+			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
+		}
+		for _, metric := range family.Metric {
+			for _, label := range metric.Label {
+				if label.GetName() == "version" {
+					require.Equal(t, "4.20.42", label.GetValue(), "a scrape must not mix target revisions")
+				}
+			}
+		}
+	}
+	require.Contains(t, first.Desc().String(), "backend_cluster_upgrade_target_count")
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		switch family.GetName() {
+		case "backend_cluster_upgrade_target_count":
+			require.Equal(t, float64(2), family.Metric[0].GetGauge().GetValue())
+		case "backend_cluster_upgrade_target_info":
+			require.Len(t, family.Metric, 2)
+		case "backend_cluster_upgrade_converged":
+			require.Equal(t, float64(0), family.Metric[0].GetGauge().GetValue())
+		}
+	}
 }
 
 func TestClusterVersionMetricsController_DeletesMetricsWhenResourceRemoved(t *testing.T) {
