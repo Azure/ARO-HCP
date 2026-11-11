@@ -17,6 +17,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
       - Microsoft.Azure.ARO.HCP.Management.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-pipeline.yaml)): Deploy a management cluster and backing infrastructure.
         - Microsoft.Azure.ARO.HCP.Velero ([ref](https://github.com/Azure/ARO-HCP/tree/main/velero/pipeline.yaml)): Deploy Velero for HostedCluster backup and restore.
         - Microsoft.Azure.ARO.HCP.SecretSyncController ([ref](https://github.com/Azure/ARO-HCP/tree/main/secret-sync-controller/pipeline.yaml)): Deploy the Secret Sync Controller.
+        - Microsoft.Azure.ARO.HCP.ACM ([ref](https://github.com/Azure/ARO-HCP/tree/main/acm/pipeline.yaml)): Deploy Advanced Cluster Management and Multi-Cluster Engine.
         - Microsoft.Azure.ARO.HCP.RP.HypershiftOperator ([ref](https://github.com/Azure/ARO-HCP/tree/main/hypershiftoperator/pipeline.yaml)): Deploy the HyperShift operator.
         - Microsoft.Azure.ARO.HCP.KubeApplier ([ref](https://github.com/Azure/ARO-HCP/tree/main/kube-applier/pipeline.yaml)): Deploy the Kube Applier.
         - Microsoft.Azure.ARO.HCP.MgmtAgent ([ref](https://github.com/Azure/ARO-HCP/tree/main/mgmt-agent/pipeline.yaml)): Deploy the Management Agent.

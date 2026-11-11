@@ -1,0 +1,8 @@
+# Makes the hypershift-management-clusters clusterset available in the open-cluster-management-policies namespace
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: hypershift-management-clusters
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  clusterSet: hypershift-management-clusters

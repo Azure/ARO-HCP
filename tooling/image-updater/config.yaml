@@ -40,6 +40,27 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+  # ACM images
+  acm-operator:
+    group: hypershift-stack
+    source:
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
+      repoVersionUpgrade:
+        repoPrefix: "acm-operator-bundle-acm-"
+    targets:
+    - jsonPath: defaults.acm.operator.bundle.digest
+      filePath: ../../config/config.yaml
+  acm-mce:
+    group: hypershift-stack
+    source:
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
+      repoVersionUpgrade:
+        repoPrefix: "mce-operator-bundle-mce-"
+    targets:
+    - jsonPath: defaults.acm.mce.bundle.digest
+      filePath: ../../config/config.yaml
   # AKS Runtime Image
   aksCommandRuntime:
     group: platform-utils

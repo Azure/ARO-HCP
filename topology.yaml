@@ -53,6 +53,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
           pipelinePath: secret-sync-controller/pipeline.yaml
           purpose: Deploy the Secret Sync Controller.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+          pipelinePath: acm/pipeline.yaml
+          purpose: Deploy Advanced Cluster Management and Multi-Cluster Engine.
         - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
           pipelinePath: hypershiftoperator/pipeline.yaml
           purpose: Deploy the HyperShift operator.

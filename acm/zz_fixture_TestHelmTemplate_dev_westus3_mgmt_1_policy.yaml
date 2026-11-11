@@ -1,0 +1,21 @@
+---
+# Source: AcmPolicies/templates/managedclustersetbinding.yaml
+# Makes the hypershift-management-clusters clusterset available in the open-cluster-management-policies namespace
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: hypershift-management-clusters
+  namespace: 'open-cluster-management-policies'
+spec:
+  clusterSet: hypershift-management-clusters
+---
+# Source: AcmPolicies/templates/all-hosted-clusters.placement.yaml
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: all-hosted-clusters
+  namespace: 'open-cluster-management-policies'
+spec:
+  clusterSets:
+  - hypershift-management-clusters
+

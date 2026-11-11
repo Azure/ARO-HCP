@@ -14,7 +14,7 @@ Microsoft requires that all ARO HCP images must be pulled from private Azure Con
 
 ### ACR Types
 
-**Service ACR** stores images for ARO HCP service components (RP, cluster-service, HyperShift). Access is restricted to service and management clusters. Service ACRs follow the naming convention `arohcpsvc${environment}` (e.g., `arohcpsvcstg`).
+**Service ACR** stores images for ARO HCP service components (RP, cluster-service, ACM, HyperShift). Access is restricted to service and management clusters. Service ACRs follow the naming convention `arohcpsvc${environment}` (e.g., `arohcpsvcstg`).
 
 **OCP ACR** contains OpenShift release payload images for hosted control planes and data planes. Serves both management clusters and customer-side pulls. OCP ACRs follow the naming convention `arohcpocp${environment}` (e.g., `arohcpocpstg`).
 
@@ -75,11 +75,11 @@ clustersService:
 
 ### oc-mirror
 
-[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
+[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. It is now only in use for ACM images. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
 
 ## Building ARO HCP Images
 
-ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Hypershift).
+ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Hypershift) or registry.redhat.io (ACM).
 
 CI produces two different kinds of image outputs:
 
@@ -107,7 +107,7 @@ Inspect existing helm charts in this repo to see how the `AcrPullBinding` CRD is
 
 ### Kubelet Identity-based pull
 
-Before the migration to `msi-acrpull`, most workloads relied on the kubelet managed identity to pull images from ACRs.
+Before the migration to `msi-acrpull`, most workloads relied on the kubelet managed identity to pull images from ACRs. This approach is still used by ACM but we will migrate to `msi-acrpull` in the future.
 
 ### Dedicated pull secrets
 
