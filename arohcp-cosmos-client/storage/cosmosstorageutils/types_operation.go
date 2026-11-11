@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 type OperationRequest = coreapi.OperationRequest
@@ -42,7 +41,7 @@ const (
 func NewOperation(
 	request OperationRequest,
 	externalID *azcorearm.ResourceID,
-	internalID ocm.InternalID,
+	internalID metadataapi.InternalID,
 	location, tenantID, clientID, notificationURI string,
 	correlationData *coreapi.CorrelationData,
 ) *coreapi.Operation {
