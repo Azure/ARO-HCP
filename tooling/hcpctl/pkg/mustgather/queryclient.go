@@ -63,6 +63,7 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []kusto.Que
 	logger := logr.FromContextOrDiscard(ctx)
 
 	queryGroup, queryCtx := errgroup.WithContext(ctx)
+	queryGroup.SetLimit(5)
 	for _, query := range queries {
 		queryGroup.Go(func() error {
 			result, err := q.Client.ExecutePreconfiguredQuery(queryCtx, query, outputChannel)
