@@ -4083,12 +4083,17 @@
             "gatePromotion"
           ],
           "additionalProperties": false
+        },
+        "pebbleImage": {
+          "$ref": "#/definitions/containerImage",
+          "description": "Let's Encrypt's Pebble ACME test server, mirrored to the OCP ACR so guest clusters in e2e can pull it"
         }
       },
       "additionalProperties": false,
       "required": [
         "prow",
-        "regionTest"
+        "regionTest",
+        "pebbleImage"
       ]
     },
     "automationDryRun": {
