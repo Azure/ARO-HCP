@@ -51,21 +51,6 @@ func TestManagedResourceGroupScope(t *testing.T) {
 	})
 }
 
-func TestHasRenderableKeys(t *testing.T) {
-	t.Parallel()
-
-	key := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
-	stamp := metav1.NewTime(time.Now())
-
-	assert.False(t, hasRenderableKeys(nil), "empty map has nothing to render")
-	assert.False(t, hasRenderableKeys(map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-		key: {DeconfigureTimestamp: &stamp},
-	}), "only a draining key has nothing to render")
-	assert.True(t, hasRenderableKeys(map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-		key: {},
-	}), "a non-draining key is renderable")
-}
-
 func TestRoleAssignmentTemplateResources(t *testing.T) {
 	t.Parallel()
 

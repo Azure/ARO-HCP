@@ -129,7 +129,7 @@ func NewMockFPARoleAssignmentsIntentController(
 	// cluster (key) resource inside NewClusterWatchingController. This watch only
 	// needs to fire on actual DeploymentStackDesire changes.
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
-		panic(err)
+		panic(err) // coding error
 	}
 
 	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, MockFPARoleAssignmentsDesireName)

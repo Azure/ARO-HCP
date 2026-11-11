@@ -94,7 +94,7 @@ func NewMockFPARoleAssignmentsController(
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
-	_, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
+	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 
 	syncer := &mockFPARoleAssignmentsSyncer{
 		clusterLister:                clusterLister,
@@ -115,6 +115,18 @@ func NewMockFPARoleAssignmentsController(
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+
+	// AddInterestingResource only filters events, it does not subscribe to them.
+	// Wire the DeploymentStackDesire informer as an actual event source so that
+	// the stack desires controller writing an observed Azure status back onto the
+	// desire re-triggers this controller, which consumes that status to advance its
+	// stamp/drop state machine. Resync is 0: the periodic resync is done once on the
+	// cluster (key) resource inside NewClusterWatchingController. This watch only
+	// needs to fire on actual DeploymentStackDesire changes.
+	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, MockFPARoleAssignmentsDesireName)
 
 	return controller
 }
@@ -151,7 +163,7 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && scope == nil {
 		err := s.deleteDeploymentStackDesireDatabaseEntry(ctx, key)
 		if err != nil {
-			return fmt.Errorf("failed to delete mock FPA role assignments DeploymentStackDesire: %w", err)
+			return fmt.Errorf("failed to delete mock FPA role assignments DeploymentStackDesire from the database: %w", err)
 		}
 		return nil
 	}
@@ -162,11 +174,9 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return nil
 	}
 
-	if !hasRenderableKeys(existingServiceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup) {
-		// No non-draining keys: nothing should be managed, so ask for the stack to
-		// be deleted (which also removes any draining assignment left in Azure).
-		return s.requestStackDeletion(ctx, key)
-	}
+	// Publishing an empty template rather than deleting the whole stack keeps the
+	// stack (which lives in and cascades away with the managed resource group anyway) and
+	// avoids create/delete churn if a key is later re-added.
 
 	reservedServiceProviderCluster, err := s.reserveAzureResourceIDs(ctx, existingCluster, existingServiceProviderCluster, scope)
 	if err != nil {
@@ -178,7 +188,12 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return err
 	}
 
-	return s.publishStackDesire(ctx, key, desiredSpec, logger)
+	err = s.publishDeploymentStackDesire(ctx, key, desiredSpec, logger)
+	if err != nil {
+		return fmt.Errorf("failed to publish mock FPA role assignments DeploymentStackDesire: %w", err)
+	}
+
+	return nil
 }
 
 // managedResourceGroupScope returns the resource ID to scope the mock FPA role
@@ -196,17 +211,6 @@ func managedResourceGroupScope(ref coreapi.AzureReference) *azcorearm.ResourceID
 	return ref.PendingAzureResource
 }
 
-// hasRenderableKeys reports whether any key is not draining (has no
-// DeconfigureTimestamp), i.e. whether anything should be rendered into the stack.
-func hasRenderableKeys(assignments map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus) bool {
-	for _, status := range assignments {
-		if status != nil && status.DeconfigureTimestamp == nil {
-			return true
-		}
-	}
-	return false
-}
-
 // reserveAzureResourceIDs assigns ReservedAzureResourceID to every non-draining
 // key that does not have one yet, and persists the result before returning, so
 // the reserved ID is never lost to a crash between being chosen and being used.
@@ -218,6 +222,7 @@ func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
 	existingServiceProviderCluster *coreapi.ServiceProviderCluster,
 	scope *azcorearm.ResourceID,
 ) (*coreapi.ServiceProviderCluster, error) {
+	logger := utils.LoggerFromContext(ctx)
 	replacement := existingServiceProviderCluster.DeepCopy()
 
 	keys := make([]coreapi.RoleAssignmentKey, 0, len(replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup))
@@ -242,7 +247,7 @@ func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
 		return existingServiceProviderCluster, nil
 	}
 
-	utils.LoggerFromContext(ctx).Info("reserving mock FPA role assignment resource IDs onto ServiceProviderCluster")
+	logger.Info("reserving mock FPA role assignment resource IDs onto ServiceProviderCluster", "reservedRoleAssignmentResourceIDs", keys)
 	persisted, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
@@ -344,10 +349,10 @@ func sortRoleAssignmentKeys(keys []coreapi.RoleAssignmentKey) {
 	})
 }
 
-// publishStackDesire creates the mock FPA role assignments DeploymentStackDesire if it does
+// publishDeploymentStackDesire creates the mock FPA role assignments DeploymentStackDesire if it does
 // not exist yet, or replaces it only when desiredSpec actually differs from what
 // is already published.
-func (s *mockFPARoleAssignmentsSyncer) publishStackDesire(ctx context.Context, key controllerutils.HCPClusterKey, desiredSpec azureresourcesapi.DeploymentStackDesireSpec, logger logr.Logger) error {
+func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.Context, key controllerutils.HCPClusterKey, desiredSpec azureresourcesapi.DeploymentStackDesireSpec, logger logr.Logger) error {
 	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
@@ -368,11 +373,13 @@ func (s *mockFPARoleAssignmentsSyncer) publishStackDesire(ctx context.Context, k
 		}
 		_, err = clusterScopedStackDesiresCRUD.Create(ctx, newDesire, nil)
 		if cosmosstorageutils.IsConflictError(err) {
+			logger.Info("mock FPA role assignments DeploymentStackDesire already exists", "deploymentStackDesireResourceID", existing.ResourceID)
 			return nil
 		}
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create mock FPA role assignments DeploymentStackDesire: %w", err))
 		}
+		logger.Info("created mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", existing.ResourceID)
 		return nil
 	}
 	if err != nil {
@@ -391,43 +398,9 @@ func (s *mockFPARoleAssignmentsSyncer) publishStackDesire(ctx context.Context, k
 		return nil
 	}
 
+	logger.Info("updating mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", existing.ResourceID, "existingHash", existingHash, "desiredHash", desiredHash)
 	replacement := existing.DeepCopy()
 	replacement.Spec = desiredSpec
-	logger.Info("updating mock FPA role assignments DeploymentStackDesire")
-	clusterScopedStackDesiresCRUD, err := s.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster scoped stack desires CRUD: %w", err))
-	}
-	_, err = clusterScopedStackDesiresCRUD.Replace(ctx, replacement, nil)
-	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace mock FPA role assignments DeploymentStackDesire: %w", err))
-	}
-	return nil
-}
-
-// requestStackDeletion asks the stack desires controller to delete the Azure
-// deployment stack when no non-draining keys remain on a live cluster. It never
-// removes the StackDesire document itself here: nothing else will delete the
-// already-applied stack, so abandoning the document would orphan it.
-func (s *mockFPARoleAssignmentsSyncer) requestStackDeletion(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existing, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		// Never published, so there is nothing to delete.
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
-	}
-	if existing.Spec.Action == azureresourcesapi.DeploymentStackDesireActionTypeDelete {
-		return nil
-	}
-
-	replacement := existing.DeepCopy()
-	replacement.Spec.Action = azureresourcesapi.DeploymentStackDesireActionTypeDelete
-	utils.LoggerFromContext(ctx).Info("requesting deletion of mock FPA role assignments DeploymentStackDesire")
 	clusterScopedStackDesiresCRUD, err := s.azureResourcesDBClient.DeploymentStackDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster scoped stack desires CRUD: %w", err))
@@ -443,6 +416,7 @@ func (s *mockFPARoleAssignmentsSyncer) requestStackDeletion(ctx context.Context,
 }
 
 func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
 	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, MockFPARoleAssignmentsDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
@@ -451,12 +425,16 @@ func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster scoped stack desires CRUD: %w", err))
 	}
+
+	logger.Info("deleting mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", resourceID.String())
 	err = clusterScopedStackDesiresCRUD.Delete(ctx, resourceID.String())
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("mock FPA role assignments DeploymentStackDesire already deleted", "deploymentStackDesireResourceID", resourceID.String())
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to delete mock FPA role assignments DeploymentStackDesire: %w", err))
 	}
+	logger.Info("deleted mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", resourceID.String())
 	return nil
 }
