@@ -51,7 +51,7 @@ spec:
         (
           group by (cluster) (kube_deployment_status_replicas_available{namespace="msi-credential-refresher", deployment="credential-refresher"})
           unless on (cluster)
-          max by (cluster) (up{namespace="msi-credential-refresher", container="credential-refresher"} == 1)
+          max by (cluster) (up{namespace="msi-credential-refresher"} == 1)
         )
         or
         (
