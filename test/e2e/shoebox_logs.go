@@ -16,7 +16,10 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,6 +35,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -222,6 +227,128 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 	}, nil
 }
 
+const (
+	// shoeboxAFECNamespace and shoeboxAFECFeature identify the AFEC feature
+	// registration that admits test telemetry into the production Azure Monitor
+	// pipeline. Without it, diagnostic settings are accepted but no shoebox
+	// logs are ever delivered (see AROSLSRE-2244 / AROSLSRE-2245).
+	shoeboxAFECNamespace = "Microsoft.Insights"
+	shoeboxAFECFeature   = "testinproduction"
+
+	// mgmtSubscriptionNameSegment is the display name segment identifying
+	// management subscriptions: "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>".
+	mgmtSubscriptionNameSegment = "mgmt"
+)
+
+// verifyShoeboxLogDeliveryPrerequisites fast-fails when any management
+// subscription in the test region is missing the AFEC feature registration
+// required for shoebox log delivery. Without this check, a missing
+// prerequisite only surfaces after the full 45-minute verification window
+// has timed out waiting for logs that can never arrive.
+//
+// When no management subscriptions are visible to the test identity, the
+// check logs a warning and passes: delivery verification remains the
+// authoritative signal in that case.
+func verifyShoeboxLogDeliveryPrerequisites(ctx context.Context, creds azcore.TokenCredential, location string) error {
+	clientOptions := &azcorearm.ClientOptions{
+		ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
+	}
+
+	subscriptionsFactory, err := armsubscriptions.NewClientFactory(creds, clientOptions)
+	if err != nil {
+		return fmt.Errorf("failed to create subscriptions client factory: %w", err)
+	}
+
+	var mgmtSubscriptions []*armsubscriptions.Subscription
+	pager := subscriptionsFactory.NewClient().NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list subscriptions during AFEC preflight: %w", err)
+		}
+		for _, sub := range page.Value {
+			if isManagementSubscriptionForLocation(sub, location) {
+				mgmtSubscriptions = append(mgmtSubscriptions, sub)
+			}
+		}
+	}
+
+	if len(mgmtSubscriptions) == 0 {
+		GinkgoLogr.Info("no management subscriptions visible for location; skipping AFEC registration preflight",
+			"location", location,
+		)
+		return nil
+	}
+
+	var unregistered []string
+	for _, sub := range mgmtSubscriptions {
+		featuresClient, err := armfeatures.NewSubscriptionFeatureRegistrationsClient(*sub.SubscriptionID, creds, clientOptions)
+		if err != nil {
+			return fmt.Errorf("failed to create feature registrations client for subscription %s: %w", *sub.SubscriptionID, err)
+		}
+
+		resp, err := featuresClient.Get(ctx, shoeboxAFECNamespace, shoeboxAFECFeature, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				unregistered = append(unregistered, fmt.Sprintf("%s (%s, state: NotRegistered)", *sub.DisplayName, *sub.SubscriptionID))
+				continue
+			}
+			return fmt.Errorf("failed to query %s/%s AFEC registration on subscription %s: %w", shoeboxAFECNamespace, shoeboxAFECFeature, *sub.SubscriptionID, err)
+		}
+
+		state := "Unknown"
+		if resp.Properties != nil && resp.Properties.State != nil {
+			state = string(*resp.Properties.State)
+		}
+		if state != string(armfeatures.SubscriptionFeatureRegistrationStateRegistered) {
+			unregistered = append(unregistered, fmt.Sprintf("%s (%s, state: %s)", *sub.DisplayName, *sub.SubscriptionID, state))
+		}
+	}
+
+	if len(unregistered) > 0 {
+		return fmt.Errorf(
+			"shoebox log delivery prerequisite missing: %s/%s AFEC feature is not Registered on management subscription(s) in %s: [%s]; "+
+				"diagnostic settings will be accepted but no logs will be delivered - register the feature on the affected management subscription(s) "+
+				"(see AROSLSRE-2244 / AROSLSRE-2245) before running this test",
+			shoeboxAFECNamespace, shoeboxAFECFeature, location, strings.Join(unregistered, "; "))
+	}
+
+	GinkgoLogr.Info("shoebox AFEC prerequisite verified",
+		"location", location,
+		"managementSubscriptions", len(mgmtSubscriptions),
+	)
+	return nil
+}
+
+// isManagementSubscriptionForLocation reports whether the subscription display
+// name matches the management subscription pattern for the given Azure
+// location: "Azure Red Hat OpenShift HCP - <Region> - MGMT - <stamp>".
+// Segments are compared case-insensitively with whitespace removed so that
+// e.g. "East US 2" matches location "eastus2" but not "eastus".
+func isManagementSubscriptionForLocation(sub *armsubscriptions.Subscription, location string) bool {
+	if sub.DisplayName == nil || sub.SubscriptionID == nil {
+		return false
+	}
+
+	locationMatch := false
+	mgmtMatch := false
+	for _, segment := range strings.Split(*sub.DisplayName, " - ") {
+		normalized := normalizeLocationSegment(segment)
+		if normalized == normalizeLocationSegment(location) {
+			locationMatch = true
+		}
+		if normalized == mgmtSubscriptionNameSegment {
+			mgmtMatch = true
+		}
+	}
+	return locationMatch && mgmtMatch
+}
+
+func normalizeLocationSegment(segment string) string {
+	return strings.Join(strings.Fields(strings.ToLower(segment)), "")
+}
+
 var _ = Describe("Customer", func() {
 	It("should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings",
 		labels.RequireNothing,
@@ -238,6 +365,14 @@ var _ = Describe("Customer", func() {
 			)
 
 			tc := framework.NewTestContext()
+
+			By("verifying shoebox log delivery prerequisites (AFEC feature registration)")
+			if !framework.IsDevelopmentEnvironment() {
+				creds, err := tc.AzureCredential()
+				Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential for AFEC preflight")
+				err = verifyShoeboxLogDeliveryPrerequisites(ctx, creds, tc.Location())
+				Expect(err).NotTo(HaveOccurred(), "shoebox log delivery prerequisites not met")
+			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
