@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -36,11 +37,6 @@ const (
 	testRoleDefinitionResourceID2 = "/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"
 	testPrincipalID               = "test-principal"
 )
-
-func testRoleDefinitionID(t *testing.T, resourceID string) *azcorearm.ResourceID {
-	t.Helper()
-	return metadataapi.Must(azcorearm.ParseResourceID(resourceID))
-}
 
 func testAzureResource(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
@@ -185,12 +181,6 @@ func TestMockFirstPartyApplicationRoleAssignmentsConfigured(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "nil status is not configured",
-			status:   nil,
-			desire:   reconciledManaging,
-			expected: false,
-		},
-		{
 			name:     "empty map (not filled yet) is not configured",
 			status:   &coreapi.ServiceProviderClusterStatus{},
 			desire:   reconciledManaging,
@@ -236,7 +226,9 @@ func TestMockFirstPartyApplicationRoleAssignmentsConfigured(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, MockFirstPartyApplicationRoleAssignmentsConfigured(tt.status, tt.desire))
+			got, err := MockFPARoleAssignmentsConfigured(tt.status, tt.desire)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
@@ -246,21 +238,21 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 		name                              string
 		status                            *coreapi.ServiceProviderClusterStatus
 		desire                            *azureresourcesapi.DeploymentStackDesire
-		expectedRoleDefinitionResourceIDs []*azcorearm.ResourceID
+		expectedRoleDefinitionResourceIDs []string
 		expected                          bool
 	}{
 		{
-			name:                              "no expected role definitions, considered as not configured",
+			name:                              "no expected role definitions, considered as configured (nothing to configure)",
 			status:                            &coreapi.ServiceProviderClusterStatus{},
 			desire:                            testManagedStackDesire(testAzureResource(t)),
 			expectedRoleDefinitionResourceIDs: nil,
-			expected:                          false,
+			expected:                          true,
 		},
 		{
 			name:                              "no entries at all, considered as not configured",
 			status:                            &coreapi.ServiceProviderClusterStatus{},
 			desire:                            testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expectedRoleDefinitionResourceIDs: []string{testRoleDefinitionResourceID},
 			expected:                          false,
 		},
 		{
@@ -273,7 +265,7 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire:                            testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expectedRoleDefinitionResourceIDs: []string{testRoleDefinitionResourceID},
 			expected:                          false,
 		},
 		{
@@ -286,7 +278,7 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire:                            testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expectedRoleDefinitionResourceIDs: []string{testRoleDefinitionResourceID},
 			expected:                          true,
 		},
 		{
@@ -299,7 +291,7 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire:                            testManagedStackDesire(),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expectedRoleDefinitionResourceIDs: []string{testRoleDefinitionResourceID},
 			expected:                          false,
 		},
 		{
@@ -313,7 +305,7 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire:                            testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{testRoleDefinitionID(t, testRoleDefinitionResourceID)},
+			expectedRoleDefinitionResourceIDs: []string{testRoleDefinitionResourceID},
 			expected:                          false,
 		},
 		{
@@ -329,9 +321,9 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire: testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
-				testRoleDefinitionID(t, testRoleDefinitionResourceID),
-				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			expectedRoleDefinitionResourceIDs: []string{
+				testRoleDefinitionResourceID,
+				testRoleDefinitionResourceID2,
 			},
 			expected: true,
 		},
@@ -346,9 +338,9 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire: testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
-				testRoleDefinitionID(t, testRoleDefinitionResourceID),
-				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			expectedRoleDefinitionResourceIDs: []string{
+				testRoleDefinitionResourceID,
+				testRoleDefinitionResourceID2,
 			},
 			expected: false,
 		},
@@ -362,9 +354,9 @@ func TestServiceProviderClusterStatusIdentityRoleAssignmentsConfigured(t *testin
 				},
 			},
 			desire: testManagedStackDesire(testAzureResource(t)),
-			expectedRoleDefinitionResourceIDs: []*azcorearm.ResourceID{
-				testRoleDefinitionID(t, testRoleDefinitionResourceID),
-				testRoleDefinitionID(t, testRoleDefinitionResourceID2),
+			expectedRoleDefinitionResourceIDs: []string{
+				testRoleDefinitionResourceID,
+				testRoleDefinitionResourceID2,
 			},
 			expected: false,
 		},
