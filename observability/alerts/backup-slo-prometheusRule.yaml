@@ -594,21 +594,21 @@ spec:
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
         correlationId: "userJourneyBackupDeletionQueueBacklog/{{ $labels.cluster }}"
     # Stuck deletion: enqueue-depth alerts miss a single DeleteBackupRequest
-    # wedged in InProgress (prod queue depth is often ~1). Fire when any
-    # deletion stays InProgress for 1h.
+    # wedged in InProgress (prod queue depth is often ~1). Keep
+    # (cluster,name,namespace) identity through for:1h — a cluster-level
+    # count>0 pending timer would fire on overlapping healthy short
+    # deletions that never leave any one request stuck.
     - alert: userJourneyBackupDeletionStuckInProgress
       expr: |
-        count by (cluster) (
-          group by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
-        ) > 0
+        max by (cluster, name, namespace) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)
       for: 1h
       labels:
         severity: "4"
       annotations:
-        summary: "at least one DeleteBackupRequest stuck InProgress for 1h on {{ $labels.cluster }}"
-        description: "Management cluster {{ $labels.cluster }} has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster."
+        summary: "DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} stuck InProgress for 1h on {{ $labels.cluster }}"
+        description: "DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} on management cluster {{ $labels.cluster }} has been InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this tracks each request through the pending timer so overlapping healthy short deletions do not alert. Check Velero server logs/pod health and `kubectl get deletebackuprequest {{ $labels.name }} -n {{ $labels.namespace }}` on the management cluster."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
-        correlationId: "userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}"
+        correlationId: "userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}"
     # Mid-processing stuck backlog: CRs with a phase set that are not queued,
     # InProgress/Completed, or terminal failures. Failed/PartiallyFailed/
     # FailedValidation are terminal (TTL-bound, no further progression) and

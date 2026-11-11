@@ -1920,14 +1920,14 @@ resource arohcpBackupSloOverloadAlerts 'Microsoft.AlertsManagement/prometheusRul
           severity: '4'
         }
         annotations: {
-          correlationId: 'userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}'
-          description: 'Management cluster {{ $labels.cluster }} has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster.'
-          info: 'Management cluster {{ $labels.cluster }} has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster.'
+          correlationId: 'userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}'
+          description: 'DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} on management cluster {{ $labels.cluster }} has been InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this tracks each request through the pending timer so overlapping healthy short deletions do not alert. Check Velero server logs/pod health and `kubectl get deletebackuprequest {{ $labels.name }} -n {{ $labels.namespace }}` on the management cluster.'
+          info: 'DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} on management cluster {{ $labels.cluster }} has been InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this tracks each request through the pending timer so overlapping healthy short deletions do not alert. Check Velero server logs/pod health and `kubectl get deletebackuprequest {{ $labels.name }} -n {{ $labels.namespace }}` on the management cluster.'
           runbook_url: 'https://aka.ms/arohcp-runbook-backup'
-          summary: 'at least one DeleteBackupRequest stuck InProgress for 1h on {{ $labels.cluster }}'
-          title: 'at least one DeleteBackupRequest stuck InProgress for 1h on {{ $labels.cluster }}'
+          summary: 'DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} stuck InProgress for 1h on {{ $labels.cluster }}'
+          title: 'DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} stuck InProgress for 1h on {{ $labels.cluster }}'
         }
-        expression: 'count by (cluster, region) (group by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)) > 0'
+        expression: 'max by (cluster, name, namespace, region) (veleroDeleteBackupRequest_phase{phase="InProgress"} == 1)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

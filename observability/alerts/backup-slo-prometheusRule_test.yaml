@@ -2341,8 +2341,9 @@ tests:
         correlationId: "userJourneyBackupDeletionQueueBacklog/del-overload-mc"
 # ========================================
 # DeletionStuckInProgress: enqueue-depth alerts miss a single DBR wedged
-# in InProgress (prod queue depth often ~1). Fire when any deletion stays
-# InProgress past for:1h.
+# in InProgress (prod queue depth often ~1). Identity must survive for:1h
+# so overlapping healthy short deletions cannot keep a cluster-level
+# pending timer alive (Copilot finding on PR #7764).
 # ========================================
 - interval: 5m
   name: overload_deletion_stuck_inprogress
@@ -2360,12 +2361,43 @@ tests:
         alertname: userJourneyBackupDeletionStuckInProgress
         cluster: del-stuck-mc
         component: slo
+        name: dbr-1
+        namespace: ns-del
         severity: "4"
       exp_annotations:
-        summary: "at least one DeleteBackupRequest stuck InProgress for 1h on del-stuck-mc"
-        description: "Management cluster del-stuck-mc has at least one DeleteBackupRequest CR stuck in phase InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this catches a wedged in-flight deletion even when overall queue depth is low. Check Velero server logs/pod health and `kubectl get deletebackuprequests -A` on the management cluster."
+        summary: "DeleteBackupRequest ns-del/dbr-1 stuck InProgress for 1h on del-stuck-mc"
+        description: "DeleteBackupRequest ns-del/dbr-1 on management cluster del-stuck-mc has been InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this tracks each request through the pending timer so overlapping healthy short deletions do not alert. Check Velero server logs/pod health and `kubectl get deletebackuprequest dbr-1 -n ns-del` on the management cluster."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
-        correlationId: "userJourneyBackupDeletionStuckInProgress/del-stuck-mc"
+        correlationId: "userJourneyBackupDeletionStuckInProgress/del-stuck-mc/ns-del/dbr-1"
+# Rotating healthy deletions: each request InProgress for only 15m, but
+# staggered so the cluster always has something InProgress for >1h.
+# Must NOT fire — proves the pending timer is per-request, not per-cluster.
+- interval: 5m
+  name: overload_deletion_stuck_inprogress_rotating_healthy
+  input_series:
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-a", namespace="ns-del", phase="InProgress"}'
+    values: "1 1 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-b", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ 1 1 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-c", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ 1 1 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-d", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ _ _ 1 1 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-e", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ _ _ _ _ 1 1 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-f", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ _ _ _ _ _ _ 1 1 1 _ _ _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-g", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ _ _ _ _ _ _ _ _ 1 1 1 _ _ _ _ _ _ _ _ _ _"
+  - series: 'veleroDeleteBackupRequest_phase{cluster="del-rot-mc", name="dbr-h", namespace="ns-del", phase="InProgress"}'
+    values: "_ _ _ _ _ _ _ _ _ _ _ _ _ _ 1 1 1 _ _ _ _ _ _ _ _"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyBackupDeletionStuckInProgress
+    exp_alerts: []
+  - eval_time: 75m
+    alertname: userJourneyBackupDeletionStuckInProgress
+    exp_alerts: []
 # ========================================
 # NonTerminalBacklog: same combined boundary+breach trick as QueueBacklog -
 # 100 Backup CRs already stuck in Finalizing (a genuinely in-flight,
