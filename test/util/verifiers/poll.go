@@ -52,9 +52,9 @@ func (failure *pollObservationError) Unwrap() []error {
 // deadline passing or its cancellation) rather than carrying a fresh observation.
 // When a polling context expires while a request is in flight, client-go surfaces
 // the expired context as "client rate limiter Wait returned an error: context
-// deadline exceeded" even though no throttling occurred (golang.org/x/time/rate
-// returns ctx.Err() before reserving any tokens). Polling loops that retain their
-// last observation must not let such an error replace it.
+// deadline exceeded" even though no throttling occurred. Polling loops that
+// retain their last observation must not let such an error replace it; see
+// ARO-30237 for the full analysis.
 func isContextExpiration(ctx context.Context, err error) bool {
 	return ctx.Err() != nil && errors.Is(err, ctx.Err())
 }

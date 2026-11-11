@@ -51,9 +51,6 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			if isContextExpiration(ctx, err) {
-				// The polling context ended mid-request (often surfaced by
-				// client-go as a rate limiter error); this is not a fresh
-				// observation, so keep the previous one for the timeout report.
 				return false, nil
 			}
 			lastErr = fmt.Errorf("failed to list ClusterOperators: %w", err)

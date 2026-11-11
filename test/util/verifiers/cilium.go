@@ -75,9 +75,6 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		pods, err := kubeClient.CoreV1().Pods(v.ciliumNamespace).List(ctx, listOptions)
 		if err != nil {
 			if isContextExpiration(ctx, err) {
-				// The polling context ended mid-request (often surfaced by
-				// client-go as a rate limiter error); this is not a fresh
-				// observation, so keep the previous one for the timeout report.
 				return false, nil
 			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", v.ciliumNamespace, err)
@@ -341,8 +338,6 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 		pods, err := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			if isContextExpiration(ctx, err) {
-				// The polling context ended mid-request; not a fresh
-				// observation, so keep the previous one.
 				return false, nil
 			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", namespaceName, err)
