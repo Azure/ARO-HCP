@@ -259,13 +259,11 @@ func registerExternalAuthOIDCClientsDegradedController() controllerconfig.Contro
 func instantiateExternalAuthOIDCClientsDegradedController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	_, externalAuthLister := controllerContext.BackendInformers.ExternalAuths()
 	_, serviceProviderExternalAuthLister := controllerContext.BackendInformers.ServiceProviderExternalAuths()
-	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return externalauthstatus.NewExternalAuthOIDCClientsDegradedController(
 		controllerContext.ResourcesDBClient,
 		externalAuthLister,
 		serviceProviderExternalAuthLister,
-		serviceProviderClusterLister,
 		unionReadDesireLister,
 		controllerContext.BackendInformers,
 	), nil

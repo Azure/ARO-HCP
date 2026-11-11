@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blang/semver/v4"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,10 +48,9 @@ const (
 // Hypershift operator. These are not exported by the Hypershift Go library,
 // so we define them locally and match them against the ReadDesire cache.
 //
-// OCP versions that include Hypershift with ExternalAuth OIDC support
-// (4.20+) report OIDCClientStatus.Conditions on the HostedCluster.
-// Earlier versions do not populate the field; the controller treats a
-// missing status entry as degraded with a generic message.
+// HostedCluster.Status.Configuration.Authentication.OIDCClients reports
+// OIDCClientStatus.Conditions. A missing status entry is treated as
+// degraded with a generic message.
 const (
 	// hypershiftOIDCClientSecretGet is the Degraded condition reason when
 	// the operator cannot find/read the client secret the user must create
@@ -91,7 +88,6 @@ const (
 type externalAuthOIDCClientsDegradedController struct {
 	externalAuthLister                corelisters.ExternalAuthLister
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister
-	serviceProviderClusterLister      corelisters.ServiceProviderClusterLister
 	readDesireLister                  kubeapplierlisters.ReadDesireLister
 	resourcesDBClient                 corecosmosstorage.ResourcesDBClient
 }
@@ -111,14 +107,12 @@ func NewExternalAuthOIDCClientsDegradedController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
 	serviceProviderExternalAuthLister corelisters.ServiceProviderExternalAuthLister,
-	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &externalAuthOIDCClientsDegradedController{
 		externalAuthLister:                externalAuthLister,
 		serviceProviderExternalAuthLister: serviceProviderExternalAuthLister,
-		serviceProviderClusterLister:      serviceProviderClusterLister,
 		readDesireLister:                  readDesireLister,
 		resourcesDBClient:                 resourcesDBClient,
 	}
@@ -180,22 +174,7 @@ func (c *externalAuthOIDCClientsDegradedController) SyncOnce(ctx context.Context
 		return nil
 	}
 
-	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
-	}
-
-	activeVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	// ActiveVersions is populated by the ControlPlaneActiveVersions controller.
-	// If it hasn't run yet the slice is empty; skip and we'll be re-enqueued.
-	if len(activeVersions) == 0 {
-		return nil
-	}
-
-	condition := c.determineOIDCClientsDegradedCondition(existing, hostedCluster, activeVersions)
+	condition := c.determineOIDCClientsDegradedCondition(existing, hostedCluster)
 
 	replacement := serviceProviderExternalAuth.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, condition)
@@ -225,10 +204,6 @@ type degradedClientMessage struct {
 // determineOIDCClientsDegradedCondition evaluates HostedCluster OIDC client
 // status and returns a single OIDCClientsDegraded condition.
 //
-// If the cluster version is below 4.20.41, OIDCClientStatus is not populated
-// by Hypershift. The controller returns OIDCClientsDegraded=False with reason
-// ExternalAuthObservabilityUnsupported to avoid false-positive degraded signals.
-//
 // If ANY client is degraded: OIDCClientsDegraded=True/OIDCClientDegradation
 // with a composite message listing only degraded clients ("\n"-separated).
 // If ALL clients are healthy (or none declared): OIDCClientsDegraded=False/AsExpected.
@@ -238,7 +213,6 @@ type degradedClientMessage struct {
 func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegradedCondition(
 	externalAuth *coreapi.ExternalAuth,
 	hostedCluster *v1beta1.HostedCluster,
-	activeVersions []coreapi.ServiceProviderClusterActiveVersion,
 ) metav1.Condition {
 	if len(externalAuth.Properties.Clients) == 0 {
 		return metav1.Condition{
@@ -246,22 +220,6 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 			Status:  metav1.ConditionFalse,
 			Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonAsExpected,
 			Message: coreapi.ExternalAuthMessageOIDCClientsAllOperational,
-		}
-	}
-
-	// OCP versions below 4.20.41 do not populate
-	// HostedCluster.Status.Configuration.Authentication.OIDCClients.
-	// When Configuration is nil and the version is below the minimum,
-	// report "unsupported" (Unknown) instead of a false-positive degraded signal.
-	// TODO: Remove this version gate once https://github.com/openshift/hypershift/pull/9967 is merged
-	// and the CPO override will make sure OIDCClientStatus is always populated.
-	minOIDCObservabilityVersion := semver.MustParse("4.20.41")
-	if activeVersions[0].Version.LT(minOIDCObservabilityVersion) {
-		return metav1.Condition{
-			Type:    coreapi.ExternalAuthOIDCClientsDegradedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  coreapi.ExternalAuthOIDCClientsDegradedReasonUnsupported,
-			Message: coreapi.ExternalAuthMessageObservabilityUnsupported,
 		}
 	}
 
@@ -299,9 +257,7 @@ func (c *externalAuthOIDCClientsDegradedController) determineOIDCClientsDegraded
 // degraded. Returns nil if the client is healthy, or a degradedClientMessage
 // if it is degraded.
 //
-// The hostedCluster parameter must not be nil. Callers must ensure the cluster
-// version supports OIDC observability (>= 4.20.41) before calling this method;
-// determineOIDCClientsDegradedCondition handles the version gate.
+// The hostedCluster parameter must not be nil.
 func (c *externalAuthOIDCClientsDegradedController) evaluateExternalAuthClient(externalAuthClient *coreapi.ExternalAuthClientProfile, hostedCluster *v1beta1.HostedCluster) *degradedClientMessage {
 	if hostedCluster.Status.Configuration == nil {
 		return &degradedClientMessage{
