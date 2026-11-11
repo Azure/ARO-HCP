@@ -61,3 +61,50 @@ func TestVerifyCiliumOperationalContextExpirationMidRequest(t *testing.T) {
 	require.NotContains(t, err.Error(), "rate limiter")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
+
+// TestVerifyCiliumOperationalContextExpirationAfterObservation covers the case
+// where the polling context's deadline fires mid-request after an earlier poll
+// already recorded a real observation. The timeout report must keep the
+// observation as its message while preserving the context expiration for
+// errors.Is via pollObservationError.
+func TestVerifyCiliumOperationalContextExpirationAfterObservation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	pendingPods := `{"apiVersion":"v1","kind":"PodList","items":[{"metadata":{"name":"cilium-1"},"spec":{},"status":{"phase":"Pending"}}]}`
+	listAttempts := 0
+	config := &rest.Config{
+		Host: "https://api.example",
+		Transport: imagePullRoundTripper(func(request *http.Request) (*http.Response, error) {
+			if strings.HasSuffix(request.URL.Path, "/pods") {
+				listAttempts++
+				if listAttempts == 1 {
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": {"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(pendingPods)),
+					}, nil
+				}
+				<-request.Context().Done()
+				return nil, fmt.Errorf("client rate limiter Wait returned an error: %w", request.Context().Err())
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"kube-system"}}`)),
+			}, nil
+		}),
+	}
+
+	verifier := &verifyCiliumOperational{
+		ciliumNamespace: "kube-system",
+		pollInterval:    time.Millisecond,
+		pollTimeout:     time.Minute,
+	}
+	err := verifier.Verify(ctx, config)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cilium pods not yet running")
+	require.NotContains(t, err.Error(), "rate limiter")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, 2, listAttempts)
+}
