@@ -71,33 +71,16 @@ spec:
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # ========================================
-  # Node Pool User Journey Alerts — Saturation
+  # Node Pool User Journey Alerts — Saturation (removed)
   # ========================================
-  # Queue depth impacts node pool operations directly,
-  # making these user journey signals per ADR. Sev 4 (precursor).
-  - name: arohcp_nodepool_saturation_alerts
-    labels:
-      component: slo
-    rules:
-    # Queue depth: node pool controller workqueue accumulating work
-    - alert: userJourneyNodePoolSaturationQueueDepth
-      expr: |
-        max by (name, cluster) (
-          max without(prometheus_replica) (
-            workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"}
-          )
-        ) > 10
-      for: 5m
-      labels:
-        severity: "4"
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high"
-        description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-        # Retry hot loop alert removed (ARO-28637): the workqueue retry ratio
-        # encodes backend implementation detail (polling requeues count as retries),
-        # fires without customer impact, and is not actionable. The stuck operation
-        # alert covers the customer-visible outcome.
+  # Queue depth alert removed (ARO-29991): redundant with
+  # BackendControllerQueueDepthHigh (fires at 15m on ALL backend controllers
+  # including NodePool). SLO burn-rate alerts already cover the customer-facing
+  # outcome.
+  # Retry hot loop alert removed (ARO-28637): the workqueue retry ratio
+  # encodes backend implementation detail (polling requeues count as retries),
+  # fires without customer impact, and is not actionable. The stuck operation
+  # alert covers the customer-visible outcome.
   # ========================================
   # Node Pool SLO Alerts: Windowed Errors (burn-rate, volume-aware)
   # ========================================
