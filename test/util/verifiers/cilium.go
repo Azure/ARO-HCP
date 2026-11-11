@@ -43,10 +43,8 @@ import (
 type verifyCiliumOperational struct {
 	ciliumNamespace     string
 	ciliumLabelSelector string
-	// pollInterval and pollTimeout default to 30s and 10m when zero;
-	// overridable for tests.
-	pollInterval time.Duration
-	pollTimeout  time.Duration
+	pollInterval        time.Duration
+	pollTimeout         time.Duration
 }
 
 func (v verifyCiliumOperational) Name() string {
