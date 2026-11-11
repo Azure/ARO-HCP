@@ -305,10 +305,10 @@ tests:
 # ========================================
 # Test 5: Latency normal — all canary checks within 200ms, no alerts
 # ========================================
-# le="200" and le="+inf" increase at the same rate → ratio 1, error_rate 0.
+# le="200.0" and le="+inf" increase at the same rate → ratio 1, error_rate 0.
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="200.0"}'
     values: "0+2x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-ok", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-ok.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x400"
@@ -335,29 +335,29 @@ tests:
 # ========================================
 # Test 6: Latency fast burn — 50% of checks exceed 200ms
 # ========================================
-# le="200" increases at half the rate of le="+inf" → ratio 0.5, error_rate
+# le="200.0" increases at half the rate of le="+inf" → ratio 0.5, error_rate
 # 0.5. 5 instances x 2 checks/min combined so every volume floor (short and
 # long window alike) is met almost immediately. 50% > 7.2% (fast) and > 3%
 # (medium).
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="200.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="200.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.2:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="200.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.3:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="200.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.4:60000", le="+inf"}'
     values: "0+2x400"
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="200.0"}'
     values: "0+1x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-bad", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-bad.example.io", instance="10.0.0.5:60000", le="+inf"}'
     values: "0+2x400"
@@ -418,12 +418,12 @@ tests:
 # ========================================
 # Test 7: Latency below fast burn — ~5.9% of checks exceed 200ms
 # ========================================
-# le="200" rate / le="+inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
+# le="200.0" rate / le="+inf" rate = 16/17 → error_rate ≈ 5.9% < 7.2% (fast),
 # but > 0.5% (slow). Fast must NOT fire; slow fires once both windows clear
 # their floor and for:3h elapses.
 - interval: 1m
   input_series:
-  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200"}'
+  - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="200.0"}'
     values: "0+16x400"
   - series: 'ingress_canary_check_duration_bucket{_id="lat-slow", cluster="mgmt-1", region="uksouth", host="canary.apps.lat-slow.example.io", instance="10.0.0.1:60000", le="+inf"}'
     values: "0+17x400"
