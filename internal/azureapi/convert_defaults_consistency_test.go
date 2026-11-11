@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cosmosstorageutils
+package azureapi_test
 
 import (
 	"testing"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	v20240610preview "github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	v20251223preview "github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	v20260630preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -326,9 +327,9 @@ func TestPreExistingDataCluster(t *testing.T) {
 	// Simulate a pre-existing Cosmos document: all canonically-defaulted fields
 	// are zero-valued (empty strings), as if the document was created before
 	// these fields were added to the API.
-	preExistingDoc := &GenericDocument[coreapi.Cluster]{
-		TypedDocument: TypedDocument{
-			BaseDocument: BaseDocument{ID: "test-doc-id"},
+	preExistingDoc := &cosmosstorageutils.GenericDocument[coreapi.Cluster]{
+		TypedDocument: cosmosstorageutils.TypedDocument{
+			BaseDocument: cosmosstorageutils.BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
 		Content: coreapi.Cluster{
@@ -345,7 +346,7 @@ func TestPreExistingDataCluster(t *testing.T) {
 		},
 	}
 
-	internalCluster, err := CosmosGenericToInternal(preExistingDoc)
+	internalCluster, err := cosmosstorageutils.CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosToInternalCluster failed: %v", err)
 	}
@@ -382,9 +383,9 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 
 	// Simulate a cluster created via v2024_06_10_preview with KMS encryption
 	// but no visibility field (since that version doesn't have it).
-	preExistingDoc := &GenericDocument[coreapi.Cluster]{
-		TypedDocument: TypedDocument{
-			BaseDocument: BaseDocument{ID: "test-doc-id"},
+	preExistingDoc := &cosmosstorageutils.GenericDocument[coreapi.Cluster]{
+		TypedDocument: cosmosstorageutils.TypedDocument{
+			BaseDocument: cosmosstorageutils.BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
 		Content: coreapi.Cluster{
@@ -417,7 +418,7 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 		},
 	}
 
-	internalCluster, err := CosmosGenericToInternal(preExistingDoc)
+	internalCluster, err := cosmosstorageutils.CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosToInternalCluster failed: %v", err)
 	}
@@ -452,9 +453,9 @@ func TestPreExistingDataNodePool(t *testing.T) {
 	))
 
 	// Simulate a pre-existing Cosmos document missing DiskStorageAccountType.
-	preExistingDoc := &GenericDocument[coreapi.NodePool]{
-		TypedDocument: TypedDocument{
-			BaseDocument: BaseDocument{ID: "test-doc-id"},
+	preExistingDoc := &cosmosstorageutils.GenericDocument[coreapi.NodePool]{
+		TypedDocument: cosmosstorageutils.TypedDocument{
+			BaseDocument: cosmosstorageutils.BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
 		Content: coreapi.NodePool{
@@ -476,7 +477,7 @@ func TestPreExistingDataNodePool(t *testing.T) {
 		},
 	}
 
-	internalNodePool, err := CosmosGenericToInternal(preExistingDoc)
+	internalNodePool, err := cosmosstorageutils.CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosGenericToInternal failed: %v", err)
 	}
@@ -651,9 +652,9 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 	))
 
 	internalID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default"))
-	preExistingDoc := &GenericDocument[coreapi.ExternalAuth]{
-		TypedDocument: TypedDocument{
-			BaseDocument: BaseDocument{ID: "test-doc-id"},
+	preExistingDoc := &cosmosstorageutils.GenericDocument[coreapi.ExternalAuth]{
+		TypedDocument: cosmosstorageutils.TypedDocument{
+			BaseDocument: cosmosstorageutils.BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
 		Content: coreapi.ExternalAuth{
@@ -671,7 +672,7 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 		},
 	}
 
-	internalExternalAuth, err := CosmosGenericToInternal(preExistingDoc)
+	internalExternalAuth, err := cosmosstorageutils.CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosGenericToInternal failed: %v", err)
 	}

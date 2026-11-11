@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreapi
+package azureapi_test
 
 import (
 	"encoding/json"
@@ -20,17 +20,18 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 )
 
 // TestTypeSpecDefaultsConsistency verifies that default values declared in the
 // generated OpenAPI spec (from TypeSpec) match the canonical Go constants
-// defined in defaults.go and enums.go.
+// defined in coreapi's defaults.go and metadataapi's enums.go.
 //
 // Several fields lack "default" annotations in the OpenAPI spec due to a
 // TypeSpec bug (typespec-azure#1586). These are skipped with a comment.
 func TestTypeSpecDefaultsConsistency(t *testing.T) {
-	specPath := "../../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/stable/2026-10-01/openapi.json"
+	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/stable/2026-10-01/openapi.json"
 	specData, err := os.ReadFile(specPath)
 	if err != nil {
 		t.Fatalf("failed to read OpenAPI spec: %v", err)
@@ -68,16 +69,16 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 	}{
 		// String defaults
 		{"NetworkType", "NetworkProfile", "networkType", string(metadataapi.NetworkTypeOVNKubernetes)},
-		{"PodCIDR", "NetworkProfile", "podCidr", DefaultClusterNetworkPodCIDR},
-		{"ServiceCIDR", "NetworkProfile", "serviceCidr", DefaultClusterNetworkServiceCIDR},
-		{"MachineCIDR", "NetworkProfile", "machineCidr", DefaultClusterNetworkMachineCIDR},
+		{"PodCIDR", "NetworkProfile", "podCidr", coreapi.DefaultClusterNetworkPodCIDR},
+		{"ServiceCIDR", "NetworkProfile", "serviceCidr", coreapi.DefaultClusterNetworkServiceCIDR},
+		{"MachineCIDR", "NetworkProfile", "machineCidr", coreapi.DefaultClusterNetworkMachineCIDR},
 		{"Visibility", "ApiProfile", "visibility", string(metadataapi.VisibilityPublic)},
 		{"OutboundType", "PlatformProfile", "outboundType", string(metadataapi.OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(metadataapi.DiskStorageAccountTypePremium_LRS)},
 		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(metadataapi.ClusterImageRegistryStateEnabled)},
 		// Numeric defaults
-		{"HostPrefix", "NetworkProfile", "hostPrefix", DefaultClusterNetworkHostPrefix},
-		{"OSDiskSizeGiB", "OsDiskProfile", "sizeGiB", DefaultNodePoolOSDiskSizeGiB},
+		{"HostPrefix", "NetworkProfile", "hostPrefix", coreapi.DefaultClusterNetworkHostPrefix},
+		{"OSDiskSizeGiB", "OsDiskProfile", "sizeGiB", coreapi.DefaultNodePoolOSDiskSizeGiB},
 		// Boolean defaults
 		{"AutoRepair", "NodePoolProperties", "autoRepair", true},
 	}

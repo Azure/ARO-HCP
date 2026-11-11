@@ -23,7 +23,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -35,10 +34,10 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 	}{
 		{
 			name:         "cluster",
-			resourceID:   coreapitesting.TestClusterResourceID,
+			resourceID:   testClusterResourceID,
 			resourceType: coreapi.ClusterResourceType.String(),
 			newDocument: func() (any, *TypedDocument) {
-				resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
+				resourceID := mustParseResourceID(t, testClusterResourceID)
 				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.Cluster{
 					TrackedResource: coreapi.TrackedResource{
@@ -59,10 +58,10 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 		},
 		{
 			name:         "nodepool",
-			resourceID:   coreapitesting.TestNodePoolResourceID,
+			resourceID:   testNodePoolResourceID,
 			resourceType: coreapi.NodePoolResourceType.String(),
 			newDocument: func() (any, *TypedDocument) {
-				resourceID := mustParseResourceID(t, coreapitesting.TestNodePoolResourceID)
+				resourceID := mustParseResourceID(t, testNodePoolResourceID)
 				createdAt := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.NodePool{
 					TrackedResource: coreapi.TrackedResource{
@@ -83,10 +82,10 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 		},
 		{
 			name:         "external-auth",
-			resourceID:   coreapitesting.TestExternalAuthResourceID,
+			resourceID:   testExternalAuthResourceID,
 			resourceType: coreapi.ExternalAuthResourceType.String(),
 			newDocument: func() (any, *TypedDocument) {
-				resourceID := mustParseResourceID(t, coreapitesting.TestExternalAuthResourceID)
+				resourceID := mustParseResourceID(t, testExternalAuthResourceID)
 				createdAt := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
 				obj := &coreapi.ExternalAuth{
 					ProxyResource: coreapi.ProxyResource{
@@ -155,7 +154,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 }
 
 func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
-	resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
+	resourceID := mustParseResourceID(t, testClusterResourceID)
 	doc := &TypedDocument{
 		BaseDocument: BaseDocument{
 			ID: resourceID.Name,
