@@ -81,7 +81,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 	t.Run("empty existing adds the desired key", func(t *testing.T) {
 		t.Parallel()
 		s := testIntentSyncer(clocktesting.NewFakePassiveClock(now))
-		got := s.mergeRoleAssignments(nil, nil)
+		got, err := s.mergeRoleAssignments(nil, nil)
+		require.NoError(t, err)
 		require.Contains(t, got, wantKey)
 		require.NotNil(t, got[wantKey])
 		assert.Nil(t, got[wantKey].DeconfigureTimestamp)
@@ -95,7 +96,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 		existing := map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
 			wantKey: {DeconfigureTimestamp: &stamp, ReservedAzureResourceID: mustReservedID(t, "11111111-1111-1111-1111-111111111111")},
 		}
-		got := s.mergeRoleAssignments(existing, nil)
+		got, err := s.mergeRoleAssignments(existing, nil)
+		require.NoError(t, err)
 		require.Contains(t, got, wantKey)
 		assert.Nil(t, got[wantKey].DeconfigureTimestamp)
 	})
@@ -109,7 +111,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 		}
 		// The replacement is not configured yet (no StackDesire), so the superseded
 		// key must be kept live (not stamped) to preserve the Owner grant.
-		got := s.mergeRoleAssignments(existing, nil)
+		got, err := s.mergeRoleAssignments(existing, nil)
+		require.NoError(t, err)
 		require.Contains(t, got, wantKey, "desired key always present")
 		require.Contains(t, got, staleKey, "superseded key kept live until replacement configured")
 		assert.Nil(t, got[staleKey].DeconfigureTimestamp, "superseded key must not be stamped before replacement is configured")
@@ -127,7 +130,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 		// The replacement assignment is managed in the stack, so it is safe to begin
 		// removing the superseded one.
 		desire := stackDesireManaging(desiredReserved)
-		got := s.mergeRoleAssignments(existing, desire)
+		got, err := s.mergeRoleAssignments(existing, desire)
+		require.NoError(t, err)
 		require.Contains(t, got, wantKey)
 		assert.Nil(t, got[wantKey].DeconfigureTimestamp)
 		require.Contains(t, got, staleKey, "superseded key kept while draining")
@@ -145,7 +149,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 			staleKey: {DeconfigureTimestamp: &stamp, ReservedAzureResourceID: reserved},
 		}
 		// StackDesire has not reconciled the removal (no status).
-		got := s.mergeRoleAssignments(existing, &azureresourcesapi.DeploymentStackDesire{})
+		got, err := s.mergeRoleAssignments(existing, &azureresourcesapi.DeploymentStackDesire{})
+		require.NoError(t, err)
 		require.Contains(t, got, staleKey, "draining key kept until removal reconciled")
 	})
 
@@ -166,7 +171,8 @@ func TestMergeRoleAssignments(t *testing.T) {
 		desire.Status.ObservedSpecHash = hash
 		desire.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
 
-		got := s.mergeRoleAssignments(existing, desire)
+		got, err := s.mergeRoleAssignments(existing, desire)
+		require.NoError(t, err)
 		assert.NotContains(t, got, staleKey, "draining key dropped once removal reconciled")
 		require.Contains(t, got, wantKey)
 	})

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -170,12 +171,6 @@ func TestMockFPARoleAssignmentRemovedAndReconciled(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "nil status is not removed",
-			status:   nil,
-			desire:   desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue),
-			expected: false,
-		},
-		{
 			name:     "never reserved means never materialized, so removed",
 			status:   &coreapi.MockFPARoleAssignmentStatus{},
 			desire:   nil,
@@ -227,7 +222,9 @@ func TestMockFPARoleAssignmentRemovedAndReconciled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, MockFPARoleAssignmentRemovedAndReconciled(tt.status, tt.desire))
+			got, err := MockFPARoleAssignmentRemovedAndReconciled(tt.status, tt.desire)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

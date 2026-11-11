@@ -15,6 +15,7 @@
 package coreapihelpers
 
 import (
+	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -78,39 +79,56 @@ func MockFPARoleAssignmentStatusManaged(status *coreapi.MockFPARoleAssignmentSta
 //     desire.Spec), and that outcome must be a success: a confirmed Delete, or an
 //     Apply after which the reserved assignment is no longer managed by the stack
 //     (dropped from the template and deleted via ActionOnUnmanage).
-func MockFPARoleAssignmentRemovedAndReconciled(status *coreapi.MockFPARoleAssignmentStatus, desire *azureresourcesapi.DeploymentStackDesire) bool {
-	if status == nil {
-		return false
-	}
+//
+// desire may be nil: the caller passes nil when the mock FPA DeploymentStackDesire has
+// not been published yet (a lister NotFound). With no published/observed stack a stamped
+// assignment cannot have been reconciled, so a nil desire returns (false, nil).
+func MockFPARoleAssignmentRemovedAndReconciled(status *coreapi.MockFPARoleAssignmentStatus, desire *azureresourcesapi.DeploymentStackDesire) (bool, error) {
+	// No reserved name was ever assigned, so the assignment was never rendered into a
+	// stack and never created in Azure: there is nothing to remove, treat it as removed.
 	if status.ReservedAzureResourceID == nil {
-		return true
+		return true, nil
 	}
+	// The StackDesire has not been published/observed yet, so we have no evidence the
+	// removal reconciled: not removed.
 	if desire == nil {
-		return false
+		return false, nil
 	}
 	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
-	if err != nil || desire.Status.ObservedSpecHash != hash {
-		return false
+	if err != nil {
+		return false, fmt.Errorf("failed to hash mock FPA role assignments DeploymentStackDesire spec: %w", err)
 	}
+	// The observed outcome belongs to an older spec than the one currently published, so
+	// it says nothing about whether the current desired set (which drops this assignment)
+	// has reconciled: not removed until a fresh observation lands.
+	if desire.Status.ObservedSpecHash != hash {
+		return false, nil
+	}
+	// Delete intent: the assignment is removed only once the stack is confirmed deleted.
 	if desire.Spec.Action == azureresourcesapi.DeploymentStackDesireActionTypeDelete {
-		return meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted)
+		return meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyDeleted), nil
 	}
+	// Apply intent: nothing can be concluded until the current apply has succeeded.
 	if !meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
-		return false
+		return false, nil
 	}
+	// Apply succeeded but the observation carries no managed-resource list, so our
+	// assignment is not among the managed resources: removed.
 	if desire.Status.Stack == nil || desire.Status.Stack.Properties == nil {
-		return true
+		return true, nil
 	}
+	// Apply succeeded: look for our reserved assignment among the managed resources.
 	for _, resource := range desire.Status.Stack.Properties.Resources {
 		if resource == nil || resource.ID == nil || resource.Status == nil {
 			continue
 		}
 		if strings.EqualFold(*resource.ID, status.ReservedAzureResourceID.String()) {
 			// Still tracked by the stack: removed only if no longer managed.
-			return *resource.Status != armdeploymentstacks.ResourceStatusModeManaged
+			return *resource.Status != armdeploymentstacks.ResourceStatusModeManaged, nil
 		}
 	}
-	return true
+	// Not present in the managed set after a successful apply: removed.
+	return true, nil
 }
 
 // MockFirstPartyApplicationRoleAssignmentsConfigured reports whether every mock
