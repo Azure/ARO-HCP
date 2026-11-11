@@ -54,6 +54,10 @@ const (
 	// runtimeImageTLSPodCompletionTimeout bounds the check pod itself: the
 	// image pull is the only slow part, the in-pod check returns immediately.
 	runtimeImageTLSPodCompletionTimeout = 5 * time.Minute
+	// runtimeImageTLSPodLogTimeout bounds the log fetch. It is generous for a
+	// few hundred bytes of pod output, but a stalled log stream must fail the
+	// fetch instead of hanging before the diagnostics are captured.
+	runtimeImageTLSPodLogTimeout = 2 * time.Minute
 )
 
 // kubectlTLS13PanicSignatures match the AROSLSRE-2021/AROSLSRE-2481
@@ -312,8 +316,19 @@ var _ = Describe("ARO-HCP", func() {
 			waitErr := func() error {
 				deadline := time.Now().Add(runtimeImageTLSPodCompletionTimeout)
 				for {
-					pod, err := kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).Get(ctx, runtimeImageTLSPodName, metav1.GetOptions{})
+					// Each pod read is bounded by the same deadline as the loop.
+					// With the spec context an API server that accepts the request
+					// and then stalls blocks here until the outer cancellation, so
+					// the deadline branch below would never run and no diagnostics
+					// would be captured.
+					reqCtx, cancelReq := context.WithDeadline(ctx, deadline)
+					pod, err := kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).Get(reqCtx, runtimeImageTLSPodName, metav1.GetOptions{})
+					reqCtxErr := reqCtx.Err()
+					cancelReq()
 					if err != nil {
+						if reqCtxErr == context.DeadlineExceeded && ctx.Err() == nil {
+							return fmt.Errorf("the kubectl TLS check pod status request did not return before the %s deadline", runtimeImageTLSPodCompletionTimeout)
+						}
 						return fmt.Errorf("failed to get the kubectl TLS check pod: %w", err)
 					}
 					switch pod.Status.Phase {
@@ -330,7 +345,7 @@ var _ = Describe("ARO-HCP", func() {
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case <-time.After(5 * time.Second):
+					case <-time.After(min(5*time.Second, time.Until(deadline))):
 					}
 				}
 			}()
@@ -347,8 +362,15 @@ var _ = Describe("ARO-HCP", func() {
 			}
 
 			By("fetching the kubectl TLS check pod logs")
-			logs, logErr := kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).
-				GetLogs(runtimeImageTLSPodName, &corev1.PodLogOptions{}).Do(ctx).Raw()
+			// The log fetch is the last chance to capture why the pod failed, so
+			// it gets its own bound: a stalled log stream would otherwise hang
+			// here and take the diagnostics with it.
+			logs, logErr := func() ([]byte, error) {
+				logCtx, cancelLog := context.WithTimeout(ctx, runtimeImageTLSPodLogTimeout)
+				defer cancelLog()
+				return kubeClient.CoreV1().Pods(runtimeImageTLSNamespace).
+					GetLogs(runtimeImageTLSPodName, &corev1.PodLogOptions{}).Do(logCtx).Raw()
+			}()
 			if logErr != nil {
 				verifiers.CapturePodFailureDiagnostics(ctx, logErr, kubeClient,
 					runtimeImageTLSNamespace, runtimeImageTLSPodName, tc.LogDirPath)
