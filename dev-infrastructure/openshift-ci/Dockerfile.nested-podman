@@ -25,6 +25,16 @@ RUN printf '%s\n' \
 
 RUN dnf install -y git go make pass qrencode net-tools tree && dnf clean all
 
+# The dnf "go" package above is unpinned, so a rebuild of this image silently
+# changes the toolchain the integration tests run under. That is how Go moved to
+# a release where encoding/json v2 is the implementation and json.RawMessage is
+# an alias for jsontext.Value, changing stdlib error text and breaking every
+# podman-integration run. Pin the toolchain to the version go.work declares, so
+# the dnf package only bootstraps the download. The "+auto" suffix still allows
+# an upgrade when a module genuinely requires a newer Go (e.g. the gotestsum
+# install in the CI step).
+ENV GOTOOLCHAIN=go1.26.0+auto
+
 # Integration jobs install Go tools into this GOPATH at runtime.
 RUN mkdir -p /opt/app-root && chmod 777 /opt/app-root
 
