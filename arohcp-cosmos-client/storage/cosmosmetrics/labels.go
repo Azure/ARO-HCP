@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // LabelNames returns the shared labels for Cosmos accounting and rate limiting.

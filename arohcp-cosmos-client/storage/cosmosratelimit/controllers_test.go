@@ -24,7 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func TestControllerBudgets(t *testing.T) {

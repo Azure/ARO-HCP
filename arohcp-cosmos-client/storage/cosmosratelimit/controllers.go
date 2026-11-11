@@ -20,7 +20,7 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 const DefaultControllerUtilization = 0.8

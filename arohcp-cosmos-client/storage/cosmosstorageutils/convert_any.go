@@ -20,7 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*InternalAPIType, error) {

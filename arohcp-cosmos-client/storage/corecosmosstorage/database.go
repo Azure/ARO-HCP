@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 const resourcesContainer = "Resources"

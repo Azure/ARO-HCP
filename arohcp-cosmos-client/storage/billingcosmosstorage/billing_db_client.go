@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // BillingDBClient provides access to the Cosmos DB Billing container (separate from ARM resource documents).

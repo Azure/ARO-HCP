@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func newInitialHCPResourceRequirements(name string) *fleetapi.HCPResourceRequirements {
