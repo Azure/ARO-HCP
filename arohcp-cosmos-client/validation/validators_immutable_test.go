@@ -81,7 +81,7 @@ func TestImmutableByCompare(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			errs := immutableByCompare(ctx, tt.op, fldPath, tt.value, tt.oldValue)
+			errs := ImmutableByCompare(ctx, tt.op, fldPath, tt.value, tt.oldValue)
 			if tt.wantError && len(errs) == 0 {
 				t.Error("expected error, got none")
 			}
@@ -140,7 +140,7 @@ func TestImmutableByReflect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			errs := immutableByReflect(ctx, tt.op, fldPath, tt.value, tt.oldValue)
+			errs := ImmutableByReflect(ctx, tt.op, fldPath, tt.value, tt.oldValue)
 			if tt.wantError && len(errs) == 0 {
 				t.Error("expected error, got none")
 			}

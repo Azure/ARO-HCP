@@ -57,7 +57,7 @@ func validateManagementCluster(ctx context.Context, op operation.Operation, newO
 	// ResourceID is sourced from the embedded CosmosMetadata.ResourceID. It is
 	// still surfaced under the "resourceId" field path in validation errors.
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
 	if newObj.ResourceID != nil && newObj.ResourceID.Parent != nil {
 		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("resourceId", "parent", "name"), &newObj.ResourceID.Parent.Name, nil, stampIdentifierRegex, "must be 1-3 lowercase alphanumeric characters")...)
 	}
@@ -118,30 +118,30 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	// AKSResourceID — required, validated as AKS resource type, immutable
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID), "Microsoft.ContainerService/managedClusters")...)
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
 
 	// PublicDNSZoneResourceID — required, validated as DNS zone resource type, immutable
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID), "Microsoft.Network/dnszones")...)
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
 
 	// HostedClustersSecretsKeyVaultURL — required, validated as URL, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
 	errs = append(errs, URL(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
 
 	// HostedClustersManagedIdentitiesKeyVaultURL — required, validated as URL, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
 	errs = append(errs, URL(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
 
 	// HostedClustersSecretsKeyVaultManagedIdentityClientID — required, validated as UUID, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 	errs = append(errs, ValidateUUID(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 
 	// ClusterServiceProvisionShardID — optional on create, immutable once set (owned by ClustersServiceRegistrationController)
-	errs = append(errs, immutableByReflectOnceSet(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
+	errs = append(errs, ImmutableByReflectOnceSet(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
 
 	// KubeApplierCosmosContainerName — required, immutable
 	// for new records, require this. Old records won't have it.
@@ -150,7 +150,7 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	}
 	// allow the value to go from empty to set, but never change once set.
 	if op.Type == operation.Update && len(oldObj.KubeApplierCosmosContainerName) != 0 {
-		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+		errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
 	}
 
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("kubeApplierCosmosContainerMaxScale"), &newObj.KubeApplierCosmosContainerMaxScale, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerMaxScale), 1)...)
