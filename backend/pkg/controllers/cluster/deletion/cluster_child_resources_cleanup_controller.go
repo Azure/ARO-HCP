@@ -23,6 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mockfparoleassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
@@ -673,11 +674,24 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteRead
 // recursive sweep below, so it needs its own explicit hard-delete here. This
 // mirrors today's behavior for the resource before the container split: an
 // unconditional Cosmos document delete, no Azure-side call. This is a backstop for
-// any desire that a producer missed, not a stronger guarantee. Gating should be implemented
-// if delete coordination is needed so this does not delete desires that are still needed as part of the
-// teardown process.
+// any desire that a producer missed, not a stronger guarantee.
+//
+// One desire is NOT swept unconditionally: the mock FPA Owner role assignment over
+// the managed resource group. In environments without a real FPA, the mock FPA
+// deletes the MRG using exactly that assignment - its base subscription role grants
+// resourceGroups read/write but NOT delete - so the assignment must outlive Cluster
+// Service deletion for as long as the MRG exists. Deleting its bookkeeping desire
+// here while the MRG is still present would strand the assignment and fight the mock
+// FPA controllers that keep it published, so this desire is kept until the MRG is
+// gone, mirroring the ServiceProviderCluster MRG gate. Once the MRG is gone the
+// assignment has cascaded away with it and the desire is swept normally.
 func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
+
+	managedResourceGroupPresent, err := c.managedResourceGroupStillPresent(ctx, clusterResourceID)
+	if err != nil {
+		return err
+	}
 
 	desires, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(
 		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
@@ -690,8 +704,10 @@ func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDel
 		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped deployment stack desires: %w", err))
 	}
 	for _, desire := range desireIterator.Items(ctx) {
-		if desire.ResourceID == nil {
-			return utils.TrackError(fmt.Errorf("deployment stack desire has no resourceID; refusing to delete"))
+		if managedResourceGroupPresent && desire.ResourceID.Name == mockfparoleassignments.MockFPARoleAssignmentsDesireName {
+			logger.Info("keeping mock FPA role assignments deployment stack desire until the managed resource group is deleted",
+				"deploymentStackDesireResourceID", desire.ResourceID)
+			continue
 		}
 		logger.Info("deleting cluster-scoped deployment stack desire", "deploymentStackDesireResourceID", desire.ResourceID)
 		if err := desires.Delete(ctx, desire.ResourceID.Name); err != nil {
@@ -703,4 +719,29 @@ func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDel
 	}
 
 	return nil
+}
+
+// managedResourceGroupStillPresent reports whether the cluster's ServiceProviderCluster
+// still reflects a managed resource group (confirmed or pending). The managed resource
+// group controller clears both references once the MRG is deleted in Azure.
+//
+// A missing ServiceProviderCluster reports false (MRG not present), which is safe: the
+// ServiceProviderCluster is only deleted once the MRG is gone - its own delete gate
+// (extraDeleteGateShouldDeleteServiceProviderCluster) blocks while either MRG reference
+// is set - so a gone ServiceProviderCluster implies a gone MRG, and the mock FPA desire
+// is then free to be swept. Within a single sweep this runs before the ServiceProviderCluster
+// delete, so the lookup normally succeeds; the not-found path only happens on a later run
+// after the MRG (and then the ServiceProviderCluster) have already been removed.
+func (c *clusterChildResourcesCleanupController) managedResourceGroupStillPresent(ctx context.Context, clusterResourceID *azcorearm.ResourceID) (bool, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name,
+	).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	managedResourceGroup := spc.Status.AzureResources.ManagedResourceGroup
+	return managedResourceGroup.AzureResource != nil || managedResourceGroup.PendingAzureResource != nil, nil
 }

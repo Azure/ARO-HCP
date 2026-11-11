@@ -146,13 +146,6 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
 	}
 
-	// The assignment is scoped to the managed resource group, so Azure deletes it
-	// in cascade when that resource group is removed during cluster teardown.
-	// There is no need to stamp DeconfigureTimestamp here.
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
-	}
-
 	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// The dedicated CreateServiceProviderCluster controller creates it; we pick
@@ -161,6 +154,24 @@ func (s *mockFPARoleAssignmentsIntentSyncer) SyncOnce(ctx context.Context, key c
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	// Deletion must NOT short-circuit while the managed resource group still exists.
+	// The mock FPA deletes the MRG using the role assignment(s) this controller marks,
+	// so we must keep the desired key present during cluster teardown - otherwise the
+	// role assignments controller sees no renderable keys and tears the assignment
+	// down (or never creates it, if this controller only now caught up), leaving the
+	// MRG undeletable and orphaned. Once the MRG is gone there is nothing left to keep
+	// deletable, and the map is removed with the ServiceProviderCluster document during
+	// teardown.
+	//
+	// The MRG is present while either reference is set (see managedResourceGroupScope):
+	// during deletion the managed resource group controller never promotes pending to
+	// confirmed (it only deletes), and it deletes a pending-only MRG too, so pending must
+	// count as present here or a deletion that begins before confirmation would strand it.
+	managedResourceGroupPresent := managedResourceGroupScope(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup) != nil
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && !managedResourceGroupPresent {
+		return nil
 	}
 
 	if len(s.mockFPAPrincipalID) == 0 {

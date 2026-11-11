@@ -130,13 +130,6 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
 	}
 
-	// The assignment is scoped to the managed resource group, so Azure deletes it
-	// in cascade when that resource group is removed during cluster teardown. Only
-	// the bookkeeping StackDesire document needs cleaning up here.
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return s.deleteStackDesire(ctx, key)
-	}
-
 	existingServiceProviderCluster, err := s.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return s.deleteStackDesire(ctx, key)
@@ -145,7 +138,20 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	scope := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup.AzureResource
+	scope := managedResourceGroupScope(existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup)
+	// Deletion must NOT short-circuit while the managed resource group still exists.
+	// The mock FPA deletes the MRG using exactly this Owner assignment (its base
+	// subscription role grants resourceGroups read/write but NOT delete), so tearing
+	// the assignment down at the start of deletion - or never creating it because the
+	// controller only now caught up - would leave the MRG undeletable and orphaned.
+	// We therefore keep the assignment published for as long as the MRG is present,
+	// even during cluster teardown, and only clean up the bookkeeping StackDesire once
+	// the MRG is gone (both references cleared by the managed resource group controller).
+	// The assignment itself is MRG-scoped, so Azure removes it in cascade with the MRG.
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && scope == nil {
+		return s.deleteStackDesire(ctx, key)
+	}
+
 	if scope == nil {
 		// Role assignment names and the stack target are both scoped to the managed
 		// resource group. Nothing can be published yet.
@@ -163,20 +169,27 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return err
 	}
 
-	subscription, err := s.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
-	}
-	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
-		return utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
-	}
-
-	desiredSpec, err := s.desiredStackDesireSpec(reservedServiceProviderCluster, scope, *subscription.Properties.TenantId)
+	desiredSpec, err := s.desiredStackDesireSpec(reservedServiceProviderCluster, scope)
 	if err != nil {
 		return err
 	}
 
 	return s.publishStackDesire(ctx, key, desiredSpec, logger)
+}
+
+// managedResourceGroupScope returns the resource ID to scope the mock FPA role
+// assignment against, or nil when the managed resource group is not present. It
+// prefers the confirmed AzureResource and falls back to PendingAzureResource: during
+// deletion the managed resource group controller never promotes pending to confirmed
+// (it only deletes) and it deletes a pending-only MRG too, so a pending-only reference
+// is still a real MRG the mock FPA must be able to delete. The scope resource ID is
+// identical either way. A nil return means AzureResource and PendingAzureResource in
+// ref are both nil.
+func managedResourceGroupScope(ref coreapi.AzureReference) *azcorearm.ResourceID {
+	if ref.AzureResource != nil {
+		return ref.AzureResource
+	}
+	return ref.PendingAzureResource
 }
 
 // hasRenderableKeys reports whether any key is not draining (has no
@@ -239,7 +252,6 @@ func (s *mockFPARoleAssignmentsSyncer) reserveAzureResourceIDs(
 func (s *mockFPARoleAssignmentsSyncer) desiredStackDesireSpec(
 	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	scope *azcorearm.ResourceID,
-	tenantID string,
 ) (azureresourcesapi.DeploymentStackDesireSpec, error) {
 	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + MockFPARoleAssignmentsStackName)
 	if err != nil {

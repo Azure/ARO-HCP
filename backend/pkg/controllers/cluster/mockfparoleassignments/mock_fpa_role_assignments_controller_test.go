@@ -26,6 +26,31 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
+func TestManagedResourceGroupScope(t *testing.T) {
+	t.Parallel()
+
+	confirmed := mustReservedID(t, "confirmed")
+	pending := mustReservedID(t, "pending")
+
+	t.Run("prefers the confirmed AzureResource", func(t *testing.T) {
+		t.Parallel()
+		scope := managedResourceGroupScope(coreapi.AzureReference{AzureResource: confirmed, PendingAzureResource: pending})
+		assert.Same(t, confirmed, scope, "confirmed AzureResource is preferred over pending")
+	})
+
+	t.Run("falls back to PendingAzureResource", func(t *testing.T) {
+		t.Parallel()
+		scope := managedResourceGroupScope(coreapi.AzureReference{PendingAzureResource: pending})
+		assert.Same(t, pending, scope, "pending reference is used when no confirmed one exists")
+	})
+
+	t.Run("nil when neither reference is set", func(t *testing.T) {
+		t.Parallel()
+		scope := managedResourceGroupScope(coreapi.AzureReference{})
+		assert.Nil(t, scope, "no scope when the MRG is absent")
+	})
+}
+
 func TestHasRenderableKeys(t *testing.T) {
 	t.Parallel()
 
