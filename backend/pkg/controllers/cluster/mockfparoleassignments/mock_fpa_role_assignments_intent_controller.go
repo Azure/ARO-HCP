@@ -265,10 +265,15 @@ func (s *mockFPARoleAssignmentsIntentSyncer) mergeRoleAssignments(
 		desiredMockFPARoleAssignments[desiredRoleAssignmentKey] = newStatus
 	}
 
-	// Whether the desired assignment is actually live in Azure. A superseded
-	// assignment is only removed once this is true, so we never lose the Owner
-	// grant over the managed resource group during an identity replacement.
-	desiredConfigured := coreapihelpers.MockFPARoleAssignmentStatusManaged(desiredMockFPARoleAssignments[desiredRoleAssignmentKey], existingDeploymentStackDesire)
+	// Whether the desired assignment is confirmed live in Azure per the current,
+	// successful stack reconcile (not merely a stale or in-flight "managed"
+	// observation). A superseded assignment is only removed once this is true, so we
+	// never lose the Owner grant over the managed resource group during an identity
+	// replacement, and we only begin that removal from a confirmed, current state.
+	desiredConfigured, err := s.roleAssignmentSuccessfullyConfigured(desiredMockFPARoleAssignments[desiredRoleAssignmentKey], existingDeploymentStackDesire)
+	if err != nil {
+		return nil, err
+	}
 
 	timeForEntriesToDeconfigure := s.clock.Now()
 
@@ -307,6 +312,31 @@ func (s *mockFPARoleAssignmentsIntentSyncer) mergeRoleAssignments(
 	}
 
 	return desiredMockFPARoleAssignments, nil
+}
+
+// roleAssignmentSuccessfullyConfigured reports whether status's reserved assignment is
+// managed per a current, successful reconciliation of desire: the currently published
+// spec was applied successfully (ObservedSpecHash matches and SuccessfullyApplied is true)
+// and that spec manages the assignment. Unlike the bare "last-observed managed" check
+// (MockFPARoleAssignmentStatusManaged), this gates on the observation being current and
+// the apply having succeeded, so the intent controller begins draining a superseded
+// assignment only once the replacement is confirmed live - not off a stale or in-flight
+// observation.
+func (s *mockFPARoleAssignmentsIntentSyncer) roleAssignmentSuccessfullyConfigured(status *coreapi.MockFPARoleAssignmentStatus, desire *azureresourcesapi.DeploymentStackDesire) (bool, error) {
+	if desire == nil {
+		return false, nil
+	}
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(desire.Spec)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash mock FPA role assignments DeploymentStackDesire spec: %w", err)
+	}
+	if desire.Status.ObservedSpecHash != hash {
+		return false, nil
+	}
+	if !meta.IsStatusConditionTrue(desire.Status.Conditions, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied) {
+		return false, nil
+	}
+	return coreapihelpers.MockFPARoleAssignmentStatusManaged(status, desire), nil
 }
 
 // roleAssignmentRemovedAndReconciled reports whether a role assignment that has

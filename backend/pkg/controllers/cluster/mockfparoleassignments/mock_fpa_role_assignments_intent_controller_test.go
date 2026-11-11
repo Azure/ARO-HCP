@@ -53,22 +53,6 @@ func mustReservedID(t *testing.T, name string) *azcorearm.ResourceID {
 	return id
 }
 
-// stackDesireManaging builds a StackDesire whose last-observed Azure state reports
-// the given reserved assignment as managed.
-func stackDesireManaging(reserved *azcorearm.ResourceID) *azureresourcesapi.DeploymentStackDesire {
-	return &azureresourcesapi.DeploymentStackDesire{
-		Status: azureresourcesapi.DeploymentStackDesireStatus{
-			Stack: &armdeploymentstacks.DeploymentStack{
-				Properties: &armdeploymentstacks.DeploymentStackProperties{
-					Resources: []*armdeploymentstacks.ManagedResourceReference{
-						{ID: ptr.To(reserved.String()), Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged)},
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestMergeRoleAssignments(t *testing.T) {
 	t.Parallel()
 
@@ -127,9 +111,9 @@ func TestMergeRoleAssignments(t *testing.T) {
 			wantKey:  {ReservedAzureResourceID: desiredReserved},
 			staleKey: {ReservedAzureResourceID: mustReservedID(t, "22222222-2222-2222-2222-222222222222")},
 		}
-		// The replacement assignment is managed in the stack, so it is safe to begin
-		// removing the superseded one.
-		desire := stackDesireManaging(desiredReserved)
+		// The replacement assignment is managed by a current, successful apply, so it is
+		// safe to begin removing the superseded one.
+		desire := desireWithOutcome(t, azureresourcesapi.DeploymentStackDesireActionTypeApply, azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, metav1.ConditionTrue, desiredReserved)
 		got, err := s.mergeRoleAssignments(existing, desire)
 		require.NoError(t, err)
 		require.Contains(t, got, wantKey)

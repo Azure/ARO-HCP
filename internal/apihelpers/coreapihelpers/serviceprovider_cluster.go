@@ -46,6 +46,21 @@ func IsValidHostedClusterControlPlaneSize(s string) bool {
 // is not managed for this purpose even if Azure still has it, a nil
 // ReservedAzureResourceID (never reserved yet) is not managed, and a nil desire or
 // desire.Status.Stack (never published or never observed) is not managed.
+//
+// This is a low-level "last-observed managed" primitive. It deliberately does NOT
+// consult desire.Spec.Action or the stack's success condition:
+//   - The mock FPA stack is always an Apply (the role-assignments controller never
+//     publishes a Delete - the "no keys" case publishes an empty-resources Apply that
+//     unmanages via ActionOnUnmanage), so there is no Delete action to distinguish here.
+//   - "Managed per the current, successful reconcile" (as opposed to a stale or in-flight
+//     observation) is a caller concern: callers that need it gate on ObservedSpecHash and
+//     the SuccessfullyApplied condition before/around this check (see
+//     MockFPARoleAssignmentsConfigured and the intent controller's
+//     roleAssignmentSuccessfullyConfigured). The SuccessfullyApplied condition is itself
+//     Apply-specific, so it also excludes any Delete desire.
+//
+// If this is ever reused for a stack that can be deleted, the caller must gate on the
+// action/condition (or this function must start checking desire.Spec.Action).
 func MockFPARoleAssignmentStatusManaged(status *coreapi.MockFPARoleAssignmentStatus, desire *azureresourcesapi.DeploymentStackDesire) bool {
 	// Even if a role assignment is still present in Azure, if it has been deconfigured we consider it as not managed.
 	if status.DeconfigureTimestamp != nil {
