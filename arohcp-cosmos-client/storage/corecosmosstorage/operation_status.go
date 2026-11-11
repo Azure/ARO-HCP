@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 var localClock clock.Clock = clock.RealClock{}

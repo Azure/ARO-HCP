@@ -38,8 +38,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 type testTransport func(*http.Request) (*http.Response, error)
@@ -166,25 +165,25 @@ func TestRequestChargeAttribution(t *testing.T) {
 		},
 		{
 			name:               "informer",
-			ctx:                informerutils.ContextWithInformerName(context.Background(), "ClusterInformer"),
+			ctx:                utils.ContextWithInformerName(context.Background(), "ClusterInformer"),
 			expectedSourceKind: "informer",
 			expectedSource:     "ClusterInformer",
 		},
 		{
 			name:               "informer precedes controller",
-			ctx:                informerutils.ContextWithInformerName(controller, "ClusterInformer"),
+			ctx:                utils.ContextWithInformerName(controller, "ClusterInformer"),
 			expectedSourceKind: "informer",
 			expectedSource:     "ClusterInformer",
 		},
 		{
 			name:               "empty informer falls back",
-			ctx:                informerutils.ContextWithInformerName(controller, ""),
+			ctx:                utils.ContextWithInformerName(controller, ""),
 			expectedSourceKind: "controller",
 			expectedSource:     "ReconcileClusters",
 		},
 		{
 			name:               "empty names are unattributed",
-			ctx:                informerutils.ContextWithInformerName(utils.ContextWithControllerName(context.Background(), ""), ""),
+			ctx:                utils.ContextWithInformerName(utils.ContextWithControllerName(context.Background(), ""), ""),
 			expectedSourceKind: "unattributed",
 			expectedSource:     "unknown",
 		},

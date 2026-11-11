@@ -15,7 +15,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // ErrItemNotFound occurs when the requested item ID was not found,

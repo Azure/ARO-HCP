@@ -16,11 +16,8 @@ package utils
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
-	"os"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -28,13 +25,6 @@ import (
 )
 
 const TracerName = "github.com/Azure/ARO-HCP/frontend"
-
-func DefaultLogger() logr.Logger {
-	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		AddSource: true,
-	})
-	return logr.FromSlogHandler(handler)
-}
 
 var (
 	// PanicTotal counts the total number of panics caught byt this handler.

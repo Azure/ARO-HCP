@@ -20,20 +20,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func TestLabelValuesBeforeHTTPRequest(t *testing.T) {
 	ctx := utils.ContextWithControllerName(t.Context(), "Cleanup")
 	require.Equal(t, []string{"controller", "Cleanup", "unknown", "unknown", "unknown"}, LabelValues(ctx, nil, nil))
-	ctx = informerutils.ContextWithInformerName(ctx, "ClusterInformer")
+	ctx = utils.ContextWithInformerName(ctx, "ClusterInformer")
 	require.Equal(t, []string{"informer", "ClusterInformer", "unknown", "unknown", "unknown"}, LabelValues(ctx, nil, nil))
-	// Both entry points share one attribution key.
+	// The informer name can be read back from the context.
 	name, ok := utils.InformerNameFromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, "ClusterInformer", name)
-	name, ok = informerutils.InformerNameFromContext(utils.ContextWithInformerName(t.Context(), "OtherInformer"))
+	name, ok = utils.InformerNameFromContext(utils.ContextWithInformerName(t.Context(), "OtherInformer"))
 	require.True(t, ok)
 	require.Equal(t, "OtherInformer", name)
 

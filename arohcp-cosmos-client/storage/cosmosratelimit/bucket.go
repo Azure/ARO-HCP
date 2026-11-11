@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // TokenBucket limits requests by their actual Cosmos request charge. It starts

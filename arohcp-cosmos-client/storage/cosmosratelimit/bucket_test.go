@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func TestTokenBucketValidation(t *testing.T) {

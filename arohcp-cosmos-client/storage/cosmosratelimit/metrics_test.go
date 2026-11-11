@@ -34,8 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 func metricLabels(kind, source, container, operation, status string) map[string]string {
@@ -91,8 +90,8 @@ func TestLimiterMetricsAttribution(t *testing.T) {
 	}{
 		{"unattributed", t.Context(), "unattributed", "unknown"},
 		{"controller", controller, "controller", "ReconcileClusters"},
-		{"informer", informerutils.ContextWithInformerName(controller, "ClusterInformer"), "informer", "ClusterInformer"},
-		{"empty informer", informerutils.ContextWithInformerName(controller, ""), "controller", "ReconcileClusters"},
+		{"informer", utils.ContextWithInformerName(controller, "ClusterInformer"), "informer", "ClusterInformer"},
+		{"empty informer", utils.ContextWithInformerName(controller, ""), "controller", "ReconcileClusters"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bucket, _, registry := testMetricsBucket(t)

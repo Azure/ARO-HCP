@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 type layerTestTransaction struct {

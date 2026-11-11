@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosmetrics"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // Options configures independently constructed container clients.

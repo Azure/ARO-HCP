@@ -23,7 +23,7 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
 )
 
 // ApplyRequestBody applies a JSON request body to the value pointed to by v.
