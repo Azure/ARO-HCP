@@ -35,7 +35,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Current operation success rate — fraction of terminal operations in succeeded state. SLO target: 95%.",
+      "description": "Current success rate per operation type (create, update, delete), fraction of terminal operations in succeeded state. SLO target: 95%.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -61,24 +61,20 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
+        "textMode": "value_and_name"
       },
       "pluginVersion": "11.6.9",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "100 * (\n  count(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=\"succeeded\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  )\n  or\n  (count(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  ) * 0)\n)\n/\ncount(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n)",
+          "expr": "100 * (\n  count by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=\"succeeded\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  )\n  or\n  (count by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  ) * 0)\n)\n/\ncount by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n)",
           "instant": true,
-          "legendFormat": "Success Rate",
+          "legendFormat": "{{ operation_type }}",
           "refId": "A"
         }
       ],
       "title": "Operation Success Rate",
-      "transformations": [
-        { "id": "seriesToRows", "options": {} },
-        { "id": "merge", "options": {} }
-      ],
       "type": "stat"
     },
     {
@@ -218,7 +214,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Operation success rate over time. The green line marks the 95% SLO target.",
+      "description": "Operation success rate over time per operation type (create, update, delete). The green line marks the 95% SLO target.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -262,8 +258,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "100 * (\n  count(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=\"succeeded\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  )\n  or\n  (count(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  ) * 0)\n)\n/\ncount(\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n)",
-          "legendFormat": "Success Rate %",
+          "expr": "100 * (\n  count by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=\"succeeded\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  )\n  or\n  (count by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n  ) * 0)\n)\n/\ncount by (operation_type) (\n    (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\", phase=~\"succeeded|failed\"}) == 1)\n    and\n    ((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"create|update|delete\"})) < 259200)\n)",
+          "legendFormat": "{{ operation_type }}",
           "refId": "A"
         }
       ],
