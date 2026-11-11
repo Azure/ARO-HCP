@@ -405,6 +405,69 @@ tests:
         summary: "mgmt-1: Node Pool update operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed node pool update operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# Per-verb split: 4 failed creates + 4 succeeded updates keep reaching terminal from t=85m to 100m.
+# Pooled the ratio would be 4/8 = 0.5 (< 0.72) and nothing fires; per operation_type
+# the create series is 4/4 = 1.0 with failed_1h = 4, so only the create alert fires
+# at 95m. By 170m the failures are older than 1h and the alert resolves; the 6h and
+# 3d tiers stay silent because the create completion floors are unmet.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv1", phase="failed"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv1", phase="failed"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv2", phase="failed"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv2", phase="failed"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv3", phase="failed"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv3", phase="failed"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv4", phase="failed"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npv4", phase="failed"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv5", phase="succeeded"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv5", phase="succeeded"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv6", phase="succeeded"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv6", phase="succeeded"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv7", phase="succeeded"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv7", phase="succeeded"}'
+    values: "_x85 5100+60x15 6000x99"
+  - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv8", phase="succeeded"}'
+    values: "_x85 1x115"
+  - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npv8", phase="succeeded"}'
+    values: "_x85 5100+60x15 6000x99"
+  alert_rule_test:
+  - eval_time: 95m
+    alertname: userJourneyNodePoolErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyNodePoolErrors1h5m
+        cluster: mgmt-1
+        operation_type: create
+        component: slo
+        severity: "4"
+        slo: nodepool-errors
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/create"
+        summary: "mgmt-1: Node Pool create operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool create operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+  - eval_time: 170m
+    alertname: userJourneyNodePoolErrors1h5m
+  - eval_time: 170m
+    alertname: userJourneyNodePoolErrors6h30m
+  - eval_time: 170m
+    alertname: userJourneyNodePoolErrors3d
 # Volume guard: a single recent failed node pool op (ratio 100% but one failure)
 # must NOT fire, because failed_1h < 3 and the 6h/3d completion floors are unmet.
 - interval: 1m
