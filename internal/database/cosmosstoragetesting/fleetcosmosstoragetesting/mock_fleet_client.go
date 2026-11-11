@@ -31,8 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/validation"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // MockFleetDBClient is the in-memory test double for fleetcosmosstorage.FleetDBClient.

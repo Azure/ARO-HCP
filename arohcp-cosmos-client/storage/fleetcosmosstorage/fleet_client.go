@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/utils"
-	"github.com/Azure/ARO-HCP/internal/validation"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/validation"
 )
 
 const fleetContainer = "Fleet"

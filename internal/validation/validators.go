@@ -21,16 +21,13 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
-	"net/url"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/google/uuid"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/api/validate/constraints"
@@ -42,40 +39,29 @@ import (
 
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+	cosmosclientvalidation "github.com/Azure/ARO-HCP/arohcp-cosmos-client/validation"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
-// immutableByCompare and immutableByReflect are local copies of the helpers
-// removed in k8s.io/apimachinery v0.35.1 (previously in pkg/api/validate/immutable.go).
-// The upstream replacement (validate.Immutable) relies on the k8s ratcheting
-// framework and always returns an error on update without comparing values.
-// Our validation calls these without ratcheting, so we keep the old comparison
-// semantics.
-func immutableByCompare[T comparable](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
-	if op.Type != operation.Update {
-		return nil
-	}
-	if value == nil && oldValue == nil {
-		return nil
-	}
-	if value == nil || oldValue == nil || *value != *oldValue {
-		return field.ErrorList{
-			field.Forbidden(fldPath, "field is immutable"),
-		}
-	}
-	return nil
+// These validators live in arohcp-cosmos-client/validation, which the Cosmos
+// client's fleet validators also use. The aliases and wrappers keep existing
+// callers in this package working.
+var (
+	MatchesRegex                             = cosmosclientvalidation.MatchesRegex
+	ValidateUUID                             = cosmosclientvalidation.ValidateUUID
+	URL                                      = cosmosclientvalidation.URL
+	ResourceID                               = cosmosclientvalidation.ResourceID
+	GenericResourceID                        = cosmosclientvalidation.GenericResourceID
+	RestrictedResourceIDWithResourceGroup    = cosmosclientvalidation.RestrictedResourceIDWithResourceGroup
+	RestrictedResourceIDWithoutResourceGroup = cosmosclientvalidation.RestrictedResourceIDWithoutResourceGroup
+)
+
+func immutableByCompare[T comparable](ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	return cosmosclientvalidation.ImmutableByCompare(ctx, op, fldPath, value, oldValue)
 }
 
-func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue T) field.ErrorList {
-	if op.Type != operation.Update {
-		return nil
-	}
-	if !equality.Semantic.DeepEqual(value, oldValue) {
-		return field.ErrorList{
-			field.Forbidden(fldPath, "field is immutable"),
-		}
-	}
-	return nil
+func immutableByReflect[T any](ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue T) field.ErrorList {
+	return cosmosclientvalidation.ImmutableByReflect(ctx, op, fldPath, value, oldValue)
 }
 
 // rejectUnsupportedChannelGroupUpdate rejects a channelGroup change on an
@@ -100,23 +86,6 @@ func rejectUnsupportedChannelGroupUpdate(op operation.Operation, fldPath *field.
 		fldPath.Child("channelGroup"),
 		"updating channelGroup is not currently supported",
 	)}
-}
-
-// immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
-// but rejects any change or clearing once the field has been set.
-func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
-	if op.Type != operation.Update {
-		return nil
-	}
-	if oldValue == nil {
-		return nil
-	}
-	if value == nil || !equality.Semantic.DeepEqual(value, oldValue) {
-		return field.ErrorList{
-			field.Forbidden(fldPath, "field is immutable once set"),
-		}
-	}
-	return nil
 }
 
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
@@ -425,32 +394,6 @@ var (
 	keyVaultKeyVersionErrorString = `(must be a 32-character hexadecimal key version)`
 )
 
-func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-	if regex.MatchString(*value) {
-		return nil
-	}
-	return field.ErrorList{field.Invalid(fldPath, *value, errorString)}
-}
-
-func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-	if len(*value) == 0 {
-		return nil
-	}
-	if err := uuid.Validate(*value); err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-	return nil
-}
-
 func AzureKeyVaultKeyVersion(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -548,19 +491,6 @@ func DNS1123Label(_ context.Context, _ operation.Operation, fldPath *field.Path,
 		errs = append(errs, field.Invalid(fldPath, *value, msg))
 	}
 	return errs
-}
-
-func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil {
-		return nil
-	}
-
-	_, err := url.Parse(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-
-	return nil
 }
 
 // isIpAddress checks if the host is a valid IP address (IPv4 or IPv6)
@@ -746,93 +676,6 @@ func SameVirtualNetwork(_ context.Context, _ operation.Operation, fldPath *field
 	}
 
 	return nil
-}
-
-// ResourceID
-// 1. has subscription
-// 2. has name
-// 3. has any resource type
-// 4. has a resource group name
-func ResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID) field.ErrorList {
-	return restrictedResourceIDInResourceGroupCheck(ctx, op, fldPath, value, oldValue, "")
-}
-
-// GenericResourceID
-// 1. has subscription
-// 2. has name
-// 3. has any resource type
-// 4. may or may not have a resource group name
-func GenericResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID) field.ErrorList {
-	return restrictedGenericResourceIDCheck(ctx, op, fldPath, value, oldValue, "")
-}
-
-// RestrictedResourceIDWithResourceGroup
-// 1. has subscription
-// 2. has name
-// 3. has a particular resource type
-// 4. has a resource group name
-func RestrictedResourceIDWithResourceGroup(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
-	return restrictedResourceIDInResourceGroupCheck(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
-}
-
-// RestrictedResourceIDWithoutResourceGroup
-// 1. has subscription
-// 2. has name
-// 3. has particular type
-// 4. has no resource group name
-func RestrictedResourceIDWithoutResourceGroup(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
-	return restrictedResourceIDWithoutResourceGroupCheck(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
-}
-
-func restrictedResourceIDInResourceGroupCheck(ctx context.Context, op operation.Operation, fldPath *field.Path, resourceID, _ *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
-	if resourceID == nil {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-	errs = append(errs, restrictedGenericResourceIDCheck(ctx, op, fldPath, resourceID, nil, resourceTypeRestriction)...)
-
-	if len(resourceID.ResourceGroupName) == 0 {
-		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource group is required"))
-	}
-
-	return errs
-}
-
-func restrictedGenericResourceIDCheck(ctx context.Context, op operation.Operation, fldPath *field.Path, resourceID, _ *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
-	if resourceID == nil {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-
-	// Check for required fields.
-	if len(resourceID.SubscriptionID) == 0 {
-		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "subscription ID is required"))
-	}
-	if len(resourceID.Name) == 0 {
-		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource name is required"))
-	}
-	if len(resourceTypeRestriction) > 0 && !strings.EqualFold(resourceTypeRestriction, resourceID.ResourceType.String()) {
-		errs = append(errs, field.Invalid(fldPath, resourceID.String(), fmt.Sprintf("resource ID must reference an instance of type %q", resourceTypeRestriction)))
-	}
-
-	return errs
-}
-
-func restrictedResourceIDWithoutResourceGroupCheck(ctx context.Context, op operation.Operation, fldPath *field.Path, resourceID, _ *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
-	if resourceID == nil {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-	errs = append(errs, restrictedGenericResourceIDCheck(ctx, op, fldPath, resourceID, nil, resourceTypeRestriction)...)
-
-	if len(resourceID.ResourceGroupName) != 0 {
-		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource group must be empty"))
-	}
-
-	return errs
 }
 
 func newRestrictedResourceID(resourceTypeRestriction string) validate.ValidateFunc[**azcorearm.ResourceID] {
