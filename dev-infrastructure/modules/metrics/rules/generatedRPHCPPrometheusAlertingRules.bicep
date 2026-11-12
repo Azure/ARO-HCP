@@ -150,7 +150,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
             }
           }
         ]
-        alert: 'hypershiftCPODown'
+        alert: 'userJourneyHypershiftControlPlaneOperatorAvailabilityDown'
         enabled: true
         labels: {
           component: 'slo'

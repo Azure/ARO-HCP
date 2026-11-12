@@ -35,7 +35,7 @@ spec:
     labels:
       component: slo
     rules:
-    - alert: hypershiftCPODown
+    - alert: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
       expr: |
         max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0
         and on (cluster, namespace)

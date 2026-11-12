@@ -19,7 +19,7 @@ tests:
     values: "0+10x120"
   alert_rule_test:
   - eval_time: 120m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 120m
     alertname: hypershiftOperatorPodsDown
@@ -36,10 +36,10 @@ tests:
     values: "3+0x60"
   alert_rule_test:
   - eval_time: 10m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 20m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -71,7 +71,7 @@ tests:
     alertname: hypershiftOperatorPodsDown
     exp_alerts:
     - exp_labels:
-        severity: "2"
+        severity: "3"
         slo: hypershift-operator-availability
         service: hypershift-operator
         component: slo
@@ -84,7 +84,7 @@ tests:
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
         correlationId: "hypershiftOperatorPodsDown/mc1"
   - eval_time: 20m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -121,10 +121,10 @@ tests:
     alertname: hypershiftOperatorPodsDown
     exp_alerts: []
   - eval_time: 15m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
   - eval_time: 30m
-    alertname: hypershiftOperatorPodsUnavailable
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts: []
 - interval: 1m
   name: "HyperShift Operator wedged while HostedClusters exist"
