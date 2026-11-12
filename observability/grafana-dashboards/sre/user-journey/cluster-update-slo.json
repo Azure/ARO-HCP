@@ -246,7 +246,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Current-state success rate over time (latest update per cluster), with the 95% target line.",
+      "description": "Current-state success rate over time (latest update per cluster), with the 95% target line, one line per region.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -289,8 +289,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0))\n  /\n  clamp_min(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) or vector(0), 1)\n) * 100",
-          "legendFormat": "Success Rate",
+          "expr": "(\n  (count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or 0 * count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}))\n  /\n  count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})\n) * 100",
+          "legendFormat": "{{ region }}",
           "refId": "A"
         }
       ],
@@ -299,7 +299,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Number of clusters by the phase of their latest update.",
+      "description": "Number of clusters by the phase of their latest update, per region.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -331,8 +331,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
-          "legendFormat": "{{ phase }}",
+          "expr": "count by (region, phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
+          "legendFormat": "{{ phase }} ({{ region }})",
           "refId": "A"
         }
       ],
@@ -341,7 +341,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Age of in-flight cluster update operations at p50/p95/p99. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
+      "description": "Age of in-flight cluster update operations at p50/p95/p99 per region. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -383,22 +383,22 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.5, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
-          "legendFormat": "p50",
+          "expr": "quantile by (region) (0.5, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p50 ({{ region }})",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.95, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
-          "legendFormat": "p95",
+          "expr": "quantile by (region) (0.95, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p95 ({{ region }})",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "quantile(0.99, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
-          "legendFormat": "p99",
+          "expr": "quantile by (region) (0.99, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p99 ({{ region }})",
           "refId": "C"
         }
       ],
@@ -459,7 +459,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Traffic. Number of cluster update operations currently in flight.",
+      "description": "Traffic. Number of cluster update operations currently in flight, per region.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -492,8 +492,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}) or vector(0)",
-          "legendFormat": "In-Flight Updates",
+          "expr": "count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}) or 0 * count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
+          "legendFormat": "{{ region }}",
           "refId": "A"
         }
       ],
