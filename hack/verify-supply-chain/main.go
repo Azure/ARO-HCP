@@ -52,7 +52,7 @@ var configPrefixes = []string{
 var allowedConfigFiles = map[string]string{
 	".claude/OWNERS": "1339739f4fe68150e4a8c071fee63ca4d745d81f",
 	".claude/skills/bootstrap-api-version/SKILL.md": "36a339ddf8bb019b0bec79d8ef39cf3c346c02f2",
-	".claude/skills/pr-standards/SKILL.md":          "a2640ea6c4bdb73f264230c2613a546377030b39",
+	".claude/skills/pr-standards/SKILL.md":          "97f14753013baad26a662ba15c020c19a5485350",
 	".github/agents/agentic-workflows.agent.md":     "3fee8b7060d3c5307731a3e921f57bf406e91e85",
 	".github/instructions/e2e.instructions.md":      "cd16a25d1459cda97bc448652f2212714bd57e90",
 	".github/skills/agentic-workflows/SKILL.md":     "37dd349a7c61221e2ceef008624592efbae9dbb5",
@@ -297,12 +297,15 @@ func report(w io.Writer, findings []finding) {
 		fmt.Fprintf(w, "  %s: %s\n", rule, advice)
 	}
 
-	// Unconditional: the check does not read these files, so it cannot say
-	// which one is dangerous — only that none should be run to find out.
+	// Unconditional, and hedged: the check does not read these files, so it
+	// cannot say which one would run anything — only that none should be
+	// opened to find out. Cloning is inert; an agent or editor loading the
+	// repository is what runs configuration.
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "If one of these is not yours, do not open or run it: this configuration")
-	fmt.Fprintln(w, "executes on clone, which is how a known supply-chain attack worked. Report")
-	fmt.Fprintln(w, "it to the security team rather than investigating it yourself.")
+	fmt.Fprintln(w, "If one of these is not yours, do not open or run it. Agent and editor")
+	fmt.Fprintln(w, "configuration can execute when an agent or editor loads the repository,")
+	fmt.Fprintln(w, "which is how a known supply-chain attack worked. Report it to the")
+	fmt.Fprintln(w, "security team rather than investigating it yourself.")
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, `See the "Security self-check" bullet in CONTRIBUTING.md, and`)
