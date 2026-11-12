@@ -609,13 +609,6 @@ spec:
         description: "DeleteBackupRequest {{ $labels.namespace }}/{{ $labels.name }} on management cluster {{ $labels.cluster }} has been InProgress for 1h. Unlike the deletion-queue backlog alert (enqueue depth), this tracks each request through the pending timer so overlapping healthy short deletions do not alert. Check Velero server logs/pod health and `kubectl get deletebackuprequest {{ $labels.name }} -n {{ $labels.namespace }}` on the management cluster."
         runbook_url: "https://aka.ms/arohcp-runbook-backup"
         correlationId: "userJourneyBackupDeletionStuckInProgress/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}"
-    # Mid-processing stuck backlog: CRs with a phase set that are not queued,
-    # InProgress/Completed, or terminal failures. Failed/PartiallyFailed/
-    # FailedValidation are terminal (TTL-bound, no further progression) and
-    # are excluded — covered by userJourneyBackupErrors. Remaining phases
-    # (Finalizing, WaitingForPluginOperations, Deleting, unknown) are
-    # counted via unless on CR identity with == 1 on the excluded set;
-    # left-hand presence stays unfiltered so unrecognized phases still count.
     - alert: userJourneyBackupNonTerminalBacklog
       expr: |
         count by (cluster) (
