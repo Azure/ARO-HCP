@@ -37,6 +37,7 @@ var _ = Describe("ARO-HCP HyperShift Presubmit", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
+		labels.StartPriority(40),
 		func(ctx context.Context) {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.DisableSwift = false
