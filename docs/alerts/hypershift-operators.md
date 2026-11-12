@@ -143,17 +143,17 @@ owners.
 
 | Alert | Severity | Fires when |
 |---|---|---|
-| `userJourneyHypershiftOperatorAvailabilityPodsUnavailable` | SEV 3 | 1 or more HyperShift Operator pods (desired minus available) have been unavailable for 15m |
-| `hypershiftOperatorPodsDown` | SEV 3 | 2 or more HyperShift Operator pods have been unavailable for 5m |
+| `hypershiftOperatorPodsUnavailable` | SEV 3 | 1 or more HyperShift Operator pods (desired minus available) have been unavailable for 15m |
+| `hypershiftOperatorPodsDown` | SEV 2 | 2 or more HyperShift Operator pods have been unavailable for 5m |
 | `hypershiftOperatorIdle` | SEV 3 | The HyperShift Operator has reconciled nothing for 30m while HostedClusters exist on the management cluster |
-| `userJourneyHypershiftControlPlaneOperatorAvailabilityDown` | SEV 3 | One hosted control plane's CPO has had no available pods for 10m |
+| `hypershiftCPODown` | SEV 3 | One hosted control plane's CPO has had no available pods for 10m |
 
 `hypershiftOperatorIdle` does not fire when the operator has no pods, because
 there is no reconcile series. In that case `hypershiftOperatorPods*`
 fires instead. A CPO deployment scaled to zero (for example, hibernating or
-deleting) does not fire `userJourneyHypershiftControlPlaneOperatorAvailabilityDown`.
+deleting) does not fire `hypershiftCPODown`.
 
-## SOP: `userJourneyHypershiftOperatorAvailabilityPodsUnavailable` / `hypershiftOperatorPodsDown`
+## SOP: `hypershiftOperatorPodsUnavailable` / `hypershiftOperatorPodsDown`
 
 1. Confirm on the dashboard (**Current Component Availability**) that operator
    pods in the `hypershift` namespace on the management cluster from the alert
@@ -178,7 +178,7 @@ deleting) does not fire `userJourneyHypershiftControlPlaneOperatorAvailabilityDo
    Restarting the operator requires approval; do not make manual changes
    without it.
 
-## SOP: `userJourneyHypershiftControlPlaneOperatorAvailabilityDown`
+## SOP: `hypershiftCPODown`
 
 1. Map the namespace in the alert (`ocm-<prefix>-<cluster id>-<name>`) to the
    customer cluster.

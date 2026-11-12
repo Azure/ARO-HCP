@@ -1339,7 +1339,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'userJourneyHypershiftOperatorAvailabilityPodsUnavailable'
+        alert: 'hypershiftOperatorPodsUnavailable'
         enabled: true
         labels: {
           component: 'slo'
@@ -1378,7 +1378,7 @@ Management Cluster: {{ $labels.cluster }}
         labels: {
           component: 'slo'
           service: 'hypershift-operator'
-          severity: '3'
+          severity: '2'
           slo: 'hypershift-operator-availability'
         }
         annotations: {
@@ -1395,7 +1395,7 @@ Management Cluster: {{ $labels.cluster }}
         }
         expression: 'max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) - max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) >= 2'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [

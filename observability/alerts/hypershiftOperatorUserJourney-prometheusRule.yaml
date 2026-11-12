@@ -34,9 +34,10 @@ spec:
     labels:
       component: slo
     rules:
-    # Unavailable pods = desired - available; max by (cluster) dedupes KSM/HA replicas.
-    # Both tiers are Sev 3; PodsDown fires sooner for larger outages.
-    - alert: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
+    # Severity is tied to the number of unavailable pods (desired - available)
+    # rather than a burn rate: with only a few replicas a ratio burn rate adds
+    # nothing. max by (cluster) dedupes KSM and HA Prometheus replicas.
+    - alert: hypershiftOperatorPodsUnavailable
       expr: |
         max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
         - max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
@@ -60,7 +61,7 @@ spec:
         >= 2
       for: 5m
       labels:
-        severity: "3"
+        severity: "2"
         slo: hypershift-operator-availability
         service: hypershift-operator
       annotations:

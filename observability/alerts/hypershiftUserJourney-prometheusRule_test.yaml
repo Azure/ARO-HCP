@@ -20,10 +20,10 @@ tests:
     values: "0+0x60"
   alert_rule_test:
   - eval_time: 5m
-    alertname: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
+    alertname: hypershiftCPODown
     exp_alerts: []
   - eval_time: 15m
-    alertname: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
+    alertname: hypershiftCPODown
     exp_alerts:
     - exp_labels:
         severity: "3"
