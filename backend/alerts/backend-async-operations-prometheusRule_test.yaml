@@ -29,7 +29,7 @@ tests:
         subscription_id: "sub-1"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/a'
-        summary: 'Cluster create for /sub/1/cluster/a stuck in provisioning'
+        summary: 'Cluster create stuck in provisioning'
         description: 'Cluster create operation for /sub/1/cluster/a has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
 # Test: does not fire before cluster create reaches the 60-minute threshold
@@ -94,7 +94,7 @@ tests:
         subscription_id: "sub-1"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/d'
-        summary: 'Cluster create for /sub/1/cluster/d stuck in provisioning'
+        summary: 'Cluster create stuck in provisioning'
         description: 'Cluster create operation for /sub/1/cluster/d has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
 # ========================================
@@ -124,7 +124,7 @@ tests:
         subscription_id: "sub-2"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/2/cluster/a'
-        summary: 'Cluster update for /sub/2/cluster/a stuck in updating'
+        summary: 'Cluster update stuck in updating'
         description: 'Cluster update operation for /sub/2/cluster/a has been running for over 45 minutes and is currently in updating phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
         runbook_url: TBD
 # Test: does not fire when cluster update is under 45 minutes
@@ -165,7 +165,7 @@ tests:
         subscription_id: "sub-3"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/3/cluster/a'
-        summary: 'Cluster delete for /sub/3/cluster/a stuck'
+        summary: 'Cluster delete stuck'
         description: 'Cluster delete operation for /sub/3/cluster/a has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
         runbook_url: TBD
 # Test: does not fire when cluster delete is under 25 minutes
@@ -206,7 +206,7 @@ tests:
         subscription_id: "sub-4"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/a'
-        summary: 'Credential request for /sub/4/cluster/a stuck in provisioning'
+        summary: 'Credential request stuck in provisioning'
         description: 'Credential request operation for /sub/4/cluster/a has been running for over 10 minutes and is currently in provisioning phase (e2e timeout: GetAdminRESTConfigTimeout).'
         runbook_url: TBD
 # Test: does not fire when credential request is under 10 minutes
@@ -247,7 +247,7 @@ tests:
         subscription_id: "sub-4"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/c'
-        summary: 'Credential request for /sub/4/cluster/c stuck in provisioning'
+        summary: 'Credential request stuck in provisioning'
         description: 'Credential request operation for /sub/4/cluster/c has been running for over 10 minutes and is currently in provisioning phase (e2e timeout: GetAdminRESTConfigTimeout).'
         runbook_url: TBD
 # ========================================
@@ -277,7 +277,7 @@ tests:
         subscription_id: "sub-5"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/5/cluster/a'
-        summary: 'Credential revoke for /sub/5/cluster/a stuck in deleting'
+        summary: 'Credential revoke stuck in deleting'
         description: 'Credential revoke operation for /sub/5/cluster/a has been running for over 15 minutes and is currently in deleting phase.'
         runbook_url: TBD
 # Test: does not fire when credential revoke is under 15 minutes
@@ -317,7 +317,7 @@ tests:
         subscription_id: "sub-6"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/a'
-        summary: 'Node pool create for /sub/6/np/a stuck in provisioning'
+        summary: 'Node pool create stuck in provisioning'
         description: 'Node pool create operation for /sub/6/np/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: NodePoolCreationTimeout).'
         runbook_url: TBD
 # Test: does not fire when node pool create is under 20 minutes
@@ -358,7 +358,7 @@ tests:
         subscription_id: "sub-6"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/c'
-        summary: 'Node pool create for /sub/6/np/c stuck in provisioning'
+        summary: 'Node pool create stuck in provisioning'
         description: 'Node pool create operation for /sub/6/np/c has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: NodePoolCreationTimeout).'
         runbook_url: TBD
 # ========================================
@@ -387,7 +387,7 @@ tests:
         subscription_id: "sub-7"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/7/np/a'
-        summary: 'Node pool update for /sub/7/np/a stuck in updating'
+        summary: 'Node pool update stuck in updating'
         description: 'Node pool update operation for /sub/7/np/a has been running for over 45 minutes and is currently in updating phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
         runbook_url: TBD
 # Test: does not fire when node pool update is under 45 minutes
@@ -427,7 +427,7 @@ tests:
         subscription_id: "sub-8"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/8/np/a'
-        summary: 'Node pool delete for /sub/8/np/a stuck'
+        summary: 'Node pool delete stuck'
         description: 'Node pool delete operation for /sub/8/np/a has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
         runbook_url: TBD
 # Test: does not fire when node pool delete is under 25 minutes
@@ -468,7 +468,7 @@ tests:
         subscription_id: "sub-9"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/a'
-        summary: 'External auth create for /sub/9/ea/a stuck in awaitingsecret'
+        summary: 'External auth create stuck in awaitingsecret'
         description: 'External auth create operation for /sub/9/ea/a has been running for over 15 minutes and is currently in awaitingsecret phase (e2e timeout: ExternalAuthCreationTimeout).'
         runbook_url: TBD
 # Test: does not fire when external auth create is under 15 minutes
@@ -509,7 +509,7 @@ tests:
         subscription_id: "sub-9"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/c'
-        summary: 'External auth create for /sub/9/ea/c stuck in awaitingsecret'
+        summary: 'External auth create stuck in awaitingsecret'
         description: 'External auth create operation for /sub/9/ea/c has been running for over 15 minutes and is currently in awaitingsecret phase (e2e timeout: ExternalAuthCreationTimeout).'
         runbook_url: TBD
 # ========================================
@@ -539,7 +539,7 @@ tests:
         subscription_id: "sub-10"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/10/ea/a'
-        summary: 'External auth update for /sub/10/ea/a stuck in updating'
+        summary: 'External auth update stuck in updating'
         description: 'External auth update operation for /sub/10/ea/a has been running for over 10 minutes and is currently in updating phase.'
         runbook_url: TBD
 # Test: does not fire when external auth update is under 10 minutes
@@ -580,7 +580,7 @@ tests:
         subscription_id: "sub-11"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/11/ea/a'
-        summary: 'External auth delete for /sub/11/ea/a stuck'
+        summary: 'External auth delete stuck'
         description: 'External auth delete operation for /sub/11/ea/a has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
         runbook_url: TBD
 # Test: does not fire when external auth delete is under 15 minutes
@@ -621,7 +621,7 @@ tests:
         subscription_id: "sub-12"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/a'
-        summary: 'create microsoft.redhatopenshift/hcpopenshiftclusters operation for /sub/12/cluster/a stuck in provisioning'
+        summary: 'create microsoft.redhatopenshift/hcpopenshiftclusters operation stuck in provisioning'
         description: 'Async create operation for /sub/12/cluster/a (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
 # Test: backstop does not fire when operation is under 60 minutes
@@ -662,7 +662,7 @@ tests:
         subscription_id: "sub-12"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/d'
-        summary: 'create microsoft.redhatopenshift/hcpopenshiftclusters operation for /sub/12/cluster/d stuck in provisioning'
+        summary: 'create microsoft.redhatopenshift/hcpopenshiftclusters operation stuck in provisioning'
         description: 'Async create operation for /sub/12/cluster/d (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase.'
         runbook_url: TBD
 # Test: backstop does not fire for terminal phase (succeeded)
@@ -703,7 +703,7 @@ tests:
         component: backend
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        summary: "Cluster create for /sub/e2e/cluster/a stuck in provisioning"
+        summary: "Cluster create stuck in provisioning"
         description: "Cluster create operation for /sub/e2e/cluster/a has been running for over 60 minutes and is currently in provisioning phase."
         runbook_url: TBD
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/e2e/cluster/a'
@@ -730,7 +730,7 @@ tests:
         component: backend
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        summary: "create microsoft.redhatopenshift/hcpopenshiftclusters operation for /sub/e2e/cluster/b stuck in provisioning"
+        summary: "create microsoft.redhatopenshift/hcpopenshiftclusters operation stuck in provisioning"
         description: "Async create operation for /sub/e2e/cluster/b (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase."
         runbook_url: TBD
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/e2e/cluster/b'

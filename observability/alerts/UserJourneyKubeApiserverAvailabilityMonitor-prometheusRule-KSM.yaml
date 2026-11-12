@@ -31,7 +31,7 @@ spec:
         severity: "2"
         slo: kas-availability
       annotations:
-        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m) resource_id:{{ $labels.resource_id }}"
+        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m)"
         description: |
           Resource ID: {{ $labels.resource_id }}
           Management Cluster: {{ $labels.cluster }}
@@ -62,7 +62,7 @@ spec:
         severity: "2"
         slo: kas-availability
       annotations:
-        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m) resource_id:{{ $labels.resource_id }}"
+        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m)"
         description: |
           Resource ID: {{ $labels.resource_id }}
           Management Cluster: {{ $labels.cluster }}
@@ -93,7 +93,7 @@ spec:
         severity: "3"
         slo: kas-availability
       annotations:
-        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h) resource_id:{{ $labels.resource_id }}"
+        summary: "[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h)"
         description: |
           Resource ID: {{ $labels.resource_id }}
           Management Cluster: {{ $labels.cluster }}

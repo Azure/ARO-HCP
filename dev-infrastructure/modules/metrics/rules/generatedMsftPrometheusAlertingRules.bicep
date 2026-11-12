@@ -21,7 +21,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePodCrashLooping] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -49,7 +49,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePodNotReady] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -77,7 +77,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDeploymentGenerationMismatch] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -105,7 +105,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDeploymentReplicasMismatch] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -133,7 +133,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDeploymentRolloutStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -161,7 +161,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeStatefulSetReplicasMismatch] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -189,7 +189,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeStatefulSetGenerationMismatch] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -217,7 +217,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeStatefulSetUpdateNotRolledOut] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -245,7 +245,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDaemonSetRolloutStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -273,7 +273,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeContainerWaiting] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -301,7 +301,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDaemonSetNotScheduled] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -329,7 +329,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeDaemonSetMisScheduled] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -357,7 +357,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeJobNotCompleted] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -384,7 +384,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeJobFailed] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -412,7 +412,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeHpaReplicasMismatch] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -440,7 +440,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeHpaMaxedOut] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -481,7 +481,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeQuotaAlmostFull] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -509,7 +509,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeQuotaFullyUsed] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -537,7 +537,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeQuotaExceeded] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -578,7 +578,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePersistentVolumeFillingUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -606,7 +606,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePersistentVolumeFillingUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -634,7 +634,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePersistentVolumeInodesFillingUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -662,7 +662,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePersistentVolumeInodesFillingUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -690,7 +690,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubePersistentVolumeErrors] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -731,7 +731,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[MiseEnvoyScrapeDown] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -772,7 +772,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ClusterCredentialExpiringSoon] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -800,7 +800,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ClusterCredentialExpired] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -828,7 +828,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ClusterCredentialNotRenewable] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }

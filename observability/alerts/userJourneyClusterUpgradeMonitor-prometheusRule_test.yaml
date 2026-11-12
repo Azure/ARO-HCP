@@ -49,7 +49,7 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/2/rg/c2 to version 4.19.21 not progressing"
+        summary: "Cluster version change to version 4.19.21 not progressing"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -111,7 +111,7 @@ tests:
         slo: cluster-upgrade-complete
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/2/rg/c2 to version 4.19.21 stuck"
+        summary: "Cluster version change to version 4.19.21 stuck"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -153,7 +153,7 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/4/rg/c5 to version 4.22.2 not progressing"
+        summary: "Cluster version change to version 4.22.2 not progressing"
         description: |
           Cluster version change (upgrade or rollback) to 4.22.2 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -186,7 +186,7 @@ tests:
         slo: cluster-upgrade-complete
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/4/rg/c6 to version 4.22.2 stuck"
+        summary: "Cluster version change to version 4.22.2 stuck"
         description: |
           Cluster version change (upgrade or rollback) to 4.22.2 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -272,7 +272,7 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/5/rg/c11 to version 4.19.21 not progressing"
+        summary: "Cluster version change to version 4.19.21 not progressing"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -304,7 +304,7 @@ tests:
         slo: cluster-upgrade-complete
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/5/rg/c12 to version 4.19.21 stuck"
+        summary: "Cluster version change to version 4.19.21 stuck"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version change has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -336,7 +336,7 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/5/rg/c13 to version 4.19.21 not progressing"
+        summary: "Cluster version change to version 4.19.21 not progressing"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
@@ -372,7 +372,7 @@ tests:
         slo: cluster-upgrade-reach-partial
         component: "slo"
       exp_annotations:
-        summary: "svc-1: Cluster version change on /sub/5/rg/c14 to version 4.19.21 not progressing"
+        summary: "Cluster version change to version 4.19.21 not progressing"
         description: |
           Cluster version change (upgrade or rollback) to 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the version change is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1

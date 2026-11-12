@@ -21,7 +21,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusJobUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -55,7 +55,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusUptime] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -91,7 +91,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusUptimeSampleCount] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -127,7 +127,7 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusMetricsAbsentPerCluster] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -161,7 +161,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusPendingRate] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -199,7 +199,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusFailedRate] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -250,7 +250,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusRemoteStorageFailures] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -278,7 +278,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusNotIngestingSamples] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -306,7 +306,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusBadConfig] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -334,7 +334,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusScrapeSampleLimitHit] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -375,7 +375,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusOperatorNotReady] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -403,7 +403,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[PrometheusOperatorRejectedResources] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -444,7 +444,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FrontendClusterServiceErrorRate] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -472,7 +472,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FrontendHighAuditLogErrorRate] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -500,7 +500,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FrontendAuditLogConnectionDegraded] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -528,7 +528,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FrontendHttpRequestPanics] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -569,7 +569,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendControllerQueueDepthHigh] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -597,7 +597,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendControllerQueueDepthHigh] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -625,7 +625,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendControllerPanic] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -653,7 +653,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[OrphanedMRGDetected] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -669,8 +669,8 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           description: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           info: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          summary: 'Orphaned MRG in location {{ $labels.location }}'
+          title: 'Orphaned MRG in location {{ $labels.location }}'
         }
         expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0'
         for: 'PT5M'
@@ -681,7 +681,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[OrphanedMRGDeletionFailing] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -697,8 +697,8 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           description: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
           info: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
-          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          summary: 'Orphaned MRG deletion failing in location {{ $labels.location }}'
+          title: 'Orphaned MRG deletion failing in location {{ $labels.location }}'
         }
         expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
@@ -722,7 +722,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationClusterCreateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -738,8 +738,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           info: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
-          summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Cluster create stuck in {{ $labels.phase }}'
+          title: 'Cluster create stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         for: 'PT5M'
@@ -750,7 +750,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationClusterUpdateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -766,8 +766,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
           info: 'Cluster update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
           runbook_url: 'TBD'
-          summary: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Cluster update stuck in {{ $labels.phase }}'
+          title: 'Cluster update stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -777,7 +777,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationClusterDeleteStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -793,8 +793,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
           info: 'Cluster delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
           runbook_url: 'TBD'
-          summary: 'Cluster delete for {{ $labels.resource_id }} stuck'
-          title: 'Cluster delete for {{ $labels.resource_id }} stuck'
+          summary: 'Cluster delete stuck'
+          title: 'Cluster delete stuck'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -804,7 +804,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationCredentialRequestStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -820,8 +820,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Credential request operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: GetAdminRESTConfigTimeout).'
           info: 'Credential request operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: GetAdminRESTConfigTimeout).'
           runbook_url: 'TBD'
-          summary: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Credential request stuck in {{ $labels.phase }}'
+          title: 'Credential request stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="requestcredential",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="requestcredential",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -831,7 +831,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationCredentialRevokeStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -847,8 +847,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Credential revoke operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase.'
           info: 'Credential revoke operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
-          summary: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Credential revoke stuck in {{ $labels.phase }}'
+          title: 'Credential revoke stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="revokecredentials",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -858,7 +858,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationNodePoolCreateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -874,8 +874,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Node pool create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolCreationTimeout).'
           info: 'Node pool create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolCreationTimeout).'
           runbook_url: 'TBD'
-          summary: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Node pool create stuck in {{ $labels.phase }}'
+          title: 'Node pool create stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -885,7 +885,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationNodePoolUpdateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -901,8 +901,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Node pool update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
           info: 'Node pool update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
           runbook_url: 'TBD'
-          summary: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'Node pool update stuck in {{ $labels.phase }}'
+          title: 'Node pool update stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -912,7 +912,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationNodePoolDeleteStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -928,8 +928,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Node pool delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
           info: 'Node pool delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
           runbook_url: 'TBD'
-          summary: 'Node pool delete for {{ $labels.resource_id }} stuck'
-          title: 'Node pool delete for {{ $labels.resource_id }} stuck'
+          summary: 'Node pool delete stuck'
+          title: 'Node pool delete stuck'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -939,7 +939,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationExternalAuthCreateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -955,8 +955,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'External auth create operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ExternalAuthCreationTimeout).'
           info: 'External auth create operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ExternalAuthCreationTimeout).'
           runbook_url: 'TBD'
-          summary: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'External auth create stuck in {{ $labels.phase }}'
+          title: 'External auth create stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|awaitingsecret|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -966,7 +966,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationExternalAuthUpdateStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -982,8 +982,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'External auth update operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase.'
           info: 'External auth update operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
-          summary: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: 'External auth update stuck in {{ $labels.phase }}'
+          title: 'External auth update stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -993,7 +993,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationExternalAuthDeleteStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1009,8 +1009,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'External auth delete operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
           info: 'External auth delete operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
           runbook_url: 'TBD'
-          summary: 'External auth delete for {{ $labels.resource_id }} stuck'
-          title: 'External auth delete for {{ $labels.resource_id }} stuck'
+          summary: 'External auth delete stuck'
+          title: 'External auth delete stuck'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1020,7 +1020,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendAsyncOperationStuck] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1036,8 +1036,8 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Async {{ $labels.operation_type }} operation for {{ $labels.resource_id }} ({{ $labels.resource_type }}) has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           info: 'Async {{ $labels.operation_type }} operation for {{ $labels.resource_id }} ({{ $labels.resource_type }}) has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
-          summary: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
-          title: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
+          summary: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation stuck in {{ $labels.phase }}'
+          title: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation stuck in {{ $labels.phase }}'
         }
         expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting|awaitingsecret"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1060,7 +1060,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FleetControllerRetryHotLoop] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1088,7 +1088,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FleetControllerQueueDepthHigh] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1116,7 +1116,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FleetControllerPanic] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1157,7 +1157,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AdminHighAuditLogErrorRate] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1185,7 +1185,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AdminAuditLogConnectionDegraded] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1226,7 +1226,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ArobitForwarderJobUp] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1256,7 +1256,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FluentBitIngestionPaused] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1290,7 +1290,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FluentBitHighOutputRetries] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1324,7 +1324,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FluentBitOutputErrors] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1356,7 +1356,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FluentBitOutputRetriesExhausted] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1401,7 +1401,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpNonprodInboundCustomerapiCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1431,7 +1431,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpNonprodInboundSvcCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1461,7 +1461,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpNonprodOutboundCxCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1491,7 +1491,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpNonprodOutboundSvcCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1521,7 +1521,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdInboundCustomerapiCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1551,7 +1551,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdInboundCustomerapiUswest2Capacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1581,7 +1581,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdInboundCxCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1611,7 +1611,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdInboundSvcCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1641,7 +1641,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdOutboundCxCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1671,7 +1671,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[AroHcpProdOutboundSvcCapacity] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1714,7 +1714,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[HCPClusterOlderThan3Hours] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1732,8 +1732,8 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           info: '''HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
 '''
           runbook_url: 'TBD'
-          summary: 'HCP {{ $labels.resource_id }} on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
-          title: 'HCP {{ $labels.resource_id }} on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
+          summary: 'HCP on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
+          title: 'HCP on {{ $labels.cluster }} in {{ $labels.environment }} is older than 3h'
         }
         expression: 'max by (cluster, resource_id, environment, region) (time() - backend_cluster_created_time_seconds{environment=~"int|stg"}) > 3 * 3600'
         for: 'PT5M'
@@ -1744,7 +1744,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ProdE2EHCPClusterOlderThan3Hours] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1762,8 +1762,8 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           info: '''Prod e2e HCP cluster {{ $labels.resource_id }} in subscription {{ $labels.subscription_id }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
 '''
           runbook_url: 'TBD'
-          summary: 'Prod e2e HCP {{ $labels.resource_id }} in {{ $labels.subscription_id }} on {{ $labels.cluster }} is older than 3h'
-          title: 'Prod e2e HCP {{ $labels.resource_id }} in {{ $labels.subscription_id }} on {{ $labels.cluster }} is older than 3h'
+          summary: 'Prod e2e HCP on {{ $labels.cluster }} is older than 3h'
+          title: 'Prod e2e HCP on {{ $labels.cluster }} is older than 3h'
         }
         expression: 'max by (cluster, resource_id, environment, subscription_id, region) (time() - backend_cluster_created_time_seconds{environment="prod",subscription_id=~"403d9de9-132b-4974-94a5-5b78bdfa191e|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51"}) > 3 * 3600'
         for: 'PT5M'
@@ -1787,7 +1787,7 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeContainerOOMKilled] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1827,7 +1827,7 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KubeMemoryPressure] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1854,7 +1854,7 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[NodeConntrackTableSaturation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1894,7 +1894,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ImageRegistryPolicyDenied] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1922,7 +1922,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[ImageRegistryPolicyAuditViolation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1963,7 +1963,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[KustoLogsDataStale] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -2006,7 +2006,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[LeaderElectionLeaseStale] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -2034,7 +2034,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[LeaderElectionLeaseStaleCritical] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -2075,7 +2075,7 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[FrontendLatency] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -2116,7 +2116,7 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[BackendControllerRetryHotLoop] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }

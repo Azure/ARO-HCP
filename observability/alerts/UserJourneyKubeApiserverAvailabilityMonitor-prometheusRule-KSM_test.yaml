@@ -59,7 +59,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -89,7 +89,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -111,7 +111,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (6h/30m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (6h/30m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -130,7 +130,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -149,7 +149,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (6h/30m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (6h/30m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -256,7 +256,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (1h/5m)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
@@ -301,7 +301,7 @@ tests:
         cluster: mgmt-cluster
         resource_id: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster
       exp_annotations:
-        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (3d/6h) resource_id:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+        summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters (3d/6h)"
         description: "Resource ID: /subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nManagement Cluster: mgmt-cluster\nNamespace: clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/clusters"
