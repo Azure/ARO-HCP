@@ -363,7 +363,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
 	mcLister := kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient)
-	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(o.CosmosURL, o.CosmosName, storageOptions, func(string) (*cosmosratelimit.TokenBucket, error) { return bucket, nil }, mcLister)
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(o.CosmosURL, o.CosmosName, storageOptions, func(string, int32) (*cosmosratelimit.TokenBucket, error) { return bucket, nil }, mcLister)
 
 	// Create the alert processing rules client when the feature is configured.
 	var alertProcessingRulesClient *armalertprocessingrules.Client
