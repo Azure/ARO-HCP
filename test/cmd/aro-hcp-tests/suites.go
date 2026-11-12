@@ -137,6 +137,14 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		TestTimeout:   &prodTestTimeout,
 		ResourcePools: miPools,
 	})
+	ext.AddSuite(e.Suite{
+		Name:       "prod/parallel/all",
+		Qualifiers: []string{prodQuery},
+		// Keep the same resource limits as the existing Prod suites.
+		Parallelism:   workers.resolve(19, true),
+		TestTimeout:   &prodTestTimeout,
+		ResourcePools: miPools,
+	})
 
 	ext.AddSuite(e.Suite{
 		Name: "dev-cd-check/parallel",
