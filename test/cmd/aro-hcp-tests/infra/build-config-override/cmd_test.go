@@ -318,12 +318,11 @@ func TestSourcedAdapter(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(checkout, "test"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	launcher := filepath.Join(t.TempDir(), "aro-hcp-tests")
+	launcher := filepath.Join(checkout, "test/aro-hcp-tests")
 	if err := os.WriteFile(launcher, []byte("#!/bin/bash\nexec \"${CLI_TEST_BINARY}\" -test.run=^TestCommandProcess$ -- \"$@\"\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("CLI_TEST_BINARY", binary)
-	t.Setenv("ARO_HCP_TESTS_BINARY", launcher)
 	t.Setenv("ARO_HCP_INFRA_TEST_PROCESS", "1")
 	t.Setenv("DEPLOY_ENV", "dev")
 	t.Setenv("SHARED_DIR", t.TempDir())
@@ -350,8 +349,6 @@ bash -c '[[ ! -v USE_OC_LOGIN_REGISTRIES ]]'
 export BACKEND_IMAGE=registry.example/backend@sha256:1234
 source "$1"
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example" ]]'
-ln -s "$ARO_HCP_TESTS_BINARY" "$PWD/test/aro-hcp-tests"
-unset ARO_HCP_TESTS_BINARY
 source "$1"
 [[ -f "$OVERRIDE_CONFIG_FILE" ]]
 bash -c '[[ "$USE_OC_LOGIN_REGISTRIES" == "unexported.example registry.example registry.example" ]]'

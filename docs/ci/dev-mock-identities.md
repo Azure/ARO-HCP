@@ -288,9 +288,55 @@ the privileged pipeline is run.
 
 ## Slot-bound CI bundles
 
-DEV/dev-xs slot-manager jobs use the dedicated asset described in
-[slot-bound mock identity operations](slot-mock-identities.md). New jobs consume its bundle, not legacy static-pool leases. Personal-dev
+DEV/dev-xs slot-manager jobs use the dedicated asset described in the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities).
+New jobs consume its bundle, not legacy static-pool leases. Personal-dev
 shared-principal configuration remains supported. Old in-flight jobs retain their
 old checked-out consumers, while legacy Boskos leases still gate concurrency.
 All legacy pool infrastructure described above remains unchanged. Do not expand old pools
 to satisfy slot demand; capacity and retirement are a separate follow-up.
+
+### Dedicated slot identity operations
+
+The operator needs an active, unconditional customer-subscription Owner
+assignment (direct, inherited or through group membership), Entra application/SP
+management rights and certificate access to `https://aro-hcp-dev-svc-kv.vault.azure.net`.
+Activate eligible Owner access before applying. The preflight uses ARM's
+`atScope() and assignedTo(...)` filter for inherited and transitive group access.
+Install the existing subscription RBAC template first: its subscription-local
+`dev-msi-mock-<subscription-id>` role is reused.
+
+```bash
+AROHCP_ENV=development make -C test apply-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
+AROHCP_ENV=development make -C test validate-pool-assets ENVIRONMENT=dev POOL=shard0 ASSET=mock_identities
+```
+
+Select the intended pool and environment (`dev` or `dev-xs`). Unmanaged pools
+are skipped unless explicitly selected with `SUBSCRIPTION`, for example
+`SUBSCRIPTION='Hypershift Managed Azure'` for its subscription Owner. Do not run
+Owner reconciliation from CI. Run one reconciliation per selected pool at a time.
+Failed applies can be retried: application unique names, SP application IDs,
+certificate names and role assignment IDs are stable. Ambiguous or mismatched
+Graph objects require investigation, never arbitrary selection or deletion.
+
+Each slot has six persistent assignments at its customer subscription: MSI gets
+the MSI custom role and Key Vault Crypto User; each helper gets Contributor and
+Role Based Access Control Administrator. No grant is added to the infrastructure
+subscription. CI needs Graph application/SP reads, public certificate reads and
+subscription RBAC reads; it never applies this baseline.
+
+Owner apply reuses `tooling/entra-app-credentials/pkg/pinning` to create missing
+certificates and pin the current certificate without rotating healthy credentials
+or changing certificate policies. Pinning replaces the application's entire
+`keyCredentials` collection, so only the dedicated applications are eligible.
+Admission checks certificate validity and exact pinned thumbprints using reads;
+expired certificates fail closed. Keep the existing vault and delivery pipelines.
+Rotation is an explicit disruptive `entra-app-credentials pin --rotate` operation
+with affected jobs drained, not a deployment/admission/release operation. Use the
+deterministic application name for the certificate name and `<name>.hcp.osadev.cloud`
+for its DNS name.
+
+Managed HSM-local data-plane grants are distinct from these subscription roles.
+The current mock admission verifies Graph, certificates and the subscription
+baseline; it does not yet recover leaked HSM-local grants. Test teardown's HSM
+purge is best-effort and is not a recovery guarantee before slot reuse.

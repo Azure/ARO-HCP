@@ -128,10 +128,26 @@ func (p Pool) Requirements() []AssetRequirement {
 }
 
 func (s ExpandedSlot) ValidateResolvedAssets() error {
-	return s.validateResolvedAssets(false)
+	if err := s.validateAssetInvariants(); err != nil {
+		return err
+	}
+	return s.validateAssetPublicationReadiness()
 }
 
-func (s ExpandedSlot) validateResolvedAssets(allowUnresolvedMock bool) error {
+// validateAssetPublicationReadiness requires admission's output. The shared
+// invariants separately validate every present bundle, including its subscription.
+func (s ExpandedSlot) validateAssetPublicationReadiness() error {
+	for _, requirement := range s.AssetRequirements {
+		if requirement.Kind == KindMockIdentities && s.Assets.MockIdentities == nil {
+			return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
+		}
+	}
+	return nil
+}
+
+// validateAssetInvariants checks declarations and resolved nonmock assets before
+// admission, and validates any existing mock bundle without requiring discovery.
+func (s ExpandedSlot) validateAssetInvariants() error {
 	for _, assetRequirement := range s.AssetRequirements {
 		switch assetRequirement.Kind {
 		case KindMockIdentities:
@@ -139,11 +155,8 @@ func (s ExpandedSlot) validateResolvedAssets(allowUnresolvedMock bool) error {
 			if assetRequirement.Allocation != AllocationDedicated || assetRequirement.UnitsPerSlot != 1 {
 				return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
 			}
-			if bundle == nil && allowUnresolvedMock {
-				continue
-			}
 			if bundle == nil {
-				return fmt.Errorf("mock_identities requires one resolved dedicated bundle")
+				continue
 			}
 			if err := bundle.Validate(); err != nil {
 				return err

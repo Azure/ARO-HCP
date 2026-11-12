@@ -30,7 +30,21 @@ Pre-admission validation defers only the missing mock bundle: other resolved
 assets must still match their dedicated containers or held leases before any
 admission cleanup runs. Failed mock readmission clears the prior bundle on every
 error path, including credential setup and identity drift.
-See [the Owner runbook](../../../../docs/ci/slot-mock-identities.md).
+See [dedicated slot identity operations](../../../../docs/ci/dev-mock-identities.md#dedicated-slot-identity-operations).
+
+Local state validation has three distinct contracts:
+
+- `ValidateForRelease` accepts the partial write-ahead journal, including failed
+  acquisition/admission and lease-return progress, without runtime readiness.
+- `ValidateForAdmission` checks structure, subscriptions, held leases, nonmock
+  resolved assets and any existing mock bundle. Only an absent mock bundle may
+  await discovery. It performs no remote checks.
+- `ValidateForPublication` reruns those shared local invariants after handlers
+  have mutated state and additionally requires all admission-produced bundles.
+  The complete state is then persisted before any runtime exports are built.
+
+These phases do not cache validation success: post-admission mutation must not
+bypass held-lease or subscription guards. Neither phase repeats remote discovery.
 
 Slot-manager is a CI-only allocator of a complete E2E environment, not a raw
 Boskos resource. A **slot** is one allocatable E2E environment instance. A

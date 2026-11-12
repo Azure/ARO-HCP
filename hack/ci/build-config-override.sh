@@ -20,7 +20,7 @@ _aro_hcp_build_config_override() {
     # registries with oc registry login when mirroring overridden images to ACR.
     # The sentinel preserves any trailing newlines in registry data while
     # command substitution removes the CLI's one framing newline explicitly.
-    if registries=$(USE_OC_LOGIN_REGISTRIES="${USE_OC_LOGIN_REGISTRIES:-}" "${ARO_HCP_TESTS_BINARY:-${PWD}/test/aro-hcp-tests}" "${args[@]}" && printf '.'); then
+    if registries=$(USE_OC_LOGIN_REGISTRIES="${USE_OC_LOGIN_REGISTRIES:-}" "${PWD}/test/aro-hcp-tests" "${args[@]}" && printf '.'); then
         registries="${registries%.}"
         registries="${registries%$'\n'}"
         # Sourced output consumed by provision-environment.sh.

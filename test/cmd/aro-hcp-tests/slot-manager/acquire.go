@@ -777,7 +777,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, pool slots.P
 	if err != nil {
 		return err
 	}
-	if err := state.Validate(); err != nil {
+	if err := state.ValidateForPublication(); err != nil {
 		return err
 	}
 	if err := journal.Persist(); err != nil {

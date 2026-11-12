@@ -605,13 +605,21 @@ When you need to change or debug identity leasing, start here:
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)
 
-## Slot-bound mock identity rollout
+## Slot-bound mock identities
 
 DEV/dev-xs slot-manager jobs now require a dedicated three-principal mock asset.
-Read [slot-bound mock identity operations](slot-mock-identities.md) for the
-Owner deployment sequence, read-only admission, runtime contract, upgrade bridge
-and remaining legacy lease concurrency gates. The legacy pools described above
+See [dedicated slot identity operations](dev-mock-identities.md#dedicated-slot-identity-operations)
+for Owner commands and certificate management, and the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#dedicated-dev-mock-identities)
+for admission and the runtime contract. The legacy pools described above
 remain deployed and their Boskos leases still cap concurrency, but new consumers
 no longer resolve their static catalogs. Old in-flight jobs finish on old code;
 personal-development configuration remains supported. Azure pool/catalog
 retirement and removal of release-side lease gates are deferred.
+
+`provision-from-main.sh` uses the checked-out baseline's binary and configuration
+adapter; it does not preserve PR code across checkout. A pre-feature baseline
+does not understand the slot bundle, so identical identities across an upgrade
+from that baseline are not guaranteed. Such an inplace-upgrade run may fail and
+is non-gating for this feature's introduction. `SHARED_DIR` is Secret-backed;
+binary/adapter subdirectories must not be created there.

@@ -238,7 +238,7 @@ func TestAdmissionPopulatesDedicatedBundleBeforePublication(t *testing.T) {
 			if err != nil || state.Slot.Assets.MockIdentities == nil {
 				t.Fatalf("admitted bundle was not persisted: %v", err)
 			}
-			if err := state.Validate(); err != nil {
+			if err := state.ValidateForPublication(); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := os.Stat(env); err != nil {
@@ -784,7 +784,7 @@ func TestE2EOnlySelectedPoolNeverResolvesInfrastructure(t *testing.T) {
 			if err != nil || state.Slot.Subscriptions.Infrastructure != (slots.ResolvedSubscription{}) {
 				t.Fatalf("E2E-only state retained infrastructure subscription: %+v, %v", state, err)
 			}
-			if err := state.Validate(); err != nil {
+			if err := state.ValidateForPublication(); err != nil {
 				t.Fatalf("E2E-only persisted state is not runtime-ready: %v", err)
 			}
 			path, _ := slots.EnvFile(options.SharedDir)
