@@ -10,8 +10,10 @@ not implemented yet and can be added without changing the CLI shape.
 The tool itself never schedules jobs, deploys clusters, or opens PRs. In CI it is
 driven by the Prow periodic job
 `periodic-ci-Azure-ARO-HCP-main-component-updater-component-updater-tooling`
-(weekdays 08:00 UTC), which runs `update`, commits the resulting config and
-rendered-config changes, and opens a PR via the `aro-hcp-robot` GitHub App. See
+(Monday–Thursday 00:00 UTC / 10:00 AM AEST). The job starts in check mode
+(read-only discovery, no PR); once `MODE` is flipped to `update` in its ci-operator
+config, it runs `update`, commits the resulting config and rendered-config
+changes, and opens a PR via the `aro-hcp-robot` GitHub App. See
 `docs/ci/operations.md` for the job-to-config mapping. The job authenticates to
 Azure with a service principal (`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/
 `AZURE_TENANT_ID` and `AZURE_TOKEN_CREDENTIALS=prod`) and passes
