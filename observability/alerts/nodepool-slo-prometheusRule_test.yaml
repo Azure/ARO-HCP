@@ -1035,7 +1035,6 @@ tests:
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m
     alertname: userJourneyNodePoolErrorsDegradation
-
 # ========================================
 # Test: Cross-phase stuck operations
 # ========================================
