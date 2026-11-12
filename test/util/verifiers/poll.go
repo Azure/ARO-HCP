@@ -54,6 +54,22 @@ func isContextExpiration(ctx context.Context, err error) bool {
 	return ctx.Err() != nil && errors.Is(err, ctx.Err())
 }
 
+// expireObservation records a context expiration on a polling loop's retained
+// observation. An existing observation is paired with the interruption in a
+// pollObservationError so its message stays the headline while errors.Is still
+// resolves the interruption; a nil observation stays nil so the poll's own
+// timeout error is reported instead. The bool reports whether err was a
+// context expiration.
+func expireObservation(ctx context.Context, lastErr, err error) (error, bool) {
+	if !isContextExpiration(ctx, err) {
+		return lastErr, false
+	}
+	if lastErr == nil {
+		return nil, true
+	}
+	return &pollObservationError{observation: lastErr, interruption: err}, true
+}
+
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
 // Logs to GinkgoLogr (structured) and GinkgoWriter (visible in default CI output).
 func logVerifierTiming(name, outcome string, elapsed time.Duration) {
