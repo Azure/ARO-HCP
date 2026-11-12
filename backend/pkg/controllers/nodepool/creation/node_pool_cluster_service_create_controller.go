@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalcontroller "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -40,10 +41,11 @@ import (
 const NodePoolClusterServiceCreateControllerName = "NodePoolClusterServiceCreate"
 
 type nodePoolClusterServiceCreateSyncer struct {
-	resourcesDBClient     corecosmosstorage.ResourcesDBClient
-	nodePoolLister        corelisters.NodePoolLister
-	clusterLister         corelisters.ClusterLister
-	clustersServiceClient ocm.ClusterServiceClientSpec
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	nodePoolLister          corelisters.NodePoolLister
+	clusterLister           corelisters.ClusterLister
+	clustersServiceClient   ocm.ClusterServiceClientSpec
+	installingRetryCooldown *internalcontroller.SettableCooldownChecker
 }
 
 func NewNodePoolClusterServiceCreateController(
@@ -55,10 +57,11 @@ func NewNodePoolClusterServiceCreateController(
 	_, nodePoolLister := informers.NodePools()
 	_, clusterLister := informers.Clusters()
 	syncer := &nodePoolClusterServiceCreateSyncer{
-		resourcesDBClient:     resourcesDBClient,
-		nodePoolLister:        nodePoolLister,
-		clusterLister:         clusterLister,
-		clustersServiceClient: clustersServiceClient,
+		resourcesDBClient:       resourcesDBClient,
+		nodePoolLister:          nodePoolLister,
+		clusterLister:           clusterLister,
+		clustersServiceClient:   clustersServiceClient,
+		installingRetryCooldown: internalcontroller.NewSettableCooldownChecker(),
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -92,6 +95,9 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	}
 
 	if !c.needsWork(nodePool) {
+		return nil
+	}
+	if !c.installingRetryCooldown.CanSync(ctx, key) {
 		return nil
 	}
 
@@ -144,7 +150,17 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 		}
 		logger.Info("performing POST node pool to Cluster Service", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		_, err = c.clustersServiceClient.PostNodePool(csCtx, clusterCSInternalID, csNodePoolBuilder)
-		if c.isOCMErrorBadRequest(err) {
+		var ocmErr *ocmerrors.Error
+		if errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusBadRequest {
+			// Cluster Service uses HTTP 400 for many failures, so only its specific
+			// installing-state response should wait for the regular informer resync.
+			if strings.Contains(ocmErr.Reason(), "Node pools can only be created on clusters in an updatable state") &&
+				strings.Contains(ocmErr.Reason(), "cluster requested is in 'installing' state") {
+				c.installingRetryCooldown.SetCooldown(key, time.Minute)
+				logger.Info("Cluster Service rejected node pool creation while the parent cluster is installing. Retrying on next sync.",
+					"cs_node_pool_href", csNodePoolHREF, "error", err.Error())
+				return nil
+			}
 			logger.Error(err, "CS node pool POST returned OCM error with HTTP 400 status code", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		}
 		if err != nil {
@@ -179,9 +195,4 @@ func (c *nodePoolClusterServiceCreateSyncer) findCSNodePool(ctx context.Context,
 		return nil, err
 	}
 	return np, nil
-}
-
-func (c *nodePoolClusterServiceCreateSyncer) isOCMErrorBadRequest(err error) bool {
-	var ocmErr *ocmerrors.Error
-	return err != nil && errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusBadRequest
 }
