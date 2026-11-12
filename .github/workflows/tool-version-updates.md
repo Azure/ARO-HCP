@@ -37,13 +37,21 @@ steps:
     with:
       go-version-file: go.work
       check-latest: true
+  - name: Build depctl
+    run: make -C tooling/depctl build BINARY="$RUNNER_TEMP/depctl"
   - name: Collect deterministic tool-family inventory
     env:
       GH_TOKEN: ${{ github.token }}
     run: |
       set -euo pipefail
       printf '%s\n' tool-version-inventory.json >> "$(git rev-parse --git-path info/exclude)"
-      python3 .github/scripts/tool_version_inventory.py > tool-version-inventory.json
+      code=0
+      "$RUNNER_TEMP/depctl" inventory --repo . --offline=false --output tool-version-inventory.json || code=$?
+      # Exit 3 means the record exists but the inventory is incomplete; the
+      # agent must still read that record and report the missing data.
+      if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+        exit "$code"
+      fi
   - name: Bootstrap the repository-pinned Bingo
     env:
       GOTOOLCHAIN: local

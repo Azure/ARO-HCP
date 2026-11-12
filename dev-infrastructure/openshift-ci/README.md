@@ -47,9 +47,9 @@ including their host-platform build settings.
 Tool updates are serialized against existing agent-owned tool-update PRs.
 Human PRs and unrelated automation do not block daily updates. Published PRs
 use the existing CI/Tide auto-merge path.
-The read-only `python3 .github/scripts/tool_version_inventory.py` preflight is
-the authority for current/latest/status reporting; missing data is an error,
-and an outdated family deferred by single-flight or checks is never current.
+The read-only `depctl inventory` preflight is the authority for
+current/latest/status reporting; missing data is an error, and an outdated
+family deferred by single-flight or checks is never current.
 
 Checks use the proposed tool: bicep compiles the committed golden fixtures,
 promtool runs the Prometheus rule generator's consumer tests, and Bingo updates build their tools

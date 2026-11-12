@@ -53,18 +53,32 @@ func (r *CLiResolver) LatestRelease(ctx context.Context, repository string) (str
 	if err := command.Run(); err != nil {
 		return "", fmt.Errorf("gh api releases for %s: %w: %s", repository, err, strings.TrimSpace(stderr.String()))
 	}
-	var release struct {
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
-		TagName    string `json:"tag_name"`
-	}
-	if err := json.Unmarshal(stdout.Bytes(), &release); err != nil {
+	var release map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &release); err != nil || release == nil {
 		return "", fmt.Errorf("decode release for %s: %w", repository, err)
 	}
-	if release.Draft || release.Prerelease || release.TagName == "" {
+	// Missing or null stability fields are not stable evidence: decoding them
+	// into plain booleans would silently accept an incomplete response.
+	for _, field := range []string{"draft", "prerelease"} {
+		raw, present := release[field]
+		if !present || isNullJSON(raw) {
+			return "", fmt.Errorf("latest release for %s is missing or not stable", repository)
+		}
+		var value bool
+		if err := json.Unmarshal(raw, &value); err != nil || value {
+			return "", fmt.Errorf("latest release for %s is missing or not stable", repository)
+		}
+	}
+	var tag string
+	if err := json.Unmarshal(release["tag_name"], &tag); err != nil || tag == "" {
 		return "", fmt.Errorf("latest release for %s is missing or not stable", repository)
 	}
-	return strings.TrimPrefix(release.TagName, "v"), nil
+	return strings.TrimPrefix(tag, "v"), nil
+}
+
+// Reports whether a raw JSON value is explicitly null.
+func isNullJSON(raw json.RawMessage) bool {
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
 }
 
 // LatestModule returns the newest module version known to the Go toolchain.
