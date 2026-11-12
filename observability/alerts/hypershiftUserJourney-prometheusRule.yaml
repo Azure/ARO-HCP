@@ -23,7 +23,7 @@ spec:
     labels:
       component: slo
     rules:
-    - alert: userJourneyControlPlaneOperatorAvailabilityDown
+    - alert: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
       expr: |
         max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0
         and on (cluster, namespace)
@@ -40,4 +40,4 @@ spec:
           Management Cluster: {{ $labels.cluster }}
           Namespace: {{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        correlationId: "userJourneyHypershiftControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}"

@@ -24,10 +24,10 @@ tests:
     values: "0+0x60"
   alert_rule_test:
   - eval_time: 5m
-    alertname: userJourneyControlPlaneOperatorAvailabilityDown
+    alertname: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
     exp_alerts: []
   - eval_time: 15m
-    alertname: userJourneyControlPlaneOperatorAvailabilityDown
+    alertname: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
     exp_alerts:
     - exp_labels:
         severity: "3"
@@ -43,4 +43,4 @@ tests:
           Management Cluster: mc1
           Namespace: ocm-prefix-1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyControlPlaneOperatorAvailabilityDown/mc1/ocm-prefix-1"
+        correlationId: "userJourneyHypershiftControlPlaneOperatorAvailabilityDown/mc1/ocm-prefix-1"

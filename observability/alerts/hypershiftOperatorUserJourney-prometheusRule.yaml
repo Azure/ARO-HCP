@@ -16,6 +16,7 @@ spec:
     rules:
     # Unavailable pods = desired - available; max by (cluster) dedupes KSM/HA replicas.
     # Both tiers are Sev 3; PodsDown fires sooner for larger outages.
+    # Share a per-cluster correlation ID so overlapping tiers open one incident.
     - alert: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
       expr: |
         max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
@@ -49,7 +50,7 @@ spec:
           {{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
           Management Cluster: {{ $labels.cluster }}
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsDown/{{ $labels.cluster }}"
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsUnavailable/{{ $labels.cluster }}"
     # Require HostedClusters so empty management clusters do not alert.
     # Missing reconcile telemetry leaves pod outages to the availability alerts.
     - alert: userJourneyHypershiftOperatorTrafficIdle

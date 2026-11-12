@@ -5636,7 +5636,7 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
-  alert: userJourneyControlPlaneOperatorAvailabilityDown
+  alert: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
   occurrence: 1
   input: max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0
   plan:
@@ -10060,7 +10060,7 @@
         unsupported: ""
 - source: observability/alerts/hypershiftUserJourney-prometheusRule.yaml
   group: hypershift-cpo-monitor-rules
-  alert: userJourneyControlPlaneOperatorAvailabilityDown
+  alert: userJourneyHypershiftControlPlaneOperatorAvailabilityDown
   occurrence: 1
   input: |
     max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0

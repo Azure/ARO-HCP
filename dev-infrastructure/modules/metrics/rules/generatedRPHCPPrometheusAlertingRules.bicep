@@ -150,7 +150,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
             }
           }
         ]
-        alert: 'userJourneyControlPlaneOperatorAvailabilityDown'
+        alert: 'userJourneyHypershiftControlPlaneOperatorAvailabilityDown'
         enabled: true
         labels: {
           component: 'slo'
@@ -159,7 +159,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
           slo: 'control-plane-operator-availability'
         }
         annotations: {
-          correlationId: 'userJourneyControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          correlationId: 'userJourneyHypershiftControlPlaneOperatorAvailabilityDown/{{ $labels.cluster }}/{{ $labels.namespace }}'
           description: '''control-plane-operator has had no available pods for 10 minutes.
 Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}

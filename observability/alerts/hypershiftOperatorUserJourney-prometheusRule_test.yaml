@@ -83,7 +83,23 @@ tests:
           2 hypershift-operator pods have been unavailable for 5 minutes.
           Management Cluster: mc1
         runbook_url: https://aka.ms/arohcp-runbook-hypershift
-        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsDown/mc1"
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsUnavailable/mc1"
+  - eval_time: 20m
+    alertname: userJourneyHypershiftOperatorAvailabilityPodsDown
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+        component: slo
+        cluster: mc1
+      exp_annotations:
+        summary: "hypershift-operator pods down"
+        description: |
+          2 hypershift-operator pods have been unavailable for 5 minutes.
+          Management Cluster: mc1
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "userJourneyHypershiftOperatorAvailabilityPodsUnavailable/mc1"
   - eval_time: 20m
     alertname: userJourneyHypershiftOperatorAvailabilityPodsUnavailable
     exp_alerts:
