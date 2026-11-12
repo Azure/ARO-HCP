@@ -43,7 +43,7 @@ export TS=$(date +%Y%m%d%H%M%S)
 
 ## 1. Taking a backup
 
-Backups are taken on a schedule, at least hourly.
+The production cadence includes six-hourly, daily, and weekly backup schedules.
 ```bash
 # List backup schedules
 kubectl get schedules -n velero | grep "${HC_NS}"
@@ -107,8 +107,8 @@ Identifying the proper backup is a two step process.
 kubectl get backup -n velero | grep "${HC_NS}"
 
 # Backups created from a schedule are named <schedule-name>-<YYYYMMDDHHMMSS>, where
-# <schedule-name> is ${HC_NS}-<hourly|daily|weekly>. For example:
-#   ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-hourly-20260824180909
+# <schedule-name> is ${HC_NS}-<6-hourly|daily|weekly>. For example:
+#   ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-6-hourly-20260824180009
 
 # list backups by creationTimestamp
 kubectl get backup -n velero --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[?(@.status.phase=="Completed")].metadata.name}'
@@ -217,7 +217,7 @@ kubectl get schedules -n velero | grep "${HC_NS}"
 ```
 NAME                                                     STATUS    SCHEDULE      LASTBACKUP   AGE   PAUSED
 ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-daily    Enabled   0 2 * * *                  36m   true
-ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-hourly   Enabled   0 */1 * * *                36m   true
+ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-6-hourly Enabled   0 */6 * * *                36m   true
 ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-weekly   Enabled   0 3 * * 0                  36m   true
 ```
 
@@ -239,7 +239,7 @@ The response carries per-schedule detail; every schedule should report
 {
   "state": "Disabled",
   "schedules": [
-    {"name": "...-hourly", "lastBackupTime": "2026-05-27T02:00:15Z", "phase": "Enabled", "backupExecutionState": "Paused"},
+    {"name": "...-6-hourly", "lastBackupTime": "2026-05-27T00:00:15Z", "phase": "Enabled", "backupExecutionState": "Paused"},
     {"name": "...-daily",  "lastBackupTime": "2026-05-27T02:00:00Z", "phase": "Enabled", "backupExecutionState": "Paused"},
     {"name": "...-weekly", "lastBackupTime": "2026-05-25T03:00:00Z", "phase": "Enabled", "backupExecutionState": "Paused"}
   ]
@@ -625,7 +625,7 @@ kubectl get schedules -n velero | grep "${HC_NS}"
 ```
 NAME                                                     STATUS    SCHEDULE      LASTBACKUP   AGE   PAUSED
 ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-daily    Enabled   0 2 * * *                  36m
-ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-hourly   Enabled   0 */1 * * *                36m
+ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-6-hourly Enabled   0 */6 * * *                36m
 ocm-arohcppers-2sd1pej7kdkk1qvccoiqq534ae1knhh4-weekly   Enabled   0 3 * * 0                  36m
 ```
 

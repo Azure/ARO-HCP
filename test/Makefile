@@ -52,12 +52,12 @@ update: bicep-fixtures update-go-fixtures
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
-$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
 
 PROW_JOB_EXECUTOR_SOURCES = $(shell find $(TEST_DIR) -name '*.go')
 PROW_JOB_EXECUTOR = $(TEST_DIR)prow-job-executor
-$(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum
+$(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum force-go-build
 	cd $(TEST_DIR) && go build -o $@ ./cmd/prow-job-executor
 
 build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
@@ -80,14 +80,14 @@ apply-identity-pool validate-identity-pool apply-pool-assets validate-pool-asset
 
 apply-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		--asset e2e_identities \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: apply-identity-pool
 
 apply-pool-assets: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		$${ASSET:+--asset "$$ASSET"} \
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
@@ -98,14 +98,14 @@ apply-pool-assets: $(ARO_HCP_TESTS)
 # as apply-identity-pool.
 validate-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		--asset e2e_identities \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
 .PHONY: validate-identity-pool
 
 validate-pool-assets: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager validate-pool-assets \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, dev-xs, int, stg, prod)}" \
 		$${ASSET:+--asset "$$ASSET"} \
 		$${POOL:+--pool "$$POOL"} \
 		$${SUBSCRIPTION:+--subscription "$$SUBSCRIPTION"}
@@ -119,7 +119,7 @@ int-e2e:
 
 stage-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.stg.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
-	REGION="uksouth" \
+	REGION="westus3" \
 	ENVIRONMENT="stg" \
 	$(MAKE) e2e
 
@@ -143,3 +143,7 @@ e2e: $(PROW_JOB_EXECUTOR)
 	DRY_RUN="false" \
 	GATE_PROMOTION="true" \
 	./execute-prow-job.sh
+
+# Always consult Go's build cache, including for dependency-only changes.
+.PHONY: force-go-build
+force-go-build:

@@ -83,9 +83,9 @@ go test ./util/alertdiagnostics -run TestRepositoryCorpus -v
 ```
 
 The corpus test logs counts and every unsupported reason. After semantic review:
-477 alert occurrences from 42 files (191 YAML, 286 Bicep), 52 inputs containing
-`unless`, including 15 generated subscription exclusions; 703 conditions,
-746 diagnostic queries, no parse/type errors, and five fallback conditions.
+465 alert occurrences from 41 files (185 YAML, 280 Bicep), 58 inputs containing
+`unless`, including 15 generated subscription exclusions; 677 conditions,
+718 diagnostic queries, no parse/type errors, and five fallback conditions.
 All 29 formerly unsupported set/comparison cases are extracted: 12 backend
 async-operation source alerts and their 12 generated variants, two access-cluster
 stuck-operation variants, and three `KubeNodeUnreachable` variants. Elapsed-time

@@ -97,6 +97,11 @@
           "minLength": 1,
           "description": "Comma-separated Entra object IDs that own CI-managed applications and service principals"
         },
+        "entraAppOwnersGroupId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Object ID of the Entra group (aro-hcp-owners) whose members entraAppOwnerIds must list"
+        },
         "global": {
           "type": "object",
           "properties": {
@@ -272,13 +277,19 @@
               "type": "object",
               "description": "Tenant quota collector configuration",
               "properties": {
+                "exitOnPanic": { "type": "boolean", "default": false, "description": "Exit on a recovered controller panic instead of logging it and continuing" },
                 "image": { "$ref": "#/$defs/Image" },
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
                 "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
+                "ciFailurePatterns": { "$ref": "#/$defs/CIFailurePatternsConfig" },
                 "tenants": {
-                  "type": "array",
-                  "description": "List of Azure AD tenants to monitor for directory and subscription quota",
-                  "items": { "$ref": "#/$defs/TenantQuotaConfig" }
+                  "type": "object",
+                  "description": "Azure AD tenants to monitor for directory and subscription quota, keyed by tenant key (redHat0 is rendered by the tenant-quota chart from ci.<env>; testTestAro lists its own subscription)",
+                  "properties": {
+                    "redHat0": { "$ref": "#/$defs/TenantQuotaConfig" },
+                    "testTestAro": { "$ref": "#/$defs/TenantQuotaConfig" }
+                  },
+                  "additionalProperties": false
                 }
               }
             },
@@ -387,6 +398,13 @@
     "CI": {
       "type": "object",
       "description": "Per-environment CI bot identity and subscription inventory",
+      "properties": {
+        "e2eSubscriptionProviders": {
+          "type": "string",
+          "description": "CSV of Azure resource provider namespaces to register on every ARO-HCP-managed E2E subscription",
+          "pattern": "^[a-zA-Z0-9.]+(,[a-zA-Z0-9.]+)*$"
+        }
+      },
       "additionalProperties": {
         "$ref": "#/$defs/CIEnvironment"
       }
@@ -399,31 +417,35 @@
           "$ref": "#/$defs/CIBot"
         },
         "e2eSubscriptions": {
-          "type": "array",
-          "description": "Customer testing subscriptions where the bot gets RBAC and E2E tests run",
-          "items": {
-            "$ref": "#/$defs/SubscriptionReference"
-          }
+          "type": "string",
+          "description": "CSV of SubscriptionID=DisplayName for customer testing subscriptions where the bot gets RBAC and E2E tests run",
+          "pattern": "^[a-zA-Z0-9-]+=[^,='\"\\\\$`]+(,[a-zA-Z0-9-]+=[^,='\"\\\\$`]+)*$"
         },
         "infrastructureSubscriptions": {
-          "type": "array",
-          "description": "Infrastructure subscriptions where the bot gets RBAC (DEV-only)",
-          "items": {
-            "$ref": "#/$defs/InfraSubscriptionReference"
-          }
+          "type": "string",
+          "description": "CSV of SubscriptionID=DisplayName for infrastructure subscriptions where the bot gets RBAC (DEV-only)",
+          "pattern": "^[a-zA-Z0-9-]+=[^,='\"\\\\$`]+(,[a-zA-Z0-9-]+=[^,='\"\\\\$`]+)*$"
         },
-        "dashboardRegions": {
-          "type": "array",
-          "description": "Azure regions charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
-          "items": {
-            "type": "string"
-          }
+        "infrastructureSubscriptionsGlobals": {
+          "type": "string",
+          "description": "CSV of infrastructure subscription IDs marking where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) there",
+          "pattern": "^([a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*)?$"
+        },
+        "infrastructureSubscriptionsCostTags": {
+          "type": "string",
+          "description": "CSV of infrastructure subscription IDs on which Cost Management tag inheritance is enabled (DEV E2E infrastructure)",
+          "pattern": "^([a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*)?$"
+        },
+        "regions": {
+          "type": "string",
+          "description": "CSV of Azure regions monitored by the tenant-quota collector and charted on this environment's DEV CI quota dashboard (see tooling/tenant-quota/dashboards.bicep); shared by every subscription in e2eSubscriptions/infrastructureSubscriptions for this environment",
+          "pattern": "^[a-z0-9]+(,[a-z0-9]+)*$"
         },
         "mockIdentities": {
           "$ref": "#/$defs/MockIdentities"
         }
       },
-      "required": ["bot", "e2eSubscriptions", "dashboardRegions"]
+      "required": ["bot", "e2eSubscriptions", "regions"]
     },
     "CIBot": {
       "type": "object",
@@ -435,18 +457,6 @@
         }
       },
       "required": ["applicationName"]
-    },
-    "InfraSubscriptionReference": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "id": { "type": "string" },
-        "isGlobalSubscription": {
-          "type": "boolean",
-          "description": "Marks where shared infra lives; the bot gets extra global-only data-plane roles (Grafana Admin) here"
-        }
-      },
-      "required": ["name", "id"]
     },
     "MockIdentities": {
       "type": "object",
@@ -520,14 +530,6 @@
       },
       "required": ["appBaseName", "certBaseName", "certBaseDns", "size"]
     },
-    "SubscriptionReference": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "id": { "type": "string" }
-      },
-      "required": ["name", "id"]
-    },
     "Image": {
       "type": "object",
       "properties": {
@@ -552,20 +554,35 @@
     },
     "TenantQuotaConfig": {
       "type": "object",
-      "description": "Configuration for monitoring a single Azure AD tenant",
+      "description": "Configuration for monitoring a single Azure AD tenant. Subscriptions are either inferred from ci.<env> (when neither subscriptionName nor regions is set) or given explicitly via subscriptionName + regions",
       "properties": {
         "tenantId": { "type": "string", "description": "Azure AD tenant ID" },
         "tenantName": { "type": "string", "description": "Display name for metrics labels" },
+        "applicationName": { "type": "string", "description": "Display name of the Entra application when it is managed declaratively by the privileged dev-ci entrypoint (redHat0 only); lowercased as the application uniqueName" },
         "servicePrincipalClientId": { "type": "string", "description": "App ID of the service principal" },
         "keyVaultSecretName": { "type": "string", "description": "Key Vault secret name holding the SP client secret" },
         "directoryQuota": { "type": "boolean", "description": "Enable directory (Azure AD) quota monitoring" },
-        "subscriptions": {
-          "type": "array",
-          "description": "Subscriptions to monitor for compute/network/RBAC quota",
-          "items": { "$ref": "#/$defs/SubscriptionQuotaConfig" }
+        "subscriptionName": { "type": "string", "description": "Display name of the single subscription to monitor (tenants whose subscriptions are not inferred from ci.<env>)" },
+        "regions": {
+          "type": "string",
+          "description": "CSV of Azure regions to monitor for subscriptionName",
+          "pattern": "^[a-z0-9]+(,[a-z0-9]+)*$"
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "CIFailurePatternsConfig": {
+      "type": "object",
+      "description": "Derived CI failure pattern results computed from the raw CI test results",
+      "additionalProperties": false,
+      "properties": {
+        "results": { "$ref": "#/$defs/KustoTableConfig" },
+        "interval": { "type": "string" },
+        "workers": { "type": "integer", "minimum": 1 },
+        "cacheSize": { "type": "integer", "minimum": 1 },
+        "cacheTTL": { "type": "string" }
+      },
+      "required": ["results", "interval", "workers", "cacheSize", "cacheTTL"]
     },
     "CIJobOutcomesConfig": {
       "type": "object",
@@ -575,22 +592,27 @@
         "enabled": { "type": "boolean" },
         "kustoName": { "type": "string", "description": "Name of the Kusto cluster holding the table" },
         "kustoResourceGroup": { "type": "string", "description": "Resource group of the Kusto cluster" },
-        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read which runs are already stored" },
+        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read discovery cursors and pending runs" },
         "ingestionURI": { "type": "string", "format": "uri", "description": "Kusto ingestion URI, used to write rows" },
         "database": { "type": "string" },
         "outcomes": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding one row per CI job run" },
         "testNames": { "$ref": "#/$defs/KustoTableConfig", "description": "Dimension table holding one row per distinct test name" },
         "testResults": { "$ref": "#/$defs/KustoTableConfig", "description": "Join table holding one row per test executed in a run" },
-        "sippyURI": { "type": "string", "format": "uri", "description": "Sippy endpoint that runs are read from" },
+        "discovered": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding discovered CI jobs" },
+        "processed": { "$ref": "#/$defs/KustoTableConfig", "description": "Table holding processed CI build IDs" },
+        "gcsBucket": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "default": "test-platform-results-public", "description": "Public GCS bucket name, not a URL or path" },
         "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
-        "interval": { "type": "string", "description": "How often outcomes are recorded, as a Go duration" },
-        "timeout": { "type": "string", "description": "Bounds a single pass, as a Go duration; longer than the collector-wide timeout because a pass reads artifacts per run" },
-        "window": { "type": "string", "description": "How much recent history each pass reads, as a Go duration; runs already stored are subtracted" },
-        "releases": {
-          "type": "array",
-          "description": "Sippy releases whose runs are recorded",
-          "items": { "type": "string" }
-        }
+        "interval": { "type": "string", "default": "15m", "description": "Processing interval, as a positive Go duration" },
+        "discoveryInterval": { "type": "string", "default": "30m", "description": "GCS discovery interval, as a positive Go duration" },
+        "completionDelay": { "type": "string", "default": "15m", "description": "Delay after run completion before processing artifacts, as a positive Go duration" },
+        "window": { "type": "string", "default": "24h", "description": "Minimum lookback on startup and repair polls, as a positive Go duration" },
+        "startupSince": { "type": "string", "default": "", "anyOf": [{ "const": "" }, { "format": "date-time" }], "description": "Optional explicit RFC3339 startup boundary; bootstrap is separate" },
+        "repairInterval": { "type": "string", "default": "12h", "description": "Interval between repair polls, as a positive Go duration" },
+        "overlap": { "type": "string", "default": "10m", "description": "Lookback before each job's discovery cursor, as a positive Go duration" },
+        "workers": { "type": "integer", "minimum": 1, "default": 10, "description": "Number of concurrent CI outcome workers" },
+        "discoveryWorkers": { "type": "integer", "minimum": 1, "default": 2, "description": "Number of concurrent GCS discovery workers" },
+        "cacheSize": { "type": "integer", "minimum": 1, "default": 20000, "description": "Maximum entries in each recent-submission cache" },
+        "cacheTTL": { "type": "string", "default": "15m", "description": "Lifetime of recent-submission cache entries, as a positive Go duration" }
       },
       "required": ["enabled"]
     },
@@ -621,25 +643,12 @@
           "required": ["org", "name"]
         },
         "excludeJobs": {
-          "type": "array",
-          "description": "Exact Prow job names to exclude",
-          "items": { "type": "string" }
+          "type": "string",
+          "description": "CSV of exact Prow job names to exclude (empty for none)",
+          "pattern": "^([^,]+(,[^,]+)*)?$"
         }
       },
       "required": ["enabled", "baseURL", "interval", "retention", "repository", "excludeJobs"]
-    },
-    "SubscriptionQuotaConfig": {
-      "type": "object",
-      "description": "Configuration for monitoring quota in a single subscription",
-      "properties": {
-        "name": { "type": "string", "description": "Subscription display name (used to resolve the subscription ID at runtime)" },
-        "regions": {
-          "type": "array",
-          "description": "Azure regions to monitor for regional quotas",
-          "items": { "type": "string" }
-        }
-      },
-      "required": ["name", "regions"]
     }
   }
 }

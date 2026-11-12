@@ -101,7 +101,7 @@ September 15 and 16. Specify both `--from YYYY-MM-DD` and `--to YYYY-MM-DD` to
 change the interval; use the same date for a single day. Billing still may be
 revised after collection.
 
-The default exclusions recognize job-specific `hcp-underlay-ci00/ci01-jNNNNNNN`
+The default exclusions recognize job-specific `hcp-underlay-ci00/ci01/ci02-jNNNNNNN`
 groups (including AKS node groups), Kubernetes-style random12 test names and
 managed variants, and 64-character `rg-` names ending in the framework's
 eight-hex-character truncation hash. These are **name heuristics**, not an

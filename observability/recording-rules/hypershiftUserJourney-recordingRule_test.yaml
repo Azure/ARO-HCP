@@ -1,0 +1,20 @@
+rule_files:
+- hypershiftUserJourney-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  name: "Operator reconcile rate"
+  input_series:
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", controller="hc", result="success", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+9x100"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", controller="hc", result="success", cluster="mc1", prometheus_replica="r2"}'
+    values: "0+9x100"
+  - series: 'controller_runtime_reconcile_total{namespace="hypershift", pod="operator-abc", controller="hc", result="error", cluster="mc1", prometheus_replica="r1"}'
+    values: "0+3x100"
+  promql_expr_test:
+  # HA Prometheus replicas are collapsed before summing: (9 + 3) per minute = 0.2/s.
+  - expr: hypershift:operator:reconcile:rate5m
+    eval_time: 30m
+    exp_samples:
+    - labels: 'hypershift:operator:reconcile:rate5m{cluster="mc1"}'
+      value: 0.2

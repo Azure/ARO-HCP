@@ -302,6 +302,10 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
 ---
 # Source: velero-hcp-cli/templates/velero-podmonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -321,6 +325,24 @@ spec:
     port: metrics
     scheme: http
     interval: 30s
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
+    metricRelabelings:
+    # Route hcp specific Velero metrics to the HCP Azure Monitor Workspace.
+    - action: replace
+      sourceLabels: [__name__, schedule]
+      separator: ;
+      regex: 'velero_[^;]+;(ocm-[^-]+-[^-]+)-.+'
+      targetLabel: namespace
+      replacement: '${1}'
+    - action: replace
+      sourceLabels: [__name__, schedule]
+      separator: ;
+      regex: 'velero_([^;]+);ocm-[^-]+-[^-]+-.+'
+      targetLabel: __name__
+      replacement: 'velero_hcp_${1}'
 ---
 # Source: velero-hcp-cli/templates/volumesnapshotclass.yaml
 apiVersion: snapshot.storage.k8s.io/v1
@@ -375,6 +397,10 @@ data:
       name: node-agent
       namespace: velero
     spec:
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 100%
       template:
         spec:
           priorityClassName: service-lifecycle-critical

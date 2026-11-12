@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -146,6 +148,8 @@ func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 
 	return controller
 }
@@ -174,6 +178,8 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) needsWork(servicePr
 }
 
 func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
@@ -230,8 +236,11 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 		return utils.TrackError(fmt.Errorf("failed to get User Assigned Identities Client: %w", err))
 	}
 
+	// Sort identity resource IDs for deterministic processing order.
+	sortedIdentityResourceIDStrs := slices.Sorted(maps.Keys(identitiesToSync))
+
 	errs := []error{}
-	for identityResourceIDStr := range identitiesToSync {
+	for _, identityResourceIDStr := range sortedIdentityResourceIDStrs {
 		resourceID, err := azcorearm.ParseResourceID(identityResourceIDStr)
 		if err != nil {
 			// We should never get a nil ResourceID from uniqueDataPlaneOperatorResourceIDs because it's built from
@@ -248,11 +257,13 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 		if azureclient.IsResourceNotFoundErr(err) {
 			// The identity is not found in Azure. Keep the entry so the ServiceProviderCluster
 			// still lists the customer-configured identity, but clear ClientID/PrincipalID and
-			// record why they are nil in RetrievalError. This is an expected, potentially
-			// transient state rather than a sync failure, so it is not accumulated into errs.
+			// record why they are nil in RetrievalError. This is an expected, potentially transient state rather than a sync
+			// failure, so it is not accumulated into errs and therefore never reaches
+			// ReportSyncError's logging. We log it here so it's logged in an unaltered form.
+			logger.Info("Data Plane Operator Managed Identity not found in Azure", "managedIdentityResourceID", identityResourceIDStr, "error", err.Error())
 			replacementIdentity.ClientID = nil
 			replacementIdentity.PrincipalID = nil
-			replacementIdentity.RetrievalError = truncateRetrievalError(err.Error())
+			replacementIdentity.RetrievalError = redactAndTruncateRetrievalErrorMessage(err.Error())
 			continue
 		}
 		if err != nil {
@@ -260,10 +271,11 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 			// resolved values are no longer trustworthy, and record the (truncated) error in
 			// RetrievalError. Accumulate the failure and keep going so successfully resolved
 			// identities can still be persisted; the accumulated error is returned so the
-			// workqueue retry re-queries Azure.
+			// workqueue retry re-queries Azure. It will be logged once, unredacted, when the
+			// accumulated sync error reaches ReportSyncError.
 			replacementIdentity.ClientID = nil
 			replacementIdentity.PrincipalID = nil
-			replacementIdentity.RetrievalError = truncateRetrievalError(err.Error())
+			replacementIdentity.RetrievalError = redactAndTruncateRetrievalErrorMessage(err.Error())
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to get Data Plane Operator Managed Identity %s: %w", identityResourceIDStr, err)))
 			continue
 		}
@@ -353,10 +365,16 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) desiredDataPlaneOpe
 	return true
 }
 
-// truncateRetrievalError returns a pointer to errMsg truncated to at most
-// maxRetrievalErrorLength runes so multi-byte UTF-8 sequences are never split. It bounds
-// the size of the per-identity RetrievalError persisted on the ServiceProviderCluster.
-func truncateRetrievalError(errMsg string) *string {
+// redactAndTruncateRetrievalErrorMessage redacts dynamic fields (AADSTS/ARM/Cluster Service
+// timestamps, trace and correlation IDs, retry-after durations) from errMsg and returns a
+// pointer to the result truncated to at most maxRetrievalErrorLength runes so multi-byte UTF-8
+// sequences are never split. Redaction keeps a retry of the same underlying failure from
+// persisting a different RetrievalError on every sync, which would otherwise write-amplify
+// through the ServiceProviderCluster document the same way described on
+// controllerutils.RedactDynamicSyncErrorMessageFields. Truncation bounds the size of the
+// per-identity RetrievalError persisted on the ServiceProviderCluster.
+func redactAndTruncateRetrievalErrorMessage(errMsg string) *string {
+	errMsg = controllerutils.RedactDynamicSyncErrorMessageFields(errMsg)
 	if runes := []rune(errMsg); len(runes) > maxRetrievalErrorLength {
 		errMsg = string(runes[:maxRetrievalErrorLength])
 	}

@@ -89,6 +89,9 @@ func NewTriggerControlPlaneUpgradeController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.OperationStatusResourceType, "*")
 
 	return controller
 }
@@ -169,10 +172,13 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing control plane upgrade policies from Cluster Service
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
 	iterator := c.clusterServiceClient.ListControlPlaneUpgradePolicies(clusterServiceID, "creation_timestamp desc")
 
 	// Only create a new upgrade policy if the latest created policy doesn't match the desired version
-	for policy := range iterator.Items(ctx) {
+	for policy := range iterator.Items(csCtx) {
 		// Only check the first (latest) policy
 		if latestPolicyVersion, ok := policy.GetVersion(); ok {
 			if latestPolicyVersion == desiredVersion.String() {
@@ -189,7 +195,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 	// Create a new control plane upgrade policy for the desired version
 	logger.Info("Creating control plane upgrade policy", "desiredVersion", desiredVersion)
 
-	_, policyErr := c.clusterServiceClient.PostControlPlaneUpgradePolicy(ctx, clusterServiceID, arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version(desiredVersion.String()))
+	_, policyErr := c.clusterServiceClient.PostControlPlaneUpgradePolicy(csCtx, clusterServiceID, arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version(desiredVersion.String()))
 	if policyErr != nil {
 		return utils.TrackError(fmt.Errorf("failed to create control plane upgrade policy: %w", policyErr))
 	}

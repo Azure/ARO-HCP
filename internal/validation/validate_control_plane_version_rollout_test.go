@@ -48,6 +48,11 @@ func TestValidateControlPlaneVersionRollout(t *testing.T) {
 	} {
 		t.Run(tc.channel, func(t *testing.T) {
 			rollout := &fleetapi.ControlPlaneVersionRollout{}
+			if tc.valid {
+				profile, err := fleetapihelpers.RolloutVersionFromName(tc.channel)
+				require.NoError(t, err)
+				rollout.Spec.Version = profile
+			}
 			if tc.channel != "" {
 				id, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID(tc.channel)
 				require.NoError(t, err)
@@ -62,10 +67,35 @@ func TestValidateControlPlaneVersionRollout(t *testing.T) {
 						require.Empty(t, errs)
 					} else {
 						require.Len(t, errs, 1)
-						require.Equal(t, "cosmosMetadata.resourceID", errs[0].Field)
+						if tc.channel == "" {
+							require.Equal(t, "cosmosMetadata.resourceID", errs[0].Field)
+						} else {
+							require.Equal(t, "spec.version", errs[0].Field)
+						}
 					}
 				})
 			}
 		})
+	}
+}
+
+func TestValidateRolloutVersionUpdates(t *testing.T) {
+	id, err := fleetapihelpers.ToControlPlaneVersionRolloutResourceID("stable-4.21")
+	require.NoError(t, err)
+	legacy := &fleetapi.ControlPlaneVersionRollout{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id}}
+	populated := legacy.DeepCopy()
+	populated.Spec.Version = coreapi.VersionProfile{ID: "4.21", ChannelGroup: "stable"}
+	require.Empty(t, ValidateControlPlaneVersionRolloutUpdate(t.Context(), populated, legacy), "backfill must be allowed")
+	for _, profile := range []coreapi.VersionProfile{
+		{},
+		{ID: "4.21"},
+		{ChannelGroup: "stable"},
+		{ID: "4.22", ChannelGroup: "stable"},
+		{ID: "4.21", ChannelGroup: "fast"},
+	} {
+		next := populated.DeepCopy()
+		next.Spec.Version = profile
+		require.NotEmpty(t, ValidateControlPlaneVersionRolloutCreate(t.Context(), next))
+		require.NotEmpty(t, ValidateControlPlaneVersionRolloutUpdate(t.Context(), next, populated), "writers cannot clear or mismatch the profile")
 	}
 }

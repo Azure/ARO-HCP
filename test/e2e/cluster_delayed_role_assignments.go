@@ -42,6 +42,7 @@ var _ = Describe("ARO HCP Service", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
+		labels.StartPriority(20),
 		func(ctx context.Context) {
 			const (
 				customerNsgName        = "customer-nsg-name"
@@ -221,9 +222,9 @@ var _ = Describe("ARO HCP Service", func() {
 					lastEventuallyState = state
 				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
-					"cluster entered terminal Failed state after role assignment deployment")
-				g.Expect(state).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
-					"cluster has not yet reached Succeeded state")
+					"cluster %s/%s entered terminal state %q after role assignment deployment; expected %q", *resourceGroup.Name, customerClusterName, state, hcpsdk20251223preview.ProvisioningStateSucceeded)
+				g.Expect(state).To(BeComparableTo(hcpsdk20251223preview.ProvisioningStateSucceeded),
+					"cluster %s/%s has state %q; waiting for %q", *resourceGroup.Name, customerClusterName, state, hcpsdk20251223preview.ProvisioningStateSucceeded)
 			}, clusterCreationTimeout-consistentlyLoopDuration, 30*time.Second).Should(Succeed(),
 				"cluster should eventually succeed after role assignments are created")
 

@@ -49,6 +49,7 @@ type sharedIngressReportingSyncer struct {
 func NewSharedIngressReportingController(
 	readDesireNotifier controllerutils.Notifier,
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
@@ -62,11 +63,14 @@ func NewSharedIngressReportingController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		SharedIngressReportingControllerName,
+		stampInformer,
+		sharedIngressReportingResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(sharedIngressReportingResyncPeriod, readDesireNotifier, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, readDesireNotifier, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 

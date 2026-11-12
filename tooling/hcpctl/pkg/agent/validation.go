@@ -164,14 +164,22 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 				),
 			})
 		}
-		if draft.Classification.Confidence < 0 || draft.Classification.Confidence > 1 {
+		switch confidence := draft.Classification.Confidence; {
+		case confidence == nil:
+			problems = append(problems, ValidationProblem{
+				Category: "missing_confidence",
+				Chain:    -1,
+				Proof:    -1,
+				Detail:   "- The classification confidence is missing. Set confidence to a value between 0 and 1.",
+			})
+		case *confidence < 0 || *confidence > 1:
 			problems = append(problems, ValidationProblem{
 				Category: "invalid_confidence",
 				Chain:    -1,
 				Proof:    -1,
 				Detail: fmt.Sprintf(
 					"- The classification confidence must be between 0 and 1, got %g.",
-					draft.Classification.Confidence,
+					*confidence,
 				),
 			})
 		}

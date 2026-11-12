@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
@@ -35,7 +37,7 @@ import (
 
 // testFeatureOptions creates validation options from feature names,
 // matching production behavior by normalizing to lowercase.
-func testFeatureOptions(names ...string) []string {
+func testFeatureOptions(names ...string) map[string]bool {
 	features := make([]coreapi.Feature, len(names))
 	for i, name := range names {
 		features[i] = coreapi.Feature{
@@ -54,7 +56,7 @@ func TestValidateClusterCreate(t *testing.T) {
 	tests := []struct {
 		name         string
 		cluster      *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -100,24 +102,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
+			name: "OpenShift 5.0 stable allowed on create without experimental release features",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
-		},
-		{
-			name: "OpenShift 5 allowed with experimental release features - create",
-			cluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "5.0"
-				return c
-			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
@@ -528,10 +519,11 @@ func TestValidateClusterCreate(t *testing.T) {
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
 						// Visibility is omitted (empty string) - EnsureDefaults will fill it in before validation
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -556,11 +548,12 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: "InvalidVisibility",
+						Visibility:   "InvalidVisibility",
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -578,11 +571,12 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -597,16 +591,86 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
 				return c
 			}(),
+		},
+		{
+			name: "invalid kms key version - incorrectly passes full URL instead of version - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://test-vault.vault.azure.net/keys/test-key/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "invalid kms key version - non-hex string - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "not-a-valid-hex-version-string",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
+		},
+		{
+			name: "invalid kms key version - full URL - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "https://vault.azure.net/keys/name/4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a 32-character hexadecimal key version", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
+			},
 		},
 		{
 			name: "invalid cluster image registry state - create",
@@ -858,7 +922,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		},
 		{
 			name:      "vnet integration subnet is optional in 20240610 - create",
-			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview)},
+			opOptions: map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20240610Preview): true},
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				// vnetIntegrationSubnetId is optional for backwards compatibility
@@ -1311,6 +1375,19 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "nightly build of the minimum release line is accepted when pinned with the tag",
+			cluster: func() *coreapi.Cluster {
+				// The build itself sorts below the minimum (4.20) in semver, but it
+				// rides on the exact-version pin; version.id carries the bare release
+				// line, which is what the minimum check sees.
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-10-01-125400")
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "unsupported ingress type Disabled - create",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
@@ -1319,6 +1396,49 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
+			},
+		},
+		{
+			name: "Managed HSM KMS on 4.22 - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "Managed HSM KMS below 4.22 rejected - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Managed HSM KMS requires OpenShift version 4.22 or later", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "KeyVault KMS below 4.22 allowed - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.21"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid KMS keyVaultType rejected - create",
+			cluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = "InvalidType"
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
 			},
 		},
 	}
@@ -1357,7 +1477,7 @@ func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOper
 		t.Run(tt.name, func(t *testing.T) {
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+				Options: map[string]bool{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption: true},
 			}
 			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
@@ -1373,7 +1493,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 		name         string
 		newCluster   *coreapi.Cluster
 		oldCluster   *coreapi.Cluster
-		opOptions    []string
+		opOptions    map[string]bool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -1542,6 +1662,24 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "nightly build of the minimum release line is accepted on update when pinned with the tag",
+			newCluster: func() *coreapi.Cluster {
+				// The build itself sorts below the minimum (4.20) in semver, but it
+				// rides on the exact-version pin; version.id carries the bare release
+				// line, which is what the minimum check sees.
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-10-01-125400")
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-09-30-125400")
+				c.CustomerProperties.Version.ChannelGroup = metadataapi.ChannelGroupNightly
 				return c
 			}(),
 			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
@@ -1869,11 +2007,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPrivate,
+						Visibility:   metadataapi.KeyVaultVisibilityPrivate,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -1885,11 +2024,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "test-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -1900,18 +2040,19 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "mutable kms key version with v20260630preview - update",
+			name: "legacy empty kms keyVaultType with explicit KeyVault default - update",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "new-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
 						},
 					},
 				}
@@ -1927,13 +2068,52 @@ func TestValidateClusterUpdate(t *testing.T) {
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "old-version",
+							Version:   "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b",
+						},
+					},
+				}
+				c.EnsureDefaults()
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "mutable kms key version with v20260630preview - update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "aabbccddeeff00112233445566778899",
 						},
 					},
 				}
 				return c
 			}(),
-			opOptions:    []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions:    map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview): true},
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
@@ -1944,11 +2124,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "new-version",
+							Version:   "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c",
 						},
 					},
 				}
@@ -1960,17 +2141,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 					Kms: &coreapi.KmsEncryptionProfile{
-						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
-							Version:   "old-version",
+							Version:   "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
 						},
 					},
 				}
 				return c
 			}(),
-			opOptions: []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview)},
+			opOptions: map[string]bool{metadataapi.APIVersionOption(metadataapi.APIVersionV20251223Preview): true},
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
 			},
@@ -2434,7 +2616,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: cross-major 4.22 to 5.0 rejected without experimental release features",
+			name: "update: cross-major 4.22 to 5.0 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.0"
@@ -2445,9 +2627,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.20 to 5.0 rejected (4.20 not in 4→5 pairing map)",
@@ -2467,22 +2647,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: cross-major 4.22 to 5.0 allowed",
-			newCluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "5.0"
-				return c
-			}(),
-			oldCluster: func() *coreapi.Cluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.22"
-				return c
-			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name: "update: cross-major 4.23 to 5.1 allowed",
+			name: "update: cross-major 4.23 to 5.1 allowed without experimental release features",
 			newCluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "5.1"
@@ -2493,7 +2658,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.23"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
@@ -2580,6 +2744,148 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
+		{
+			// The pin moves in either direction. version.id carries the release
+			// line and keeps its no-downgrade rule; which build of that line the
+			// control plane runs is the pin's business, and an experimental
+			// customer re-pinning to an earlier build is a supported workflow.
+			name:         "update: lowering the exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin("4.20.2"),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The z-stream upgrade flow: the customer raises the tag to the build
+			// they want next.
+			name:         "update: raising the exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin("4.20.5"),
+			oldCluster:   clusterWithExactVersionPin("4.20.2"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "update: unchanged exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin("4.20.5"),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Dropping the tag unpins the cluster: the control plane version
+			// controllers resolve from version.id again.
+			name:         "update: removing the exact-version pin is allowed",
+			newCluster:   clusterWithExactVersionPin(""),
+			oldCluster:   clusterWithExactVersionPin("4.20.5"),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Nightly build suffixes sort lexically by build date, so this is a
+			// decrease — and it is allowed, like any other pin movement within
+			// the release line.
+			name: "update: moving the exact-version pin back to an earlier nightly is allowed",
+			newCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-08-05-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				// Both sides share a channel group: updating it is independently
+				// forbidden, and this case is about the pin alone.
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-09-16-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// The pin may move freely within the release line version.id asks
+			// for, but not off it: the backend's update operation controller
+			// compares version.id's major.minor against the resolved desired
+			// version and would fail the operation partway through.
+			name:       "update: exact-version pin off the requested release line is rejected",
+			newCluster: clusterWithExactVersionPin("4.21.0"),
+			oldCluster: clusterWithExactVersionPin("4.21.5"),
+			opOptions:  testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must pin a build of the 4.20 release line requested by version.id, got 4.21", FieldPath: exactVersionTagFieldPath},
+			},
+		},
+		{
+			// Removing the pin from a nightly cluster leaves the control plane
+			// version controllers with a bare release line they cannot resolve
+			// against the graph.
+			name: "update: removing the exact-version pin from a nightly cluster is rejected as missing",
+			newCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := clusterWithExactVersionPin("4.20.0-0.nightly-2026-08-05-123456")
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				return c
+			}(),
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "nightly builds are not published to the update graph", FieldPath: exactVersionTagFieldPath},
+			},
+		},
+		{
+			name: "valid cluster update - unchanged KMS keyVaultType",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "immutable KMS keyVaultType - change rejected on update",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeKeyVault
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
+		{
+			name: "legacy empty KMS keyVaultType defaulted before update does not change against ManagedHSM old - rejected",
+			newCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = ""
+				c.EnsureDefaults()
+				return c
+			}(),
+			oldCluster: func() *coreapi.Cluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.22"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = coreapi.KmsKeyVaultTypeManagedHSM
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.keyVaultType"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2591,6 +2897,52 @@ func TestValidateClusterUpdate(t *testing.T) {
 	}
 }
 
+func TestValidateClusterSingleReplicaAvailability(t *testing.T) {
+	tests := []struct {
+		name            string
+		op              operation.Type
+		oldAvailability coreapi.ControlPlaneAvailability
+		newAvailability coreapi.ControlPlaneAvailability
+		wantError       bool
+	}{
+		{name: "create rejects single replica", op: operation.Create, newAvailability: coreapi.SingleReplicaControlPlane, wantError: true},
+		{name: "create accepts default availability", op: operation.Create},
+		{name: "update retains single replica", op: operation.Update, oldAvailability: coreapi.SingleReplicaControlPlane, newAvailability: coreapi.SingleReplicaControlPlane},
+		{name: "update allows opt-out", op: operation.Update, oldAvailability: coreapi.SingleReplicaControlPlane},
+		{name: "update accepts default availability", op: operation.Update},
+		{name: "regular validation leaves new update opt-in to admission", op: operation.Update, newAvailability: coreapi.SingleReplicaControlPlane},
+	}
+	for _, tt := range tests {
+		for _, registered := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/AFEC=%t", tt.name, registered), func(t *testing.T) {
+				cluster := createValidCluster()
+				cluster.ServiceProviderProperties.ExperimentalFeatures = coreapi.ExperimentalFeatures{
+					ControlPlaneAvailability: tt.newAvailability,
+					ControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
+				}
+				var oldCluster *coreapi.Cluster
+				if tt.op == operation.Update {
+					oldCluster = cluster.DeepCopy()
+					oldCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = tt.oldAvailability
+				}
+				op := operation.Operation{Type: tt.op}
+				if registered {
+					op.Options = testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures)
+				}
+				errs := ValidateCluster(t.Context(), op, cluster, oldCluster, nil)
+				var expectedErrors []utils.ExpectedError
+				if tt.wantError {
+					expectedErrors = []utils.ExpectedError{{
+						FieldPath: "serviceProviderProperties.experimentalFeatures.singleReplica",
+						Message:   "single-replica control planes cannot be enabled",
+					}}
+				}
+				utils.VerifyErrorsMatch(t, expectedErrors, errs)
+			})
+		}
+	}
+}
+
 func makeUniqueCIDRs(n int) []string {
 	cidrs := make([]string, n)
 	for i := range cidrs {
@@ -2599,6 +2951,22 @@ func makeUniqueCIDRs(n int) []string {
 		cidrs[i] = fmt.Sprintf("10.0.%d.%d", octet3, octet4)
 	}
 	return cidrs
+}
+
+// exactVersionTagFieldPath is where validateControlPlaneExactVersionPin reports:
+// the ARM tag, not version.id, since the tag is the only way to express an exact
+// version and the only thing the customer can change.
+const exactVersionTagFieldPath = "tags[aro-hcp.experimental.cluster.control-plane-exact-version]"
+
+// clusterWithExactVersionPin returns a valid cluster carrying the control-plane
+// exact-version pin that admission projects from the exact-version ARM tag. An
+// empty pin leaves the cluster unpinned.
+func clusterWithExactVersionPin(pin string) *coreapi.Cluster {
+	cluster := createValidCluster()
+	if len(pin) > 0 {
+		cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse(pin))
+	}
+	return cluster
 }
 
 // Helper function to create a valid cluster for testing
@@ -2672,7 +3040,8 @@ func createValidCluster() *coreapi.Cluster {
 	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
 		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
 		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
+			Visibility:   metadataapi.KeyVaultVisibilityPublic,
+			KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
 			ActiveKey: coreapi.KmsKey{
 				Name:      coreapitesting.TestKMSKeyName,
 				VaultName: coreapitesting.TestKMSKeyVaultName,
@@ -2717,20 +3086,6 @@ func createValidCluster() *coreapi.Cluster {
 	}
 
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL
-
-	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
-	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
-		EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
-		Kms: &coreapi.KmsEncryptionProfile{
-			Visibility: metadataapi.KeyVaultVisibilityPublic,
-			ActiveKey: coreapi.KmsKey{
-				Name:      "test-key",
-				VaultName: "test-vault",
-				Version:   "test-version",
-			},
-		},
-	}
 
 	return cluster
 }

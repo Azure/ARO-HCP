@@ -218,13 +218,13 @@ var _ = Describe("Customer", func() {
 			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "failed to verify %d ready and schedulable nodes for nodepool %s after upgrade", updateReplicas, customerNodePoolName)
 
 		},
-		Entry("from 4.20.z to 4.21.zLatest",
+		Entry("from 4.20.z to 4.21.zLatest", labels.StartPriority(60),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.21"),
-		Entry("from 4.21.z to 4.21.zLatest",
+		Entry("from 4.21.z to 4.21.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.21", "4.21"),
-		Entry("from 4.20.z to 4.20.zLatest",
+		Entry("from 4.20.z to 4.20.zLatest", labels.StartPriority(60),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.20"),
 	)
@@ -361,7 +361,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(toVersion), "nodepool %s version should be %s but got %s", customerNodePoolName, toVersion, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("z-stream upgrade without Cincinnati edge in 4.20",
+		Entry("z-stream upgrade without Cincinnati edge in 4.20", labels.StartPriority(30),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20"),
 	)
@@ -501,7 +501,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDesiredVersion, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.20.z to 4.22.zLatest",
+		Entry("from 4.20.z to 4.22.zLatest", labels.StartPriority(70),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.22"),
 	)
@@ -640,7 +640,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("z-stream downgrade from 4.21.zLatest to 4.21.zPrevious",
+		Entry("z-stream downgrade from 4.21.zLatest to 4.21.zPrevious", labels.StartPriority(30),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.21"),
 	)
@@ -780,7 +780,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.22.zLatest to 4.20.zLatest",
+		Entry("from 4.22.zLatest to 4.20.zLatest", labels.StartPriority(60),
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.22", "4.20"),
 	)

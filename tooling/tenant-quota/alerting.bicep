@@ -21,9 +21,9 @@ var e2eMaxExpiredAgeSeconds = 604800 // 7 days; TODO: tighten to 86400 (1 day)
 // Prow CI alert thresholds
 var prowHighFrequencyMinRuns = 5
 var prowScheduledMinRuns = 3
-var prowHealthcheckMaxFailureRate = '0.40'
+var prowHealthcheckMaxConsecutiveFailures = 6 // 6 runs × 2h interval = 12h sustained failure
 var prowE2EParallelMinSuccessfulRuns = 20
-var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
+var prowE2EParallelP95MaxSeconds = 10800 // 3h
 var prowCollectionMaxAgeSeconds = 900 // 15 minutes
 var prowBatchMaxConsecutiveFailures = 4
 var prowInvalidJobsMaxPercentage = '0.10'
@@ -32,8 +32,7 @@ var prowHighFrequencyRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_t
 var prowHighFrequencyFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch",result=~"failure|error"})'
 var prowScheduledRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"periodic|postsubmit"})'
 var prowScheduledFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"periodic|postsubmit",result=~"failure|error"})'
-var prowHealthcheckRuns = 'sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})'
-var prowHealthcheckFailures = 'sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"})'
+var prowHealthcheckConsecutiveFailures = 'prow_ci_job_consecutive_failures{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"}'
 
 // Prometheus Rule Group for tenant-quota alerts
 resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
@@ -153,7 +152,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         annotations: {
           summary: 'Tenant quota metrics are stale'
-          description: 'No tenant_quota_usage_percentage metrics received for 6 hours. Possible causes: (1) Collector pod is down - check: kubectl get pods -n tenant-quota, (2) Service principal token expired - run: cd tooling/tenant-quota && ./scripts/renew-sp-secret.sh --list to check expiry, then ./scripts/renew-sp-secret.sh --tenant <name> to renew, (3) Prometheus not scraping - check ServiceMonitor in tenant-quota namespace. See tooling/tenant-quota/README.md for full troubleshooting.'
+          description: 'No tenant_quota_usage_percentage metrics received for 6 hours. Possible causes: (1) Collector pod is down - check: kubectl get pods -n tenant-quota, (2) Service principal client secret expired - check with: go run ./tooling/entra-app-credentials ensure-secret --dry-run (see tooling/tenant-quota/README.md, "Check and renew a client secret"), then renew with ensure-secret --rotate, (3) Prometheus not scraping - check ServiceMonitor in tenant-quota namespace. See tooling/tenant-quota/README.md for full troubleshooting.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
@@ -451,15 +450,15 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
       {
         alert: 'ProwCIHealthcheckProvisionSuccessRateLow'
         enabled: true
-        expression: 'label_replace((${prowHealthcheckFailures} / ${prowHealthcheckRuns}), "region", "$1", "job_name", ".*-provision-(.*)") > ${prowHealthcheckMaxFailureRate} and on (job_name) ${prowHealthcheckRuns} >= ${prowHighFrequencyMinRuns}'
+        expression: 'label_replace(${prowHealthcheckConsecutiveFailures}, "region", "$1", "job_name", ".*-provision-(.*)") >= ${prowHealthcheckMaxConsecutiveFailures}'
         for: 'PT30M'
         severity: 3
         labels: {
           severity: 'warning'
         }
         annotations: {
-          summary: 'Regional Prow provision healthcheck success rate is below 60%'
-          description: 'Provision healthchecks in {{ $labels.region }} have a {{ $value | humanizePercentage }} failure rate over the 24-hour window.'
+          summary: 'Regional Prow provision healthcheck has ${prowHealthcheckMaxConsecutiveFailures}+ consecutive failures (12-hour sustained failure)'
+          description: 'Provision healthchecks in {{ $labels.region }} have {{ $value }} consecutive failures (${prowHealthcheckMaxConsecutiveFailures} failures × 2h interval = 12-hour sustained failure window).'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-region-failover.md'
         }
         actions: [
@@ -482,7 +481,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           severity: 'warning'
         }
         annotations: {
-          summary: 'Prow e2e-parallel P95 duration exceeds 2h30m'
+          summary: 'Prow e2e-parallel P95 duration exceeds 3h'
           description: '{{ $labels.job_name }} successful-run P95 duration is {{ $value | humanizeDuration }} over the 24-hour window.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }

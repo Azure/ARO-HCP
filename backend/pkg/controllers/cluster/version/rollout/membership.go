@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/fleetapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,16 +44,25 @@ func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (strin
 // whose backing Cluster is gone or deleting, or which have no
 // channel group, are not matched (there is no default channel group).
 func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
-	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
-	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
-	if !ok {
-		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
-	}
-
 	clusters, err := clusterLister.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Clusters: %w", err)
 	}
+	serviceProviderClusters, err := serviceProviderClusterLister.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ServiceProviderClusters: %w", err)
+	}
+	return filterServiceProviderClustersForChannel(ctx, clusters, serviceProviderClusters, yStreamChannel)
+}
+
+func filterServiceProviderClustersForChannel(ctx context.Context, clusters []*coreapi.Cluster, serviceProviderClusters []*coreapi.ServiceProviderCluster, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
+	logger := utils.LoggerFromContext(ctx).WithValues("ystreamChannel", yStreamChannel)
+	profile, err := fleetapihelpers.RolloutVersionFromName(yStreamChannel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid y-stream channel %q: %w", yStreamChannel, err)
+	}
+	channelGroup, minor := profile.ChannelGroup, profile.ID
+
 	// A cluster with no channel group is not defaulted to any group; it simply
 	// matches no rollout channel.
 	channelGroupByClusterID := make(map[string]string, len(clusters))
@@ -61,11 +71,6 @@ func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClust
 			continue
 		}
 		channelGroupByClusterID[strings.ToLower(cluster.ID.String())] = cluster.CustomerProperties.Version.ChannelGroup
-	}
-
-	serviceProviderClusters, err := serviceProviderClusterLister.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list ServiceProviderClusters: %w", err)
 	}
 
 	logger.Info("Matching clusters to rollout channel", "clusterCount", len(clusters), "serviceProviderClusterCount", len(serviceProviderClusters))

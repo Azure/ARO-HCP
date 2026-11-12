@@ -53,6 +53,13 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.
 	// service managed identity does not exist the request will fail.
 	uaisClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, cluster.ID.SubscriptionID)
 	if err != nil {
+		if azureclient.IsSMIClientBuilderIdentityNotFoundErr(err) {
+			return FailedValidation(
+				"ManagedIdentitiesNotFound",
+				fmt.Sprintf("Cluster's Service Managed Identity '%s' not found. Additionally, existence of the other managed identities cannot be verified because the Cluster's Service Managed Identity does not exist.", smiResourceID.String()),
+				fmt.Sprintf("failed to get user assigned identities client: %s", err),
+			)
+		}
 		return UnknownValidation(
 			"InternalError",
 			"Unable to verify managed identities existence.",
@@ -67,7 +74,7 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.
 	var notFoundMIsStrs []string
 	for _, resourceID := range clusterOperatorsMIsResourceIDs {
 		_, err := uaisClient.Get(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
-		if azureclient.IsResourceNotFoundErr(err) {
+		if azureclient.IsResourceNotFoundErr(err) || azureclient.IsAzureCoreResponseErrorHTTP404(err) {
 			notFoundMIsStrs = append(notFoundMIsStrs, resourceID.String())
 			continue
 		}

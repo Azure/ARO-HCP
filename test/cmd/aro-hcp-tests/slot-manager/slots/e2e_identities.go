@@ -38,6 +38,7 @@ type ResolvedE2EIdentitiesAsset struct {
 	ResourceGroups     []string   `yaml:"resource_groups"`
 }
 
+// Normalize identity provisioning settings and validate the leased and physical pool sizes.
 func normalizeE2EIdentities(environmentName string, pool *Pool) error {
 	asset := pool.SlotAssets.E2EIdentities
 	if asset == nil {
@@ -58,10 +59,15 @@ func normalizeE2EIdentities(environmentName string, pool *Pool) error {
 		return fmt.Errorf("environment %q pool %q has empty slot_assets.e2e_identities.resource_group_prefix", environmentName, pool.Name)
 	case asset.ResourceGroupCount <= 0:
 		return fmt.Errorf("environment %q pool %q has invalid slot_assets.e2e_identities.resource_group_count %d", environmentName, pool.Name, asset.ResourceGroupCount)
+	case pool.IdentityContainerProvisioningCount < 0 || (pool.IdentityContainerProvisioningCount > 0 && pool.IdentityContainerProvisioningCount < asset.ResourceGroupCount):
+		return fmt.Errorf("environment %q pool %q identity_container_provisioning_count must be positive and at least resource_group_count %d", environmentName, pool.Name, asset.ResourceGroupCount)
 	case pool.RegionMode == RegionModeWeighted && asset.ProvisioningRegion == "":
 		return fmt.Errorf("environment %q weighted pool %q must declare slot_assets.e2e_identities.provisioning_region", environmentName, pool.Name)
 	case pool.SlotCount > math.MaxInt/asset.ResourceGroupCount:
 		return fmt.Errorf("environment %q pool %q dedicated identity demand overflows int", environmentName, pool.Name)
+	}
+	if pool.SlotCount > math.MaxInt/pool.EffectiveIdentityContainerProvisioningCount() {
+		return fmt.Errorf("environment %q pool %q provisioned identity demand overflows int", environmentName, pool.Name)
 	}
 
 	return nil
@@ -78,6 +84,30 @@ func (p Pool) EffectiveIdentityProvisioningRegion() string {
 	return p.Region
 }
 
+// EffectiveIdentityContainerProvisioningCount is the physical pool size, not the runtime lease budget.
+func (p Pool) EffectiveIdentityContainerProvisioningCount() int {
+	if p.IdentityContainerProvisioningCount != 0 {
+		return p.IdentityContainerProvisioningCount
+	}
+	if asset := p.SlotAssets.E2EIdentities; asset != nil {
+		return asset.ResourceGroupCount
+	}
+	return 0
+}
+
+// EffectiveIdentityContainerProvisioningCount returns the physical inventory size for a slot.
+func (s ExpandedSlot) EffectiveIdentityContainerProvisioningCount() int {
+	if s.IdentityContainerProvisioningCount != 0 {
+		return s.IdentityContainerProvisioningCount
+	}
+	return s.IdentityContainerCount
+}
+
+// ProvisionedIdentityContainerNames includes physical reserve groups that cannot be leased.
+func (s ExpandedSlot) ProvisionedIdentityContainerNames() []string {
+	return identityContainerNames(s.IdentityContainerPrefix, s.EffectiveIdentityContainerProvisioningCount())
+}
+
 func (s ExpandedSlot) IdentityContainerNames() []string {
 	if s.Assets.E2EIdentities != nil {
 		return append([]string(nil), s.Assets.E2EIdentities.ResourceGroups...)
@@ -85,6 +115,7 @@ func (s ExpandedSlot) IdentityContainerNames() []string {
 	return nil
 }
 
+// Generate the ordered resource-group names for an identity container inventory.
 func identityContainerNames(prefix string, count int) []string {
 	names := make([]string, 0, count)
 	for i := 0; i < count; i++ {
@@ -93,6 +124,7 @@ func identityContainerNames(prefix string, count int) []string {
 	return names
 }
 
+// Validate the resolved lease against its declared identity budget and physical capacity.
 func (s ExpandedSlot) validateResolvedE2EIdentities(assetRequirement AssetRequirement) error {
 	asset := s.Assets.E2EIdentities
 	if asset == nil || len(asset.ResourceGroups) == 0 {
@@ -102,6 +134,7 @@ func (s ExpandedSlot) validateResolvedE2EIdentities(assetRequirement AssetRequir
 		return fmt.Errorf("demanded asset %q requires dedicated allocation", assetRequirement.Kind)
 	}
 	if s.IdentityContainerCount <= 0 || len(asset.ResourceGroups) != s.IdentityContainerCount ||
+		s.EffectiveIdentityContainerProvisioningCount() < s.IdentityContainerCount ||
 		strings.TrimSpace(s.IdentityContainerPrefix) == "" ||
 		!slices.Equal(asset.ResourceGroups, identityContainerNames(s.IdentityContainerPrefix, s.IdentityContainerCount)) {
 		return fmt.Errorf("resolved demanded asset %q does not match dedicated identity containers", assetRequirement.Kind)
@@ -112,10 +145,11 @@ func (s ExpandedSlot) validateResolvedE2EIdentities(assetRequirement AssetRequir
 // https://learn.microsoft.com/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 var identityResourceGroupName = regexp.MustCompile(`^[\p{L}\p{Nd}_().-]{0,89}[\p{L}\p{Nd}_()-]$`)
 
+// Validate physical inventory names and prevent overlapping dedicated identity pools.
 func (p Pool) validateE2EIdentityResourceGroups(environment string, dedicatedGroups map[string]string) error {
 	if asset := p.SlotAssets.E2EIdentities; asset != nil {
 		// Check the longest generated name without expanding the inventory.
-		name := fmt.Sprintf("%s-%0*d-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, p.SlotCount-1, defaultContainerIndexWidth, asset.ResourceGroupCount-1)
+		name := fmt.Sprintf("%s-%0*d-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, p.SlotCount-1, defaultContainerIndexWidth, p.EffectiveIdentityContainerProvisioningCount()-1)
 		if !identityResourceGroupName.MatchString(name) {
 			return fmt.Errorf("environment %q pool %q has invalid identity resource group name %q from resource_group_prefix: must be at most 90 characters using letters, decimal digits, underscores, hyphens, periods or parentheses", environment, p.Name, name)
 		}

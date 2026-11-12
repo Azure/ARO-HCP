@@ -51,7 +51,7 @@ func TestTokenBucketDebtAndRefill(t *testing.T) {
 		require.NoError(t, bucket.Wait(ctx))
 		require.Equal(t, 15250*time.Millisecond, time.Since(start))
 		require.Len(t, logs, 1)
-		require.Contains(t, logs[0], "rate limited")
+		require.Contains(t, logs[0], "Client-side rate limiting active")
 		require.Contains(t, logs[0], "cleanup")
 		require.Contains(t, logs[0], "15.25s")
 

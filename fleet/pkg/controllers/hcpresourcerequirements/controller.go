@@ -18,6 +18,9 @@ package hcpresourcerequirements
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +33,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -161,42 +165,77 @@ func (c *Controller) syncOnce(ctx context.Context) error {
 		reports = append(reports, report)
 	}
 
-	averageUsage, averageRequests, sampleSize := computeAverageRequirements(reports)
+	configurations := map[string]struct{}{fleetapi.HCPResourceRequirementsResourceName: {}}
+	for _, report := range reports {
+		for _, bucket := range report.Status.HostedControlPlanes.ByClusterSizingConfiguration {
+			configurations[bucket.Size] = struct{}{}
+		}
+	}
+	existing, err := c.fleetDBClient.GlobalListers().HCPResourceRequirements().List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, document := range existing.Items(ctx) {
+		configurations[document.ResourceID.Name] = struct{}{}
+	}
+	if err := existing.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
+	names := make([]string, 0, len(configurations))
+	for name := range configurations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	now := metav1.Now()
+	var persistenceErrors []error
+	for _, name := range names {
+		averageUsage, averageRequests, sampleSize := computeConfigurationRequirements(reports, name)
 
-	condition := metav1.Condition{
-		Type:   fleetapi.ConditionTypeDataCurrent,
-		Reason: "Computed",
-	}
-	if sampleSize > 0 {
-		condition.Status = metav1.ConditionTrue
-	} else {
-		condition.Status = metav1.ConditionFalse
-		condition.Reason = "NoData"
-		condition.Message = "No management clusters with current capacity data and ready HCPs"
-	}
+		condition := metav1.Condition{
+			Type:   fleetapi.ConditionTypeSamplesAvailable,
+			Reason: "Computed",
+		}
+		if sampleSize > 0 {
+			condition.Status = metav1.ConditionTrue
+		} else {
+			condition.Status = metav1.ConditionFalse
+			condition.Reason = "NoSamples"
+			condition.Message = "No eligible ready-HCP samples with population resource totals"
+		}
 
-	return c.persist(ctx, averageUsage, averageRequests, sampleSize, &now, condition)
+		if err := c.persist(ctx, name, averageUsage, averageRequests, sampleSize, &now, condition); err != nil {
+			persistenceErrors = append(persistenceErrors, fmt.Errorf("persist requirements for configuration %q: %w", name, err))
+		}
+	}
+	return errors.Join(persistenceErrors...)
 }
 
 func (c *Controller) persist(
 	ctx context.Context,
+	name string,
 	averageUsage, averageRequests corev1.ResourceList,
 	sampleSize int,
 	now *metav1.Time,
 	condition metav1.Condition,
 ) error {
-	existing, err := fleetcosmosstorage.GetOrCreateHCPResourceRequirements(ctx, c.fleetDBClient, fleetapi.HCPResourceRequirementsResourceName)
+	existing, err := fleetcosmosstorage.GetOrCreateHCPResourceRequirements(ctx, c.fleetDBClient, name)
 	if err != nil {
 		return err
 	}
 
 	updated := existing.DeepCopy()
+	meta.RemoveStatusCondition(&updated.Status.Conditions, "DataCurrent")
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.LastReportedAt = now
+	if sampleSize == 0 {
+		averageUsage, averageRequests = nil, nil
+	}
 	updated.Status.AverageUsage = averageUsage
 	updated.Status.AverageRequests = averageRequests
 	updated.Status.SampleSize = sampleSize
+	if !controllerutils.NeedsUpdate(existing, updated) {
+		return nil
+	}
+	updated.Status.LastUpdatedAt = now
 
 	if _, err := c.fleetDBClient.HCPResourceRequirements().Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)

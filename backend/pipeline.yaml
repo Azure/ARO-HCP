@@ -108,10 +108,10 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: regionalOidcStorageAccountBlobEndpoint
-      regionalOidcStorageAccountWebEndpoint:
+      oidcIssuerBaseUrl:
         resourceGroup: service
         step: output
-        name: regionalOidcStorageAccountWebEndpoint
+        name: oidcIssuerBaseUrl
       ocpAcrResourceId:
         resourceGroup: global
         step: output

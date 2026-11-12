@@ -33,7 +33,7 @@ func TestClusterSwiftNetworking(t *testing.T) {
 		metadataapi.APIVersionV20251223Preview,
 		metadataapi.APIVersionV20260630Preview,
 		metadataapi.APIVersionV20260901Preview,
-		metadataapi.APIVersionV20261001Preview,
+		metadataapi.APIVersionV20261001,
 	}
 	tests := []struct {
 		name           string
@@ -114,9 +114,9 @@ func TestClusterSwiftNetworking(t *testing.T) {
 				if tt.tag != nil {
 					cluster.Tags = map[string]string{key: *tt.tag}
 				}
-				op := operation.Operation{Type: operation.Create, Options: []string{metadataapi.APIVersionOption(version)}}
+				op := operation.Operation{Type: operation.Create, Options: map[string]bool{metadataapi.APIVersionOption(version): true}}
 				if tt.enrolled {
-					op.Options = append(op.Options, metadataapi.FeatureExperimentalReleaseFeatures)
+					op.Options[metadataapi.FeatureExperimentalReleaseFeatures] = true
 				}
 				var oldCluster *coreapi.Cluster
 				if tt.update {

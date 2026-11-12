@@ -30,8 +30,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcomputefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
-	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
+	armcontainerservicefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9/fake"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
@@ -45,6 +45,7 @@ func memoryBytes(value string) int64 {
 func testSystemPool() compute.Pool {
 	return compute.Pool{
 		Role:              compute.PoolRoleSystem,
+		AgentPoolMode:     armcontainerservice.AgentPoolModeSystem,
 		Name:              "s1abc1234567",
 		Spec:              compute.VMSpec{Size: "Standard_D4ds_v6", Family: "standardDDSv6Family", VCPUs: 4, MemoryBytes: memoryBytes("16Gi"), SecondaryNICs: 0},
 		AvailabilityZones: []string{"1", "2", "3"},
@@ -159,14 +160,19 @@ func newRunTestSKUCache(t *testing.T, skus []*armcompute.ResourceSKU) *skucache.
 
 func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 	tests := []struct {
-		name  string
-		zones string
-		want  []poolPlacement
+		name        string
+		skuZones    []string
+		systemZones string
+		workerZones string
+		infraZones  string
+		existing    *armcontainerservice.ManagedCluster
+		want        []poolPlacement
 	}{
 		{
-			name: "empty zones cap the regional count at 3 and select first three worker zones",
+			name:     "system spans SKU zones and workers select the first three",
+			skuZones: []string{"1", "2", "3", "4"},
 			want: []poolPlacement{
-				{name: "s1abc1234567", zones: []string{"1", "2", "3"}},
+				{name: "s1abc1234567", zones: []string{"1", "2", "3", "4"}},
 				{name: "w1", zones: []string{"1"}},
 				{name: "w2", zones: []string{"2"}},
 				{name: "w3", zones: []string{"3"}},
@@ -174,8 +180,22 @@ func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 			},
 		},
 		{
-			name:  "explicit zones preserve selection and order",
-			zones: "4,2,1",
+			name:     "non-contiguous SKU zones are honored",
+			skuZones: []string{"1", "3", "4"},
+			want: []poolPlacement{
+				{name: "s1abc1234567", zones: []string{"1", "3", "4"}},
+				{name: "w1", zones: []string{"1"}},
+				{name: "w3", zones: []string{"3"}},
+				{name: "w4", zones: []string{"4"}},
+				{name: "i1", zones: []string{"1"}},
+			},
+		},
+		{
+			name:        "explicit zones preserve selection and order",
+			skuZones:    []string{"1", "2", "3", "4"},
+			systemZones: "4,2,1",
+			workerZones: "4,2,1",
+			infraZones:  "4,2,1",
 			want: []poolPlacement{
 				{name: "s1abc1234567", zones: []string{"4", "2", "1"}},
 				{name: "w4", zones: []string{"4"}},
@@ -184,21 +204,54 @@ func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 				{name: "i4", zones: []string{"4"}},
 			},
 		},
+		{
+			name:        "each role resolves its own zones",
+			skuZones:    []string{"1", "2", "3", "4"},
+			systemZones: "4,2,1",
+			infraZones:  "3",
+			want: []poolPlacement{
+				{name: "s1abc1234567", zones: []string{"4", "2", "1"}},
+				{name: "w1", zones: []string{"1"}},
+				{name: "w2", zones: []string{"2"}},
+				{name: "w3", zones: []string{"3"}},
+				{name: "i3", zones: []string{"3"}},
+			},
+		},
+		{
+			name:        "existing system zones take precedence while missing roles resolve independently",
+			skuZones:    []string{"1", "2", "3", "4"},
+			systemZones: "1,2,3",
+			workerZones: "4,2,1",
+			existing: &armcontainerservice.ManagedCluster{Properties: &armcontainerservice.ManagedClusterProperties{
+				AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{{
+					Name:              ptr.To("existing-system"),
+					Mode:              ptr.To(armcontainerservice.AgentPoolModeSystem),
+					AvailabilityZones: []*string{ptr.To("3"), ptr.To("1")},
+				}},
+			}},
+			want: []poolPlacement{
+				{name: "s1abc1234567", zones: []string{"3", "1"}},
+				{name: "w4", zones: []string{"4"}},
+				{name: "w2", zones: []string{"2"}},
+				{name: "w1", zones: []string{"1"}},
+				{name: "i1", zones: []string{"1"}},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			raw := newRawOptionsFromEnv(envFunc(map[string]string{
-				"REGION_AVAILABILITY_ZONE_COUNT": "4",
-				"SYSTEM_POOL_ZONES":              test.zones,
-				"USER_POOL_ZONES":                test.zones,
-				"INFRA_POOL_ZONES":               test.zones,
-			}))
+			raw := newManagementRawOptionsFromEnv(envFunc(map[string]string{"SYSTEM_POOL_ZONES": test.systemZones, "USER_POOL_ZONES": test.workerZones, "INFRA_POOL_ZONES": test.infraZones}))
 			validated, err := raw.Validate()
 			require.NoError(t, err)
+			var zones []*string
+			for _, zone := range test.skuZones {
+				zones = append(zones, ptr.To(zone))
+			}
 			var skus []*armcompute.ResourceSKU
 			for _, name := range []string{"Standard_D4ds_v6", "Standard_E16ds_v6"} {
 				skus = append(skus, &armcompute.ResourceSKU{
 					Name: ptr.To(name), ResourceType: ptr.To("virtualMachines"),
+					LocationInfo: []*armcompute.ResourceSKULocationInfo{{Location: ptr.To("eastus"), Zones: zones}},
 					Capabilities: []*armcompute.ResourceSKUCapabilities{
 						{Name: ptr.To("vCPUs"), Value: ptr.To("4")},
 						{Name: ptr.To("MemoryGB"), Value: ptr.To("16")},
@@ -206,6 +259,8 @@ func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 				})
 			}
 			completed := &completedOptions{validatedOptions: validated, skuCache: newRunTestSKUCache(t, skus)}
+			completed.system, completed.user, completed.infra, err = completePoolConfigs(context.Background(), completed.validatedOptions, completed.skuCache, test.existing)
+			require.NoError(t, err)
 			pools, err := completed.desiredPools(context.Background())
 			require.NoError(t, err)
 			var placements []poolPlacement
@@ -219,9 +274,9 @@ func TestDesiredPoolsResolveRegionalZones(t *testing.T) {
 
 func TestRunUnknownPoolSize(t *testing.T) {
 	o := testValidatedOptions()
-	o.system = poolConfig{name: "sys", vmSize: "missing", osDiskSizeGB: 32, minCount: 1, maxCount: 3, poolCount: 1}
 	completed := &completedOptions{
 		validatedOptions: o,
+		system:           poolConfig{validatedPoolConfig: validatedPoolConfig{name: "sys", vmSize: "missing", osDiskSizeGB: 32, minCount: 1, maxCount: 3, poolCount: 1}},
 		skuCache:         newRunTestSKUCache(t, nil),
 	}
 

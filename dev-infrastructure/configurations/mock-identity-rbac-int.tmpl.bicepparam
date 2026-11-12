@@ -16,6 +16,4 @@ param msiMockRoleName = 'int-msi-mock'
 // so it receives its grants there. Setting it true would instead grant INT
 // roles on the DEV global (deployment) subscription.
 
-param e2eSubscriptionIds = [
-{{ range .ci.int.e2eSubscriptions }}  '{{ .id }}'
-{{ end }}]
+param e2eSubscriptionIds = empty('{{ .ci.int.e2eSubscriptions }}') ? [] : map(split('{{ .ci.int.e2eSubscriptions }}', ','), pair => split(pair, '=')[0])

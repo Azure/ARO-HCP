@@ -25,6 +25,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -79,7 +81,7 @@ func NewClusterClusterServiceUpdateDispatchController(
 		subscriptionLister,
 	)
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -87,6 +89,11 @@ func NewClusterClusterServiceUpdateDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+
+	return controller
 }
 
 func NewClusterClusterServiceUpdateDispatchSyncer(
@@ -176,7 +183,10 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get service provider cluster: %w", err))
 	}
 
-	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(csCtx, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
@@ -222,7 +232,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		"clusterServiceClusterPayload", clusterPayload,
 	)
 
-	_, err = c.clusterServiceClient.UpdateCluster(ctx, *clusterCSID, csClusterBuilder)
+	_, err = c.clusterServiceClient.UpdateCluster(csCtx, *clusterCSID, csClusterBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		// XXX Matching an error message is brittle, but Clusters Service

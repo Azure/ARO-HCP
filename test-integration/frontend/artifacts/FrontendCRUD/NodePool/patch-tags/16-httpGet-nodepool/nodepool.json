@@ -1,0 +1,50 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-tags/nodePools/patch-tags-np",
+	"location": "fake-location",
+	"name": "patch-tags-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"labels": [
+			{
+				"key": "label-ky",
+				"value": "label-value"
+			}
+		],
+		"nodeDrainTimeoutMinutes": 2,
+		"platform": {
+			"enableEncryptionAtHost": false,
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			},
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vmSize": "Standard_D8s_v3"
+		},
+		"provisioningState": "Accepted",
+		"taints": [
+			{
+				"effect": "NoExecute",
+				"key": "foo.com/key",
+				"value": "valid"
+			}
+		],
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20.8"
+		}
+	},
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
+	},
+	"tags": {
+		"banana": "bob"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

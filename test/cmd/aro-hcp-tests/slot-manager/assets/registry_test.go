@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -29,10 +31,20 @@ type fakeHandler struct {
 	declared bool
 	calls    *[]string
 	admitErr error
+	// optionNames, when set, declares one string option per name.
+	optionNames []string
+	values      map[string]*string
 }
 
 func (h *fakeHandler) Kind() Kind {
 	return h.kind
+}
+
+func (h *fakeHandler) AttachOptions(flags *pflag.FlagSet) {
+	h.values = map[string]*string{}
+	for _, name := range h.optionNames {
+		h.values[name] = flags.String(name, "default-"+name, "usage of "+name)
+	}
 }
 
 func (h *fakeHandler) Declared(slots.Pool) bool {
@@ -275,4 +287,65 @@ func TestRegistryStopsLeaseAdmissionOnFirstFailure(t *testing.T) {
 	if want := []string{"admit:first"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected calls after failure: got %v want %v", calls, want)
 	}
+}
+
+func TestRegistryApplyOptions(t *testing.T) {
+	t.Parallel()
+
+	newRegistry := func(t *testing.T) (*Registry, *fakeHandler, *fakeHandler) {
+		t.Helper()
+		calls := []string{}
+		withOptions := &fakeHandler{kind: "with_options", calls: &calls, optionNames: []string{"alpha", "beta"}}
+		without := &fakeHandler{kind: "without_options", calls: &calls}
+		registry, err := NewRegistry(withOptions, without)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry, withOptions, without
+	}
+
+	t.Run("sets only the addressed option and keeps defaults elsewhere", func(t *testing.T) {
+		registry, withOptions, _ := newRegistry(t)
+		if err := registry.ApplyOptions([]string{"with_options.alpha=one", " with_options.alpha = two "}); err != nil {
+			t.Fatal(err)
+		}
+		if got := *withOptions.values["alpha"]; got != "two" {
+			t.Fatalf("later entry must win, got %q", got)
+		}
+		if got := *withOptions.values["beta"]; got != "default-beta" {
+			t.Fatalf("untouched option must keep its default, got %q", got)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		entry string
+		want  string
+	}{
+		{name: "unknown kind", entry: "nope.alpha=1", want: "unknown asset kind \"nope\" (registered: with_options, without_options)"},
+		{name: "unknown key lists valid keys", entry: "with_options.gamma=1", want: "no option \"gamma\" (valid: alpha, beta)"},
+		{name: "kind without options", entry: "without_options.alpha=1", want: "has no options"},
+		{name: "missing value separator", entry: "with_options.alpha", want: "<kind>.<key>=<value>"},
+		{name: "missing key", entry: "with_options=1", want: "<kind>.<key>=<value>"},
+		{name: "empty key", entry: "with_options.=1", want: "<kind>.<key>=<value>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			registry, withOptions, _ := newRegistry(t)
+			err := registry.ApplyOptions([]string{tc.entry})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected error containing %q, got %v", tc.want, err)
+			}
+			if got := *withOptions.values["alpha"]; got != "default-alpha" {
+				t.Fatalf("rejected entry must not change options, got %q", got)
+			}
+		})
+	}
+
+	t.Run("usage lists only kinds with options", func(t *testing.T) {
+		registry, _, _ := newRegistry(t)
+		usage := registry.OptionsUsage()
+		if !strings.Contains(usage, "with_options.alpha=<string> (default default-alpha): usage of alpha") || strings.Contains(usage, "without_options") {
+			t.Fatalf("unexpected usage:\n%s", usage)
+		}
+	})
 }

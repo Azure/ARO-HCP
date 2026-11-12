@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -32,7 +34,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
+
+const ProwJobIDTag = "jobID.aro-hcp-ci.redhat.com"
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
 	pager := subscriptionClient.NewListPager(nil)
@@ -66,12 +72,16 @@ func CreateResourceGroup(
 		return nil, fmt.Errorf("resourceGroupTTL must be at least an hour, got %v", resourceGroupTTL)
 	}
 
+	tags := map[string]*string{
+		"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
+		"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
+	}
+	if jobID := os.Getenv("BUILD_ID"); strings.TrimSpace(jobID) != "" {
+		tags[ProwJobIDTag] = to.Ptr(jobID)
+	}
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),
-		Tags: map[string]*string{
-			"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
-			"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
-		},
+		Tags:     tags,
 	}, nil)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -81,6 +91,27 @@ func CreateResourceGroup(
 	}
 
 	return &resourceGroup.ResourceGroup, nil
+}
+
+func ListResourceGroupsByJobID(ctx context.Context, client *armresources.ResourceGroupsClient, jobID string) ([]*armresources.ResourceGroup, error) {
+	if strings.TrimSpace(jobID) == "" {
+		return nil, fmt.Errorf("job ID must not be blank")
+	}
+	filter := fmt.Sprintf("tagName eq '%s' and tagValue eq '%s'", strings.ReplaceAll(ProwJobIDTag, "'", "''"), strings.ReplaceAll(jobID, "'", "''"))
+	pager := client.NewListPager(&armresources.ResourceGroupsClientListOptions{Filter: to.Ptr(filter)})
+	var resourceGroups []*armresources.ResourceGroup
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed listing resource groups by job ID: %w", err)
+		}
+		for _, resourceGroup := range page.Value {
+			if resourceGroup != nil && resourceGroup.Tags[ProwJobIDTag] != nil && *resourceGroup.Tags[ProwJobIDTag] == jobID {
+				resourceGroups = append(resourceGroups, resourceGroup)
+			}
+		}
+	}
+	return resourceGroups, nil
 }
 
 // ListAllExpiredResourceGroups returns all expired e2e resource groups
@@ -130,7 +161,18 @@ func DeleteResourceGroup(
 	resourceGroupName string,
 	force bool,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
+	recorder := beginOperation()
+	// The origin is fixed at start so a deletion that returns during cleanup keeps its span.
+	testBodyDeletion := recorder.testBodyOperation()
+	startTime := time.Now()
+	defer func() {
+		// Framework cleanup has its own spans; this kind stays scoped to test-body deletions.
+		if !testBodyDeletion {
+			return
+		}
+		recorder.Record(timing.KindDeleteResourceGroup, fmt.Sprintf("Delete resource group %s", resourceGroupName), startTime, time.Now(), operationErr)
+	}()
 
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteResourceGroup for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
@@ -182,7 +224,7 @@ func DeleteResourceGroup(
 	switch m := any(operationResult).(type) {
 	case armresources.ResourceGroupsClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 

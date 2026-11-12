@@ -98,6 +98,7 @@ type GathererOptions struct {
 	SkipHostedControlPlaneLogs bool                // Skip hosted control plane logs
 	SkipKubernetesEventsLogs   bool                // Skip Kubernetes events logs
 	CollectSystemdLogs         bool                // Collect Systemd logs
+	SummarizeOrchestrationLogs bool                // Return per-source counts instead of orchestration log payloads
 	QueryOptions               *kusto.QueryOptions // Query options
 }
 
@@ -487,6 +488,30 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 					// Expanding every controller condition repeats large snapshots;
 					// bound each response while retaining the entire requested range.
 					q, err = queryFactory.BuildTimeWindows(def, data, g.opts.QueryOptions.TimestampMin, g.opts.QueryOptions.TimestampMax, 5*time.Minute)
+				} else if def.Name == "detailedServiceLogs" {
+					for _, child := range def.Children {
+						childDef := def
+						childDef.Name = child.Name
+						childDef.TemplatePath = child.TemplatePath
+						childDef.Children = nil
+						var childQueries []kusto.Query
+						if child.Name == "detailedInfraOrchestrationLogs" {
+							if g.opts.SummarizeOrchestrationLogs {
+								summaryData := data
+								summaryData.Summarize = true
+								childQueries, err = queryFactory.Build(childDef, summaryData)
+							} else {
+								// Bound orchestration output only; siblings need full-range aggregation.
+								childQueries, err = queryFactory.BuildTimeWindows(childDef, data, g.opts.QueryOptions.TimestampMin, g.opts.QueryOptions.TimestampMax, 5*time.Minute)
+							}
+						} else {
+							childQueries, err = queryFactory.Build(childDef, data)
+						}
+						if err != nil {
+							break
+						}
+						q = append(q, childQueries...)
+					}
 				} else {
 					q, err = queryFactory.Build(def, data)
 				}

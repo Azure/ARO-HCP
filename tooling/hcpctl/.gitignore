@@ -6,3 +6,6 @@ hcpctl
 *.kubeconfig
 
 must-gather-*
+
+# Generated snapshot analysis directories
+snapshot-*/

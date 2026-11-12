@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/config/types"
 
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
@@ -47,7 +48,7 @@ func GetServiceConfig() (types.Configuration, error) {
 			cloud = os.Getenv("CLOUD")
 		}
 		configFile := os.Getenv("ARO_HCP_CONFIG_FILE")
-		deployEnv := os.Getenv("DEPLOY_ENV")
+		deployEnv := os.Getenv(leaseenv.DeployEnvironment)
 		region := os.Getenv("REGION")
 
 		// Check in deterministic order to make error messages consistent
@@ -59,7 +60,7 @@ func GetServiceConfig() (types.Configuration, error) {
 			missing = append(missing, "ARO_HCP_CLOUD or CLOUD")
 		}
 		if deployEnv == "" {
-			missing = append(missing, "DEPLOY_ENV")
+			missing = append(missing, leaseenv.DeployEnvironment)
 		}
 		if region == "" {
 			missing = append(missing, "REGION")

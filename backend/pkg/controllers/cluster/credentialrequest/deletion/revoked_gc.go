@@ -22,6 +22,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -56,7 +57,7 @@ func NewRevokedGCController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
 		SystemAdminCredentialRevokedGCControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -64,6 +65,9 @@ func NewRevokedGCController(
 		1*time.Hour,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+
+	return controller
 }
 
 func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {

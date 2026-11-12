@@ -18,10 +18,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -52,7 +54,10 @@ func GetAKSRESTConfig(ctx context.Context, resourceID string, credential azcore.
 	}
 
 	// Get the cluster user credentials to extract server URL and CA cert
+	credentialsStart := time.Now()
+	klog.InfoS("retrieving management cluster user credentials", "resourceID", resourceID)
 	resp, err := client.ListClusterUserCredentials(ctx, resourceGroup, clusterName, nil)
+	klog.InfoS("management cluster user credential retrieval attempt completed", "resourceID", resourceID, "duration", time.Since(credentialsStart), "err", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster user credentials: %w", err)
 	}
@@ -61,7 +66,10 @@ func GetAKSRESTConfig(ctx context.Context, resourceID string, credential azcore.
 	}
 
 	// Parse the kubeconfig to extract server URL and CA data
+	parseStart := time.Now()
+	klog.InfoS("parsing management cluster user credentials", "resourceID", resourceID)
 	config, err := clientcmd.Load(resp.Kubeconfigs[0].Value)
+	klog.InfoS("management cluster user credential parsing attempt completed", "resourceID", resourceID, "duration", time.Since(parseStart), "err", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
 	}

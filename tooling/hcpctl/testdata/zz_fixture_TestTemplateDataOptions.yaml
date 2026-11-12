@@ -2,6 +2,8 @@ ClusterId: cid1
 ClusterIds: '''cid1'', ''cid2'''
 ClusterName: my-cluster
 ClusterNames: '''cluster-a'', ''cluster-b'''
+DiscoveryTimestampMax: datetime(0001-01-01T00:00:00.0000000Z)
+DiscoveryTimestampMin: datetime(0001-01-01T00:00:00.0000000Z)
 FilterClusterName: ""
 HCPNamespacePrefix: ocm-arohcp
 Limit: 100
@@ -13,6 +15,7 @@ ResourceGroupName: rg
 SplitByPod: false
 SubResourceGroupId: /subscriptions/sub/resourceGroups/rg
 SubscriptionId: sub
+Summarize: false
 Table: myTable
 TimestampMax: datetime(0001-01-01T00:00:00.0000000Z)
 TimestampMin: datetime(0001-01-01T00:00:00.0000000Z)

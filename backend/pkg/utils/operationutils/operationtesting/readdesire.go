@@ -24,6 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 
+	secretsyncv1alpha1 "sigs.k8s.io/secrets-store-sync-controller/api/v1alpha1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -60,6 +62,44 @@ func NewHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedClust
 		},
 		Status: kubeapplierapi.ReadDesireStatus{
 			Conditions:  conditions,
+			KubeContent: &kruntime.RawExtension{Raw: raw},
+		},
+	}
+}
+
+// NewIngressSecretSyncReadDesire builds a kube-applier ReadDesire fixture wrapping the
+// ingress wildcard certificate's SecretSync object (see kubeapplierhelpers.IngressSecretSyncDesireName).
+// secretSyncConditions are the SecretSync object's own status conditions, as reported by
+// secrets-store-sync-controller (e.g. a "SecretUpdated" condition type). When none are
+// supplied it defaults to a successful first sync.
+func NewIngressSecretSyncReadDesire(t *testing.T, secretSyncConditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
+	t.Helper()
+	status := secretsyncv1alpha1.SecretSyncStatus{Conditions: secretSyncConditions}
+	if secretSyncConditions == nil {
+		status.Conditions = []metav1.Condition{
+			{Type: "SecretUpdated", Status: metav1.ConditionTrue, Reason: "SecretUpToDate"},
+		}
+		syncedAt := metav1.NewTime(MustParseTime("2025-01-15T10:30:00Z"))
+		status.LastSuccessfulSyncTime = &syncedAt
+	}
+	secretSync := &secretsyncv1alpha1.SecretSync{
+		Status: status,
+	}
+	raw, err := json.Marshal(secretSync)
+	require.NoError(t, err)
+
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
+			TestSubscriptionID, TestResourceGroupName, TestClusterName, kubeapplierhelpers.IngressSecretSyncDesireName)))
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		Status: kubeapplierapi.ReadDesireStatus{
+			// Default: kube-applier successfully observed the target.
+			Conditions:  []metav1.Condition{{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplierapi.ConditionReasonNoErrors}},
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}

@@ -430,23 +430,6 @@ func formatNSGAddressPrefixesForMessage(prefixes []string) string {
 	return strings.Join(parts, ", ")
 }
 
-func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
-	// cidrs from Azure should always have at least one CIDR
-	// treat missing CIDRs as an internal error.
-	if len(cidrs) == 0 {
-		return nil, utils.TrackError(fmt.Errorf("no %s CIDRs provided", label))
-	}
-	out := []netip.Prefix{}
-	for _, cidr := range cidrs {
-		prefix, err := netip.ParsePrefix(cidr)
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("invalid CIDR %q: %w", cidr, err))
-		}
-		out = append(out, prefix)
-	}
-	return out, nil
-}
-
 // sortByPriority sorts NSG rules by priority in ascending order.
 // This is used to evaluate rules in Azure priority order.
 func sortByPriority(rules []nsgSecurityRule) []nsgSecurityRule {

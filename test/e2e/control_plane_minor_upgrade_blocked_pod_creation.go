@@ -88,15 +88,15 @@ var _ = Describe("Customer", func() {
 			}
 			if channelGroup == "nightly" {
 				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", installVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", installVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
 				installVersionId = resolvedInstall
 
 				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", upgradeVersionId, err))
+				if framework.IsVersionNotFoundError(err) || framework.IsIncompatibleNightlyVersionError(err) {
+					Skip(fmt.Sprintf("no usable nightly version for %s: %v", upgradeVersionId, err))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version for %s", upgradeVersionId)
 				upgradeVersionId = resolvedUpgrade
@@ -220,10 +220,14 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				upgradeVersion.String()))
+			current, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get current tags before upgrading cluster %q", clusterName)
+			upgradeVersionLine, upgradeTags := framework.ControlPlaneExactVersionPatchTags(upgradeVersionId)
 			update := hcpsdk20260901preview.HcpOpenShiftClusterUpdate{
+				Tags: framework.TagsForPatch(current.Tags, upgradeTags),
 				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20260901preview.VersionProfileUpdate{
-						ID:           to.Ptr(upgradeVersionId),
+						ID:           to.Ptr(upgradeVersionLine),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
@@ -246,11 +250,11 @@ var _ = Describe("Customer", func() {
 			By("asserting probe pod CREATE is still denied by the ValidatingAdmissionPolicy")
 			Expect(verifiers.VerifyProbePodDeniedByAdmissionPolicy(ystreamDenyPolicyName, ystreamDenyPolicyMessage).Verify(ctx, adminRESTConfig)).To(Succeed(), "probe pod CREATE was no longer denied after upgrade on cluster %q", clusterName)
 		},
-		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21"),
-		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22"),
-		Entry("from 4.22 minor to 4.23 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.23"),
-		Entry("from 4.22 minor to 5.0 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.0"),
-		Entry("from 5.0 minor to 5.1 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.1"),
+		Entry("from 4.20 minor to 4.21 minor", labels.StartPriority(70), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.21"),
+		Entry("from 4.21 minor to 4.22 minor", labels.StartPriority(70), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.22"),
+		Entry("from 4.22 minor to 4.23 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "4.23"),
+		Entry("from 4.22 minor to 5.0 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.0"),
+		Entry("from 5.0 minor to 5.1 minor", labels.StartPriority(80), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.1"),
 		Entry("from 5.1 minor to 5.2 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.2"),
 		Entry("from 5.2 minor to 5.3 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.3"),
 		Entry("from 5.3 minor to 5.4 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.Slow, "5.4"),

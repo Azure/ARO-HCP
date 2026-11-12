@@ -1,0 +1,4 @@
+approvers:
+- sre-approvers
+labels:
+- area/observability

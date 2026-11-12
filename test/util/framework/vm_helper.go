@@ -340,7 +340,7 @@ func GetVirtualMachineConsoleLog(
 			logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
 				"vmName", vmName,
 				"attempt", attempt,
-				"error", err.Error())
+				"error", azureFailureError(err))
 			return false, nil
 		}
 		return false, err
@@ -361,12 +361,12 @@ func GetVirtualMachineConsoleLog(
 	// Fetch the actual log content from the blob storage URL
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, *result.SerialConsoleLogBlobURI, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request for console log blob for VM %q: %w", vmName, err)
+		return nil, fmt.Errorf("failed to create request for console log blob for VM %q: %s", vmName, azureFailureError(err))
 	}
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch console log from blob storage for VM %q: %w", vmName, err)
+		return nil, fmt.Errorf("failed to fetch console log from blob storage for VM %q: %s", vmName, azureFailureError(err))
 	}
 
 	if resp.StatusCode != http.StatusOK {

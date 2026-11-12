@@ -433,47 +433,6 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
-resource metricsProxy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'metrics-proxy'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroAgentMetricsProxyDown'
-        enabled: true
-        labels: {
-          component: 'monitoring-infrastructure'
-          severity: '3'
-        }
-        annotations: {
-          correlationId: 'MaestroAgentMetricsProxyDown/{{ $labels.cluster }}'
-          description: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
-          info: 'Prometheus has not scraped maestro-agent /metrics through the metrics-proxy sidecar (namespace=maestro, endpoint=metrics) for 10 minutes, while a kube-state-metrics scrape series still exists for this management cluster. Maestro agent metrics and any alerts that depend on them may be missing.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-monitoring'
-          summary: 'Maestro agent metrics-proxy scrape is down'
-          title: 'Maestro agent metrics-proxy scrape is down'
-        }
-        expression: 'group by (cluster, region) (up{cluster=~".*-mgmt(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster, region) (up{endpoint="metrics",namespace="maestro",pod=~"maestro-agent-.*"} == 1)'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'frontend'
   location: location
@@ -625,12 +584,40 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
           summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
           title: 'Backend controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name!~"(?i:cosmos_?migration)",namespace="aro-hcp"})) > 10 unless on (name, cluster) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"} and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1))'
         for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerQueueDepthHigh'
+        enabled: true
+        labels: {
+          component: 'backend'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.'
+          info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 90 minutes. Insecure mock managed identities are enabled; CheckAccessV2 throughput is limited by CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts.md#backend-queue-depth-thresholds'
+          summary: 'Backend controller workqueue {{ $labels.name }} depth is high'
+          title: 'Backend controller workqueue {{ $labels.name }} depth is high'
+        }
+        expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~"clustervalidation(controlplaneidentitiespermissionsclustervalidation|dataplaneidentitiespermissionsvalidation|containerregistrypullcredentialspermissionvalidation)",namespace="aro-hcp"})) > 10 and on (cluster) (max by (cluster, region) (backend_insecure_mock_managed_identities_enabled{namespace="aro-hcp"}) == 1)'
+        for: 'PT1H30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -678,14 +665,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
-          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource groups detected in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (aro_hcp_orphaned_managed_resource_groups_present)) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -706,14 +693,14 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.location }}'
-          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
-          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.subscription_id }}/{{ $labels.managed_resource_group_name }}/{{ $labels.location }}'
+          description: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Deletion of orphaned cluster managed resource group {{ $labels.managed_resource_group_name }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
-          title: 'Orphaned cluster managed resource group deletion failing in {{ $labels.location }}'
+          summary: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
+          title: 'Orphaned MRG {{ $labels.managed_resource_group_name }} deletion failing in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}'
         }
-        expression: 'sum by (location, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        expression: 'max by (location, subscription_id, managed_resource_group_name, cluster, region) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -748,13 +735,14 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         }
         annotations: {
           correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-          description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
-          info: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
+          description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
+          info: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
           runbook_url: 'TBD'
           summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster, region) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1219,271 +1207,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'maestro'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCSourceClientExcessConnections'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCSourceClientExcessConnections/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          info: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro has too many gRPC source client connections'
-          title: 'Maestro has too many gRPC source client connections'
-        }
-        expression: 'sum by (region) (grpc_server_registered_source_clients{namespace="maestro"}) > 100'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroRESTAPIErrorRate'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroRESTAPIErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro REST API error rate is high'
-          title: 'Maestro REST API error rate is high'
-        }
-        expression: 'sum by (region) (rate(rest_api_inbound_request_count{code=~"5..",namespace="maestro"}[5m])) / sum by (region) (rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCServerErrorRate'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCServerErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro gRPC server error rate is high'
-          title: 'Maestro gRPC server error rate is high'
-        }
-        expression: 'sum by (region) (rate(grpc_server_processed_total{code!="OK",namespace="maestro"}[5m])) / sum by (region) (rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroSpecControllerReconcileErrors'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroSpecControllerReconcileErrors/{{ $labels.cluster }}'
-          description: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro spec controller reconcile error rate is high'
-          title: 'Maestro spec controller reconcile error rate is high'
-        }
-        expression: 'sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro",status="error"}[5m])) / sum by (region) (rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroServerNoReadyReplicas'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'MaestroServerNoReadyReplicas/{{ $labels.cluster }}'
-          description: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
-          info: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'No maestro-server replicas are Ready'
-          title: 'No maestro-server replicas are Ready'
-        }
-        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} == 0 and kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"} > 0'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroServerReplicaNotReady'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroServerReplicaNotReady/{{ $labels.cluster }}'
-          description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
-          info: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'A maestro-server replica is not Ready'
-          title: 'A maestro-server replica is not Ready'
-        }
-        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} > 0 and kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} < kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"}'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroPostgresNotificationQueueUsageHigh'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroPostgresNotificationQueueUsageHigh/{{ $labels.cluster }}'
-          description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
-          info: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro PostgreSQL notification queue usage is high'
-          title: 'Maestro PostgreSQL notification queue usage is high'
-        }
-        expression: 'max by (region) (postgres_notification_queue_usage{namespace="maestro"}) > 0.5'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroWorkqueueDepthHigh'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroWorkqueueDepthHigh/{{ $labels.cluster }}/{{ $labels.queue_name }}'
-          description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
-          info: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
-          title: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
-        }
-        expression: 'max by (queue_name, region) (workqueue_depth{namespace="maestro",queue_name!=""}) > 100'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroEventStuckUnreconciled'
-        enabled: true
-        labels: {
-          component: 'maestro'
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroEventStuckUnreconciled/{{ $labels.cluster }}'
-          description: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
-          info: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
-          title: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
-        }
-        expression: 'max by (region) (spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300'
-        for: 'PT1M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -2184,13 +1907,13 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyDenied/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
           title: 'Image registry policy on {{ $labels.cluster }} denied pod admission'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -2208,19 +1931,19 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         enabled: true
         labels: {
           component: 'image-registry-policy'
-          severity: 'info'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          runbook_url: 'TBD'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md'
           summary: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
           title: 'Image registry policy on {{ $labels.cluster }} audit violation detected'
         }
-        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        expression: 'sum by (cluster, policy, policy_binding, region) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy"}[15m])) > 0'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -2261,7 +1984,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Kusto log data stale for {{ $labels.table }} on {{ $labels.cluster }} ({{ $labels.kusto_cluster }})'
           title: 'Kusto log data stale for {{ $labels.table }} on {{ $labels.cluster }} ({{ $labels.kusto_cluster }})'
         }
-        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200'
+        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or (kusto_logs_age_in_seconds{table="systemdlogs"} > 3600 and on (cluster) (sum by (cluster, region) (increase(kubelet_runtime_operations_total{operation_type=~"create_container|start_container|stop_container|remove_container|run_podsandbox|remove_podsandbox"}[15m])) > 0))'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

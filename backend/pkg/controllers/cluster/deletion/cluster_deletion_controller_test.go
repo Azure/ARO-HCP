@@ -49,7 +49,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 	}
 
 	readyForDeletionCluster := func(t *testing.T) *coreapi.Cluster {
-		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+		return newTestCluster(t, func(c *coreapi.Cluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			c.ServiceProviderProperties.ClusterServiceID = nil
@@ -82,19 +82,19 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "no DeletionTimestamp -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -113,19 +113,9 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
-			name:            "cluster still has maestro readonly bundles -- blocks",
+			name:            "SPC still present as child -- blocks",
 			existingCluster: readyForDeletionCluster(t),
-			extraResources: []any{
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "test-bundle"},
-				}),
-			},
-			verifyDB: verifyClusterStillExists,
-		},
-		{
-			name:            "SPC with no bundles still present as child -- blocks",
-			existingCluster: readyForDeletionCluster(t),
-			extraResources:  []any{newTestSPC(t, nil)},
+			extraResources:  []any{newTestSPC(t)},
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
@@ -175,15 +165,6 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			existingCluster: readyForDeletionCluster(t),
 			extraResources:  []any{newTestCredentialRevocationController(t, "orphaned-rev-controller")},
 			verifyDB:        verifyClusterDeleted,
-		},
-		{
-			name: "feature flag false -- no-op even when all delete conditions met",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.Cluster) {
-				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
-				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
-				c.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			verifyDB: verifyClusterStillExists,
 		},
 		{
 			name: "cluster not found -- no-op",
@@ -248,25 +229,20 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		want    bool
 	}{
 		{
-			name:    "feature flag false",
-			cluster: newTestClusterWithOldDeletionApproach(t, nil),
-			want:    false,
-		},
-		{
 			name:    "no DeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, nil),
+			cluster: newTestCluster(t, nil),
 			want:    false,
 		},
 		{
 			name: "DeletionTimestamp set but no ClusterServiceDeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			cluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
 			want: false,
 		},
 		{
 			name: "both timestamps set but ClusterServiceID not nil",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			cluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
@@ -274,7 +250,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "all conditions met",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			cluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -344,7 +320,7 @@ func newTestExternalAuth(t *testing.T) *coreapi.ExternalAuth {
 	}
 }
 
-func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *coreapi.ServiceProviderCluster {
+func newTestSPC(t *testing.T) *coreapi.ServiceProviderCluster {
 	t.Helper()
 	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
@@ -355,9 +331,6 @@ func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *corea
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
-		},
-		Status: coreapi.ServiceProviderClusterStatus{
-			MaestroReadonlyBundles: bundles,
 		},
 	}
 }

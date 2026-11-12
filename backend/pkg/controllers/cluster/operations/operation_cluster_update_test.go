@@ -50,6 +50,50 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestClusterUpdateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewClusterTestFixture()
+	cluster := fixture.NewCluster(nil)
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	csCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+	check := &clusterUpdateClusterServiceStatusCheck{
+		clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(
+		t.Context(),
+		fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate),
+		clusterUpdateOperationStatusInput{
+			ClusterServiceOnceGetter: func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+				return csCluster, nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, coreapi.ProvisioningStateUpdating, state.ProvisioningState)
+	assert.Contains(t, state.Message, "cluster service ID is not set")
+}
+
+// spcListerForCluster returns a ServiceProviderCluster slice lister keyed so that
+// it resolves for the given cluster. The check reads the ServiceProviderCluster
+// from this lister (not from the operation status input), so its resource ID must
+// be the ServiceProviderCluster child of the cluster's resource ID.
+func spcListerForCluster(clusterID *azcorearm.ResourceID, spc *coreapi.ServiceProviderCluster) *corelistertesting.SliceServiceProviderClusterLister {
+	if spc == nil {
+		return &corelistertesting.SliceServiceProviderClusterLister{}
+	}
+	spc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		clusterID.String(),
+		coreapi.ServiceProviderClusterResourceTypeName,
+		coreapi.ServiceProviderClusterResourceName,
+	)))
+	return &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}}
+}
+
 func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 	for _, tc := range []struct {
 		name, desired, pin, exact string
@@ -78,11 +122,13 @@ func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
 			}
 			// No DB client: resolution must not read or create a legacy controller
 			// document now that the rollout controllers own desired versions.
-			syncer := &operationClusterUpdate{
+			syncer := &clusterUpdateDesiredVersionCheck{
+				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+				serviceProviderClusterLister:    spcListerForCluster(cluster.ID, spc),
 				clock:                           clocktesting.NewFakeClock(time.Now()),
 				desiredVersionMismatchFirstSeen: lru.New(10),
 			}
-			state, err := syncer.desiredVersionResolutionOperationState(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), cluster, spc)
+			state, err := syncer.CalculateOperationStatus(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), clusterUpdateOperationStatusInput{})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, state.ProvisioningState)
 		})
@@ -102,6 +148,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			}
 		}
 		return cluster
+	}
+
+	pinExactControlPlaneVersion := func(version string) func(*coreapi.Cluster) {
+		parsedVersion, err := semver.ParseTolerant(version)
+		require.NoError(t, err)
+		return func(cluster *coreapi.Cluster) {
+			cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(parsedVersion)
+		}
 	}
 
 	newCSClusterWithState := func(state arohcpv1alpha1.ClusterState, code ...string) *arohcpv1alpha1.Cluster {
@@ -169,8 +223,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		existingCluster *coreapi.Cluster
+		checkDeadline    bool
+		timeoutReason    string
+		timeoutErrorCode string
+		name             string
+		existingCluster  *coreapi.Cluster
 		// When not set, the controller uses a cluster lister that contains the existingCluster
 		clusterLister     corelisters.ClusterLister
 		existingOperation *coreapi.Operation
@@ -223,7 +280,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "old validation failure keeps a new update operation provisioning",
+			name:             "old validation failure keeps a new update operation provisioning",
+			checkDeadline:    true,
+			timeoutReason:    "SubnetValidation: InvalidSubnet: subnet is unavailable",
+			timeoutErrorCode: coreapi.CloudErrorCodeInvalidResource,
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningStateAccepted
 			}),
@@ -295,6 +355,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                           "cs cluster ready transitions operation to succeeded",
+			checkDeadline:                  true,
 			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
@@ -318,6 +379,8 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                           "cs cluster updating transitions operation to updating",
+			checkDeadline:                  true,
+			timeoutReason:                  "[clusterServiceClusterStatus] cluster service is updating",
 			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
@@ -340,6 +403,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                           "cs cluster error transitions operation to failed",
+			checkDeadline:                  true,
 			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
@@ -511,15 +575,77 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
-				cluster.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			existingOperation: newOperationAccepted(),
+			name:                           "exact version pin matching the resolved desired version transitions operation to succeeded",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.7"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
+			},
+		},
+		{
+			// version.id is a bare MAJOR.MINOR, so the Major/Minor compare used for unpinned
+			// clusters reports Succeeded the moment the pin is edited within a minor, while
+			// DesiredVersion still holds the previous z-stream. The pin must be compared exactly.
+			name:                           "exact version pin within the same minor as the resolved desired version keeps operation accepted",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.5"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Nil(t, op.Error)
+			},
+		},
+		{
+			name:                           "exact version pin mismatch without IntentFailed fails after 129s naming the pin",
+			existingCluster:                newClusterWithCustomerVersion("4.19", pinExactControlPlaneVersion("4.19.7")),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19.5"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-130 * time.Second),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				// The failure names the pin, not the release line the customer never touched.
+				assert.Contains(t, op.Error.Message,
+					"timed out after 129s waiting for resolution of desired version from pinned exact version 4.19.7")
+			},
+		},
+		{
+			name: "missing ClusterServiceID waits for creation",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+			}),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			existingOperation:              newOperationAccepted(),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 			},
 		},
 		{
@@ -551,7 +677,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "cs cluster ready with node drain spec mismatch keeps operation updating",
+			name:          "cs cluster ready with node drain spec mismatch keeps operation updating",
+			checkDeadline: true,
+			timeoutReason: "[clusterServiceClusterSpec] Cluster Service nodeDrainGracePeriod is 30 minutes, want 60",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.Cluster) {
 				cluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			}),
@@ -758,6 +886,43 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 	}
 
+	// Exercise the same observations before, at, and after the update deadline.
+	// Successful and failed observations must retain their original result even
+	// after the deadline; pending operations preserve specific error codes on timeout.
+	for _, base := range testCases {
+		if !base.checkDeadline {
+			continue
+		}
+		for _, offset := range []time.Duration{time.Second, 0, -time.Second} {
+			tc := base
+			tc.name = fmt.Sprintf("%s/deadline-offset=%s", base.name, offset)
+			tc.existingCluster = base.existingCluster.DeepCopy()
+			tc.existingOperation = base.existingOperation.DeepCopy()
+			tc.existingServiceProviderCluster = base.existingServiceProviderCluster.DeepCopy()
+			tc.existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline = ptr.To(metav1.NewTime(testClockNow.Add(offset)))
+			if offset < 0 && base.timeoutReason != "" {
+				tc.verifyDB = func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+					op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+					require.NotNil(t, op.Error)
+					wantCode := base.timeoutErrorCode
+					if wantCode == "" {
+						wantCode = coreapi.CloudErrorCodeDeadlineExceeded
+					}
+					assert.Equal(t, wantCode, op.Error.Code)
+					assert.Contains(t, op.Error.Message, "cluster update did not complete before the deadline")
+					assert.Contains(t, op.Error.Message, base.timeoutReason)
+					resource, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+					require.NoError(t, err)
+					assert.Equal(t, coreapi.ProvisioningStateFailed, resource.ServiceProviderProperties.ProvisioningState)
+					assert.Empty(t, resource.ServiceProviderProperties.ActiveOperationID)
+				}
+			}
+			testCases = append(testCases, tc)
+		}
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -816,6 +981,8 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 			if !tc.seedMismatchFirstSeenAt.IsZero() {
 				require.NotNil(t, tc.existingOperation)
 				controller.desiredVersionMismatchFirstSeen.Add(tc.existingOperation.ResourceID.String(), tc.seedMismatchFirstSeenAt)

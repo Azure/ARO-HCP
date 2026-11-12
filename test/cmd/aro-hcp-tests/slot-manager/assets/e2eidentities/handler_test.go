@@ -17,6 +17,7 @@ package e2eidentities
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -24,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
@@ -54,12 +56,12 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 				// Stop at subscription resolution so neither operation can reach Azure.
 				stop := errors.New("stop before Azure operation")
 				resolved := ""
-				handler := &Handler{poolDependencies: func() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
+				handler := NewHandler(WithPoolDependencies(func() (azcore.TokenCredential, subscriptionIDResolverFunc, error) {
 					return nil, func(_ context.Context, name string) (string, error) {
 						resolved = name
 						return "", stop
 					}, nil
-				}}
+				}))
 				registry, err := assets.NewRegistry(handler)
 				if err != nil {
 					t.Fatal(err)
@@ -86,10 +88,12 @@ func TestPoolHandlersShareSelectionPolicy(t *testing.T) {
 
 }
 
-func TestHandlerPublishesIdentityGroups(t *testing.T) {
-	t.Parallel()
+func TestHandlerOwnsIdentityRuntimeExports(t *testing.T) {
+	t.Setenv("ARO_HCP_SUITE_PARALLELISM", "99")
 
 	request := assets.LeaseRequest{AcquiredSlotState: &slots.AcquiredSlotState{Slot: slots.ExpandedSlot{
+		DeployEnvironment:      "int",
+		IdentityContainerCount: 10,
 		Assets: slots.ResolvedAssets{E2EIdentities: &slots.ResolvedE2EIdentitiesAsset{
 			ResourceGroups: []string{"identity-rg-02", "identity-rg-01"},
 		}},
@@ -98,10 +102,68 @@ func TestHandlerPublishesIdentityGroups(t *testing.T) {
 	if err := NewHandler().PublishLease(context.Background(), request, contract); err != nil {
 		t.Fatalf("publishing identity groups: %v", err)
 	}
-	if got, want := string(contract.MarshalShell()), "export LEASED_MSI_CONTAINERS='identity-rg-02 identity-rg-01'\n"; got != want {
-		t.Fatalf("identity export = %q, want %q", got, want)
+	if err := contract.Add("other", leaseenv.MSIContainers, ""); err == nil {
+		t.Fatal("identity export ownership must not be reassigned")
 	}
-	if err := contract.Add("other", "LEASED_MSI_CONTAINERS", ""); err == nil || !strings.Contains(err.Error(), `already owned by "e2e_identities"`) {
-		t.Fatalf("identity export must be owned by e2e_identities, got %v", err)
+	sharedDir := t.TempDir()
+	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {
+		t.Fatal(err)
+	}
+	envFile, err := slots.EnvFile(sharedDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, setup, want string
+	}{
+		{"unset", "unset ARO_HCP_SUITE_PARALLELISM", ":\n:"},
+		{"exported caller override", "export ARO_HCP_SUITE_PARALLELISM=7", "x:7\nx:7"},
+		{"unexported caller override", "ARO_HCP_SUITE_PARALLELISM=7", "x:7\n:"},
+		{"explicit empty", "export ARO_HCP_SUITE_PARALLELISM=''", "x:\nx:"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := exec.Command("sh", "-eu", "-c", `unset ARO_HCP_SUITE_PARALLELISM; `+test.setup+`; LEASED_MSI_CONTAINERS=stale; . "$1"; printf "%s\n%s:%s\n" "$LEASED_MSI_CONTAINERS" "${ARO_HCP_SUITE_PARALLELISM+x}" "${ARO_HCP_SUITE_PARALLELISM-}"; sh -eu -c 'printf "%s:%s" "${ARO_HCP_SUITE_PARALLELISM+x}" "${ARO_HCP_SUITE_PARALLELISM-}"'`, "sh", envFile)
+			output, err := cmd.CombinedOutput()
+			want := "identity-rg-02 identity-rg-01\n" + test.want
+			if err != nil || string(output) != want {
+				t.Fatalf("sourced identity contract = %q, want %q: %v", output, want, err)
+			}
+		})
+	}
+}
+
+func TestHandlerCleanupWorkersOption(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		entries []string
+		want    int
+		wantErr string
+	}{
+		{name: "default is serial", want: 1},
+		{name: "set", entries: []string{"e2e_identities.cleanup-workers=2"}, want: 2},
+		{name: "zero", entries: []string{"e2e_identities.cleanup-workers=0"}, want: 1, wantErr: "must be at least 1"},
+		{name: "negative", entries: []string{"e2e_identities.cleanup-workers=-3"}, want: 1, wantErr: "must be at least 1"},
+		{name: "not a number", entries: []string{"e2e_identities.cleanup-workers=two"}, want: 1, wantErr: "invalid integer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler := NewHandler()
+			registry, err := assets.NewRegistry(handler)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = registry.ApplyOptions(tc.entries)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if handler.cleanupWorkers != tc.want {
+				t.Fatalf("expected %d cleanup workers, got %d", tc.want, handler.cleanupWorkers)
+			}
+		})
 	}
 }

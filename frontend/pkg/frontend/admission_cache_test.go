@@ -154,8 +154,10 @@ func TestAdmissionProviderCache(t *testing.T) {
 						require.Equal(t, serviceProviderCluster, ac.ServiceProviderCluster)
 						if op.Type == operation.Update {
 							require.Equal(t, serviceProviderNodePool, ac.ServiceProviderNodePool)
+							require.Equal(t, []*coreapi.NodePool{pool}, ac.ClusterNodePools)
 						} else {
 							require.Nil(t, ac.ServiceProviderNodePool)
+							require.Nil(t, ac.ClusterNodePools)
 						}
 						_ = admission.AdmitNodePool(t.Context(), ac, op, pool.DeepCopy(), pool.DeepCopy())
 					}

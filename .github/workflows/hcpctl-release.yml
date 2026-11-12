@@ -2,7 +2,7 @@ name: "hcpctl Latest Build"
 on:
   schedule:
   # Check hourly; the "skip if unchanged" step below keeps this a no-op
-  # unless tooling/hcpctl actually changed since the last successful build.
+  # unless hcpctl or its shared failure-pattern library changed since the last build.
   # The build marker is only moved after a successful GoReleaser publish, so
   # a failed run doesn't mask itself as "up to date" for the next check.
   - cron: '0 * * * *'
@@ -26,20 +26,20 @@ jobs:
       run: |
         git fetch origin refs/markers/hcpctl-latest-built:refs/markers/hcpctl-latest-built 2>/dev/null || true
         if git rev-parse -q --verify refs/markers/hcpctl-latest-built >/dev/null && \
-           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl; then
+           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl tooling/cifailurepatterns; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
         else
           echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
     - name: Set up Go
       if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version-file: 'go.work'
         cache-dependency-path: '**/go.sum'
     - name: Run GoReleaser
       if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-      uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.4.0
+      uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
       with:
         distribution: goreleaser
         version: "~> 2"

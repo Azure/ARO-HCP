@@ -2,11 +2,13 @@ rule_files:
 - imageRegistryPolicy-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test 1: Deny mode — policy denies pods, alert fires
+# Test 1: Deny mode — policy denies pods from multiple error_type series, alert fires once per cluster
 - interval: 1m
   input_series:
-  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="deny",validation_result="denied"}'
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",error_type="invalid_error",enforcement_action="deny"}'
     values: '0+3x20'
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",error_type="out_of_budget",enforcement_action="deny"}'
+    values: '0+1x20'
   alert_rule_test:
   - eval_time: 16m
     alertname: ImageRegistryPolicyDenied
@@ -19,24 +21,53 @@ tests:
         severity: warning
       exp_annotations:
         summary: "Image registry policy on svc-1 denied pod admission"
-        description: "The image-registry-allowlist-policy on cluster svc-1 has denied 45 pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running."
-        runbook_url: TBD
+        description: "The image-registry-allowlist-policy on cluster svc-1 has denied 60 pod admission(s) in the last 15 minutes. Pods with images from non-approved registries were blocked from running."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md"
         correlationId: "ImageRegistryPolicyDenied/svc-1"
-# Test 2: Deny mode — no denials, no alert
+# Test 2: Deny mode — allowed checks never increment the deny series, no alert
 - interval: 1m
   input_series:
-  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="deny",validation_result="allowed"}'
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",error_type="invalid_error",enforcement_action="allow"}'
     values: '0+10x20'
   alert_rule_test:
   - eval_time: 16m
     alertname: ImageRegistryPolicyDenied
     exp_alerts: []
-# Test 3: Audit mode — violations logged, alert fires after 5m
+# Test 3: Deny mode — a different policy's denials do not fire this alert
 - interval: 1m
   input_series:
-  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="audit",validation_result="denied"}'
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="some-other-policy",policy_binding="some-other-binding",error_type="invalid_error",enforcement_action="deny"}'
+    values: '0+10x20'
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: ImageRegistryPolicyDenied
+    exp_alerts: []
+# Test 4: Audit mode — violations logged, alert fires only after 5m of pending
+# ('0+2x20' keeps increase[15m] positive from the first evaluation, so the alert
+# is pending from t=1m and transitions to firing at t=6m. The reported count
+# grows as the 15m window fills: 12 checks at t=6m, 30 at t=20m.)
+- interval: 1m
+  input_series:
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",error_type="invalid_error",enforcement_action="audit"}'
     values: '0+2x20'
   alert_rule_test:
+  - eval_time: 5m
+    alertname: ImageRegistryPolicyAuditViolation
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: ImageRegistryPolicyAuditViolation
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-1
+        component: image-registry-policy
+        policy: image-registry-allowlist-policy
+        policy_binding: image-registry-allowlist-policy-binding
+        severity: warning
+      exp_annotations:
+        summary: "Image registry policy on mgmt-1 audit violation detected"
+        description: "The image-registry-allowlist-policy on cluster mgmt-1 has logged 12 audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md"
+        correlationId: "ImageRegistryPolicyAuditViolation/mgmt-1"
   - eval_time: 20m
     alertname: ImageRegistryPolicyAuditViolation
     exp_alerts:
@@ -45,16 +76,16 @@ tests:
         component: image-registry-policy
         policy: image-registry-allowlist-policy
         policy_binding: image-registry-allowlist-policy-binding
-        severity: info
+        severity: warning
       exp_annotations:
         summary: "Image registry policy on mgmt-1 audit violation detected"
-        description: "The image-registry-allowlist-policy on cluster mgmt-1 has logged 30 audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details."
-        runbook_url: TBD
+        description: "The image-registry-allowlist-policy on cluster mgmt-1 has logged 30 audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked, which means the policy is in Audit mode on this cluster or a violation slipped through enforcement. Inspect the validation.policy.admission.k8s.io audit annotations in kubeAudit for the offending images."
+        runbook_url: "https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/image-registry-policy.md"
         correlationId: "ImageRegistryPolicyAuditViolation/mgmt-1"
-# Test 4: Audit mode — no violations, no alert
+# Test 5: Audit mode — deny-mode hits do not fire the audit alert
 - interval: 1m
   input_series:
-  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="audit",validation_result="allowed"}'
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",error_type="invalid_error",enforcement_action="deny"}'
     values: '0+5x20'
   alert_rule_test:
   - eval_time: 20m

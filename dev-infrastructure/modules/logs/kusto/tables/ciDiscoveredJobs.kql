@@ -1,0 +1,21 @@
+// CI jobs discovered in GCS, written by the opstool tenant-quota collector.
+// Deploy this schema and mapping before the collector. Repeated discovery can
+// produce identical rows; readers must deduplicate by jobUri and buildId.
+.create-merge table ciDiscoveredJobs (
+    jobUri: string,
+    buildId: string,
+    jobName: string
+)
+with (
+    docstring = "CI jobs discovered in GCS, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciDiscoveredJobs ingestion json mapping "ciDiscoveredJobsMapping"
+```
+[
+  {"column":"jobUri","path":"$['jobUri']","datatype":"string"},
+  {"column":"buildId","path":"$['buildId']","datatype":"string"},
+  {"column":"jobName","path":"$['jobName']","datatype":"string"}
+]
+```

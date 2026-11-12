@@ -10,4 +10,4 @@ Alerts indicating service-level degradation — pod restarts, resource exhaustio
 
 ## Where to Go Next
 
-Correlate with service component logs (e.g. `logs/clustersService/`, `logs/maestro/`) to determine whether the alert was a symptom or a root cause. Use the `kusto_query` tool to expand `alertContext` for full detail.
+Correlate with service component logs (e.g. `logs/clustersService/`) to determine whether the alert was a symptom or a root cause. Use the `kusto_query` tool to expand `alertContext` for full detail.

@@ -17,13 +17,12 @@ package kubeapplierhelpers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,7 +30,7 @@ import (
 
 // ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler is the well-known ReadDesire name the
 // backend writes the per-cluster cluster-autoscaler ControlPlaneComponent mirror under.
-var ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler = strings.ToLower(string(coreapi.ReadonlyHypershiftControlPlaneComponentClusterAutoscaler))
+const ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler = kubeapplierapi.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler
 
 // GetCachedControlPlaneClusterAutoscalerForCluster reads the cluster-autoscaler
 // ControlPlaneComponent mirror from the per-cluster ReadDesire.

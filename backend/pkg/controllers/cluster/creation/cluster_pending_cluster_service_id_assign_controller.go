@@ -46,7 +46,7 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterPendingClusterServiceIDAssignControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -54,6 +54,9 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+
+	return controller
 }
 
 func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.Cluster) bool {

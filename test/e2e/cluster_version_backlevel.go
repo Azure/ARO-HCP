@@ -55,6 +55,7 @@ var _ = Describe("Customer", func() {
 			labels.AroRpApiCompatible,
 			labels.AllowRetry, // owner: @sjante, tracking: ARO-21125. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			labels.MIContainers(1),
+			labels.StartPriority(40),
 			func(ctx context.Context) {
 				const (
 					customerNetworkSecurityGroupName = "customer-nsg-name-"

@@ -35,6 +35,7 @@ const (
 )
 
 var (
+	DNSClaimResourceType                    = azcorearm.NewResourceType(coreapi.ProviderNamespace, "dnsZones/dnsClaims")
 	StampResourceType                       = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName)
 	ManagementClusterResourceType           = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName)
 	ManagementClusterControllerResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+ControllerResourceTypeName)

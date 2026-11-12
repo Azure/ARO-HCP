@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/prometheus/common/model"
@@ -546,6 +547,11 @@ func (o *Options) Generate() error {
 					annotations["title"] = ptr.To(title)
 					var missing []string
 					for _, label := range extractedLabels {
+						// writeAlertGroups prefixes IcM.Title with the cluster label.
+						// Requiring it in summary too would duplicate it in the title.
+						if label == "cluster" {
+							continue
+						}
 						if !strings.Contains(title, labelTemplateToken(label)) {
 							missing = append(missing, label)
 						}
@@ -860,8 +866,31 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 		return ptr.To("PT1M")
 	}
 
-	// TODO: this is likely not precisely correct, but /shrug
-	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
+	// ISO 8601 only allows Y/M/D in the date part (before "T") and H/M/S in
+	// the time part (after "T"); "W" cannot combine with "T" at all. But
+	// model.Duration.String() happily emits a "d"/"w" shorthand once the
+	// value is a clean multiple of a day/week (e.g. 48h -> "2d", 336h ->
+	// "2w"), and naively prefixing that with "PT" produces an invalid
+	// ISO 8601 string ("PT2D", "PT2W") that Azure rejects at deployment.
+	// Always express the duration in hours/minutes/seconds after "T"
+	// instead, regardless of how cleanly it divides into days/weeks.
+	total := time.Duration(parsedDuration)
+	hours := int64(total / time.Hour)
+	minutes := int64((total % time.Hour) / time.Minute)
+	seconds := int64((total % time.Minute) / time.Second)
+
+	var sb strings.Builder
+	sb.WriteString("PT")
+	if hours > 0 {
+		fmt.Fprintf(&sb, "%dH", hours)
+	}
+	if minutes > 0 {
+		fmt.Fprintf(&sb, "%dM", minutes)
+	}
+	if seconds > 0 || (hours == 0 && minutes == 0) {
+		fmt.Fprintf(&sb, "%dS", seconds)
+	}
+	return ptr.To(sb.String())
 }
 
 func requireLabel(labels map[string]*string, name, alert, group string) error {

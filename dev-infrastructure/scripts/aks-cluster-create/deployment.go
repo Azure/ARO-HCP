@@ -22,28 +22,29 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpoolspec"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // VM size updates require an API version at least as new as 2026-01-02-preview.
-// Keep this aligned with the AKS Bicep resources used elsewhere in the repository.
-const aksAPIVersion = "2026-04-02-preview"
+// Keep this aligned with the containerservice SDK.
+const aksAPIVersion = "2026-08-01"
 
 func (o *validatedOptions) buildDeployment(existing *armcontainerservice.ManagedCluster, pools []compute.Pool) (armdeployments.Deployment, []string, error) {
 	// Locate the system pool, which is created inline with the cluster resource.
-	bootstrapIndex := slices.IndexFunc(pools, func(pool compute.Pool) bool { return pool.Role == compute.PoolRoleSystem })
+	bootstrapIndex := slices.IndexFunc(pools, func(pool compute.Pool) bool { return pool.AgentPoolMode == armcontainerservice.AgentPoolModeSystem })
 	if bootstrapIndex < 0 {
-		return armdeployments.Deployment{}, nil, fmt.Errorf("no system pool was configured")
+		return armdeployments.Deployment{}, nil, utils.TrackError(fmt.Errorf("no system pool was configured"))
 	}
 
 	// Compute the desired cluster spec and the set of changed paths.
 	cluster, changed, err := o.desiredClusterSpec(existing, &pools[bootstrapIndex])
 	if err != nil {
-		return armdeployments.Deployment{}, nil, err
+		return armdeployments.Deployment{}, nil, utils.TrackError(err)
 	}
 
 	// Emit the cluster resource only when a deployment is actually needed:
@@ -56,7 +57,7 @@ func (o *validatedOptions) buildDeployment(existing *armcontainerservice.Managed
 		cluster.ID, cluster.Name, cluster.Type, cluster.ETag, cluster.SystemData = nil, nil, nil, nil, nil
 		clusterResource, err := deploymentResource(cluster, "Microsoft.ContainerService/managedClusters", o.clusterName)
 		if err != nil {
-			return armdeployments.Deployment{}, nil, err
+			return armdeployments.Deployment{}, nil, utils.TrackError(err)
 		}
 		resources = append(resources, clusterResource)
 		clusterDependency = []string{fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", o.subscriptionID, o.resourceGroup, o.clusterName)}
@@ -72,7 +73,7 @@ func (o *validatedOptions) buildDeployment(existing *armcontainerservice.Managed
 		}
 		resource, err := deploymentResource(armcontainerservice.AgentPool{Properties: agentpoolspec.Build(pool, network)}, "Microsoft.ContainerService/managedClusters/agentPools", o.clusterName+"/"+pool.Name)
 		if err != nil {
-			return armdeployments.Deployment{}, nil, err
+			return armdeployments.Deployment{}, nil, utils.TrackError(err)
 		}
 		if len(clusterDependency) > 0 {
 			resource["dependsOn"] = clusterDependency
@@ -97,13 +98,13 @@ func (o *validatedOptions) buildDeployment(existing *armcontainerservice.Managed
 func deploymentResource(spec any, resourceType, name string) (map[string]any, error) {
 	data, err := json.Marshal(spec)
 	if err != nil {
-		return nil, fmt.Errorf("encoding resource %s: %w", name, err)
+		return nil, utils.TrackError(fmt.Errorf("encoding resource %s: %w", name, err))
 	}
 	var resource map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	if err := decoder.Decode(&resource); err != nil {
-		return nil, fmt.Errorf("decoding resource %s: %w", name, err)
+		return nil, utils.TrackError(fmt.Errorf("decoding resource %s: %w", name, err))
 	}
 	resource["type"] = resourceType
 	resource["apiVersion"] = aksAPIVersion

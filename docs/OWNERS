@@ -3,5 +3,11 @@ approvers:
 - janboll
 - service-lifecycle-approvers
 - stevekuznetsov
+- mbarnes
+- deads2k
+- machi1990
+- miguelsorianod
+- sre-approvers
+- qe-approvers
 labels:
 - area/docs

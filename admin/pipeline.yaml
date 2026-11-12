@@ -105,6 +105,10 @@ resourceGroups:
         resourceGroup: kusto
         step: output
         name: kustoUri
+      subscriptionId:
+        resourceGroup: service
+        step: output
+        name: subscriptionId
     dependsOn:
     - resourceGroup: global
       step: mirror-image

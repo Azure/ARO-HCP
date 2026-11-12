@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -57,6 +58,10 @@ func NewInitialNormalClusterDesiredVersionController(clock utilsclock.PassiveClo
 	}
 	controller := controllerutils.NewClusterWatchingController(
 		InitialNormalClusterDesiredVersionControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+
 	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
 		syncer.enqueueAfter = enqueuer
 	} else {

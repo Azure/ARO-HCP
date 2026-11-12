@@ -24,6 +24,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -64,7 +66,7 @@ func NewServiceProviderClusterPropertiesSyncController(
 		readDesireLister:             readDesireLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ServiceProviderClusterPropertiesSyncControllerName,
 		resourcesDBClient,
 		informers,
@@ -72,6 +74,12 @@ func NewServiceProviderClusterPropertiesSyncController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameServingCA)
+
+	return controller
 }
 
 func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -85,7 +93,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}

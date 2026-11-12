@@ -106,54 +106,6 @@ func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *
 	return true
 }
 
-func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
-	if operation.Status.IsTerminal() {
-		return false
-	}
-	if operation.Request != cosmosstorageutils.OperationRequestDelete {
-		return false
-	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
-		return false
-	}
-	return true
-}
-
-func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *coreapi.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if !c.legacyShouldProcess(ctx, operation) {
-		return nil // no work to do
-	}
-
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	var ocmGetNodePoolError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
-
-		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := operationbase.ConvertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
@@ -165,13 +117,6 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
-
-	// TODO remove this once migration of node pool deletion from frontend to backend is fully completed.
-	if !operation.UsesNewNodePoolDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
 
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
@@ -189,6 +134,29 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+	}
+
+	if operation.OperationID.Name != nodePool.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("node pool active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.OperationID.Name, "nodePoolActiveOperationID", nodePool.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+
+	if deadline := nodePool.ServiceProviderProperties.DeleteOperationCompletionDeadline; deadline != nil && c.clock.Now().After(deadline.Time) {
+		message := "node pool deletion did not complete before the deadline"
+		if nodePool.ServiceProviderProperties.ClusterServiceID == nil {
+			message += "; waiting for node pool document deletion"
+		} else if nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
+			message += "; ClusterService deletion not yet dispatched"
+		} else {
+			message += "; ClusterService node pool deletion not yet confirmed"
+		}
+		persistErr := &coreapi.CloudErrorBody{Code: coreapi.CloudErrorCodeDeadlineExceeded, Message: message}
+		logger.Info("delete operation deadline exceeded, marking as failed", "deadline", deadline.Time, "message", message)
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		return utils.TrackError(err)
 	}
 
 	if !c.shouldReconcileOperationAndResourceStatus(nodePool) {
@@ -213,7 +181,10 @@ func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx contex
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID
 
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePoolCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	defer cancel()
+
+	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(csCtx, *nodePoolCSID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {

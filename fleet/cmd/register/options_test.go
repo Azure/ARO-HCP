@@ -32,10 +32,8 @@ func validRawOptions() *RawRegisterOptions {
 		HostedClustersSecretsKeyVaultURL: "https://kv.vault.azure.net",
 		HostedClustersManagedIdentitiesKeyVaultURL:           "https://mi-kv.vault.azure.net",
 		HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-		MaestroConsumerName:                                  "consumer-1",
-		MaestroRESTAPIURL:                                    "http://maestro:8000",
-		MaestroGRPCTarget:                                    "maestro:8090",
 		KubeApplierCosmosContainerName:                       "Manifests-MC-1",
+		KubeApplierCosmosContainerMaxScale:                   19000,
 	}
 }
 
@@ -75,6 +73,11 @@ func TestValidate(t *testing.T) {
 			name:      "invalid public DNS zone resource ID",
 			modify:    func(opts *RawRegisterOptions) { opts.PublicDNSZoneResourceID = "not-a-resource-id" },
 			expectErr: "invalid public-dns-zone-resource-id",
+		},
+		{
+			name:      "zero kube-applier-cosmos-container-max-scale",
+			modify:    func(opts *RawRegisterOptions) { opts.KubeApplierCosmosContainerMaxScale = 0 },
+			expectErr: "invalid --kube-applier-cosmos-container-max-scale",
 		},
 	}
 

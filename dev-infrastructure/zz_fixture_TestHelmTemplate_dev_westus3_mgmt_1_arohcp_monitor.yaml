@@ -67727,6 +67727,16 @@ data:
             type: StateSet
           help: Azure KMS configuration validity condition
           name: valid_azure_kms_config
+        - each:
+            gauge:
+              nilIsZero: true
+              path:
+              - metadata
+              - deletionTimestamp
+            type: Gauge
+          help: HostedCluster deletion timestamp in Unix seconds, or zero when deletion
+            has not been requested.
+          name: deletion_timestamp_seconds
       - groupVersionKind:
           group: velero.io
           kind: Backup
@@ -67767,83 +67777,121 @@ data:
             type: StateSet
           help: Backup phase
           name: phase
----
-# Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
-kind: ConfigMap
-apiVersion: v1
-data:
-  schema-version: v1
-  #string.used by agent to parse config. supported versions are {v1}. Configs with other schema versions will be rejected by the agent.
-  config-version: ver1
-  #string.used by customer to keep track of this config file's version in their source control/repository (max allowed 10 chars, other chars will be truncated)
-  prometheus-collector-settings: |-
-    cluster_alias = ""
-  default-scrape-settings-enabled: |-
-    kubelet = true
-    coredns = true
-    cadvisor = true
-    kubeproxy = true
-    apiserver = true
-    kubestate = false # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
-    nodeexporter = true
-    windowsexporter = false
-    windowskubeproxy = false
-    kappiebasic = true
-    networkobservabilityRetina = true
-    networkobservabilityHubble = true
-    networkobservabilityCilium = true
-    prometheuscollectorhealth = true
-    controlplane-apiserver = true
-    controlplane-cluster-autoscaler = true
-    controlplane-kube-scheduler = true
-    controlplane-kube-controller-manager = true
-    controlplane-etcd = true
-  # Regex for which namespaces to scrape through pod annotation based scraping.
-  # This is none by default. Use '.*' to scrape all namespaces of annotated pods.
-  pod-annotation-based-scraping: |-
-    podannotationnamespaceregex = ""
-  default-targets-metrics-keep-list: |-
-    kubelet = ""
-    coredns = ""
-    cadvisor = ""
-    kubeproxy = ""
-    apiserver = ""
-    kubestate = ""
-    nodeexporter = ""
-    windowsexporter = ""
-    windowskubeproxy = ""
-    podannotations = ""
-    kappiebasic = ""
-    networkobservabilityRetina = ""
-    networkobservabilityHubble = ""
-    networkobservabilityCilium = ""
-    controlplane-apiserver = ""
-    controlplane-cluster-autoscaler = ""
-    controlplane-kube-scheduler = ""
-    controlplane-kube-controller-manager = ""
-    controlplane-etcd = ""
-    minimalingestionprofile = true
-  default-targets-scrape-interval-settings: |-
-    kubelet = "30s"
-    coredns = "30s"
-    cadvisor = "30s"
-    kubeproxy = "30s"
-    apiserver = "30s"
-    kubestate = "30s"
-    nodeexporter = "30s"
-    windowsexporter = "30s"
-    windowskubeproxy = "30s"
-    kappiebasic = "30s"
-    networkobservabilityRetina = "30s"
-    networkobservabilityHubble = "30s"
-    networkobservabilityCilium = "30s"
-    prometheuscollectorhealth = "30s"
-    podannotations = "30s"
-  debug-mode: |-
-    enabled = false
-metadata:
-  name: ama-metrics-settings-configmap
-  namespace: kube-system
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: Backup CR presence indicator, independent of status.phase - one row per
+            existing CR
+          name: info
+      - groupVersionKind:
+          group: velero.io
+          kind: DeleteBackupRequest
+          version: v1
+        labelsFromPath:
+          backupName:
+          - spec
+          - backupName
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+        metricNamePrefix: veleroDeleteBackupRequest
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - InProgress
+              - Processed
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: DeleteBackupRequest phase
+          name: phase
+        - each:
+            info:
+              labelsFromPath:
+                name:
+                - metadata
+                - name
+                namespace:
+                - metadata
+                - namespace
+            type: Info
+          help: DeleteBackupRequest CR presence indicator, independent of status.phase
+            - one row per existing CR
+          name: info
+      - groupVersionKind:
+          group: cluster.x-k8s.io
+          kind: Machine
+          version: v1beta2
+        labelsFromPath:
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+          node:
+          - status
+          - nodeRef
+          - name
+          node_pool:
+          - metadata
+          - labels
+          - cluster.x-k8s.io/deployment-name
+        metricNamePrefix: capiMachine
+        metrics:
+        - each:
+            gauge:
+              path:
+              - status
+              - deletion
+              - nodeDrainStartTime
+            type: Gauge
+          errorLogV: 10
+          help: 'Unix time at which CAPI started draining this Machine''s node. Set once
+            the Machine is deleting and the drain has begun; a series exists only for
+            Machines being deleted, so this costs nothing on a steady-state cluster. nilIsZero
+            is deliberately omitted to keep it that way -- with it, every worker Machine
+            would carry a series. CAVEAT: CAPI does NOT clear nodeDrainStartTime when
+            the drain finishes, so on its own this cannot distinguish a wedged drain from
+            a Machine whose drain succeeded but whose Azure VM deletion is slow. Prefer
+            the recording rule duration:capiMachine_node_draining:seconds, which gates
+            this on deleting_stage{reason="DrainingNode"} and is the supported way to
+            ask how long a node has been draining.'
+          name: node_drain_start_time_seconds
+        - each:
+            gauge:
+              labelsFromPath:
+                reason:
+                - reason
+              path:
+              - status
+              - conditions
+              - '[type=Deleting]'
+              valueFrom:
+              - lastTransitionTime
+            type: Gauge
+          help: Which stage of the CAPI deletion workflow a Machine is in, from the reason
+            on its Deleting condition (DrainingNode, WaitingForVolumeDetach, WaitingForInfrastructureDeletion,
+            NotDeleting, ...). The value is the condition's lastTransitionTime in Unix
+            seconds. One series per Machine, since CAPI keeps a Deleting=False/NotDeleting
+            condition on idle Machines too. Combined with node_drain_start_time_seconds
+            by the recording rule duration:capiMachine_node_draining:seconds; also useful
+            on its own to see which deletion stage a Machine is wedged in.
+          name: deleting_stage
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -68017,6 +68065,20 @@ rules:
   - velero.io
   resources:
   - backups
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - deletebackuprequests
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
   verbs:
   - list
   - watch
@@ -68609,6 +68671,10 @@ spec:
   podMetricsEndpoints:
   - portNumber: 9090
     path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   selector:
     matchLabels:
       app.kubernetes.io/instance: prometheus
@@ -68683,13 +68749,15 @@ spec:
   topologySpreadConstraints:
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: 'topology.kubernetes.io/zone'
     whenUnsatisfiable: ScheduleAnyway
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
@@ -68720,6 +68788,22 @@ spec:
     # resources where namespace has been promoted to the actual resource namespace
     # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
+      # TRANSITION — REVERT ME (ARO-30517). The velero PodMonitor renames the
+      # schedule-derived Velero series to velero_hcp_* and sets namespace=ocm-*,
+      # routing them to the HCP workspace (and out of services via the drop rules
+      # below). These two rules keep a services-workspace copy under the ORIGINAL
+      # velero_* names so the services-workspace backup SLO alerts keep firing
+      # while the velero_hcp_* series and HCP-workspace alerts are validated in
+      # production. Rename back to velero_*, then reset namespace to "velero" so
+      # the ocm-* drop rule below does not drop them. Remove once validated.
+      - sourceLabels: [__name__]
+        regex: 'velero_hcp_(.+)'
+        targetLabel: __name__
+        replacement: 'velero_${1}'
+      - sourceLabels: [__name__]
+        regex: 'velero_.+'
+        targetLabel: namespace
+        replacement: 'velero'
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
         action: drop
@@ -71119,6 +71203,10 @@ spec:
   endpoints:
     - port: http
       honorLabels: true
+      relabelings:
+        - action: replace
+          replacement: service
+          targetLabel: microsoft_metrics_include_label
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

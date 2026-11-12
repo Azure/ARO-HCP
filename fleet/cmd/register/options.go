@@ -43,10 +43,8 @@ type RawRegisterOptions struct {
 	HostedClustersSecretsKeyVaultURL                     string
 	HostedClustersManagedIdentitiesKeyVaultURL           string
 	HostedClustersSecretsKeyVaultManagedIdentityClientID string
-	MaestroConsumerName                                  string
-	MaestroRESTAPIURL                                    string
-	MaestroGRPCTarget                                    string
 	KubeApplierCosmosContainerName                       string
+	KubeApplierCosmosContainerMaxScale                   int32
 }
 
 func DefaultRegisterOptions() *RawRegisterOptions {
@@ -65,10 +63,8 @@ func BindRegisterOptions(opts *RawRegisterOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.HostedClustersSecretsKeyVaultURL, "hosted-clusters-secrets-keyvault-url", opts.HostedClustersSecretsKeyVaultURL, "key vault URL for hosted cluster secrets")
 	cmd.Flags().StringVar(&opts.HostedClustersManagedIdentitiesKeyVaultURL, "hosted-clusters-managed-identities-keyvault-url", opts.HostedClustersManagedIdentitiesKeyVaultURL, "key vault URL for hosted cluster managed identities")
 	cmd.Flags().StringVar(&opts.HostedClustersSecretsKeyVaultManagedIdentityClientID, "hosted-clusters-secrets-keyvault-mi-client-id", opts.HostedClustersSecretsKeyVaultManagedIdentityClientID, "client ID of the managed identity for the secrets key vault")
-	cmd.Flags().StringVar(&opts.MaestroConsumerName, "maestro-consumer-name", opts.MaestroConsumerName, "Maestro consumer name")
-	cmd.Flags().StringVar(&opts.MaestroRESTAPIURL, "maestro-rest-api-url", opts.MaestroRESTAPIURL, "Maestro REST API URL")
-	cmd.Flags().StringVar(&opts.MaestroGRPCTarget, "maestro-grpc-target", opts.MaestroGRPCTarget, "Maestro gRPC dial target (host:port)")
 	cmd.Flags().StringVar(&opts.KubeApplierCosmosContainerName, "kube-applier-cosmos-container-name", opts.KubeApplierCosmosContainerName, "Cosmos container name for kube-applier manifests")
+	cmd.Flags().Int32Var(&opts.KubeApplierCosmosContainerMaxScale, "kube-applier-cosmos-container-max-scale", opts.KubeApplierCosmosContainerMaxScale, "autoscale maximum throughput (RU/s) configured for the kube-applier Cosmos container")
 
 	for _, flag := range []string{
 		"cloud-environment",
@@ -81,10 +77,8 @@ func BindRegisterOptions(opts *RawRegisterOptions, cmd *cobra.Command) error {
 		"hosted-clusters-secrets-keyvault-url",
 		"hosted-clusters-managed-identities-keyvault-url",
 		"hosted-clusters-secrets-keyvault-mi-client-id",
-		"maestro-consumer-name",
-		"maestro-rest-api-url",
-		"maestro-grpc-target",
 		"kube-applier-cosmos-container-name",
+		"kube-applier-cosmos-container-max-scale",
 	} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
 			return err
@@ -138,6 +132,10 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("invalid public-dns-zone-resource-id: %w", err)
 	}
 
+	if o.KubeApplierCosmosContainerMaxScale <= 0 {
+		return nil, fmt.Errorf("invalid --kube-applier-cosmos-container-max-scale: must be positive")
+	}
+
 	return &ValidatedRegisterOptions{
 		validatedRegisterOptions: &validatedRegisterOptions{
 			RawRegisterOptions:          o,
@@ -163,10 +161,8 @@ type registerOptions struct {
 	hostedClustersSecretsKeyVaultURL                     string
 	hostedClustersManagedIdentitiesKeyVaultURL           string
 	hostedClustersSecretsKeyVaultManagedIdentityClientID string
-	maestroConsumerName                                  string
-	maestroRESTAPIURL                                    string
-	maestroGRPCTarget                                    string
 	kubeApplierCosmosContainerName                       string
+	kubeApplierCosmosContainerMaxScale                   int32
 }
 
 type RegisterOptions struct {
@@ -197,10 +193,8 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 			hostedClustersSecretsKeyVaultURL:           o.HostedClustersSecretsKeyVaultURL,
 			hostedClustersManagedIdentitiesKeyVaultURL: o.HostedClustersManagedIdentitiesKeyVaultURL,
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: o.HostedClustersSecretsKeyVaultManagedIdentityClientID,
-			maestroConsumerName:            o.MaestroConsumerName,
-			maestroRESTAPIURL:              o.MaestroRESTAPIURL,
-			maestroGRPCTarget:              o.MaestroGRPCTarget,
-			kubeApplierCosmosContainerName: o.KubeApplierCosmosContainerName,
+			kubeApplierCosmosContainerName:                       o.KubeApplierCosmosContainerName,
+			kubeApplierCosmosContainerMaxScale:                   o.KubeApplierCosmosContainerMaxScale,
 		},
 	}, nil
 }

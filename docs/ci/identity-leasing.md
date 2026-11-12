@@ -103,7 +103,7 @@ They acquire a slot and write configuration without provisioning infrastructure.
 Both workflows return leases through `aro-hcp-lease-release` in their post-steps.
 
 The acquire step calls `./test/aro-hcp-tests slot-manager acquire`. See the
-design's [acquisition and admission](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquisition-and-admission)
+design's [acquisition lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
 and [runtime contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#runtime-contract)
 sections for the lifecycle and exported values.
 
@@ -111,13 +111,15 @@ Downstream steps source `${SHARED_DIR}/aro-hcp-slot.env` and map
 `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework
 receives `LEASED_MSI_CONTAINERS` through this contract rather than directly from
 a ci-operator lease.
+The slot contract also supplies `ARO_HCP_E2E_VM_FAMILY_POLICY`; see the
+[slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+and [E2E SKU selection guidance](../../test/e2e/README.md#selecting-vm-sizes-skus).
+
 
 The acquire step mounts cluster-profile credentials. Slot-manager authenticates
 directly from the selected profile; a prior `az login` is not required. See
-[credentials](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#credentials)
-for the required files and permissions, and
-[subscriptions](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#subscriptions)
-for the infrastructure opt-in contract used by persistent environments.
+[credential and subscription requirements](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog)
+for the required files, permissions, and infrastructure opt-in contract.
 
 ### Subscription Sharding And Region Selection
 
@@ -126,7 +128,7 @@ The slot-manager path is what lets CI shard `e2e-parallel` across multiple custo
 The inventory lives in `test/e2e-config/e2e-slots.yaml`. See the design's
 [catalog](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#catalog) section for
 deployment and subscription bindings, region selection, and asset-pool sizing.
-Check [implementation status](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#implementation-status)
+Check the design's [asset lifecycle](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#asset-lifecycle)
 before enabling a new asset.
 
 For workflow configuration:
@@ -196,9 +198,9 @@ RG_SCOPE_COST   = 26   # unconditional + rbacScope=='resourceGroup' assignments
 RES_SCOPE_COST  = 41   # same, for rbacScope=='resource'
 RES_SCOPED_HCPS = 1    # git grep -o "framework.RBACScopeResource," -- test/e2e/ | wc -l
 
-identity_container_count = 58   # slot_assets.e2e_identities.resource_group_count in
-                                #   test/e2e-config/e2e-slots.yaml. Differs per pool
-                                #   (20, 25 and 58 today), so run-cost is per pool too.
+identity_container_count = pool.slot_assets.e2e_identities.resource_group_count
+# identity_container_provisioning_count, when configured, controls physical
+# inventory only; it does not increase this leased ceiling or hcp-concurrency.
 
 # Concurrent HCPs is NOT the Ginkgo worker count. Some specs lease more than one
 # identity container each, so P workers can hold more than P clusters.
@@ -221,12 +223,13 @@ max-concurrency = floor((role-assignment-quota - 100) / run-cost)
 
 The 100 subtracted from quota is headroom reserved for other activity in the subscription and for any additional role assignments created by individual specs.
 
-For the current managed DEV pools, five 58-container slots have a configured
-worst-case cost of `5 * (((58 - 1) * 26) + (1 * 41)) = 7615` assignments.
-Against the requested 8000-assignment quota, that leaves 385 assignments total,
-including the 100-assignment reserve and the subscription's persistent baseline.
+Read each pool's slot count and leased container budget from the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml) when calculating
+its quota cost. Do not reuse another pool's capacity or a fixed example count.
 
-`suite-parallelism` is declared per suite in `test/cmd/aro-hcp-tests/main.go` and can be overridden at runtime by `ARO_HCP_SUITE_PARALLELISM`, which the CI job configuration in `openshift/release` sets. That override is not visible from this repository, so check the job config rather than assuming the source literal applies.
+Suite worker precedence is documented in the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+This guide retains the quota and capacity formulas below.
 
 `run-cost` is the cost of a single run. To answer whether a change fits within a
 subscription's quota — the question that arises whenever role assignments are
@@ -235,18 +238,17 @@ added to the E2E bicep — scale it across the slots that subscription configure
 ```text
 # Slots and their container counts come from test/e2e-config/e2e-slots.yaml.
 # Group pools by subscriptions.e2e first: several pools can share one
-# subscription and therefore one quota, so their costs add up. Today the INT
-# environment is the case that matters.
+# subscription and therefore one quota, so their costs add up.
 #
 # run-cost is per pool, not per subscription: it depends on
-# identity_container_count, which differs between pools (20, 25 and 58 today).
+# identity_container_count, which can differ between pools.
 # Compute it separately for each pool rather than reusing one value.
 subscription-cost = sum over that subscription's pools of (run-cost(pool) * slot_count(pool))
 
 assert subscription-cost + persistent-baseline <= role-assignment-quota
 ```
 
-`persistent-baseline` is the role assignments a subscription holds independently of any running suite — subscription-scoped grants for humans and automation, plus long-lived infrastructure. Measure it on an idle subscription rather than assuming; assignments belonging to running clusters cannot be told apart by scope:
+`persistent-baseline` is the role assignments a subscription holds independently of any running suite — subscription-scoped grants for humans and automation, plus long-lived infrastructure, including provisioned identity containers not exposed for leasing. Persistent role assignments associated with physical inventory belong in this baseline; the leased count controls the per-run HCP costs above. Measure it on an idle subscription rather than assuming; assignments belonging to running clusters cannot be told apart by scope:
 
 ```bash
 az role assignment list --subscription <name-or-id> --all -o json | jq length
@@ -269,7 +271,7 @@ Three bottlenecks matter:
 
 Concurrency is bounded by the number of available slots across the pools that the job is allowed to consume.
 
-**Bottleneck 2: parallelism within a single run.** How many HCP clusters a single suite execution holds at once is bounded by both the leased identity-container set and the effective suite parallelism, whichever is smaller — see `hcp-concurrency` above. When the suite has more specs requiring HCPs than can run concurrently, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+**Bottleneck 2: parallelism within a single run.** Suite parallelism bounds the number of running specs, not the number of HCP clusters. With pooled identities enabled, the resource-aware scheduler uses each spec's `labels.MIContainers` demand and the leased `mi-containers` resource pool to admit only specs whose combined demand fits. A spec requiring two containers consumes two units; zero-container specs consume none. Specs wait for scheduler capacity and run in waves as resources are released. The framework's `AssignIdentityContainers()` reservation and retry protocol remains a backstop. See `hcp-concurrency` above for the corresponding HCP bound; adding more workers does not bypass the identity-container ceiling.
 
 **Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
 
@@ -280,7 +282,7 @@ DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
 max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
 ```
 
-This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing. Stage uses one 75-container slot per subscription, below this approximate 92-HCP limit. It translates into slot count as:
 
 ```text
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
@@ -298,15 +300,24 @@ For slot-managed jobs:
 
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev`
+- apply declared assets for the target environment, for example `make -C test apply-pool-assets ENVIRONMENT=dev` (or `ENVIRONMENT=dev-xs` for ci02)
   (the `apply-identity-pool` target remains a compatibility alias)
 
   Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for the operator runbook when adding another customer subscription
 
-For a pool reduction, merge the catalog change first, wait for jobs using the
-old count to drain, and verify the removed indices are unused. Only then apply
-and validate the reduced pool; the deployment stack deletes unmanaged resources.
+The optional pool-level `identity_container_provisioning_count` sets the physical
+container count per slot and must be at least the leased
+`slot_assets.e2e_identities.resource_group_count`. Omitting it retains the
+existing behavior: the physical count per slot equals the leased count, and
+total physical inventory is that count multiplied by `slot_count`. Increasing
+physical inventory alone does not raise the scheduler's runtime MI budget.
+
+For a pool reduction, merge the leased-count change first, wait for jobs using
+the old count to drain, and verify the removed indices are unused. Reduce the
+physical provisioning count only when those resources should actually be
+removed. Only then apply and validate the reduced physical pool; the deployment
+stack deletes unmanaged resources.
 
 #### Reconcile And Validate An Identity Pool
 
@@ -315,7 +326,7 @@ incomplete, reconcile only the affected subscription:
 
 ```bash
 make -C test apply-pool-assets \
-  ENVIRONMENT=<dev|int|stg|prod> \
+  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
@@ -329,7 +340,7 @@ Then validate the complete expected inventory against Azure:
 
 ```bash
 make -C test validate-pool-assets \
-  ENVIRONMENT=<dev|int|stg|prod> \
+  ENVIRONMENT=<dev|dev-xs|int|stg|prod> \
   ASSET=e2e_identities \
   SUBSCRIPTION="<catalog subscriptions.e2e>"
 ```
@@ -343,6 +354,70 @@ stack in a non-terminal state.
 INT, STG, and PROD parallel jobs use the same catalog-driven acquisition and
 release path without provisioning infrastructure. Catalog changes must stay
 aligned with the release-side Boskos inventory and job selectors.
+
+#### INT West US 3 Capacity And Rollout
+
+The [canonical slot catalog](../../test/e2e-config/e2e-slots.yaml) is the source
+of truth for environment and pool names, subscriptions, placement, job-slot
+counts, leased identity-container budgets, physical provisioning targets, and
+VM-family policy. Read the `int` environment's West US 3 pool for its settings.
+
+Capacity-only changes belong in the catalog. Update this guide only when
+configuration semantics or operating procedures change.
+
+For suite worker precedence, see the design's
+[leased-identity parallelism section](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#suite-parallelism-from-leased-identities).
+The default follows the acquired identity-container count, not physical
+inventory or reserve capacity.
+
+An explicit CLI `--max-concurrency` overrides the derived suite worker default.
+The MSI resource budget is enforced separately: the resource-aware scheduler
+derives its `mi-containers` capacity from the acquired entries in
+`LEASED_MSI_CONTAINERS`. This budget is not a cap on concurrent specs:
+zero-demand specs consume no containers, and multi-container specs consume
+more than one unit of budget.
+
+Check regional and SKU-family vCPU quotas and role-assignment headroom against
+the selected tests' node shapes and peak simultaneous HCP demand. Derive that
+demand from the pool's leased budget and the tests' resource requirements,
+not from the physical inventory count or the number of workers alone.
+
+Before jobs use a capacity change, follow
+[Reconcile And Validate An Identity Pool](#reconcile-and-validate-an-identity-pool)
+for the selected environment, pool, and subscription. Use the Make targets so
+the binary and embedded ARM templates reflect the source revision.
+
+Record reconciliation, quota, and validation observations in rollout/PR notes,
+not as permanent claims about live readiness in this guide. Whole-pool
+validation checks the physical provisioning target; admission and runtime
+leasing use the declared leased budget. Preserve the physical target during
+a leased-budget reduction unless the reserve inventory should be removed.
+
+Validate the release-side Boskos inventory when job-slot names or counts
+change. Ensure persistent workflow steps source the slot runtime contract,
+mapping `SELECTED_LOCATION` to `LOCATION` and preserving
+`LEASED_MSI_CONTAINERS`.
+
+After rollout, compare the exported container list and the `mi-containers`
+scheduler budget with the selected pool's declared leased count. Inspect the
+effective worker concurrency, including CLI overrides, and scheduler/lease
+timing in job artifacts. Explicit worker limits cap concurrent specs
+independently of the leased identity-container budget.
+
+#### Stage Identity Inventory And Runtime Region
+
+Stage acquisition uses two West US 3 pools, `shard0` in Stage-00 and `shard1`
+in Stage-01, declared in the
+[canonical slot catalog](../../test/e2e-config/e2e-slots.yaml). Each subscription
+has one slot, 100 physical identity containers, and a leased-container ceiling
+of 75, using the explicit prefix `aro-hcp-msi-container-stg`. Read the catalog
+for Boskos resource types and regional VM-family policy.
+
+Both runtime and identity provisioning regions are fixed to `westus3`.
+Confirm `SELECTED_LOCATION`, the acquired pool and slot, the exported identity
+list, and the `mi-containers` budget in job artifacts. Suite worker defaults
+follow the acquired identity count; explicit worker overrides do not increase
+the leased identity budget.
 
 ### Operational Notes And Troubleshooting
 
@@ -367,9 +442,9 @@ Common failure modes:
     [admission opt-out contract](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#emergency-admission-opt-out)
 - **slot-manager acquisition or release failure**
   - inspect the acquire/release step logs and `${SHARED_DIR}/aro-hcp-slot-state.yaml`
-  - follow the design's [failure behavior](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#failure-behavior)
-    and [acquired-state recovery rules](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquired-state)
-    before retrying or manually returning a lease
+  - follow the design's [acquire, persist, fail, release](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md#acquire-persist-fail-release)
+    rules before retrying or manually returning a lease
+
 - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**
   - inspect `aro-hcp-lease-acquire` and the runtime slot env export
 - **`no assigned identity containers available for <specID>`**

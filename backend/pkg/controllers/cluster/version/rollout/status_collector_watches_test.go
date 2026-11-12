@@ -21,142 +21,71 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
-func statusWatchFixture(t *testing.T) (*candidateQueue, cache.ResourceEventHandler, cache.ResourceEventHandler) {
-	t.Helper()
-	_, lister := newTestRolloutStore(t,
-		newTestRollout("stable-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
-		newTestRollout("candidate-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
-		newTestRollout("fast-4.22", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
-		newTestRollout("stable-4.23", nil, fleetapi.ControlPlaneVersionRolloutStatus{}))
-	c := &statusCollectorSyncer{rolloutLister: lister}
+func TestStatusCollectorWatches(t *testing.T) {
+	cluster := newTestCluster("c1", "stable", "4.21")
+	cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: statusTestNow}
+	serviceProviderCluster := newTestServiceProviderCluster("c1", v("4.20.1"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.19.1"), partial("4.18.1")}, nil)
+	serviceProviderCluster.Spec.PinnedVersion.ExactVersion = v("4.17.1")
+	c := &statusCollectorSyncer{
+		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}},
+		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{serviceProviderCluster}},
+	}
 	q := &candidateQueue{}
 	clusters, serviceProviderClusters := &candidateNotifier{}, &candidateNotifier{}
 	require.NoError(t, c.watchStatusInputs(clusters, serviceProviderClusters, q))
-	require.NotNil(t, clusters.options.ResyncPeriod)
-	require.Zero(t, *clusters.options.ResyncPeriod)
-	require.NotNil(t, serviceProviderClusters.options.ResyncPeriod)
-	require.Zero(t, *serviceProviderClusters.options.ResyncPeriod)
-	return q, clusters.handler, serviceProviderClusters.handler
-}
-
-func TestStatusCollectorServiceProviderClusterUpdates(t *testing.T) {
-	all := []string{"stable-4.21", "candidate-4.21", "fast-4.22", "stable-4.23"}
-	minor21 := []string{"stable-4.21", "candidate-4.21"}
-	for _, tc := range []struct {
-		name   string
-		mutate func(*coreapi.ServiceProviderCluster)
-		want   []string
-	}{
-		{"unrelated pinned version", func(s *coreapi.ServiceProviderCluster) { s.Spec.PinnedVersion.ExactVersion = v("4.21.1") }, nil},
-		{"unrelated desired channels", func(s *coreapi.ServiceProviderCluster) { s.Status.DesiredVersionChannels = []string{"fast-4.22"} }, nil},
-		{"desired version", func(s *coreapi.ServiceProviderCluster) { s.Spec.ControlPlaneVersion.DesiredVersion = v("4.22.0") }, []string{"stable-4.21", "candidate-4.21", "fast-4.22"}},
-		{"desired transition time", func(s *coreapi.ServiceProviderCluster) {
-			s.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &metav1.Time{Time: time.Unix(100, 0)}
-		}, minor21},
-		{"active patch", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions[0].Version = v("4.21.7")
-		}, minor21},
-		{"active minor", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions[0].Version = v("4.22.0")
-		}, minor21},
-		{"active transition time", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions[0].LastTransitionTime = metav1.Time{Time: time.Unix(100, 0)}
-		}, minor21},
-		{"newer active entry ignored", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions = append([]coreapi.ServiceProviderClusterActiveVersion{completed("4.22.0")}, s.Status.ControlPlaneVersion.ActiveVersions...)
-		}, nil},
-		{"versions cleared", func(s *coreapi.ServiceProviderCluster) {
-			s.Status.ControlPlaneVersion.ActiveVersions = nil
-			s.Spec.ControlPlaneVersion.DesiredVersion = nil
-		}, all},
-		{"identical resync", func(s *coreapi.ServiceProviderCluster) {}, nil},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			q, _, h := statusWatchFixture(t)
-			old := newTestServiceProviderCluster("c1", v("4.21.6"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.6")}, nil)
-			updated := old.DeepCopy()
-			tc.mutate(updated)
-			h.OnUpdate(old, updated)
-			require.ElementsMatch(t, tc.want, q.channels)
-		})
-	}
-}
-
-func TestStatusCollectorClusterUpdates(t *testing.T) {
-	for _, tc := range []struct {
-		name, group, version string
-		want                 bool
-	}{
-		{"unchanged", "stable", "4.21", false},
-		{"patch only", "stable", "4.21.5", false},
-		{"minor changed", "stable", "4.22", true},
-		{"group changed", "fast", "4.21", true},
-		{"version cleared", "stable", "", true},
-		{"group cleared", "", "4.21", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			q, h, _ := statusWatchFixture(t)
-			old := newTestCluster("c1", "stable", "4.21")
-			updated := old.DeepCopy()
-			updated.CustomerProperties.Version.ChannelGroup = tc.group
-			updated.CustomerProperties.Version.ID = tc.version
-			updated.Tags = map[string]string{"unrelated": "change"}
-			h.OnUpdate(old, updated)
-			if tc.want {
-				require.Len(t, q.channels, 4)
-			} else {
-				require.Empty(t, q.channels)
+	want := []string{"stable-4.21", "stable-4.20", "stable-4.19", "stable-4.18", "stable-4.17"}
+	for _, notifier := range []*candidateNotifier{clusters, serviceProviderClusters} {
+		require.NotNil(t, notifier.options.ResyncPeriod)
+		require.Equal(t, 5*time.Minute, *notifier.options.ResyncPeriod)
+		var obj any = cluster
+		if notifier == serviceProviderClusters {
+			obj = serviceProviderCluster
+		}
+		for _, event := range []string{"add", "update", "delete", "tombstone"} {
+			q.channels = nil
+			switch event {
+			case "add":
+				notifier.handler.OnAdd(obj, false)
+			case "update":
+				notifier.handler.OnUpdate(obj, obj)
+			case "delete":
+				notifier.handler.OnDelete(obj)
+			case "tombstone":
+				notifier.handler.OnDelete(cache.DeletedFinalStateUnknown{Obj: obj})
 			}
-		})
-	}
-}
-
-func TestStatusCollectorAddAndDelete(t *testing.T) {
-	for _, kind := range []string{"cluster", "serviceProviderCluster", "serviceProviderCluster unknown minor"} {
-		for _, event := range []string{"add", "delete", "tombstone"} {
-			t.Run(kind+"/"+event, func(t *testing.T) {
-				q, clusterHandler, serviceProviderClusterHandler := statusWatchFixture(t)
-				h := serviceProviderClusterHandler
-				var obj any = newTestServiceProviderCluster("c1", v("4.21.6"), nil, nil)
-				wantCount := 2
-				if kind == "cluster" {
-					h = clusterHandler
-					obj = newTestCluster("c1", "stable", "4.21")
-					wantCount = 4
-				}
-				if kind == "serviceProviderCluster unknown minor" {
-					obj = newTestServiceProviderCluster("c1", nil, nil, nil)
-					wantCount = 4
-				}
-				switch event {
-				case "add":
-					h.OnAdd(obj, true)
-				case "delete":
-					h.OnDelete(obj)
-				case "tombstone":
-					h.OnDelete(cache.DeletedFinalStateUnknown{Obj: obj})
-				}
-				require.Len(t, q.channels, wantCount)
-			})
+			require.ElementsMatch(t, want, sets.New(q.channels...).UnsortedList(), "%s must enqueue every reference, including deleting clusters", event)
 		}
 	}
-}
-
-func TestStatusCollectorClusterMarkedForDeletion(t *testing.T) {
-	q, handler, _ := statusWatchFixture(t)
-	old := newTestCluster("deleting", "stable", "4.21")
-	updated := old.DeepCopy()
-	now := metav1.NewTime(statusTestNow)
-	updated.ServiceProviderProperties.DeletionTimestamp = &now
-	handler.OnUpdate(old, updated)
-	require.ElementsMatch(t, []string{"stable-4.21", "candidate-4.21", "fast-4.22", "stable-4.23"}, q.channels)
-	q.channels = nil
-	handler.OnUpdate(updated, updated.DeepCopy())
-	require.Empty(t, q.channels, "an unchanged deletion timestamp does not affect membership")
+	for _, mutate := range []func(*coreapi.ServiceProviderCluster){
+		func(serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			serviceProviderCluster.Spec.PinnedVersion.ExactVersion = v("4.16.1")
+		},
+		func(serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[1].Version = v("4.16.1")
+		},
+		func(serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &metav1.Time{Time: statusTestNow}
+		},
+		func(serviceProviderCluster *coreapi.ServiceProviderCluster) {
+			serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].LastTransitionTime = metav1.Time{Time: statusTestNow}
+		},
+	} {
+		q.channels = nil
+		updated := serviceProviderCluster.DeepCopy()
+		mutate(updated)
+		serviceProviderClusters.handler.OnUpdate(serviceProviderCluster, updated)
+		for _, channel := range want {
+			require.Contains(t, q.channels, channel, "old references and progress inputs must enqueue")
+		}
+		if updated.Spec.PinnedVersion.ExactVersion.String() == "4.16.1" || updated.Status.ControlPlaneVersion.ActiveVersions[1].Version.String() == "4.16.1" {
+			require.Contains(t, q.channels, "stable-4.16", "new pin and active references must enqueue")
+		}
+	}
 }

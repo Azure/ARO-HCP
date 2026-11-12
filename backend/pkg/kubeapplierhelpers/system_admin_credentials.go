@@ -23,6 +23,7 @@ import (
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,19 +32,19 @@ import (
 // ReadDesireNameForSystemAdminCredentialRequestServingCA returns the ReadDesire
 // name for the per-cluster serving CA mirror.
 func ReadDesireNameForSystemAdminCredentialRequestServingCA() string {
-	return "systemadmincredential-serving-ca"
+	return kubeapplierapi.ReadDesireNameServingCA
 }
 
 // ReadDesireNameForSystemAdminCredentialRequestCSR returns the ReadDesire name
 // for the per-credential CSR mirror.
 func ReadDesireNameForSystemAdminCredentialRequestCSR() string {
-	return "systemadmincredentialcsr"
+	return kubeapplierapi.SystemAdminCredentialCSRDesireName
 }
 
 // ReadDesireNameForSystemAdminCredentialRequestRevocation returns the ReadDesire
 // name for the per-revocation CRR mirror.
 func ReadDesireNameForSystemAdminCredentialRequestRevocation() string {
-	return "systemadmincredentialrevocation"
+	return kubeapplierapi.SystemAdminCredentialRevocationDesireName
 }
 
 // GetCachedCSRForSystemAdminCredentialRequest reads the CSR mirror from the

@@ -1,0 +1,95 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-services-alerts
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLO Alerts - services workspace (ARO-27787)
+  # ========================================
+  # Rules whose inputs are scraped from the HyperShift Operator ("hypershift"
+  # namespace). prometheus.yaml remote-write sends these to the services
+  # workspace, not HCP. HCP-namespace-backed alerts live in
+  # hypershiftUserJourney-prometheusRule.yaml.
+  #
+  # The HyperShift Operator ServiceMonitor does not set honorLabels, so the
+  # scrape overwrites the metric's own namespace with "hypershift" and moves the
+  # HostedCluster namespace to exported_namespace. Rules that need the
+  # HostedCluster identity must read exported_namespace.
+  #
+  # SLO targets are proposed defaults from the ARO-27787 spike, pending
+  # confirmation by the SLO owners; promtool tests prove the maths, not the
+  # targets.
+  #
+  # Aggregation: per management cluster (cluster). There is one HyperShift
+  # Operator per MC.
+  #
+  # Only signals that the backend operation (LRO) alerts miss or catch late
+  # page SRE: operator pods down and a wedged operator. Every other HyperShift
+  # signal (journey, reconcile errors/latency, saturation, traffic) is
+  # dashboard-only triage context.
+  groups:
+  # HyperShift Operator health, one operator per management cluster.
+  - name: hypershift-operator-monitor-rules
+    labels:
+      component: slo
+    rules:
+    # Severity is tied to the number of unavailable pods (desired - available)
+    # rather than a burn rate: with only a few replicas a ratio burn rate adds
+    # nothing. max by (cluster) dedupes KSM and HA Prometheus replicas.
+    - alert: hypershiftOperatorPodsUnavailable
+      expr: |
+        max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
+        - max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
+        >= 1
+      for: 15m
+      labels:
+        severity: "3"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator pods unavailable"
+        description: |
+          {{ $value }} hypershift-operator pod(s) have been unavailable for 15 minutes.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorPodsUnavailable/{{ $labels.cluster }}"
+    - alert: hypershiftOperatorPodsDown
+      expr: |
+        max by (cluster) (kube_deployment_spec_replicas{namespace="hypershift", deployment="operator"})
+        - max by (cluster) (kube_deployment_status_replicas_available{namespace="hypershift", deployment="operator"})
+        >= 2
+      for: 5m
+      labels:
+        severity: "2"
+        slo: hypershift-operator-availability
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator pods down"
+        description: |
+          {{ $value }} hypershift-operator pods have been unavailable for 5 minutes.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorPodsDown/{{ $labels.cluster }}"
+    # Zero reconciles for 30m: a live operator always requeues, so a flat zero
+    # means it is wedged. Gated on HostedClusters being present: an empty MC
+    # (last HostedCluster deleted) legitimately has nothing to reconcile. With
+    # no operator pods there is no reconcile series, so this stays quiet and
+    # the pod alerts fire instead.
+    - alert: hypershiftOperatorIdle
+      expr: |
+        hypershift:operator:reconcile:rate5m == 0
+        and on (cluster)
+        sum by (cluster) (max by (cluster, platform) (hypershift_hostedclusters)) > 0
+      for: 30m
+      labels:
+        severity: "3"
+        slo: hypershift-operator-traffic
+        service: hypershift-operator
+      annotations:
+        summary: "{{ $labels.cluster }}: hypershift-operator has not reconciled anything for 30 minutes"
+        description: |
+          hypershift-operator has not reconciled anything for 30 minutes while HostedClusters exist.
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftOperatorIdle/{{ $labels.cluster }}"

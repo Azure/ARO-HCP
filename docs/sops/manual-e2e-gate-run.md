@@ -39,7 +39,7 @@ When `BASE_SHA` is not supplied it defaults to `git rev-parse HEAD`, and Prow bu
 - The commit must be pushed to **`origin`** (`Azure/ARO-HCP`). A personal fork is not enough — a temporary branch on origin is fine.
 - Only **test code** is validated. RP and infrastructure changes are not deployed to INT/STG/PROD until after merge, so those cannot be exercised this way. Use the DEV `e2e-parallel` job for that, which provisions the DEV footprint on demand. See [CI Execution](../ci/execution.md).
 
-To run a single test rather than the whole suite, apply a `MustFilter` in `test/cmd/aro-hcp-tests/main.go` as described in [Running Only Specific Tests](../ci/e2e-testing.md#running-only-specific-tests), then push and run the target.
+To run a single test rather than the whole suite, apply a `MustFilter` in `test/cmd/aro-hcp-tests/cli.go` as described in [Running Only Specific Tests](../ci/e2e-testing.md#running-only-specific-tests), then push and run the target.
 
 > [!WARNING]
 > Always revert the filter before merging. Leaving it in place silently skips tests in CI.

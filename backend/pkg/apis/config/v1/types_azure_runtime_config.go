@@ -34,7 +34,13 @@ import (
 type AzureRuntimeConfig struct {
 	// Cloud environment where the service is running on
 	CloudEnvironmentName CloudEnvironmentName `json:"cloudEnvironment"`
-	// The ID of the tenant where the service is running on
+	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
+	// Application (FPA) identity is registered. It is the tenantId used both to
+	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
+	// as the Secrets Store CSI Driver's authentication tenant when delivering TLS
+	// certificates from Key Vault onto a management cluster. It is never a customer's
+	// tenant, and permissions granted here are not scoped to any individual
+	// customer's HostedCluster or subscription.
 	ServiceTenantID string `json:"tenantID"`
 	// Azure Container Registry containing OCP Images
 	OCPImagesACR AzureContainerRegistry `json:"ocpImagesACR"`

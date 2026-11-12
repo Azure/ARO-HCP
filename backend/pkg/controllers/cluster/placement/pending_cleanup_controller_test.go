@@ -189,10 +189,10 @@ func TestPendingCleanupSyncer_ReservationAfterPlacementStops(t *testing.T) {
 
 					fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 					schedulingCRUD := fleetDB.Stamps().ManagementClusters(stamp).Scheduling()
-					_, err := schedulingCRUD.Create(ctx, schedulingDoc(stamp, 3, 0, 0, 0), nil)
+					created, err := schedulingCRUD.Create(ctx, schedulingDoc(stamp, 3, 0, 0, 0), nil)
 					require.NoError(t, err)
 					placer := &placementSyncer{fleetDBClient: fleetDB}
-					require.NoError(t, placer.reservePendingAssignment(ctx, mc, clusterID))
+					require.NoError(t, placer.reservePendingAssignment(ctx, created, mc, clusterID))
 					// An interrupted placement can leave the reservation durable without
 					// recording Spec. Keep it while create can still recover.
 					reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)

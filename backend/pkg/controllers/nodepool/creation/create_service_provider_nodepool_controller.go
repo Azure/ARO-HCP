@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -57,7 +58,7 @@ func NewCreateServiceProviderNodePoolController(
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		CreateServiceProviderNodePoolControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -65,6 +66,10 @@ func NewCreateServiceProviderNodePoolController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+
+	return controller
 }
 
 // SyncOnce creates a ServiceProviderNodePool for the given HCPNodePool when

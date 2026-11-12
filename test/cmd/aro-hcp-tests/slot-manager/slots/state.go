@@ -15,6 +15,7 @@
 package slots
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const acquiredSlotStateVersion = 2
@@ -247,19 +250,27 @@ func AddCoreRuntimeExports(contract *RuntimeContractBuilder, state *AcquiredSlot
 	if strings.TrimSpace(selectedClusterProfileDir) == "" {
 		return errors.New("selected cluster profile dir is empty")
 	}
+	if err := state.Slot.VMFamilyPolicy.Validate(); err != nil {
+		return fmt.Errorf("invalid slot vm_family_policy: %w", err)
+	}
+	policyJSON, err := json.Marshal(state.Slot.VMFamilyPolicy.Resolve(state.RuntimeRegion))
+	if err != nil {
+		return fmt.Errorf("failed to encode runtime VM family policy: %w", err)
+	}
 	coreExports := map[string]string{
-		"ARO_HCP_E2E_SLOT_NAME":          state.Slot.ResourceName,
-		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
-		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
-		"SELECTED_CLUSTER_PROFILE_DIR":   selectedClusterProfileDir,
-		"SELECTED_LOCATION":              state.RuntimeRegion,
+		leaseenv.SlotName:                  state.Slot.ResourceName,
+		leaseenv.SlotResourceType:          state.Slot.ResourceType,
+		leaseenv.CustomerSubscription:      customerSubscription,
+		leaseenv.SelectedClusterProfileDir: selectedClusterProfileDir,
+		leaseenv.SelectedLocation:          state.RuntimeRegion,
+		leaseenv.VMFamilyPolicy:            string(policyJSON),
 	}
 	if customerSubscription != state.Slot.Subscriptions.E2E.Name {
 		return errors.New("customer subscription does not match resolved slot")
 	}
-	coreExports["ARO_HCP_DEPLOY_ENV"] = state.Slot.DeployEnvironment
+	coreExports[leaseenv.RuntimeDeployEnvironment] = state.Slot.DeployEnvironment
 	if state.Slot.RequiresInfrastructureSubscription() {
-		coreExports["INFRA_SUBSCRIPTION_ID"] = state.Slot.Subscriptions.Infrastructure.ID
+		coreExports[leaseenv.InfrastructureSubscriptionID] = state.Slot.Subscriptions.Infrastructure.ID
 	}
 	for key, value := range coreExports {
 		if err := contract.Add("core", key, value); err != nil {
@@ -301,6 +312,7 @@ func NewRuntimeContractBuilder() *RuntimeContractBuilder {
 
 var shellIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Add reserves an export and always replaces its value when the contract is sourced.
 func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
 	owner = strings.TrimSpace(owner)
 	if owner == "" {
@@ -322,6 +334,7 @@ func (b *RuntimeContractBuilder) Add(owner, key, value string) error {
 	return nil
 }
 
+// MarshalShell emits safely quoted exports.
 func (b *RuntimeContractBuilder) MarshalShell() []byte {
 	keys := make([]string, 0, len(b.exports))
 	for key := range b.exports {
@@ -331,7 +344,8 @@ func (b *RuntimeContractBuilder) MarshalShell() []byte {
 
 	var builder strings.Builder
 	for _, key := range keys {
-		value := strings.ReplaceAll(b.exports[key].value, "'", "'\"'\"'")
+		export := b.exports[key]
+		value := strings.ReplaceAll(export.value, "'", "'\"'\"'")
 		fmt.Fprintf(&builder, "export %s='%s'\n", key, value)
 	}
 	return []byte(builder.String())

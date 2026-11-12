@@ -221,6 +221,23 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.ExternalAuth
 	return newInternalExternalAuth, nil
 }
 
+func (f *Frontend) newExternalAuthAdmissionContext(ctx context.Context, op operation.Operation, resourceID *azcorearm.ResourceID) (*admission.ExternalAuthAdmissionContext, error) {
+	admissionContext := &admission.ExternalAuthAdmissionContext{Clock: f.clock}
+	if op.Type == operation.Create {
+		iterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		for _, externalAuth := range iterator.Items(ctx) {
+			admissionContext.ExternalAuths = append(admissionContext.ExternalAuths, externalAuth)
+		}
+		if err := iterator.GetError(); err != nil {
+			return nil, utils.TrackError(err)
+		}
+	}
+	return admissionContext, nil
+}
+
 func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
@@ -243,25 +260,16 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	// We retrieve all external auths for the cluster. Used for admission validation.
-	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	externalAuths := make([]*coreapi.ExternalAuth, 0)
-	for _, externalAuth := range externalAuthIterator.Items(ctx) {
-		externalAuths = append(externalAuths, externalAuth)
-	}
-	if err := externalAuthIterator.GetError(); err != nil {
-		return utils.TrackError(err)
-	}
-
 	restOperation := operation.Operation{
 		Type: operation.Create,
 		// TODO set operations when a need appears for it.
 	}
-	externalAuthAdmissionContext := &admission.ExternalAuthAdmissionContext{
-		ExternalAuths: externalAuths,
+	externalAuthAdmissionContext, err := f.newExternalAuthAdmissionContext(ctx, restOperation, resourceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateExternalAuth(ctx, externalAuthAdmissionContext, restOperation, newInternalExternalAuth, nil); len(mutationErrs) > 0 {
+		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
@@ -271,15 +279,11 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
-	if err != nil {
+	if _, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent); err != nil {
 		return utils.TrackError(err)
 	}
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
 	operationRequest := cosmosstorageutils.OperationRequestCreate
@@ -477,7 +481,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
+	restOperation := operation.Operation{Type: operation.Update}
+	admissionContext, err := f.newExternalAuthAdmissionContext(ctx, restOperation, newInternalExternalAuth.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateExternalAuth(ctx, admissionContext, restOperation, newInternalExternalAuth, oldInternalExternalAuth); len(mutationErrs) > 0 {
+		return utils.TrackError(coreapi.CloudErrorFromFieldErrors(mutationErrs))
+	}
 	validationErrs := validation.ValidateExternalAuthUpdate(ctx, newInternalExternalAuth, oldInternalExternalAuth)
+	validationErrs = append(validationErrs, admission.AdmitExternalAuth(ctx, admissionContext, restOperation, newInternalExternalAuth, oldInternalExternalAuth)...)
 	if err := coreapi.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -489,7 +502,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	externalAuthUpdateOperation := cosmosstorageutils.NewOperation(
 		cosmosstorageutils.OperationRequestUpdate,
 		newInternalExternalAuth.ID,
-		ptr.Deref(newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, metadataapi.InternalID{}),
+		metadataapi.InternalID{}, // InternalID is no longer used by externalAuth operations
 		f.azureLocation,
 		request.Header.Get(coreapi.HeaderNameHomeTenantID),
 		request.Header.Get(coreapi.HeaderNameClientObjectID),
@@ -609,9 +622,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewExternalAuthDeletionApproach = true
+
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -625,14 +636,14 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if externalAuth.ServiceProviderProperties.DeletionTimestamp == nil {
-		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
+	externalAuth.ServiceProviderProperties.DeleteOperationCompletionDeadline = &metav1.Time{Time: now.Add(admission.DefaultExternalAuthOperationCompletionDeadlineDuration)}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
-	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach = true
+
 	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
 	if err != nil {

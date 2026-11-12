@@ -6,6 +6,15 @@ param backupsStorageAccountName string
 @description('The name of the Velero managed identity')
 param veleroMsiName string
 
+param useLeasedInfrastructureIdentities bool = false
+param managementIdentityResourceGroups string = ''
+param stampIdentifier string
+import * as mi from '../modules/managed-identities.bicep'
+var identityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : resourceGroup().name
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities ? identityResourceGroup : resourceGroup().name)
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' existing = {
   name: mgmtClusterName
 }
@@ -26,7 +35,7 @@ output hcpBackupsStorageAccountName string = hcpBackupsStorageAccount.name
 //
 
 resource veleroIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: veleroMsiName
 }
 

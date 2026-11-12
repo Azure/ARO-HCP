@@ -20,6 +20,8 @@
 # versions.mk only requires adding its GitHub repo to TOOL_REPOS below;
 # this script never needs to change for the bicep/promtool case
 # specifically.
+# Pass *_VERSION variable names to update only those tools; omit them to check all.
+# --metadata-json reports the upstream mapping without fetching or changing pins.
 
 set -o errexit
 set -o nounset
@@ -34,10 +36,27 @@ declare -A TOOL_REPOS=(
   [BICEP_VERSION]="Azure/bicep"
 )
 
+if [[ "${1:-}" == "--metadata-json" ]]; then
+  for var in "${!TOOL_REPOS[@]}"; do
+    jq -cn --arg variable "$var" --arg repository "${TOOL_REPOS[$var]}" \
+      '{variable: $variable, repository: $repository}'
+  done | jq -s 'sort_by(.variable)'
+  exit 0
+fi
+
 changed=0
 
-for var in "${!TOOL_REPOS[@]}"; do
-  repo="${TOOL_REPOS[$var]}"
+tools=("$@")
+if [[ "${#tools[@]}" -eq 0 ]]; then
+  tools=("${!TOOL_REPOS[@]}")
+fi
+
+for var in "${tools[@]}"; do
+  repo="${TOOL_REPOS[$var]:-}"
+  if [[ -z "$repo" ]]; then
+    echo "ERROR: unsupported tool version variable: ${var}" >&2
+    exit 1
+  fi
 
   current="$(grep -oP "^${var}\s*\?=\s*\K\S*" "$VERSIONS_MK" || true)"
   if [[ -z "$current" ]]; then
@@ -88,5 +107,5 @@ for var in "${!TOOL_REPOS[@]}"; do
 done
 
 if [[ "$changed" -eq 0 ]]; then
-  echo "All pinned tool versions are already up to date."
+  echo "All selected tool versions are already up to date."
 fi

@@ -30,10 +30,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/types"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
 
@@ -58,13 +60,25 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
-	hcpsdk20261001preview "github.com/Azure/ARO-HCP/test/sdk/v20261001preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20261001 "github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/config"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
+
+	// miEnvAssigned is true when ASSIGNED_MI_CONTAINERS was accepted for this
+	// test. When true, leasing, release, and debug collection use
+	// miEnvAssignedContainers and do not consult the file-based pool.
+	miEnvAssigned bool
+	// miEnvAssignedContainers holds the MI container resource group names
+	// parsed from ASSIGNED_MI_CONTAINERS for this test, in lease order.
+	miEnvAssignedContainers []string
+	// miEnvAssignedIdx is the index of the next unleased container in
+	// miEnvAssignedContainers.
+	miEnvAssignedIdx int
 
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
@@ -75,17 +89,22 @@ type perItOrDescribeTestContext struct {
 	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
 	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
 	clientFactory20260901         *hcpsdk20260901preview.ClientFactory
-	clientFactory20261001         *hcpsdk20261001preview.ClientFactory
+	clientFactory20261001         *hcpsdk20261001.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
-	LogDirPath       string
-	azureLogFile     *os.File
-	timingMetadata   timing.SpecTimingMetadata
+	LogDirPath     string
+	azureLogFile   *os.File
+	timingMetadata timing.SpecTimingMetadata
+	// phaseSpanIndexes maps each phase to its span in timingMetadata.Steps, or -1 when it has none.
+	phaseSpanIndexes []int
+	// specGeneration increments for every spec that reuses this context.
+	specGeneration   uint64
 	knownDeployments []deploymentInfo
+	timingFinalized  bool
 	hcpAdminConfigs  map[string]*rest.Config
 }
 
@@ -126,15 +145,60 @@ func setupAzureLogging(logDirPath string) *os.File {
 	}
 
 	azureLogger := logr.FromSlogHandler(slog.NewJSONHandler(azureLogFile, &slog.HandlerOptions{}))
-	log.SetListener(func(event log.Event, msg string) {
-		azureLogger.Info(msg, "event", event)
-	})
-	// There are other options to log, but they are really noisy.  If we must we can enable them.
-	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
+	SetupAzureGlobalLoggerWithLogrLogger(azureLogger)
 
 	return azureLogFile
 }
 
+// SetupAzureGlobalLoggerWithLogrLogger performs the following:
+// 1. Sets up Azure Go SDK global logger to log its log events to the given logrLogger.
+// 2. Configures Azure Go SDK global logger to only log specific event types to reduce noise. See within the function for the list of event types.
+func SetupAzureGlobalLoggerWithLogrLogger(logrLogger logr.Logger) {
+	log.SetListener(func(event log.Event, msg string) {
+		logrLogger.Info(msg, "event", event)
+	})
+	// There are other options to log, but they are really noisy.  If we must we can enable them.
+	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
+}
+
+// activeTestContext tracks the spec running in this process so package-level helpers can record spans.
+// A process runs one spec at a time, so a single pointer is unambiguous.
+var activeTestContext atomic.Pointer[perItOrDescribeTestContext]
+
+// operationRecorder records spans on the spec that started an operation, even if it returns later.
+type operationRecorder struct {
+	tc         *perItOrDescribeTestContext
+	generation uint64
+	testBody   bool
+}
+
+// beginOperation captures the spec running now so a late return cannot attribute work to a later spec.
+func beginOperation() operationRecorder {
+	tc := activeTestContext.Load()
+	if tc == nil {
+		return operationRecorder{}
+	}
+	tc.contextLock.RLock()
+	generation := tc.specGeneration
+	inCleanup := tc.timingMetadata.CleanupStartedAt != ""
+	tc.contextLock.RUnlock()
+	return operationRecorder{tc: tc, generation: generation, testBody: !inCleanup}
+}
+
+// Record records the finished operation on the spec that started it.
+func (r operationRecorder) Record(kind, name string, startedAt, finishedAt time.Time, operationErr error) {
+	if r.tc == nil {
+		return
+	}
+	r.tc.recordOperationFromGeneration(r.generation, kind, name, startedAt, finishedAt, operationErr)
+}
+
+// testBodyOperation reports whether the operation started before framework cleanup.
+func (r operationRecorder) testBodyOperation() bool {
+	return r.testBody
+}
+
+// NewTestContext creates a test context and registers its setup and lifecycle cleanup.
 func NewTestContext() *perItOrDescribeTestContext {
 	logDirPath := setupTestLogDir(artifactDir())
 	azureLogFile := setupAzureLogging(logDirPath)
@@ -145,19 +209,6 @@ func NewTestContext() *perItOrDescribeTestContext {
 		azureLogFile:                   azureLogFile,
 		hcpAdminConfigs:                make(map[string]*rest.Config),
 		timingMetadata: timing.SpecTimingMetadata{
-			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
-			// all we know in general is the hierarchy of nodes under which we are currently running. We
-			// need to have some stable identifier for this test context to record metadata in the global,
-			// but we do not want metadata registration to be sensitive to a test author choosing to nest
-			// another `By()` node or whatever, so we can snapshot the hierarchy at test context construction
-			// time to keep a record of the "root" name for registration purposes.
-			//
-			// n.b. ContainerHierarchyTexts contains Describe() and Context() but does not contain It(),
-			// and the LeadNodeText has It() but not By(), so the full identifier must contain both the
-			// hierarchy prefix and the leaf node. Multiple tests nested in By() under one It() will run
-			// afoul of this approach, but that looks to never happen based on convention.
-			Identifier:  append(ginkgo.CurrentSpecReport().ContainerHierarchyTexts, ginkgo.CurrentSpecReport().LeafNodeText),
-			StartedAt:   time.Now().Format(time.RFC3339),
 			Steps:       make([]timing.StepTimingMetadata, 0),
 			Deployments: make(map[string]map[string][]timing.Operation),
 		},
@@ -192,8 +243,36 @@ func sanitizeTestName(parts []string) string {
 	return name
 }
 
-// BeforeEach gives a chance for initialization (none yet) and registers the cleanup
+// BeforeEach starts timing at the running spec's setup boundary and registers FILO cleanup.
 func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
+	report := ginkgo.CurrentSpecReport()
+	startedAt := report.StartTime
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+	}
+	tc.contextLock.Lock()
+	// The running report includes the It node even for contexts created during tree discovery.
+	// Snapshot once here so later By nodes cannot change the artifact identifier.
+	if report.LeafNodeText != "" {
+		tc.timingMetadata.Identifier = append(slices.Clone(report.ContainerHierarchyTexts), report.LeafNodeText)
+	}
+	tc.timingFinalized = false
+	// A reused context serves a new spec, so recorders from the previous one must stop appending.
+	tc.specGeneration++
+	tc.timingMetadata.StartedAt = startedAt.Format(time.RFC3339Nano)
+	tc.timingMetadata.FinishedAt = ""
+	tc.timingMetadata.CleanupStartedAt = ""
+	tc.timingMetadata.Outcome = ""
+	tc.timingMetadata.Steps = make([]timing.StepTimingMetadata, 0)
+	tc.timingMetadata.Phases = []timing.StepTimingMetadata{{
+		Kind:      "test-work",
+		Name:      "Setup and test execution",
+		StartedAt: startedAt.Format(time.RFC3339Nano),
+	}}
+	tc.phaseSpanIndexes = []int{-1}
+	tc.contextLock.Unlock()
+	activeTestContext.Store(tc)
+
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
 	// first-in-last-out order. This ensures that the framework instance
 	// remains valid as long as possible.
@@ -205,14 +284,21 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
 		cleanupTimeout = 90 * time.Minute
 	}
-	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
-
-	// Registered later and thus runs before deleting namespaces.
-	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
-
-	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
-
+	// Registered first so serialization survives failures and timeouts in later cleanup nodes.
+	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump final timing info"))
 	ginkgo.DeferCleanup(tc.closeAzureLogFile, AnnotatedLocation("close azure log file"))
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		tc.runTimingPhase(ctx, "resource-cleanup", "Resource cleanup and identity release", tc.deleteCreatedResources)
+	}, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
+
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		tc.runTimingPhase(ctx, "debug-collection", "Debug collection", tc.collectDebugInfo)
+	}, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
+
+	// Harvest deployment evidence before resource cleanup deletes its Azure records.
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		tc.runTimingPhase(ctx, "arm-metadata-harvest", "ARM metadata harvest", tc.harvestDeploymentOperations)
+	}, AnnotatedLocation("harvest deployment timing info"), ginkgo.NodeTimeout(45*time.Minute))
 
 	// Registered last so it runs first in the FILO cleanup order, marking the
 	// boundary between the test body and cleanup.
@@ -221,8 +307,19 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	ginkgo.GinkgoLogr.Info("===== TEST CASE BEGAN =====")
 }
 
+// LogTestEndAndCleanupStart marks the transition from test work to framework cleanup.
 func (tc *perItOrDescribeTestContext) logTestEndAndCleanupStart() {
 	report := ginkgo.CurrentSpecReport()
+	now := time.Now().Format(time.RFC3339Nano)
+	tc.contextLock.Lock()
+	if tc.timingMetadata.CleanupStartedAt == "" {
+		tc.timingMetadata.CleanupStartedAt = now
+	}
+	if len(tc.timingMetadata.Phases) > 0 && tc.timingMetadata.Phases[0].FinishedAt == "" {
+		tc.timingMetadata.Phases[0].FinishedAt = now
+		tc.timingMetadata.Phases[0].Incomplete = report.Failed()
+	}
+	tc.contextLock.Unlock()
 	result := "SUCCESS"
 	if report.Failed() {
 		result = "FAILURE"
@@ -231,6 +328,7 @@ func (tc *perItOrDescribeTestContext) logTestEndAndCleanupStart() {
 	ginkgo.GinkgoLogr.Info("===== CLEANUP BEGAN =====")
 }
 
+// CloseAzureLogFile closes SDK logging only after all Azure teardown has finished.
 func (tc *perItOrDescribeTestContext) closeAzureLogFile() {
 	if tc.azureLogFile != nil {
 		tc.azureLogFile.Close()
@@ -280,6 +378,13 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		if !isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
 			ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
 		}
+	}
+
+	// Remove role assignments only after cluster teardown; deletion path still needs some (e.g. DES Reader).
+	if subscriptionID, err := tc.SubscriptionID(ctx); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get subscription ID for role assignment cleanup")
+	} else if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments after resource group deletion")
 	}
 
 	err = graphClient.CleanupApplications(ctx, appRegistrations)
@@ -434,7 +539,25 @@ func runResourceGroupCleanup(
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.recordTestSpan(timing.KindTestStep, "Collect debug info", "", startedAt, time.Now())
+	}()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
+	tc.contextLock.RLock()
+	createdResourceGroups := slices.Clone(tc.knownResourceGroups)
+	tc.contextLock.RUnlock()
+	collector := mustGatherCollector{
+		getenv:         os.Getenv,
+		lookPath:       exec.LookPath,
+		serviceConfig:  config.GetServiceConfig,
+		subscriptionID: tc.SubscriptionID,
+		run: func(ctx context.Context, binary string, args ...string) error {
+			return exec.CommandContext(ctx, binary, args...).Run()
+		},
+		logger: ginkgo.GinkgoLogr,
+	}
+	collector.collect(ctx, ginkgo.CurrentSpecReport().Failed(), createdResourceGroups, tc.LogDirPath)
 
 	leasedContainers, err := tc.leasedIdentityContainers()
 	if err != nil {
@@ -650,15 +773,15 @@ func (tc *perItOrDescribeTestContext) resourceGroupHasSystemProtectedDenyAssignm
 	return false, nil
 }
 
-// cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
+// CleanupResourceGroup is the standard resource group cleanup. It attempts to
 // 1. delete all HCP clusters via the RP and wait for success
 // 2. wait for any managed resource groups to be deleted
 // 3. delete the resource group
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) (operationErr error) {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime, operationErr)
 	}()
 
 	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
@@ -678,7 +801,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete clusters in %s", resourceGroupName), func() error {
+		return tc.DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout)
+	}); err != nil {
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {
@@ -715,7 +840,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 			// waitForManagedResourceGroupsDeletion re-checks deny assignments on every poll and
 			// returns only the deletable (non-locked) groups still present, so the deny-locked
 			// ones never block the wait. A deletable group still present here is a genuine anomaly.
-			stillPendingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+			var stillPendingManagedResourceGroups []string
+			waitErr := tc.recordCleanupStage(fmt.Sprintf("Wait for managed resource groups in %s", resourceGroupName), func() error {
+				var err error
+				stillPendingManagedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+				return err
+			})
 			if waitErr != nil && len(stillPendingManagedResourceGroups) > 0 {
 				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
 			}
@@ -725,30 +855,32 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete resource group %s", resourceGroupName), func() error {
+		return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout)
+	}); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	// Deleting the resource group only soft-deletes any Key Vaults it contained;
-	// their globally-unique names stay reserved until purged. Purge them so a
+	// Deleting the resource group only soft-deletes any Key Vaults and Managed HSMs it
+	// contained; their globally-unique names stay reserved until purged. Purge them so a
 	// later run reusing a colliding vault name does not hit VaultAlreadyExists.
-	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	tc.purgeDeletedVaultsInResourceGroup(ctx, resourceGroupName)
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
 }
 
-// cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
+// CleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
 // This is used to cleanup personal dev e2e test runs, where the infra is already gone so there's no
 // RP to call for HCP deletion.
 //  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
 //     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
 //  2. deletes the parent resource group itself.
-func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) (operationErr error) {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindResourceGroupCleanup, fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime, operationErr)
 	}()
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -768,7 +900,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 	for _, managedRG := range managedResourceGroups {
 		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
-		if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
+		if err := tc.recordCleanupStage(fmt.Sprintf("Delete managed resource group %s", managedRG), func() error {
+			return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout)
+		}); err != nil {
 			if isIgnorableResourceGroupCleanupError(err) {
 				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
 			} else {
@@ -785,15 +919,38 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
+	if err := tc.recordCleanupStage(fmt.Sprintf("Delete resource group %s", resourceGroupName), func() error {
+		return DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout)
+	}); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	// Purge any Key Vaults left soft-deleted by the resource group deletion so
-	// their globally-unique names are immediately reusable by later runs.
-	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+	// Purge any Key Vaults and Managed HSMs left soft-deleted by the resource group
+	// deletion so their globally-unique names are immediately reusable by later runs.
+	tc.purgeDeletedVaultsInResourceGroup(ctx, resourceGroupName)
 
 	return nil
+}
+
+// purgeDeletedVaultsInResourceGroup purges soft-deleted Key Vaults and Managed HSMs
+// concurrently, recording a best-effort cleanup stage for each. Both purges act on
+// different resource types, so overlapping their control-plane latency shortens teardown.
+func (tc *perItOrDescribeTestContext) purgeDeletedVaultsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	var purgeWG sync.WaitGroup
+	purgeWG.Add(2)
+	go func() {
+		defer purgeWG.Done()
+		tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Key Vaults in %s", resourceGroupName), func() {
+			tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+		})
+	}()
+	go func() {
+		defer purgeWG.Done()
+		tc.recordBestEffortCleanupStage(fmt.Sprintf("Purge deleted Managed HSMs in %s", resourceGroupName), func() {
+			tc.purgeDeletedManagedHSMsInResourceGroup(ctx, resourceGroupName)
+		})
+	}()
+	purgeWG.Wait()
 }
 
 // purgeDeletedKeyVaultsInResourceGroup purges any soft-deleted Key Vaults that
@@ -848,6 +1005,11 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 			if !strings.Contains(strings.ToLower(*deleted.Properties.VaultID), rgMarker) {
 				continue
 			}
+			if keyVaultPurgeProtected(deleted.Properties) {
+				ginkgo.GinkgoLogr.Info("skipping purge of soft-deleted key vault with purge protection enabled",
+					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
 			ginkgo.GinkgoLogr.Info("purging soft-deleted key vault",
 				"keyVault", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
 			poller, err := vaultsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
@@ -868,6 +1030,77 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				}
 				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
 					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+			}
+		}
+	}
+}
+
+// keyVaultPurgeProtected reports whether a soft-deleted vault has purge
+// protection enabled, meaning the purge API will reject any purge attempt.
+func keyVaultPurgeProtected(props *armkeyvault.DeletedVaultProperties) bool {
+	return props != nil && props.PurgeProtectionEnabled != nil && *props.PurgeProtectionEnabled
+}
+
+// purgeDeletedManagedHSMsInResourceGroup purges any soft-deleted Managed HSMs that belonged to the given resource group, mirroring purgeDeletedKeyVaultsInResourceGroup for the separate Managed HSM resource type whose globally-unique name is likewise reserved until purged. Best-effort: failures are logged but never fail cleanup.
+func (tc *perItOrDescribeTestContext) purgeDeletedManagedHSMsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	ctx, cancel := context.WithTimeout(ctx, keyVaultPurgeTimeout)
+	defer cancel()
+
+	creds, err := tc.AzureCredential()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to get azure credentials", "resourceGroup", resourceGroupName)
+		return
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to get subscription id", "resourceGroup", resourceGroupName)
+		return
+	}
+	hsmsClient, err := armkeyvault.NewManagedHsmsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted managed HSMs: failed to build managed HSM client", "resourceGroup", resourceGroupName)
+		return
+	}
+
+	rgMarker := strings.ToLower("/resourcegroups/" + resourceGroupName + "/")
+
+	pager := hsmsClient.NewListDeletedPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "unable to list soft-deleted managed HSMs", "resourceGroup", resourceGroupName)
+			return
+		}
+		for _, deleted := range page.Value {
+			if deleted == nil || deleted.Name == nil || deleted.Properties == nil ||
+				deleted.Properties.MhsmID == nil || deleted.Properties.Location == nil {
+				continue
+			}
+			if !strings.Contains(strings.ToLower(*deleted.Properties.MhsmID), rgMarker) {
+				continue
+			}
+			if deleted.Properties.PurgeProtectionEnabled != nil && *deleted.Properties.PurgeProtectionEnabled {
+				ginkgo.GinkgoLogr.Info("skipping purge of soft-deleted managed HSM with purge protection enabled",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
+			ginkgo.GinkgoLogr.Info("purging soft-deleted managed HSM",
+				"managedHSM", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
+			poller, err := hsmsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
+			if err != nil {
+				if IsNotFoundError(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted managed HSM; a colliding name may block a later run until it is purged or expires",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
+			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
+				if IsNotFoundError(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted managed HSM; a colliding name may block a later run until it is purged or expires",
+					"managedHSM", *deleted.Name, "resourceGroup", resourceGroupName)
 			}
 		}
 	}
@@ -943,6 +1176,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 }
 
 func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context) {
+	if !ginkgo.CurrentSpecReport().Failed() {
+		// only collect data if we failed the current spec. This saves disk space, as oc adm inspect
+		// output can be large.
+		return
+	}
+
 	if tc.LogDirPath == "" {
 		return
 	}
@@ -1022,9 +1261,18 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 	cmd := exec.CommandContext(inspectCtx, "oc", "adm", "inspect",
 		"--kubeconfig", kubeconfigFile.Name(),
 		"--dest-dir", inspectDir,
-		"ns/openshift-ingress",
-		"ns/openshift-ingress-operator",
+		// Cluster Operators (config.openshift.io). Specifying a cluster operator
+		// ensd up including not only the information of the clusteroperator resource itself, but also all the
+		// information of the resources that are specified in the clusteroperators's .status.relatedObjects.
+		"clusteroperator/console",
+		"clusteroperator/csi-snapshot-controller",
+		"clusteroperator/dns",
+		"clusteroperator/image-registry",
 		"clusteroperator/ingress",
+		"clusteroperator/monitoring",
+		"clusteroperator/network",
+		"clusteroperator/service-ca",
+		"clusteroperator/storage",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1220,6 +1468,7 @@ func (tc *perItOrDescribeTestContext) getARMComputeClientFactoryUnlocked(ctx con
 	return tc.armComputeClientFactory, nil
 }
 
+// GetSubscriptionIDUnlocked caches the resolved subscription for Azure-independent final serialization.
 func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, error) {
 	if len(tc.subscriptionID) > 0 {
 		return tc.subscriptionID, nil
@@ -1230,7 +1479,12 @@ func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Cont
 		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
 	}
 
-	return tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
+	subscriptionID, err := tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
+	if err != nil {
+		return "", err
+	}
+	tc.subscriptionID = subscriptionID
+	return subscriptionID, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*graphutil.Client, error) {
@@ -1293,8 +1547,7 @@ func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize
 		if skuRestrictedInLocation(sku, location) {
 			return nil, nil
 		}
-		_, available := zonesInLocation(sku, location)
-		return available, nil
+		return zonesInLocation(sku, location), nil
 	}
 	return nil, fmt.Errorf("VM size %q not found in Resource SKUs for location %q", vmSize, location)
 }
@@ -1320,7 +1573,14 @@ func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
 
+// RecordDeploymentOperationsUnlocked retains harvested ARM operations before their resource group is deleted.
 func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []timing.Operation) {
+	if tc.timingFinalized {
+		return
+	}
+	if tc.timingMetadata.Deployments == nil {
+		tc.timingMetadata.Deployments = make(map[string]map[string][]timing.Operation)
+	}
 	if _, exists := tc.timingMetadata.Deployments[resourceGroup]; !exists {
 		tc.timingMetadata.Deployments[resourceGroup] = make(map[string][]timing.Operation)
 	}
@@ -1336,32 +1596,188 @@ func (tc *perItOrDescribeTestContext) RecordKnownDeployment(resourceGroup, deplo
 	})
 }
 
+// RecordTestStep records a generic span without assigning an operation kind or outcome.
 func (tc *perItOrDescribeTestContext) RecordTestStep(name string, startTime, finishTime time.Time) {
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	tc.recordTestStepUnlocked(name, startTime, finishTime)
+	tc.recordTestSpan("", name, "", startTime, finishTime)
 }
 
-func (tc *perItOrDescribeTestContext) recordTestStepUnlocked(name string, startTime, finishTime time.Time) {
+// RecordTestOperation records an operation's kind and returned error independently of the spec outcome.
+func (tc *perItOrDescribeTestContext) RecordTestOperation(kind, name string, startTime, finishTime time.Time, operationErr error) {
+	outcome := timing.OutcomeSucceeded
+	if operationErr != nil {
+		outcome = timing.OutcomeFailed
+	}
+	tc.recordTestSpan(kind, name, outcome, startTime, finishTime)
+}
+
+// Records an observed span unless its enclosing timing artifact is already finalized.
+func (tc *perItOrDescribeTestContext) recordTestSpan(kind, name, outcome string, startTime, finishTime time.Time) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	if tc.timingFinalized {
+		return
+	}
+	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
+}
+
+// recordCleanupStage runs one cleanup stage and records its span with the stage outcome.
+// The span is pinned to the spec that started the stage, so a stage that returns after
+// Ginkgo's timeout cannot land in the next spec's artifact.
+func (tc *perItOrDescribeTestContext) recordCleanupStage(name string, run func() error) (operationErr error) {
+	startedAt := time.Now()
+	generation := tc.specGenerationNow()
+	defer func() {
+		tc.recordOperationFromGeneration(generation, "", name, startedAt, time.Now(), operationErr)
+	}()
+	return run()
+}
+
+// recordBestEffortCleanupStage runs a stage that reports no error, recording only its duration.
+// Purge helpers log and suppress their failures, so an outcome here would be fabricated.
+func (tc *perItOrDescribeTestContext) recordBestEffortCleanupStage(name string, run func()) {
+	startedAt := time.Now()
+	generation := tc.specGenerationNow()
+	run()
+	tc.recordStageFromGeneration(generation, "", name, "", startedAt, time.Now())
+}
+
+// specGenerationNow reads the current spec generation.
+func (tc *perItOrDescribeTestContext) specGenerationNow() uint64 {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	return tc.specGeneration
+}
+
+// recordStageFromGeneration appends a span only while the spec that began it is still current.
+func (tc *perItOrDescribeTestContext) recordStageFromGeneration(generation uint64, kind, name, outcome string, startTime, finishTime time.Time) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	if tc.timingFinalized || tc.specGeneration != generation {
+		return
+	}
+	tc.appendTestSpanUnlocked(kind, name, outcome, startTime, finishTime)
+}
+
+// recordOperationFromGeneration appends a span only while the spec that began it is still current.
+func (tc *perItOrDescribeTestContext) recordOperationFromGeneration(generation uint64, kind, name string, startTime, finishTime time.Time, operationErr error) {
+	outcome := timing.OutcomeSucceeded
+	if operationErr != nil {
+		outcome = timing.OutcomeFailed
+	}
+	tc.recordStageFromGeneration(generation, kind, name, outcome, startTime, finishTime)
+}
+
+// appendTestSpanUnlocked stores one span; the caller holds contextLock.
+func (tc *perItOrDescribeTestContext) appendTestSpanUnlocked(kind, name, outcome string, startTime, finishTime time.Time) {
 	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		Kind:       kind,
 		Name:       name,
-		StartedAt:  startTime.Format(time.RFC3339),
-		FinishedAt: finishTime.Format(time.RFC3339),
+		Outcome:    outcome,
+		StartedAt:  startTime.Format(time.RFC3339Nano),
+		FinishedAt: finishTime.Format(time.RFC3339Nano),
 	})
 }
 
-func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) {
-	ginkgo.GinkgoLogr.Info("Commiting timing metadata.")
-
+// RunTimingPhase records a cleanup stage even when Ginkgo interrupts its callback.
+func (tc *perItOrDescribeTestContext) runTimingPhase(ctx context.Context, kind, name string, run func(context.Context)) {
 	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
+	startedAt := time.Now().Format(time.RFC3339Nano)
+	// Close interrupted phases, including their spans, before chaining the next one.
+	for i := range tc.timingMetadata.Phases {
+		if tc.timingMetadata.Phases[i].FinishedAt == "" {
+			tc.timingMetadata.Phases[i].FinishedAt = startedAt
+			tc.timingMetadata.Phases[i].Incomplete = true
+			tc.finalizePhaseSpanUnlocked(i, startedAt, true)
+		}
+	}
+	// Chain phases so the framework's own dispatch overhead is not reported as uncovered time.
+	if len(tc.timingMetadata.Phases) > 0 {
+		if previous := tc.timingMetadata.Phases[len(tc.timingMetadata.Phases)-1].FinishedAt; previous != "" {
+			startedAt = previous
+		}
+	}
+	index := len(tc.timingMetadata.Phases)
+	tc.timingMetadata.Phases = append(tc.timingMetadata.Phases, timing.StepTimingMetadata{
+		Kind:      kind,
+		Name:      name,
+		StartedAt: startedAt,
+	})
+	// The phase span exists from the start so a callback that never returns still leaves coverage.
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		Kind:      timing.KindTestStep,
+		Name:      name,
+		StartedAt: startedAt,
+	})
+	tc.phaseSpanIndexes = append(tc.phaseSpanIndexes, len(tc.timingMetadata.Steps)-1)
+	tc.contextLock.Unlock()
+	completed := false
+	defer func() {
+		tc.contextLock.Lock()
+		defer tc.contextLock.Unlock()
+		// A timed-out callback may return after the next stage or final serialization.
+		if tc.timingFinalized || tc.timingMetadata.Phases[index].FinishedAt != "" {
+			return
+		}
+		finishedAt := time.Now().Format(time.RFC3339Nano)
+		incomplete := !completed || ctx.Err() != nil
+		tc.timingMetadata.Phases[index].FinishedAt = finishedAt
+		tc.timingMetadata.Phases[index].Incomplete = incomplete
+		tc.finalizePhaseSpanUnlocked(index, finishedAt, incomplete)
+	}()
+	run(ctx)
+	completed = true
+}
 
-	factory, err := tc.getARMResourcesClientFactoryUnlocked(ctx)
+// finalizePhaseSpanUnlocked closes the open span belonging to a phase.
+func (tc *perItOrDescribeTestContext) finalizePhaseSpanUnlocked(phaseIndex int, finishedAt string, incomplete bool) {
+	if phaseIndex >= 0 && phaseIndex < len(tc.phaseSpanIndexes) {
+		if stepIndex := tc.phaseSpanIndexes[phaseIndex]; stepIndex >= 0 && stepIndex < len(tc.timingMetadata.Steps) {
+			tc.closeTimingSpanUnlocked(stepIndex, finishedAt, incomplete)
+			return
+		}
+	}
+	// Fixtures that build a test context directly carry no index, so fall back to the phase start.
+	startedAt := tc.timingMetadata.Phases[phaseIndex].StartedAt
+	for i := range tc.timingMetadata.Steps {
+		if tc.timingMetadata.Steps[i].FinishedAt == "" && tc.timingMetadata.Steps[i].StartedAt == startedAt {
+			tc.closeTimingSpanUnlocked(i, finishedAt, incomplete)
+			return
+		}
+	}
+}
+
+// closeTimingSpanUnlocked closes one recorded span and records whether it completed.
+func (tc *perItOrDescribeTestContext) closeTimingSpanUnlocked(index int, finishedAt string, incomplete bool) {
+	step := &tc.timingMetadata.Steps[index]
+	if step.FinishedAt != "" {
+		return
+	}
+	step.FinishedAt = finishedAt
+	step.Incomplete = incomplete
+	if incomplete {
+		step.Outcome = ""
+		return
+	}
+	step.Outcome = timing.OutcomeSucceeded
+}
+
+// HarvestDeploymentOperations fetches ARM evidence while deployment resources still exist.
+func (tc *perItOrDescribeTestContext) harvestDeploymentOperations(ctx context.Context) {
+	startedAt := time.Now()
+	defer func() {
+		tc.recordTestSpan(timing.KindTestStep, "Harvest deployment operations", "", startedAt, time.Now())
+	}()
+	tc.contextLock.RLock()
+	deployments := slices.Clone(tc.knownDeployments)
+	tc.contextLock.RUnlock()
+	if len(deployments) == 0 {
+		return
+	}
+	factory, err := tc.GetARMResourcesClientFactory(ctx)
 	if err != nil {
 		ginkgo.Fail(fmt.Sprintf("Failed to get ARM resource client factory: %v", err))
 	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		ginkgo.Fail(fmt.Sprintf("Failed to get subscription ID: %v", err))
 	}
@@ -1376,7 +1792,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		creds,
 		tc.perBinaryInvocationTestContext.getClientFactoryOptions(),
 	)
-	for _, info := range tc.knownDeployments {
+	for _, info := range deployments {
 		resourceGroupName, deploymentName := info.resourceGroupName, info.deploymentName
 		ginkgo.GinkgoLogr.Info("Dumping deployment operations.", "deployment", deploymentName, "resourceGroup", resourceGroupName)
 		operations, err := fetchOperationsFor(ctx, getOperationsClient, subscriptionID, resourceGroupName, deploymentName)
@@ -1384,11 +1800,81 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 			ginkgo.GinkgoLogr.Error(err, "failed to fetch operations for deployment", "deployment", deploymentName, "resourceGroup", resourceGroupName)
 			continue
 		}
+		tc.contextLock.Lock()
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
+		tc.contextLock.Unlock()
 	}
+}
 
-	tc.timingMetadata.SubscriptionID = subscriptionID
-	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
+// recordTestStepSpans attributes every ginkgo By step and the framework setup to the test-work phase.
+func (tc *perItOrDescribeTestContext) recordTestStepSpans(report types.SpecReport) {
+	tc.contextLock.RLock()
+	phaseStart, startErr := time.Parse(time.RFC3339Nano, tc.timingMetadata.StartedAt)
+	phaseEnd := report.StartTime.Add(report.RunTime)
+	if len(tc.timingMetadata.Phases) > 0 {
+		if encoded := tc.timingMetadata.Phases[0].FinishedAt; encoded != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339Nano, encoded); parseErr == nil {
+				phaseEnd = parsed
+			}
+		}
+	}
+	tc.contextLock.RUnlock()
+	if startErr != nil || !phaseEnd.After(phaseStart) {
+		return
+	}
+	for _, span := range deriveTestStepSpans(report, phaseStart, phaseEnd) {
+		// A derived step has no per-step result of its own, so its outcome stays unknown.
+		tc.recordTestSpan(timing.KindTestStep, span.name, "", span.startedAt, span.finishedAt)
+	}
+}
+
+// finalizePhasesUnlocked closes every open phase and its span, and reports the latest phase end.
+func (tc *perItOrDescribeTestContext) finalizePhasesUnlocked(finishedAt string) time.Time {
+	latest := time.Time{}
+	for i := range tc.timingMetadata.Phases {
+		if tc.timingMetadata.Phases[i].FinishedAt == "" {
+			tc.timingMetadata.Phases[i].FinishedAt = finishedAt
+			tc.timingMetadata.Phases[i].Incomplete = true
+			tc.finalizePhaseSpanUnlocked(i, finishedAt, true)
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, tc.timingMetadata.Phases[i].FinishedAt); err == nil && parsed.After(latest) {
+			latest = parsed
+		}
+	}
+	return latest
+}
+
+// recordFinalizeSpanUnlocked attributes the interval between the last phase end and serialization.
+func (tc *perItOrDescribeTestContext) recordFinalizeSpanUnlocked(lastPhaseEnd, serializedAt time.Time) {
+	if !serializedAt.After(lastPhaseEnd) {
+		return
+	}
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		Kind:       timing.KindTestStep,
+		Name:       "Finalize timing metadata",
+		StartedAt:  lastPhaseEnd.Format(time.RFC3339Nano),
+		FinishedAt: serializedAt.Format(time.RFC3339Nano),
+		Outcome:    timing.OutcomeSucceeded,
+	})
+}
+
+// CommitTimingMetadata serializes the final lifecycle using only cached, local state.
+func (tc *perItOrDescribeTestContext) commitTimingMetadata() {
+	ginkgo.GinkgoLogr.Info("Committing final timing metadata.")
+	report := ginkgo.CurrentSpecReport()
+	tc.recordTestStepSpans(report)
+	activeTestContext.CompareAndSwap(tc, nil)
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	tc.timingFinalized = true
+	// Taken under the lock so a concurrent callback cannot close a phase after this instant.
+	serializedAt := time.Now()
+	finishedAt := serializedAt.Format(time.RFC3339Nano)
+	lastPhaseEnd := tc.finalizePhasesUnlocked(finishedAt)
+	tc.recordFinalizeSpanUnlocked(lastPhaseEnd, serializedAt)
+	tc.timingMetadata.SubscriptionID = tc.subscriptionID
+	tc.timingMetadata.FinishedAt = finishedAt
+	tc.timingMetadata.Outcome = report.State.String()
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")

@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 )
 
 func TestClusterContainerRegistryPreservation(t *testing.T) {
@@ -38,7 +38,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 		v20251223preview.RegisterVersion,
 		v20260630preview.RegisterVersion,
 		v20260901preview.RegisterVersion,
-		v20261001preview.RegisterVersion,
+		v20261001.RegisterVersion,
 	} {
 		require.NoError(t, register(registry))
 	}
@@ -51,8 +51,8 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 			version, ok := registry.Lookup(versionName)
 			require.True(t, ok)
 
-			// ContainerRegistry only exists in v20261001preview and newer
-			if versionName != string(metadataapi.APIVersionV20261001Preview) {
+			// ContainerRegistry only exists in v20261001 and newer
+			if versionName != string(metadataapi.APIVersionV20261001) {
 				// For older versions, test that the field is preserved on update
 				// even though the version can't represent it in the external API
 				existing, err := version.NewCluster(nil).ConvertToInternal(nil)
@@ -78,7 +78,7 @@ func TestClusterContainerRegistryPreservation(t *testing.T) {
 				return
 			}
 
-			// For v20261001preview, test that containerRegistry can be set/updated
+			// For v20261001, test that containerRegistry can be set/updated
 			for _, tt := range []struct {
 				name    string
 				body    string

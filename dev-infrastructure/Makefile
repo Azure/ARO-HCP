@@ -2,6 +2,9 @@ SHELL = /bin/bash
 DEPLOY_ENV ?= pers
 CLOUD ?= dev
 PRINCIPAL_ID ?= $(shell az ad signed-in-user show -o json | jq -r '.id')
+# Azure RBAC role assignments reject a principalType that disagrees with the
+# principal, so derive it rather than assuming a human is running make.
+PRINCIPAL_TYPE ?= $(shell az account show -o json | jq -r 'if .user.type == "servicePrincipal" then "ServicePrincipal" else "User" end')
 
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
@@ -13,6 +16,7 @@ endif
 
 PERSIST ?= false
 NPROC ?= $(shell command -v nproc > /dev/null 2>&1 && nproc || echo 4)
+BICEP ?= bicep
 
 MGMT_KUBECONFIG_FILE ?= ${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig
 SVC_KUBECONFIG_FILE ?= ${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig
@@ -66,10 +70,10 @@ FORCE:
 		--output "$@"
 
 %.bicep.fmt %.bicepparam.fmt:
-	@AZURE_BICEP_CHECK_VERSION=False az bicep format --file $(basename $@) 2>&1 | awk 'NF'
+	@set -o pipefail; $(BICEP) format $(basename $@) 2>&1 | awk 'NF'
 
 %.bicep.lint %.bicepparam.lint:
-	@AZURE_BICEP_CHECK_VERSION=False az bicep lint --file $(basename $@) 2>&1 | awk 'NF'
+	@set -o pipefail; $(BICEP) lint $(basename $@) 2>&1 | awk 'NF'
 
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
@@ -103,8 +107,24 @@ populate-arm-helper-pool:
 
 .PHONY: populate-arm-helper-pool
 
-frontend-grant-ingress:
-	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
+ARO_HCP_TESTS_BINARY ?= $(abspath ../test/aro-hcp-tests)
+
+$(abspath ../test/aro-hcp-tests): FORCE
+	$(MAKE) -C ../test aro-hcp-tests
+
+frontend-grant-ingress: $(ARO_HCP_TESTS_BINARY)
+	@source_ip="${CI_RP_ALLOWED_SOURCE}"; \
+	if [ -z "$$source_ip" ]; then \
+		source_ip=$$("${ARO_HCP_TESTS_BINARY}" infra discover-public-ip) || exit $$?; \
+	fi; \
+	subscription_id="${INFRA_SUBSCRIPTION_ID}"; \
+	if [ -z "$$subscription_id" ]; then \
+		subscription_id=$$(az account show --query id --output tsv) || exit $$?; \
+	fi; \
+	"${ARO_HCP_TESTS_BINARY}" infra frontend-grant-ingress \
+		--subscription-id "$$subscription_id" \
+		--resource-group "${SVC_RESOURCEGROUP}" \
+		--source-ip "$$source_ip"
 .PHONY: frontend-grant-ingress
 
 #
@@ -137,6 +157,17 @@ region.clean:
 region.what-if:
 	make -C .. pipeline/Region DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region.what-if
+
+# Grants access to the Cosmos DB account, which lives in the regional
+# resource group. See also svc.dev-role-assignments.
+region.dev-role-assignments: configurations/dev-role-assignments-region.bicepparam
+	az deployment group create \
+		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
+		--resource-group "${REGIONAL_RESOURCEGROUP}" \
+		--template-file templates/dev-roleassignments-region.bicep \
+		--parameters configurations/dev-role-assignments-region.bicepparam \
+		--parameters principalID=${PRINCIPAL_ID}
+.PHONY: region.dev-role-assignments
 
 #
 # Service Cluster
@@ -199,14 +230,21 @@ svc.what-if:
 	make -C .. pipeline/Service.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc.what-if
 
-svc.dev-role-assignments: configurations/dev-role-assignments.bicepparam
+# Grants access to the AKS cluster, which lives in the service cluster
+# resource group, and to the shared service key vault. See also
+# region.dev-role-assignments.
+svc.dev-role-assignments: configurations/dev-role-assignments-svc.bicepparam
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
-		--resource-group "${REGIONAL_RESOURCEGROUP}" \
-		--template-file templates/dev-roleassignments.bicep \
-		--parameters configurations/dev-role-assignments.bicepparam \
-		--parameters principalID=${PRINCIPAL_ID}
+		--resource-group "${SVC_RESOURCEGROUP}" \
+		--template-file templates/dev-roleassignments-svc.bicep \
+		--parameters configurations/dev-role-assignments-svc.bicepparam \
+		--parameters principalID=${PRINCIPAL_ID} \
+		--parameters principalType=${PRINCIPAL_TYPE}
 .PHONY: svc.dev-role-assignments
+
+dev-role-assignments: svc.dev-role-assignments region.dev-role-assignments
+.PHONY: dev-role-assignments
 
 svc.clean-nsp-associations:
 	./scripts/delete-nsp.sh $(SVC_RESOURCEGROUP)

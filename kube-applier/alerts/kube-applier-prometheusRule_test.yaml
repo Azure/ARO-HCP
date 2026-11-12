@@ -50,3 +50,185 @@ tests:
   - eval_time: 4m
     alertname: KubeApplierDesiresMetricNotPresent
     exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing deduplicates replicas for KubeAPIError only after 15m
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError", pod="kube-applier-0", instance="10.0.0.1:8080"}'
+    values: "0+1x30"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError", pod="kube-applier-1", instance="10.0.0.2:8080"}'
+    values: "0+2x30"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierApplyFailing
+    exp_alerts:
+    - exp_labels:
+        cluster: test-cluster
+        component: kube-applier
+        namespace: kube-applier
+        group: apps
+        resource: deployments
+        operation: apply
+        reason: KubeAPIError
+        severity: warning
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has been failing to apply apps/deployments due to KubeAPIError for 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster test-cluster failed to apply apps/deployments due to KubeAPIError'
+        title: 'kube-applier on cluster test-cluster failed to apply apps/deployments due to KubeAPIError'
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing fires for PreCheckFailed
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="PreCheckFailed"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: KubeApplierApplyFailing
+    exp_alerts:
+    - exp_labels:
+        cluster: test-cluster
+        component: kube-applier
+        group: apps
+        resource: deployments
+        operation: apply
+        reason: PreCheckFailed
+        severity: warning
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has been failing to apply apps/deployments due to PreCheckFailed for 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster test-cluster failed to apply apps/deployments due to PreCheckFailed'
+        title: 'kube-applier on cluster test-cluster failed to apply apps/deployments due to PreCheckFailed'
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing excludes WaitingForDeletion
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="WaitingForDeletion"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing excludes successful operations
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="True", reason="NoErrors"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing deduplicates replicas for KubeAPIError only after 15m
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError", pod="kube-applier-0", instance="10.0.0.1:8080"}'
+    values: "0+1x30"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", namespace="kube-applier", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError", pod="kube-applier-1", instance="10.0.0.2:8080"}'
+    values: "0+2x30"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierReadFailing
+    exp_alerts:
+    - exp_labels:
+        cluster: test-cluster
+        component: kube-applier
+        namespace: kube-applier
+        group: apps
+        resource: deployments
+        operation: resync
+        reason: KubeAPIError
+        severity: warning
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has been failing to read apps/deployments due to KubeAPIError for 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster test-cluster failed to read apps/deployments due to KubeAPIError'
+        title: 'kube-applier on cluster test-cluster failed to read apps/deployments due to KubeAPIError'
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing fires for PreCheckFailed
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="PreCheckFailed"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: KubeApplierReadFailing
+    exp_alerts:
+    - exp_labels:
+        cluster: test-cluster
+        component: kube-applier
+        group: apps
+        resource: deployments
+        operation: resync
+        reason: PreCheckFailed
+        severity: warning
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has been failing to read apps/deployments due to PreCheckFailed for 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster test-cluster failed to read apps/deployments due to PreCheckFailed'
+        title: 'kube-applier on cluster test-cluster failed to read apps/deployments due to PreCheckFailed'
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing excludes WaitingForDeletion
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="WaitingForDeletion"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing excludes successful operations
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="True", reason="NoErrors"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierApplyFailing ignores single failures and short bursts after recovery
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="KubeAPIError"}'
+    values: "0 1x29"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="apply", status="False", reason="PreCheckFailed"}'
+    values: "0+1x3 3x26"
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: KubeApplierApplyFailing
+    exp_alerts: []
+- interval: 1m
+  name: KubeApplierReadFailing ignores single failures and short bursts after recovery
+  input_series:
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="KubeAPIError"}'
+    values: "0 1x29"
+  - series: 'kube_applier_desire_operations_total{cluster="test-cluster", group="apps", resource="deployments", operation="resync", status="False", reason="PreCheckFailed"}'
+    values: "0+1x3 3x26"
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: KubeApplierReadFailing
+    exp_alerts: []

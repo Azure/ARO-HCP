@@ -27,7 +27,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
-	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
@@ -50,7 +49,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20261001preview"
+	v20261001 "github.com/Azure/ARO-HCP/internal/azureapi/v20261001"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -161,6 +160,7 @@ func getArtifactDir() string {
 	return artifactDir
 }
 
+// NewIntegrationTestInfoFromEnv initializes frontend dependencies using mock or real Cosmos storage.
 func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock bool) (*IntegrationTestInfo, error) {
 	logger := utils.DefaultLogger()
 
@@ -202,7 +202,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	nodePoolInformer, _ := frontendInformers.NodePools()
 	serviceProviderClusterInformer, _ := frontendInformers.ServiceProviderClusters()
 	serviceProviderNodePoolInformer, _ := frontendInformers.ServiceProviderNodePools()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true, azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, resourcesDBClient, frontendInformers, clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev))
 
 	mockKubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
@@ -210,9 +210,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		return nil, err
 	}
 
-	hcReadDesireName := strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	hcRDResourceIDStr := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
-		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster", hcReadDesireName,
+		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster",
+		kubeapplierapi.ReadDesireNameReadonlyHostedCluster,
 	)
 	hcRDResourceID, err := azcorearm.ParseResourceID(hcRDResourceIDStr)
 	if err != nil {
@@ -270,6 +270,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		metricsRegistry,
 		metricsRegistry,
 		mockKubeApplierClients,
+		nil, // alert processing rules client (feature disabled in integration tests)
+		"",  // alert processing rule resource group
+		nil, // alert processing rule scopes
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
@@ -311,7 +314,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient coreco
 
 type FakeOTELClient struct{}
 
-func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
+func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Sending message", "msg", msg)
 	return nil
@@ -326,7 +329,7 @@ func AllAPIVersions() []string {
 	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(registry))
-	metadataapi.Must[any](nil, v20261001preview.RegisterVersion(registry))
+	metadataapi.Must[any](nil, v20261001.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

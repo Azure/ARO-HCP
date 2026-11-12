@@ -73,7 +73,7 @@ tests:
 
 ## Dev notifications
 
-In non MSFT environments (e.g. personal dev, CSPR) you can add e-mail alerts by adding your email to the `devAlertingEmails` key.
+In non MSFT environments (e.g. personal dev) you can add e-mail alerts by adding your email to the `devAlertingEmails` key.
 
 Example:
 

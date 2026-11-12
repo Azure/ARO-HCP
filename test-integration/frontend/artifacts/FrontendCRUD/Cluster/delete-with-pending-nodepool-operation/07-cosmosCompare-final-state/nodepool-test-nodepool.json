@@ -44,9 +44,7 @@
 				"id": "4.20.8"
 			}
 		},
-		"serviceProviderProperties": {
-			"usesNewNodePoolDeletionApproach": true
-		},
+		"serviceProviderProperties": {},
 		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",

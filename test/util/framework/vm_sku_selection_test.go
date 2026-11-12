@@ -21,6 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 const testLocation = "uksouth"
@@ -297,7 +299,7 @@ func TestSelectVMSize(t *testing.T) {
 			want: "Standard_D8s_v3",
 		},
 		{
-			name: "SKU with all advertised zones restricted is excluded even without RequireZones",
+			name: "SKU with all advertised zones restricted is usable without RequireZones",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_D8s_v3", testLocation,
 					withCapability(capabilityVCPUs, "8"),
@@ -310,7 +312,7 @@ func TestSelectVMSize(t *testing.T) {
 				Preferred: []string{"Standard_D8s_v3"},
 				MinVCPUs:  8,
 			},
-			wantErr: ErrNoUsableVMSize,
+			want: "Standard_D8s_v3",
 		},
 		{
 			name: "SKU with a surviving zone is usable when only some zones are restricted",
@@ -322,14 +324,15 @@ func TestSelectVMSize(t *testing.T) {
 				),
 			},
 			selector: VMSizeSelector{
-				Name:      "default-worker",
-				Preferred: []string{"Standard_D8s_v3"},
-				MinVCPUs:  8,
+				Name:         "zonal-worker",
+				Preferred:    []string{"Standard_D8s_v3"},
+				MinVCPUs:     8,
+				RequireZones: true,
 			},
 			want: "Standard_D8s_v3",
 		},
 		{
-			name: "restriction listing more zones than advertised still excludes the SKU",
+			name: "restriction listing more zones than advertised permits non-zonal placement",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_NV12s_v3", testLocation,
 					withCapability(capabilityVCPUs, "12"),
@@ -343,7 +346,7 @@ func TestSelectVMSize(t *testing.T) {
 				MinVCPUs:          8,
 				IgnoreRPAllowlist: true,
 			},
-			wantErr: ErrNoUsableVMSize,
+			want: "Standard_NV12s_v3",
 		},
 		{
 			name: "GPU selector has no fallback: non-preferred GPU SKUs are not selected",
@@ -415,98 +418,14 @@ func TestSelectVMSize(t *testing.T) {
 	}
 }
 
-// productionWorkerSelectors are the selectors whose fallback NamePattern is a
-// correctness boundary: their deterministic fallback must never select a SKU
-// outside the ARO-HCP RP instance-type allowlist (cluster-service
-// cloud-resource-constraints-config), or node pool creation fails with
-// InvalidRequestContent.
-func productionWorkerSelectors() []VMSizeSelector {
-	return []VMSizeSelector{
-		DefaultWorkerVMSizeSelector(),
-		SmallWorkerVMSizeSelector(),
-		EphemeralOSDiskWorkerVMSizeSelector(),
-	}
-}
-
-// TestWorkerSelectorPatternsRejectNonAllowlistedSKUs guards against future
-// widening of the fallback regexes. Every SKU below is advertised by Azure but
-// NOT in the RP allowlist; the fallback NamePattern must reject all of them.
-func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
-	disallowed := []string{
-		// Local-disk variants (ds/lds/ads) are not allowlisted.
-		"Standard_D8ds_v5", "Standard_D4ds_v5",
-		"Standard_D8lds_v6", "Standard_D4lds_v6", "Standard_D2lds_v6",
-		"Standard_D8ads_v5", "Standard_D4ads_v5",
-		// AMD "as" is allowlisted only for v4/v5, not v3 or v6.
-		"Standard_D8as_v3", "Standard_D8as_v6",
-		"Standard_D4as_v3", "Standard_D4as_v6",
-		// Arm64 "p" variants are not allowlisted for these selectors.
-		"Standard_D8ps_v6",
-	}
-	for _, sel := range productionWorkerSelectors() {
-		if sel.NamePattern == nil {
-			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
-		}
-		for _, name := range disallowed {
-			if sel.NamePattern.MatchString(name) {
-				t.Errorf("selector %q NamePattern must not match non-allowlisted SKU %q", sel.Name, name)
-			}
-		}
-	}
-
-	// Standard_D8plds_v6 is an ephemeral-only Arm64 fallback; the other worker selectors stay x86.
-	for _, sel := range []VMSizeSelector{DefaultWorkerVMSizeSelector(), SmallWorkerVMSizeSelector()} {
-		if sel.NamePattern.MatchString("Standard_D8plds_v6") {
-			t.Errorf("selector %q NamePattern must not match Arm64 SKU %q", sel.Name, "Standard_D8plds_v6")
-		}
-	}
-
-	// These are RP-allowlisted but exceed the 8-vCPU cap enforced by the worker
-	// selectors; their fallback patterns must reject them regardless.
-	tooBig := []string{
-		"Standard_D16s_v3", "Standard_D32s_v3", "Standard_D64s_v3",
-		"Standard_D16as_v4", "Standard_E16s_v3", "Standard_E16as_v4",
-	}
-	for _, sel := range productionWorkerSelectors() {
-		for _, name := range tooBig {
-			if sel.NamePattern.MatchString(name) {
-				t.Errorf("selector %q NamePattern must not match >8-vCPU SKU %q (worker selectors cap at 8 vCPUs)", sel.Name, name)
-			}
-		}
-	}
-}
-
-// TestWorkerSelectorPatternsAcceptAllowlistedSKUs ensures the patterns still
-// admit the RP-allowlisted SKUs each selector is expected to fall back to.
-func TestWorkerSelectorPatternsAcceptAllowlistedSKUs(t *testing.T) {
-	cases := map[string][]string{
-		"default-worker":          {"Standard_D8s_v3", "Standard_D8s_v4", "Standard_D8s_v5", "Standard_D8s_v6", "Standard_D8as_v4", "Standard_D8as_v5"},
-		"small-worker":            {"Standard_D4s_v3", "Standard_D4s_v4", "Standard_D4s_v5", "Standard_D4s_v6", "Standard_D4as_v4", "Standard_D4as_v5"},
-		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D8as_v4", "Standard_E8s_v3", "Standard_E8as_v4", "Standard_D8plds_v6"},
-	}
-	byName := map[string]VMSizeSelector{}
-	for _, sel := range productionWorkerSelectors() {
-		byName[sel.Name] = sel
-	}
-	for name, skus := range cases {
-		sel, ok := byName[name]
-		if !ok {
-			t.Fatalf("no production selector named %q", name)
-		}
-		for _, sku := range skus {
-			if !sel.NamePattern.MatchString(sku) {
-				t.Errorf("selector %q NamePattern must match allowlisted SKU %q", name, sku)
-			}
-		}
-	}
-}
-
 // TestSelectVMSizeNeverPicksNonAllowlistedFallback reproduces the prod uksouth
 // failure: the preferred SKUs are unusable and only a non-allowlisted SKU
 // (Standard_D8lds_v6) is otherwise available. Selection must return
 // ErrNoUsableVMSize rather than the non-allowlisted SKU, which the RP rejects
 // with InvalidRequestContent.
 func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
+	unsetVMFamilyPolicy(t)
+
 	skus := []*armcompute.ResourceSKU{
 		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")),
 	}
@@ -520,6 +439,8 @@ func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
 // non-allowlisted and an allowlisted (but non-preferred) SKU are available, the
 // deterministic fallback selects the allowlisted one.
 func TestSelectVMSizeFallbackPrefersAllowlisted(t *testing.T) {
+	unsetVMFamilyPolicy(t)
+
 	skus := []*armcompute.ResourceSKU{
 		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")), // non-allowlisted, usable
 		makeSKU("Standard_D8s_v4", testLocation, withCapability(capabilityVCPUs, "8")),   // allowlisted, not in Preferred
@@ -605,34 +526,7 @@ func TestEphemeralSelectorFallsBackToArm64(t *testing.T) {
 	}
 }
 
-// TestWorkerSelectorPreferredEntriesAreAllowlisted closes the Preferred-list
-// gap in the allowlist-boundary guard. selectVMSize tries Preferred SKUs before
-// discovery and intentionally does NOT constrain them by NamePattern, so a
-// non-allowlisted SKU added to Preferred would bypass the pattern boundary
-// entirely. Asserting that every Preferred entry also matches its own
-// NamePattern keeps the two lists in sync and prevents a non-allowlisted SKU
-// from being reintroduced via Preferred.
-func TestWorkerSelectorPreferredEntriesMatchNamePattern(t *testing.T) {
-	for _, sel := range productionWorkerSelectors() {
-		if sel.NamePattern == nil {
-			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
-		}
-		if len(sel.Preferred) == 0 {
-			t.Errorf("selector %q has no Preferred entries; expected an allowlisted default", sel.Name)
-		}
-		for _, name := range sel.Preferred {
-			if !sel.NamePattern.MatchString(name) {
-				t.Errorf("selector %q Preferred entry %q does not match its NamePattern %q; Preferred must stay within the RP allowlist", sel.Name, name, sel.NamePattern.String())
-			}
-		}
-	}
-}
-
-// TestSkuRestrictedInLocation covers the zone-aware restriction detection added
-// for zone-level SKU bans. Azure often expresses a full subscription/region ban
-// as a Zone-type restriction listing every zone rather than a Location-type
-// restriction, so a SKU whose every advertised zone is restricted must be
-// reported as restricted even though no Location-type restriction is present.
+// Zone restrictions constrain zonal placement, not availability in the region.
 func TestSkuRestrictedInLocation(t *testing.T) {
 	tests := []struct {
 		name string
@@ -650,12 +544,12 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "all advertised zones restricted is restricted",
+			name: "all advertised zones restricted does not restrict the location",
 			sku: makeSKU("Standard_D8s_v3", testLocation,
 				withZones(testLocation, "1", "2", "3"),
 				withZoneRestriction(testLocation, "1", "2", "3"),
 			),
-			want: true,
+			want: false,
 		},
 		{
 			name: "some zones restricted is not restricted",
@@ -666,12 +560,12 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "restriction covering more zones than advertised is restricted",
+			name: "restriction covering more zones than advertised does not restrict the location",
 			sku: makeSKU("Standard_NV12s_v3", testLocation,
 				withZones(testLocation, "2", "3"),
 				withZoneRestriction(testLocation, "1", "2", "3"),
 			),
-			want: true,
+			want: false,
 		},
 		{
 			name: "non-zonal SKU with no restrictions is not restricted",
@@ -692,6 +586,132 @@ func TestSkuRestrictedInLocation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := skuRestrictedInLocation(tt.sku, testLocation); got != tt.want {
 				t.Fatalf("skuRestrictedInLocation = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSpecializedVMSizeSelectorsIgnoreFamilyPolicy(t *testing.T) {
+	const location = "westus3"
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"],"helper_families":["standardDDSv5Family"]}`)
+	tests := []struct {
+		name        string
+		constructor func() VMSizeSelector
+		skus        []*armcompute.ResourceSKU
+		want        string
+	}{
+		{
+			name:        "ephemeral retains historical preference",
+			constructor: EphemeralOSDiskWorkerVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v5", location, withCapability(capabilityVCPUs, "8")),
+				makeSKU("Standard_D8s_v3", location, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+			},
+			want: "Standard_D8s_v3",
+		},
+		{
+			name:        "ephemeral still requires ephemeral capability",
+			constructor: EphemeralOSDiskWorkerVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", location, withCapability(capabilityVCPUs, "8")),
+			},
+		},
+		{
+			name:        "GPU retains vetted GPU preference",
+			constructor: GPUNodePoolVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v5", location, withCapability(capabilityVCPUs, "8")),
+				makeSKU("Standard_NC4as_T4_v3", location, withCapability(capabilityGPUs, "1")),
+			},
+			want: "Standard_NC4as_T4_v3",
+		},
+		{
+			name:        "GPU still requires GPU capability",
+			constructor: GPUNodePoolVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_NC4as_T4_v3", location, withCapability(capabilityVCPUs, "4")),
+			},
+		},
+		{
+			name:        "Arm64 retains architecture selection",
+			constructor: ARM64NodePoolVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D4s_v5", location, withCapability(capabilityCPUArchitecture, "x64")),
+				makeSKU("Standard_D4plds_v6", location, withCapability(capabilityCPUArchitecture, "Arm64")),
+			},
+			want: "Standard_D4plds_v6",
+		},
+		{
+			name:        "Arm64 still requires Arm64 capability",
+			constructor: ARM64NodePoolVMSizeSelector,
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D4plds_v6", location, withCapability(capabilityCPUArchitecture, "x64")),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := selectVMSize(tt.skus, location, tt.constructor())
+			if tt.want == "" {
+				if !errors.Is(err, ErrNoUsableVMSize) || got != "" {
+					t.Fatalf("expected unchanged specialized capability rejection, got SKU=%q err=%v", got, err)
+				}
+				return
+			}
+			if err != nil || got != tt.want {
+				t.Fatalf("expected specialized SKU %q, got SKU=%q err=%v", tt.want, got, err)
+			}
+		})
+	}
+}
+
+func TestConsumerSelectorsWithZoneOnlyRestrictions(t *testing.T) {
+	t.Setenv(leaseenv.SelectedLocation, "")
+	t.Setenv(leaseenv.VMFamilyPolicy, `{"worker_families":["standardDSv5Family"],"helper_families":["standardDSv5Family"]}`)
+	skus := []*armcompute.ResourceSKU{}
+	for _, size := range []struct {
+		name  string
+		vcpus string
+	}{
+		{"Standard_D8s_v5", "8"},
+		{"Standard_D4s_v5", "4"},
+		{"Standard_D2s_v5", "2"},
+	} {
+		sku := makeSKU(size.name, testLocation,
+			withCapability(capabilityVCPUs, size.vcpus),
+			withCapability(capabilityCPUArchitecture, "x64"),
+			withZones(testLocation, "1", "2", "3"),
+			withZoneRestriction(testLocation, "1", "2", "3"),
+		)
+		sku.Family = to.Ptr("standardDSv5Family")
+		skus = append(skus, sku)
+	}
+	tests := []struct {
+		selector VMSizeSelector
+		want     string
+	}{
+		{DefaultWorkerVMSizeSelector(), "Standard_D8s_v5"},
+		{SmallWorkerVMSizeSelector(), "Standard_D4s_v5"},
+		{JumpboxVMSizeSelector(), "Standard_D2s_v5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.selector.Name, func(t *testing.T) {
+			for _, candidates := range [][]*armcompute.ResourceSKU{skus, {skus[2], skus[1], skus[0]}} {
+				got, _, err := selectVMSize(candidates, testLocation, tt.selector)
+				if err != nil || got != tt.want {
+					t.Fatalf("non-zonal selection = %q, %v; want %q", got, err, tt.want)
+				}
+			}
+			zonal := tt.selector
+			zonal.RequireZones = true
+			if got, _, err := selectVMSize(skus, testLocation, zonal); got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+				t.Fatalf("zonal selection = %q, %v; want no usable size", got, err)
+			}
+			outsidePolicy := tt.selector
+			outsidePolicy.Families = []string{"standardDASv5Family"}
+			if got, _, err := selectVMSize(skus, testLocation, outsidePolicy); got != "" || !errors.Is(err, ErrNoUsableVMSize) {
+				t.Fatalf("out-of-policy selection = %q, %v; want no usable size", got, err)
 			}
 		})
 	}

@@ -19,8 +19,8 @@ their existing non-SWIFT behavior.
 Set `clusterParams.DisableSwift = false` explicitly for private API or private
 KMS scenarios, which always require VNet integration. Public SWIFT coverage is
 retained by the OCP-version install table (`2025-12-23-preview`), node-pool
-deletion (`2026-09-01-preview`), cluster/node-pool active versions
-(`2026-10-01-preview`), and the independent HyperShift presubmit test. The install
+deletion (`2026-09-01-preview`), telemetry (`2025-12-23-preview`), cluster/node-pool active versions
+(`2026-10-01`), and the independent HyperShift presubmit test. The install
 table covers each available OCP release line; entries without resolvable releases
 skip before creating a cluster. There is not yet a `2026-06-30-preview` creation
 test, and `2024-06-10-preview` cannot express SWIFT networking on creation.
@@ -32,6 +32,78 @@ tag or revoking AFEC does not change an existing cluster's networking or prevent
 ordinary updates. An honored `"true"` tag together with an integration subnet is
 rejected. Tag names are case-insensitive; values must be exactly `"true"` or
 `"false"`. Without AFEC, the tag is ignored and normal subnet requirements apply.
+
+### SWIFT Telemetry Coverage
+
+`Engineering should be able to retrieve kusto logs for a cluster and services`
+creates an explicitly SWIFT-enabled cluster and two workers. See the
+[test](kusto_logs_present.go) and [`VerifySwiftRouterChecks` implementation/KQL](../util/verifiers/swift.go).
+It uses the test context's Azure credential, not management-cluster credentials,
+and service config `kusto.kustoName`, `kusto.location`, `kusto.serviceLogsDatabase`.
+The credential needs query access to `cosmosResourceSnapshots`,
+`kubernetesResourceSnapshots`, and `containerLogs` in that database.
+
+Mapping is exact: customer ARM ID -> child cluster ReadDesire HostedCluster ->
+fleet management-cluster document -> AKS telemetry cluster and HCP namespace
+(`metadata.namespace + "-" + metadata.name`). ReadDesire matching is
+case-insensitive and slash-delimited, excluding similarly named clusters and
+node-pool ReadDesires; it does not use Cluster Service log CID or `spec.infraID`.
+`spec.managementCluster` joins fleet `resourceID` case-insensitively; the last
+segment of fleet `status.aksResourceID` supplies the telemetry cluster name.
+Cosmos joins retain environment, region, and snapshot-emitting service cluster
+(not the target management cluster) to avoid collisions across personal/CI installs.
+Latest documents are selected by `content._ts`, then snapshot `timestamp`, before
+excluding tombstones or absent/deleting manifests; duplicates do not multiply
+scope. Mapping documents may predate test start. The linked KQL specifies the
+manifest fields and fleet resource types.
+
+Kubernetes evidence must be since test start: latest snapshots, filtered for
+deletion afterward, establish router Deployment replicas and every Running,
+nondeleting private-router Pod UID. Missing/ambiguous mapping, replicas, or reports
+cannot pass. Kusto returns bounded summaries, not raw probe logs.
+
+Call `VerifySwiftRouterChecks(ctx, credential, resourceID, startTime, workers, timeout)`
+with a nonzero test start and positive worker count/timeout; this test allows
+12 minutes. Every current router needs a latest healthy, complete summary matching
+its UID/node, emitted after test start and no more than eight minutes old.
+All [probe roles and DNS coverage](../../swift-recorder/LOG_RECORDS.md#role-matrix-and-tls-identities)
+must be present, including all peers and at least the requested worker count.
+Non-TCP targets require HTTP success (verified TLS for HTTPS); worker TCP refusal
+counts as reachability, not SSH readiness. Partial/canceled passes, missing coverage,
+and protocol failures fail. The verifier owns polling, one-minute query deadlines,
+and delta-only timeout diagnostics; do not wrap it in another `Eventually`.
+
+### Let's Encrypt guest DNS prerequisite
+
+The Let's Encrypt ingress-certificate test waits for guest DNS before creating its
+ClusterIssuer. The DNS ClusterOperator must be available and not degraded, and
+`openshift-dns/dns-default` must have a ready, nonterminating UDP endpoint.
+A short-lived pod in the `cert-manager` namespace then resolves the ACME hostname
+using `ClusterFirst` DNS. Runner-side DNS resolution is not a substitute for this
+workload-network check.
+
+The operator, endpoint, and pod checks share a ten-minute deadline. The probe uses
+the sample-app fixture's fixed `agnhost:2.39` image, does not mount service-account
+credentials, and is deleted on success, failure, or cancellation. The existing
+five-minute ClusterIssuer readiness timeout and certificate/HTTPS assertions
+remain independent of this prerequisite.
+
+While waiting for issuance, the test wakes processing ACME Orders whose owned
+Challenges are all valid by updating a dedicated annotation at most once every
+30 seconds per Order UID. Only the Certificate's controller-owner UID chain is
+eligible, and atomic UID/resource-version checks protect each metadata-only patch.
+This works around missing processing-Order polling in the pinned cert-manager;
+remove it when the pin includes [the upstream fix](https://github.com/cert-manager/cert-manager/pull/9463).
+It does not restart cert-manager, recreate Orders, extend the ten-minute issuance
+wait, or bypass certificate and HTTPS validation.
+
+Failed tests write `ingress-certificate-diagnostics/` under their artifact
+directory before guest teardown. These artifacts include bounded cert-manager
+controller logs, issuer conditions/events, and guest DNS readiness state. They
+exclude Secret resources, pod environment variables, token projections, and
+issuer specifications. Artifact-collection errors do not replace the test failure.
+Collection is skipped when the per-test artifact directory is empty, including
+local runs without `ARTIFACT_DIR`.
 
 ### Resource Naming
 
@@ -50,7 +122,7 @@ When writing E2E test cases that provision their own cluster (i.e., the test cas
 - **Label Requirement:** You **MUST** add the `RequireNothing` label to these test cases. This label ensures the test is always considered for CI execution.
 - **Triggering in CI:** These tests will automatically run in the CI pipeline when a pull request is created or updated. Specifically, they are executed as part of the `ci/prow/integration...` and `ci/prow/stage...` jobs.
 
-See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a reference implementation.
+See [`test/e2e/complete_cluster_create_multiversion.go`](complete_cluster_create_multiversion.go) for a reference implementation.
 
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 
@@ -102,6 +174,21 @@ $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.21
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
 ```
 
+Cluster parameters retain the full selected `OpenshiftVersionId` until the
+`BuildHCPClusterFromParams*` request boundary. For an exact control-plane build
+(including nightly), the builder sends its release line in `properties.version.id`
+and the full build in `aro-hcp.experimental.cluster.control-plane-exact-version`.
+This uses existing RP support to preserve the pin through GET and unrelated PATCH
+requests; it does not change customer `version.id` behavior. The subscription must
+have the `ExperimentalReleaseFeatures` AFEC registered.
+
+Use `PickAtLeastOpenshiftVersionId` on the raw parameters before building requests
+when a test requires a minimum version. Builders preserve explicit exact-version
+tags for bare version IDs and never mutate the input parameters. Version-changing
+PATCH requests must use `ControlPlaneExactVersionPatchTags` to replace an exact pin
+or explicitly send it as `null` when following a release line. Unrelated PATCHes
+should omit it. Node-pool version IDs remain concrete versions.
+
 When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
 `ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true` to resolve that major.minor (or full
 semver) to the latest z-stream install version in the active channel group
@@ -123,6 +210,35 @@ Or `integration/parallel` test suite:
 
 ```bash
 $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
+```
+
+The `integration/parallel/all`, `stage/parallel/all` and `prod/parallel/all`
+suites select the union of their fast (`*/parallel`) and Slow (`*/parallel/slow`)
+suites. Each retains its environment exclusions and runs both Slow-labeled and
+non-Slow tests in one suite. The stage and prod periodics use the `/all` suites
+so a single job covers the whole spec set:
+
+```bash
+./test/aro-hcp-tests list tests --suite "integration/parallel/all" --output names
+./test/aro-hcp-tests run-suite "integration/parallel/all"
+./test/aro-hcp-tests list tests --suite "stage/parallel/all" --output names
+./test/aro-hcp-tests run-suite "stage/parallel/all"
+./test/aro-hcp-tests list tests --suite "prod/parallel/all" --output names
+./test/aro-hcp-tests run-suite "prod/parallel/all"
+```
+
+The `expect-failure` suite collects exactly the tests labeled
+`labels.ExpectFailure("ARO-123")` — reproducers for known, unfixed bugs or work
+in progress features that are expected to fail. The label takes a mandatory JIRA
+tracking-issue ID and renders as `ExpectFailure:ARO-123`, so each expected failure
+carries its tracking ticket. These tests are excluded from every other suite so
+their failures do not pollute normal CI. The suite is used to verify a fix has
+landed: each test flips from failing to passing once its bug is fixed, at which
+point the label is removed.
+
+```bash
+./test/aro-hcp-tests list tests --suite "expect-failure" --output names
+./test/aro-hcp-tests run-suite "expect-failure"
 ```
 
 ### Test cases with per-run cluster
@@ -196,6 +312,113 @@ Set the **CUSTOMER_SUBSCRIPTION** environment variable to the **name** of the Az
 ### Artifact Directory (ARTIFACT_DIR)
 Set the **ARTIFACT_DIR** environment variable to specify the directory where test artifacts and logs will be saved. This is especially useful in CI environments to collect and persist test outputs.
 
+When a versioned `CreateNodePoolFromParam` helper fails during bringup, it gathers
+an Azure failure bundle before returning the original error. Each failure gets
+its own `azure-failure-<nodepool>-<timestamp>-<suffix>/` directory beneath the
+test's artifact directory, including VM console logs. Collection has a single
+five-minute budget independent of the failed provisioning context.
+
+The bundle contains full typed Azure networking objects from the supplied
+customer and managed resource groups: load balancers, NICs, VNets/subnets, NSGs,
+route tables, NAT gateways, public IPs, private endpoints and DNS zone groups,
+and private DNS zones, records and VNet links. Worker NIC effective routes and
+effective NSGs are queried best-effort. VM summaries and instance views exclude
+bootstrap data, extension settings and credential-bearing URLs. Console logs
+and instance views are gathered independently. References outside those two
+resource groups are not followed; no Kubernetes collection or active network
+probe is added.
+
+Start with `manifest.json` for collection times, operation status, errors and
+artifact paths. Successful pages are retained even if later requests fail or
+the deadline expires. Empty results are distinguished from failed or skipped
+operations. Effective-state queries require the NIC diagnostic action
+permissions and may be unavailable during early VM provisioning. This bundle
+captures configuration at failure time, not historical packet delivery or the
+backend selected for an individual connection.
+
+#### Test Timing Analysis
+
+Timing metadata records the running spec's setup through framework teardown,
+including ARM evidence collection, debug collection, resource deletion, Key
+Vault/Managed HSM purge and identity release. ARM deployment operations are
+collected before deletion; final timing metadata and the spec outcome are saved
+after teardown, including failed or timed-out cleanup. SDK logging stays open
+through teardown.
+
+The report shows one segmented bar per test. Hover a test to see its recorded
+stages. Stages start collapsed; expand a stage to see its operations. Uncovered
+time is labeled **No recorded operation**. It means missing operation coverage,
+not idle time. The elapsed envelope excludes Prow builds and pre/post-job steps.
+
+Every `By` step records a span, as do the framework setup before the first step,
+ARM metadata harvest, debug collection and each cleanup phase. A current report
+therefore has no uncovered interval for a completed test, and **No recorded
+operation** in a fresh report means new work that is not yet instrumented.
+Historical metadata is labeled as-is rather than reconstructed.
+
+The overview chart is sized to 90% of the outer viewport height, with a 640px
+minimum. Embedded reports fall back to 640px when cross-origin restrictions hide
+the viewport. The horizontal slider navigates the full time range. Sort tests by
+start time, total duration (longest first) or name. The Skipped, Passed and
+Failed filters change only the chart, alongside a visible test count; the
+full-run summary is unchanged.
+
+The full-run summary reports minimum, mean and maximum durations plus sample counts for
+recorded cluster creation, nodepool creation, cluster deletion, resource-group
+cleanup, cluster update, nodepool update, resource-group deletion, upgrade
+convergence and Key Vault or Managed HSM key creation, plus full cleanup,
+truncated to whole seconds. Segment colors match the summary.
+Only passing tests contribute averages; interrupted spans and failed, timed-out
+or unknown-outcome tests are excluded. Typed resource-operation averages also
+require an explicit successful operation outcome: failed attempts, including
+expected rejections in passing tests, and unknown historical outcomes remain on
+the timeline but do not contribute averages or sample counts. Distinct concurrent
+successful operations remain separate samples. Resource-group cleanup includes
+contained resources and purge, so categories are independent and must not be
+added together.
+
+Cluster creation with a nonpositive timeout does not wait for provisioning. Its
+`create-cluster-request` span measures submission and the initial status poll,
+not resource readiness. It remains visible on the timeline but is excluded from
+creation averages, even when both the request and the test pass.
+
+Historical metadata remains readable, but its missing cleanup intervals and
+unknown outcomes are labeled rather than reconstructed. Regenerate a report with:
+
+```bash
+./test/aro-hcp-tests visualize --timing-input "$SHARED_DIR" --output "$ARTIFACT_DIR/test-timing"
+```
+
+#### Suite queue order
+
+The suite scheduler is FIFO: it hands out the first spec whose conflict group,
+taints and MI pool capacity allow it to run. Specs declaring `labels.StartPriority(N)`
+enter the queue ahead of lower priority specs, and `0` is the default. The
+`Speed:Slow` label only selects the `/parallel` and `/parallel/slow` suites and
+has no effect on queue order.
+
+Priority values come from measured durations, not from guesses. Rank a spec set
+from the `timing-metadata-*.yaml` files of recent runs and assign the band that
+matches its average:
+
+| Priority | Measured average |
+|---:|---|
+| 90 | 50 minutes or more |
+| 80 | 45 to 50 minutes |
+| 70 | 40 to 45 minutes |
+| 60 | 35 to 40 minutes |
+| 50 | 30 to 35 minutes |
+| 40 | 25 to 30 minutes |
+| 30 | 20 to 25 minutes |
+| 20 | 15 to 20 minutes |
+
+Specs below 15 minutes carry no label and keep registration order. The bands
+cover the suite concurrency (75 containers in Stage, 58 in dev, 25 in Prod), so
+the first wave is made of the longest measured specs instead of file order.
+
+`./test/aro-hcp-tests list tests --suite <suite> --output names` prints the
+resulting queue order, so a priority change is reviewable before it runs in CI.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
@@ -252,12 +475,14 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
 [`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
 
 - `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
-  test location, filters out SKUs that are restricted in the current
-  subscription/location, applies the selector's capability filters, and returns
-  a usable SKU. When the selector requires zones, only SKUs with at least one
-  non-restricted zone are considered usable. It prefers the selector's ordered
-  `Preferred` list first (so behaviour is unchanged whenever the historical SKU
-  is available), then falls back to a deterministic, sorted pick.
+  test location, filters out SKUs with applicable **Location** restrictions in
+  the current subscription/location, applies the selector's capability filters,
+  and returns a usable SKU. **Zone** restrictions constrain only zonal placement:
+  even when every advertised zone is restricted, a non-zonal selector may use
+  the SKU. When the selector requires zones, at least one advertised zone must
+  remain unrestricted. It prefers the selector's ordered
+  `Preferred` list first, then falls back to a deterministic, sorted pick when
+  the selector permits discovery.
 - Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
   `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
   `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
@@ -268,8 +493,80 @@ Instead, resolve VM sizes at runtime through the restriction-aware selector in
   constant. Set `VMSize` explicitly only to pin a specific size (for example
   negative tests that assert on a specific SKU).
 
-Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
-is out of scope.
+The optional `vm_family_policy` is resolved by slot-manager against the acquired
+runtime region and exported as `ARO_HCP_E2E_VM_FAMILY_POLICY`. The suite consumes
+that resolved policy; it does not select a region or load catalog configuration.
+See the [slot-manager design](../cmd/aro-hcp-tests/slot-manager/DESIGN.md#vm--worker-sku-policy)
+for the catalog and runtime contract.
+
+Configured selectors search supplied families in order, then choose a usable
+preferred size or deterministic discovery result within a family. If a family
+has no suitable SKU, selection advances to the next configured family.
+Restriction and capability checks still apply. These are family preferences,
+not instance-size pins; keep the preference order in code and the slot catalog
+rather than duplicating it here.
+
+Local runs can supply a resolved policy through
+`ARO_HCP_E2E_VM_FAMILY_POLICY`. Omit it to use the selector defaults. Keep the
+usual local subscription, location, and authentication setup: a policy does not
+choose a subscription or region, or grant quota.
+
+Only reported **restrictions** are honoured; remaining quota headroom is not
+checked. Ordered selection does not retry deployments after allocation or quota
+failures. Azure SKU metadata and quota approval do not reserve physical capacity.
+
+## Planning Azure vCPU quota
+
+A test case that creates one default node pool requests **two 8-vCPU workers,
+or 16 worker vCPUs**. This is customer-subscription demand, not the CI runner's
+CPU request or the service/management cluster's control-plane capacity.
+The [node pool constructors](../util/framework/helpers_v20240610preview.go)
+define the default replica count; the
+[VM size selectors](../util/framework/vm_sku_selection.go) define the worker
+shapes. Tests can override replicas, create more pools or clusters, or use
+specialized SKUs, so 16 is a baseline, not a per-test ceiling.
+
+| Workload shape | Calculation | Worker/helper vCPUs |
+| --- | --- | ---: |
+| One default two-node pool | 2 workers × 8 vCPUs | 16 |
+| Two small workers, when requested by a test | 2 workers × 4 vCPUs | 8 |
+| One helper VM at the preferred shape | 1 helper × 2 vCPUs | 2 |
+| Both three-node pools in the [nodepool autoscaling test](nodepool_autoscaling.go) | 2 pools × 3 workers × 8 vCPUs | 48 |
+
+The autoscaling row describes the combined pool minima when both zonal and
+non-zonal pools are created, not a maximum allocation. An autoscaling `Max`
+setting is not evidence that the test allocates that many nodes. Use actual
+selected SKU sizes and simultaneous node counts, including scale-out and
+rolling-replacement overlap, when calculating peak demand. Helpers use their
+own family quotas and can select a different size through fallback.
+
+There is no fixed vCPU requirement for an entire E2E suite. Size each
+subscription/region for all jobs that can overlap there:
+
+```text
+family peak = sum(simultaneously allocated VM count × vCPUs per VM
+                  for every worker pool and helper using that family)
+regional peak = sum(family peaks) + other regional VM usage
+required headroom = planned peak + allowance for replacements and delayed cleanup
+```
+
+For example, 25 simultaneous default two-node pools need 400 worker vCPUs;
+75 need 1,200. These are arithmetic examples, not concurrency settings or
+complete-suite budgets: add helpers, additional pools, autoscaling, overlapping
+jobs and existing usage. Apply the calculation to each family that fallback
+can select as well as the shared regional total.
+
+Inspect the selected suite's concurrency in
+[`suites.go`](../cmd/aro-hcp-tests/suites.go) and
+[`concurrency.go`](../cmd/aro-hcp-tests/concurrency.go):
+`ARO_HCP_SUITE_PARALLELISM`, the acquired lease and `--max-concurrency` can affect
+the effective worker count. Identity-container admission is an independent
+resource ceiling, not a CPU reservation; a single spec can require multiple
+containers. See [identity leasing and capacity planning](../../docs/ci/identity-leasing.md#pool-sizing-and-subscription-constraints).
+
+Check live family and regional usage/limits before enabling a pool or increasing
+concurrency, and retain operational margin in both. Do not copy a subscription's
+current quota values into this guide.
 
 ## Updating E2E Timeouts
 
@@ -278,6 +575,8 @@ Shared timeout constants live in [`test/util/framework/constants.go`](../util/fr
 **When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
 
 Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Cluster and node pool update helpers set the experimental `max-update-duration` tag to the supplied timeout minus one minute. When update tags are omitted, the helpers first read the resource's current tags and preserve them while adding the timeout tag. Explicit tag maps keep their replacement semantics. This gives the server time to return pending reasons before the test context expires. The tag requires `ExperimentalReleaseFeatures`; update timeouts must be at least two minutes to allow the minimum one-minute server deadline.
 
 Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
 
@@ -423,7 +722,7 @@ Positivity labels:
 
 Retry labels:
 
-- `allow-retry`: marks a test as safe to auto-retry during an EV2 Stage/Prod gating run when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
+- `allow-retry`: marks a test as safe to auto-retry during an EV2 gating run (INT, Stage or Prod) when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
 
 ### Assertions
 

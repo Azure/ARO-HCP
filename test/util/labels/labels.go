@@ -64,10 +64,10 @@ var (
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
-	// AllowRetry marks a test as safe to auto-retry during an EV2 Stage/Prod
-	// gating run when it fails due to a known, actively tracked issue. This is
-	// a temporary measure with a TTL: every use must have an owner and a
-	// tracking issue, and the label must be removed once the underlying issue
+	// AllowRetry marks a test as safe to auto-retry during an EV2 gating run
+	// (INT, Stage or Prod) when it fails due to a known, actively tracked issue.
+	// This is a temporary measure with a TTL: every use must have an owner and
+	// a tracking issue, and the label must be removed once the underlying issue
 	// is fixed. See AROSLSRE-1721.
 	AllowRetry = ginkgo.Label("allow-retry")
 )
@@ -80,6 +80,45 @@ func MIContainers(n int) ginkgo.Labels {
 		panic(fmt.Sprintf("MIContainers: n must be >= 0, got %d", n))
 	}
 	return ginkgo.Label(fmt.Sprintf("MIContainers:%d", n))
+}
+
+// StartPriorityMax is the highest StartPriority value that a spec may declare.
+const StartPriorityMax = 1000
+
+// StartPriorityLabelPrefix is the label-name prefix for explicit suite start order.
+const StartPriorityLabelPrefix = "StartPriority:"
+
+// StartPriority returns a label that moves a spec ahead of lower priority specs in the
+// suite queue. Higher values start earlier, matching the Kubernetes PriorityClass
+// direction, and specs without the label start at 0 in registration order. The suite
+// scheduler is non-preempting: a high priority spec that cannot start yet because its
+// conflict group, taints or MI pool capacity block it does not delay the specs behind
+// it. Use it only for specs whose measured duration puts them in the suite's first wave.
+func StartPriority(priority int) ginkgo.Labels {
+	if priority < 0 || priority > StartPriorityMax {
+		panic(fmt.Sprintf("StartPriority: priority must be between 0 and %d, got %d", StartPriorityMax, priority))
+	}
+	return ginkgo.Label(fmt.Sprintf("%s%d", StartPriorityLabelPrefix, priority))
+}
+
+// ExpectFailureLabelPrefix is the label-name prefix for expect-failure tests.
+const ExpectFailureLabelPrefix = "ExpectFailure:"
+
+// ExpectFailure marks a test that reproduces a known bug and has been reported as a Jira ticket.
+// JiraID must reference a tracking issue (e.g. "ARO-123").
+// Produces ginkgo.Label("ExpectFailure:ARO-123"). Filtering matches on the
+// ExpectFailureLabelPrefix, not the full value. Temporary by design: remove
+// the label once the bug is fixed.
+// Tests with this label are excluded from all other suites (integration, stage, prod, dev,
+// rp-api-compat, hypershift-presubmit, upgrade/in-place) and collected in the dedicated
+// `expect-failure` suite to track fixing progress without polluting normal CI
+// results.
+func ExpectFailure(jiraID string) ginkgo.Labels {
+	if len(jiraID) == 0 {
+		panic("ExpectFailure: jiraID must not be empty")
+	}
+
+	return ginkgo.Label(fmt.Sprintf("%s%s", ExpectFailureLabelPrefix, jiraID))
 }
 
 // Environments this test can be used in.

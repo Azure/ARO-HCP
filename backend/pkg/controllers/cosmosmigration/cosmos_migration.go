@@ -23,6 +23,8 @@ import (
 
 	"github.com/go-logr/logr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -66,12 +68,31 @@ func NewCosmosMigrationController(
 		kubeApplierDBClients: kubeApplierDBClients,
 		cooldown:             controllerutil.NewTimeBasedCooldownChecker(resyncDuration),
 	}
-	return controllerutils.NewSubscriptionWatchingController(
+	controller := controllerutils.NewSubscriptionWatchingController(
 		CosmosMigrationControllerName,
 		backendInformers,
 		resyncDuration,
 		syncer,
 	)
+	// Migration sweeps legacy documents with names chosen by their original writers.
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
+	controller.AddInterestingResource(coreapi.OperationStatusResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthControllerResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 func (c *cosmosMigrationController) CooldownChecker() controllerutil.CooldownChecker {
@@ -229,7 +250,11 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 		// Resolve the kube-applier client for this cluster's management cluster.
 		// Returns nil if no ServiceProviderCluster exists yet (e.g. placement is
 		// pending) or the management cluster is unknown.
-		kubeApplierClient := c.resolveKubeApplierClient(clusterCtx, clusterLogger, clusterSubID, clusterRG, clusterName)
+		kubeApplierClient, err := c.resolveKubeApplierClient(clusterCtx, clusterLogger, clusterSubID, clusterRG, clusterName)
+		if err != nil {
+			migrationErrors = append(migrationErrors, err)
+			continue
+		}
 
 		// Migrate node pools and their nested resources (including kube-applier desires).
 		if err := c.migrateNodePools(clusterCtx, clusterLogger, clusterSubID, clusterRG, clusterName, kubeApplierClient); err != nil {
@@ -402,29 +427,33 @@ func (c *cosmosMigrationController) migrateExternalAuths(ctx context.Context, lo
 
 // resolveKubeApplierClient looks up the ServiceProviderCluster "default" for the
 // given HCP cluster and returns the corresponding kube-applier DB client.
-// Returns nil if no ServiceProviderCluster exists, the management cluster is not
-// yet resolved, or the kube-applier client is unavailable.
-func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string) kubeappliercosmosstorage.KubeApplierDBClient {
+// Returns nil, nil if no ServiceProviderCluster exists or the management cluster
+// is not yet resolved or registered. Operational failures return an error.
+func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
 	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		logger.Error(err, "failed to get service provider cluster for kube-applier migration")
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil, nil
 	}
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to get service provider cluster for kube-applier migration: %w", err)
 	}
 
 	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if managementClusterResourceID == nil {
 		logger.V(1).Info("no management cluster resource ID found; skipping kube-applier migration")
-		return nil
+		return nil, nil
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve kube-applier client: %w", err)
+	}
 	if kubeApplierClient == nil {
 		logger.V(1).Info("kube-applier client unavailable for management cluster; skipping kube-applier migration",
 			"managementClusterResourceID", managementClusterResourceID.String())
+		return nil, nil
 	}
-	return kubeApplierClient
+	return kubeApplierClient, err
 }
 
 // migrateClusterDesires migrates kube-applier desire types (ApplyDesire,

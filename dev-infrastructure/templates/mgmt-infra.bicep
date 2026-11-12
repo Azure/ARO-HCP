@@ -88,6 +88,22 @@ param hcpBackupsStorageAccountContainerName string = 'backups'
 param hcpBackupsStorageAccountZoneRedundantMode string = 'Auto'
 param hcpBackupsStorageAccountPublic bool = true
 
+@description('Reference a pre-created AKS control-plane identity instead of creating it in the management resource group.')
+param useLeasedInfrastructureIdentities bool = false
+
+@description('Comma-separated explicit stamp-to-resource-group mappings in the management deployment subscription, for example 1=rg-a,2=rg-b.')
+param managementIdentityResourceGroups string = ''
+
+@description('Comma-separated explicit stamp-to-AKS-identity-name mappings, for example 1=aks-identity-a,2=aks-identity-b. Required when useLeasedInfrastructureIdentities is true.')
+param managementAksIdentityNames string = ''
+
+@description('Management stamp selecting entries from managementIdentityResourceGroups and managementAksIdentityNames.')
+param stampIdentifier string
+
+var infrastructureIdentityResourceGroup = useLeasedInfrastructureIdentities
+  ? mi.getManagementIdentityResourceGroup(managementIdentityResourceGroups, stampIdentifier)
+  : ''
+
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
 var readerRoleId = subscriptionResourceId(
@@ -225,11 +241,30 @@ var keyVaultCryptoUserId = subscriptionResourceId(
   '12338af0-0e69-4776-bea7-57ae8d297424'
 )
 
-resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+import * as mi from '../modules/managed-identities.bicep'
+
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useLeasedInfrastructureIdentities) {
   name: '${aksClusterName}-msi'
   location: location
 }
 
+var aksClusterUserDefinedManagedIdentityName = useLeasedInfrastructureIdentities
+  ? mi.getManagementAksIdentityName(managementAksIdentityNames, stampIdentifier)
+  : '${aksClusterName}-msi'
+
+// A second resource declaration can alias the created identity when leasing is disabled.
+var leasedAksClusterUserDefinedManagedIdentityId = resourceId(
+  subscription().subscriptionId,
+  infrastructureIdentityResourceGroup,
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  aksClusterUserDefinedManagedIdentityName
+)
+var aksClusterUserDefinedManagedIdentityId = useLeasedInfrastructureIdentities
+  ? leasedAksClusterUserDefinedManagedIdentityId
+  : aksClusterUserDefinedManagedIdentity.id
+var aksClusterUserDefinedManagedIdentityPrincipalId = useLeasedInfrastructureIdentities
+  ? reference(leasedAksClusterUserDefinedManagedIdentityId, '2023-01-31').principalId
+  : aksClusterUserDefinedManagedIdentity!.properties.principalId
 //
 //   N E T W O R K
 //
@@ -319,13 +354,13 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
 resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: vnet
   name: guid(
-    aksClusterUserDefinedManagedIdentity.id,
+    aksClusterUserDefinedManagedIdentityId,
     networkContributorRoleId,
     resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, nodeSubnetName)
   )
   properties: {
     roleDefinitionId: networkContributorRoleId
-    principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+    principalId: aksClusterUserDefinedManagedIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -344,7 +379,7 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
-      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalId: aksClusterUserDefinedManagedIdentityPrincipalId
       principalType: 'ServicePrincipal'
       roleDefinitionId: networkContributorRoleId
     }
@@ -398,11 +433,11 @@ resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
 }
 
 resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aksClusterUserDefinedManagedIdentity.id, keyVaultCryptoUserId, aks_keyvault.id)
+  name: guid(aksClusterUserDefinedManagedIdentityId, keyVaultCryptoUserId, aks_keyvault.id)
   scope: aks_keyvault
   properties: {
     roleDefinitionId: keyVaultCryptoUserId
-    principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+    principalId: aksClusterUserDefinedManagedIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -412,7 +447,7 @@ output nodeSubnetId string = nodeSubnetCreation.outputs.subnetId
 output podSubnetId string = aksPodSubnet.id
 output outboundIPResourceId string = aksClusterOutboundIPAddress.outputs.resourceId
 output etcdKeyUriWithVersion string = aks_etcd_kms.properties.keyUriWithVersion
-output managedIdentityId string = aksClusterUserDefinedManagedIdentity.id
+output managedIdentityId string = aksClusterUserDefinedManagedIdentityId
 
 // Outputs consumed by mgmt-cluster.bicep
 output vnetId string = vnet.id

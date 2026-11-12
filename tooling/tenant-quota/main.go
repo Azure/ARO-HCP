@@ -22,17 +22,26 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
+	_ "k8s.io/component-base/metrics/prometheus/workqueue"
+
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/component-base/metrics/legacyregistry"
+	"k8s.io/klog/v2"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cijoboutcomes"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/cipatterns"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 	prowmetrics "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prow"
@@ -42,6 +51,16 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runCommand(ctx, os.Args[1:], os.Stdout, os.Stderr, logger); err != nil {
+			logger.Error("Command failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
 		logger.Error("Fatal error", "error", err)
@@ -57,6 +76,8 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	configurePanicHandling(cfg.ExitOnPanic)
+	klog.SetLogger(logr.FromSlogHandler(logger.Handler()))
 
 	logger.Info("Loaded configuration",
 		"path", configPath,
@@ -70,7 +91,10 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("credential validation failed: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ctx = utils.ContextWithLogger(ctx, logr.FromSlogHandler(logger.Handler()))
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	if err := credProvider.StartWatching(ctx, cfg.Tenants); err != nil {
@@ -84,7 +108,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	dirCollector := tenantquota.NewCollector(cfg, logger, credProvider)
-	go dirCollector.Start(ctx)
+	go runCollector(ctx, dirCollector.Start)
 
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(dirCollector.GaugeCollectors()...)
@@ -92,54 +116,102 @@ func run(logger *slog.Logger) error {
 	if cfg.HasSubscriptions() {
 		subCollector := subscriptionquota.NewCollector(cfg, logger, credProvider, cfg.GetCacheTTL())
 		registry.MustRegister(subCollector)
-		go subCollector.Start(ctx)
+		go runCollector(ctx, subCollector.Start)
 
 		e2eRGCollector := resourcegroups.NewCollector(resourcegroups.E2ECollectorConfig, cfg, logger, credProvider)
 		registry.MustRegister(e2eRGCollector)
-		go e2eRGCollector.Start(ctx)
+		go runCollector(ctx, e2eRGCollector.Start)
 	}
 
 	if cfg.Prow.Enabled {
 		prowCollector := prowmetrics.NewCollector(cfg, logger)
 		registry.MustRegister(prowCollector)
-		go prowCollector.Start(ctx)
+		go runCollector(ctx, prowCollector.Start)
 	}
 
-	// Unlike the collectors above this one writes to Kusto rather than exposing
-	// metrics, so it is started but not registered.
+	var controllers []func(context.Context)
 	if cfg.CIJobOutcomes.Enabled {
-		go cijoboutcomes.NewWriter(cfg, logger).Start(ctx)
+		writer := cijoboutcomes.NewWriter(cfg, logger)
+		writer.RegisterMetrics(registry)
+		controllers = append(controllers, writer.Start)
 	}
-
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	mux.HandleFunc("/healthz", healthHandler)
-	mux.HandleFunc("/readyz", healthHandler)
-	mux.HandleFunc("/version", versionHandler)
+	controller := cipatterns.NewController(cfg, logger)
+	if err := controller.RegisterMetrics(registry); err != nil {
+		return fmt.Errorf("register CI failure-pattern metrics: %w", err)
+	}
+	controllers = append(controllers, controller.Start)
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           newHTTPHandler(registry),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	return serve(ctx, cancel, logger, server, controllers...)
+}
+
+// Start normally blocks until cancellation, but returns after recovering a
+// nonfatal panic. Restart with a delay so collection cannot silently stop or spin.
+func runCollector(ctx context.Context, start func(context.Context)) {
+	defer utilruntime.HandleCrashWithContext(ctx)
+	wait.UntilWithContext(ctx, start, time.Second)
+}
+
+var panicMetricsOnce sync.Once
+
+func configurePanicHandling(exitOnPanic bool) {
+	utilruntime.ReallyCrash = exitOnPanic
+	panicMetricsOnce.Do(func() {
+		utilruntime.PanicHandlers = append(utilruntime.PanicHandlers, utils.IncrementPanicMetrics)
+	})
+}
+
+func newHTTPHandler(registry *prometheus.Registry) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.Gatherers{registry, legacyregistry.DefaultGatherer}, promhttp.HandlerOpts{}))
+	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("/readyz", healthHandler)
+	mux.HandleFunc("/version", versionHandler)
+	return mux
+}
+
+// cancel also stops the collectors when the HTTP server fails. Controller and
+// HTTP shutdown share one grace period; pending CI work is not drained.
+func serve(ctx context.Context, cancel context.CancelFunc, logger *slog.Logger, server *http.Server, controllers ...func(context.Context)) error {
+	controllerDone := make(chan struct{})
+	var workers sync.WaitGroup
+	for _, start := range controllers {
+		if start == nil {
+			continue
+		}
+		workers.Add(1)
+		go func() {
+			defer utilruntime.HandleCrashWithContext(ctx)
+			defer workers.Done()
+			start(ctx)
+		}()
+	}
+	go func() {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		workers.Wait()
+		close(controllerDone)
+	}()
 
 	errChan := make(chan error, 1)
 	go func() {
-		defer utilruntime.HandleCrash()
-		logger.Info("Starting HTTP server", "port", port)
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			errChan <- err
-		}
+		defer utilruntime.HandleCrashWithContext(ctx)
+		defer close(errChan)
+		logger.Info("Starting HTTP server", "address", server.Addr)
+		errChan <- server.ListenAndServe()
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
+	var serveErr error
 	select {
-	case err := <-errChan:
-		return err
-	case sig := <-sigChan:
-		logger.Info("Received signal, shutting down", "signal", sig)
+	case serveErr = <-errChan:
+		if serveErr == http.ErrServerClosed {
+			serveErr = nil
+		}
+	case <-ctx.Done():
+		logger.Info("Received cancellation, shutting down")
 	}
 
 	cancel()
@@ -150,9 +222,14 @@ func run(logger *slog.Logger) error {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Warn("HTTP server shutdown error", "error", err)
 	}
+	select {
+	case <-controllerDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("CI controller shutdown timed out", "error", shutdownCtx.Err())
+	}
 
 	logger.Info("Shutdown complete")
-	return nil
+	return serveErr
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {

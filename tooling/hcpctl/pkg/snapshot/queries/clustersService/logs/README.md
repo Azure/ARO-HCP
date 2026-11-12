@@ -6,7 +6,7 @@ Aggregates all Clusters Service log messages for the resource by unique message,
 
 ## What to Look For
 
-Generally verbose logs, but may exhibit repeated errors when Azure infrastructure issues occur or Maestro connection problems exist.
+Generally verbose logs, but may exhibit repeated errors when Azure infrastructure issues occur.
 
 ## Where to Go Next
 

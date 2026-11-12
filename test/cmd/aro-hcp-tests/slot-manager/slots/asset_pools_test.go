@@ -140,6 +140,7 @@ func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 		{"unknown demand config", "units_per_slot: 2", "units_per_slot: 2\n          subscription: foreign", "subscription"},
 		{"inventory capacity forbidden", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  capacity: 3", "capacity"},
 		{"inventory subscription forbidden", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  subscription: infra", "subscription"},
+		{"catalog identity names", "  resource_name_prefix: bundle", "  resource_name_prefix: bundle\n  infrastructure_identities:\n    identity_names: [frontend]", "identity_names"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -152,6 +153,28 @@ func TestRejectsObsoleteAndInvalidCatalogs(t *testing.T) {
 				t.Fatalf("expected %q rejection, got %v", test.want, err)
 			}
 		})
+	}
+}
+
+func TestRejectsCaseInsensitiveAssetPoolResourceNameCollision(t *testing.T) {
+	t.Parallel()
+
+	input := strings.Replace(
+		independentCatalog,
+		"- name: bundles\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles\n  resource_name_prefix: bundle\n",
+		"- name: bundles\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles\n  resource_name_prefix: bundle\n"+
+			"- name: bundles-case\n  kind: infrastructure_identities\n  boskos_resource_type: infra-bundles-case\n  resource_name_prefix: Bundle\n",
+		1,
+	)
+	input = strings.Replace(
+		input,
+		"          asset_pool: bundles\n          units_per_slot: 2",
+		"          asset_pool: bundles-case\n          units_per_slot: 2",
+		1,
+	)
+	_, err := loadCatalogFromYAMLWithError(t, input)
+	if err == nil || !strings.Contains(err.Error(), "duplicate resource names") {
+		t.Fatalf("expected case-insensitive resource-name collision rejection, got %v", err)
 	}
 }
 

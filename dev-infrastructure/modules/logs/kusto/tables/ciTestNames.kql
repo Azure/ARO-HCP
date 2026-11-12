@@ -1,21 +1,18 @@
-// Distinct CI test names, one row per test.
+// CI test names, read through distinct testId, name.
 //
 // A dimension table for ciTestResults, written by the same collector as
 // ciJobOutcomes - see tooling/tenant-quota/pkg/cijoboutcomes. Test names are
-// long and repeat on every run, so storing them once and joining on a short id
-// keeps ciTestResults small and its queries fast.
+// long and repeat on every run, so joining on their stable hash keeps
+// ciTestResults independent of their display names.
 //
 // testId is the hex SHA-256 of the name, so it is stable across restarts and
 // needs no coordination between writers: the same test always yields the same
 // id. Names are never rewritten, so a name that disappears from the suite keeps
 // its id and its history stays joinable.
 //
-// A name may appear more than once. The writer skips names already stored, but
-// a queued row stays invisible to that check for several minutes, so two runs
-// carrying a newly added test can both write it. Duplicates are identical by
-// construction - the row is entirely determined by the id - so reading through
-// distinct collapses them exactly, and the table is small enough for that to
-// cost nothing:
+// Each run emits complete, independently tagged E2E and observability name
+// batches. Names shared across runs therefore repeat. Duplicates are identical
+// by construction, so consumers must collapse them with distinct:
 //
 //     ciTestResults
 //     | join kind=inner (ciTestNames | distinct testId, name) on testId

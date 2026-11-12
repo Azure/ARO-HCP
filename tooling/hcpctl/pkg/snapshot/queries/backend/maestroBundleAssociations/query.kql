@@ -1,3 +1,0 @@
-{{ template "bundleMapBackend" . }}
-bundleMapBackend
-| distinct bundleName, maestroBundleName, maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName

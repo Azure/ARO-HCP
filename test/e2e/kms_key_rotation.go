@@ -33,6 +33,7 @@ import (
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
@@ -45,6 +46,7 @@ var _ = Describe("Customer", func() {
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow,
 		labels.MIContainers(1),
+		labels.StartPriority(80),
 		func(ctx context.Context) {
 			const clusterName = "kms-key-rotate-422"
 
@@ -150,10 +152,12 @@ var _ = Describe("Customer", func() {
 				"keyName", clusterParams.EtcdEncryptionKeyName,
 				"originalVersion", originalKeyVersion)
 
+			createKeyStart := time.Now()
 			createKeyResp, err := keyClient.CreateKey(ctx, clusterParams.EtcdEncryptionKeyName, azkeys.CreateKeyParameters{
 				Kty:     to.Ptr(azkeys.KeyTypeRSA),
 				KeySize: to.Ptr(int32(2048)),
 			}, nil)
+			tc.RecordTestOperation(timing.KindDataPlaneKey, "Create Key Vault key version (rotation)", createKeyStart, time.Now(), err)
 			Expect(err).NotTo(HaveOccurred(), "failed to create new key version (rotation)")
 			Expect(createKeyResp.Key).NotTo(BeNil(), "created key response was nil")
 			Expect(createKeyResp.Key.KID).NotTo(BeNil(), "created key ID was nil")
@@ -259,10 +263,12 @@ var _ = Describe("Customer", func() {
 				"keyName", clusterParams.EtcdEncryptionKeyName,
 				"currentKeyVersion", firstKeyVersion)
 
+			createKeyStart = time.Now()
 			createKeyResp, err = keyClient.CreateKey(ctx, clusterParams.EtcdEncryptionKeyName, azkeys.CreateKeyParameters{
 				Kty:     to.Ptr(azkeys.KeyTypeRSA),
 				KeySize: to.Ptr(int32(2048)),
 			}, nil)
+			tc.RecordTestOperation(timing.KindDataPlaneKey, "Create Key Vault key version (second rotation)", createKeyStart, time.Now(), err)
 			Expect(err).NotTo(HaveOccurred(), "failed to create new key version (second rotation)")
 			Expect(createKeyResp.Key).NotTo(BeNil(), "created key response was nil")
 			Expect(createKeyResp.Key.KID).NotTo(BeNil(), "created key ID was nil")

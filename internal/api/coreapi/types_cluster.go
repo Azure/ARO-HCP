@@ -32,7 +32,8 @@ type Cluster struct {
 
 	TrackedResource
 
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync
+	// CustomerProperties contains the customer's desired cluster configuration.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	CustomerProperties ClusterCustomerProperties `json:"customerProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
 	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
@@ -89,7 +90,8 @@ var _ CosmosPersistable = &Cluster{}
 type ClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	Version VersionProfile `json:"version,omitempty"`
-	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync (BaseDomainPrefix only)
+	// DNS contains the short cluster name used within its allocated base domain.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	DNS CustomerDNSProfile `json:"dns,omitempty"`
 	// Written by: Frontend PUT Cluster (Create)
 	Network NetworkProfile `json:"network,omitempty"`
@@ -143,7 +145,9 @@ type ClusterServiceProviderProperties struct {
 	// to communicate with the Managed Identities Resource Provider (MI RP).
 	// Written by: Frontend PUT Cluster (Create)
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
-	// Written by: BackfillClusterUID
+	// ClusterUID is a stable identifier generated on CREATE
+	// It is immutable; UPDATE leaves it alone.
+	// Written by: Frontend PUT Cluster (Create) via admission.MutateCluster
 	ClusterUID string `json:"clusterUID,omitempty"`
 	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
 	// associated with this cluster. It is set when the billing document is created
@@ -166,10 +170,6 @@ type ClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
-	// Written by: Frontend DELETE Cluster
-	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
-
 	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.
@@ -179,17 +179,25 @@ type ClusterServiceProviderProperties struct {
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 
+	// UpdateOperationCompletionDeadline is the time by which the current cluster update must complete.
+	// Admission resets it on each update to 90 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH Cluster (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
 	// DeleteOperationCompletionTimeout is the duration after which a cluster deletion operation will be
 	// marked as failed with a message listing the remaining cosmos resources preventing deletion.
 	// Set by admission on CREATE and UPDATE from the TagClusterMaxDeletionDuration tag.
 	// Nil when the tag is absent or the ExperimentalReleaseFeatures AFEC is not registered.
-	// The frontend DELETE handler computes the deadline as DeletionTimestamp + this duration.
+	// The frontend DELETE handler adds this duration to the accepted attempt time, defaulting to 50 minutes when nil.
 	// Written by: Frontend PUT/PATCH Cluster (via admission)
 	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
 
 	// DeleteOperationCompletionDeadline is the absolute time by which the cluster deletion operation
-	// must complete. Computed by the frontend DELETE handler as DeletionTimestamp + DeleteOperationCompletionTimeout
-	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
+	// must complete. Computed by the frontend DELETE handler as the accepted attempt time plus
+	// DeleteOperationCompletionTimeout (or 50 minutes when nil), preserving the original DeletionTimestamp.
 	// Written by: Frontend DELETE Cluster
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
@@ -202,12 +210,15 @@ type VersionProfile struct {
 
 // CustomerDNSProfile represents the DNS configuration of the cluster.
 type CustomerDNSProfile struct {
+	// BaseDomainPrefix is the short OpenShift cluster name inside its allocated DNS domain.
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync, ClusterDNSAllocation
 	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
 }
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
-	// Written by: ClusterPropertiesSync
+	// BaseDomain is the exclusively claimed DNS suffix used by all cluster endpoints.
+	// Written by: ClusterDNSAllocation, ClusterDNSBackfill
 	BaseDomain string `json:"baseDomain,omitempty"`
 }
 
@@ -302,12 +313,19 @@ type CustomerManagedEncryptionProfile struct {
 	Kms            *KmsEncryptionProfile                     `json:"kms,omitempty"`
 }
 
+const (
+	KmsKeyVaultTypeKeyVault   = "KeyVault"
+	KmsKeyVaultTypeManagedHSM = "ManagedHSM"
+)
+
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	KeyVaultType string `json:"keyVaultType,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -427,10 +445,13 @@ func (cluster *Cluster) EnsureDefaults() {
 	}
 	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
 	// (which doesn't expose the visibility field and assumes public KeyVaults).
-	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	if cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil {
+		if len(cm.Kms.Visibility) == 0 {
+			cm.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+		}
+		if len(cm.Kms.KeyVaultType) == 0 {
+			cm.Kms.KeyVaultType = KmsKeyVaultTypeKeyVault
+		}
 	}
 }
 

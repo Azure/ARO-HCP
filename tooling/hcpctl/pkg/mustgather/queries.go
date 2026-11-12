@@ -52,7 +52,13 @@ func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.Qu
 	}
 	queries := make([]kusto.Query, 0, len(ServicesTables))
 	for _, table := range ServicesTables {
-		q, err := f.Build(*def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds), kusto.WithOperationIds(operationIds)))
+		data := kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithOperationIds(operationIds))
+		// Only container and Clusters Service logs use Clusters Service IDs.
+		// RP, kube-applier, and fleet logs are scoped by ARM resource group.
+		if table == ContainerLogsTable || table == ClustersServiceLogsTable {
+			kusto.WithClusterIds(clusterIds)(&data)
+		}
+		q, err := f.Build(*def, data)
 		if err != nil {
 			return nil, err
 		}

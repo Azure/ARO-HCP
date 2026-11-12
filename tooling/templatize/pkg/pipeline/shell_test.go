@@ -18,7 +18,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -314,4 +317,70 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}, step, context.Background(), "", "", &StepRunOptions{}, NewExecutionState(), &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
+}
+
+// Azure CLI rewrites azureProfile.json non-atomically and without locking, so steps that share a
+// config directory can corrupt each other's view of the logged-in subscriptions. Each step must get
+// a private copy of the template that is cleaned up afterwards and never written to.
+func TestRunShellStepIsolatesAzureConfigDir(t *testing.T) {
+	const original = "original-profile"
+	template := t.TempDir()
+	profile := filepath.Join(template, "azureProfile.json")
+	assert.NoError(t, os.WriteFile(profile, []byte(original), 0o600))
+
+	type result struct {
+		dir, before, after string
+		err                error
+	}
+	const steps = 8
+	results := make([]result, steps)
+	var wg sync.WaitGroup
+	// Release all steps together so their profile writes overlap.
+	start := make(chan struct{})
+	for i := range steps {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var buf bytes.Buffer
+			step := &types.ShellStep{
+				Command: fmt.Sprintf(`echo "$AZURE_CONFIG_DIR"
+cat "$AZURE_CONFIG_DIR/azureProfile.json"; echo
+printf 'step-%d' > "$AZURE_CONFIG_DIR/azureProfile.json"
+sleep 0.2
+cat "$AZURE_CONFIG_DIR/azureProfile.json"`, i),
+			}
+			<-start
+			err := runShellStep(graph.Identifier{
+				ServiceGroup: "Microsoft.Azure.ARO.Whatever",
+				StepDependency: types.StepDependency{
+					ResourceGroup: "group",
+					Step:          fmt.Sprintf("step-%d", i),
+				},
+			}, step, context.Background(), template, "", &StepRunOptions{}, NewExecutionState(), &buf)
+			lines := strings.Split(buf.String(), "\n")
+			if err == nil && len(lines) == 3 {
+				results[i] = result{dir: lines[0], before: lines[1], after: lines[2]}
+			} else {
+				results[i].err = fmt.Errorf("err=%v output=%q", err, buf.String())
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	dirs := map[string]bool{}
+	for i, r := range results {
+		assert.NoError(t, r.err)
+		assert.Equal(t, original, r.before, "step %d must start from the template profile", i)
+		assert.Equal(t, fmt.Sprintf("step-%d", i), r.after, "step %d must not see another step's write", i)
+		assert.NotEqual(t, template, r.dir, "step %d must not be handed the template", i)
+		assert.False(t, dirs[r.dir], "step %d must get its own directory", i)
+		dirs[r.dir] = true
+		_, err := os.Stat(r.dir)
+		assert.True(t, os.IsNotExist(err), "step %d config dir must be removed after the step", i)
+	}
+
+	contents, err := os.ReadFile(profile)
+	assert.NoError(t, err)
+	assert.Equal(t, original, string(contents), "template must never be written by a step")
 }

@@ -16,27 +16,21 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/blang/semver/v4"
-
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -47,6 +41,7 @@ import (
 )
 
 type operationNodePoolUpdate struct {
+	statusCalculators               operationbase.OperationStatusCalculators[*nodePoolUpdateOperationStatusInput]
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
@@ -87,6 +82,8 @@ func NewOperationNodePoolUpdateController(
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
+	desiredVersionMismatchFirstSeen := lru.New(100000)
+
 	syncer := &operationNodePoolUpdate{
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
@@ -96,8 +93,11 @@ func NewOperationNodePoolUpdateController(
 		readDesireLister:                readDesireLister,
 		activeOperationsLister:          activeOperationsLister,
 		notificationClient:              notificationClient,
-		desiredVersionMismatchFirstSeen: lru.New(100000),
+		desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen,
 	}
+
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationNodePoolUpdateControllerName,
@@ -108,6 +108,19 @@ func NewOperationNodePoolUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationNodePoolUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[*nodePoolUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*nodePoolUpdateOperationStatusInput](
+		&nodePoolUpdateDesiredVersionCheck{nodePoolLister: c.nodePoolLister, serviceProviderNodePoolLister: c.serviceProviderNodePoolLister, clock: c.clock, resourcesDBClient: c.resourcesDBClient, desiredVersionMismatchFirstSeen: c.desiredVersionMismatchFirstSeen},
+		&nodePoolUpdateClusterServiceStatusCheck{nodePoolLister: c.nodePoolLister},
+		&nodePoolUpdateClusterServiceSpecCheck{nodePoolLister: c.nodePoolLister},
+		&nodePoolUpdateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -156,7 +169,12 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, existingNodePool)
+	input := &nodePoolUpdateOperationStatusInput{
+		ClusterServiceNodePoolOnceGetter: newClusterServiceNodePoolOnceGetter(c.clusterServiceClient),
+	}
+
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingNodePool.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "node pool update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -183,143 +201,39 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 }
 
 func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
-	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
-		nodePool.ServiceProviderProperties.ClusterServiceID != nil
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
-func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	nodePoolCSID := existingNodePool.ServiceProviderProperties.ClusterServiceID
-	existingCSNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePoolCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get node pool from cluster service: %w", err))
-	}
-
-	existingServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider node pool from cache: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingNodePool, existingServiceProviderNodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("nodePoolDesiredVersionResolution"))
-	}
-	if operationState, csErr := c.clusterServiceNodePoolStatusOperationState(ctx, operation, existingCSNodePool.Status()); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolStatus"))
-	}
-	if operationState, csErr := c.clusterServiceNodePoolSpecOperationState(existingNodePool, existingCSNodePool); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceNodePoolSpec"))
-	}
-
-	if operationState, hsErr := c.hypershiftNodePoolOperationState(ctx, existingNodePool, existingCSNodePool); hsErr != nil {
-		errs = append(errs, utils.TrackError(hsErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftNodePool"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
-	logger.Info("determined node pool update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked node pool update operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+// clusterUpdateOperationStatusInput shares one Cluster Service and provider-state
+// observation across all update checks in a reconciliation.
+type nodePoolUpdateOperationStatusInput struct {
+	ClusterServiceNodePool *arohcpv1alpha1.NodePool
+	// ClusterServiceNodePoolOnceGetter returns a function that will retrieve the cluster service node pool resource from cluster service if it
+	// has not been attempted before.
+	// It will return the response from Clusters Service which is the Cluster Service node pool or an error.
+	// If the Cluster Service node pool was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+	// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+	ClusterServiceNodePoolOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error)
 }
 
-func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.NodePool, existingServiceProviderNodePool *coreapi.ServiceProviderNodePool) (*operationbase.OperationState, error) {
-	resultingDesiredVersion := existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
-	if resultingDesiredVersion == nil {
-		return nil, utils.TrackError(fmt.Errorf("service provider node pool has no desired version"))
-	}
-
-	customerDesiredVersion := semver.MustParse(existingNodePool.Properties.Version.ID)
-
-	operationID := strings.ToLower(operation.ResourceID.String())
-	// If the operation is cancelled, its desiredVersionMismatchFirstSeen entry is never
-	// explicitly removed. This is safe because operation.ResourceID is unique per operation,
-	// so stale entries won't cause false matches for newer operations and will eventually
-	// be evicted by the LRU.
-	if customerDesiredVersion.EQ(*resultingDesiredVersion) {
-		c.desiredVersionMismatchFirstSeen.Remove(operationID)
-		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-	}
-
-	nodePoolKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    operation.ExternalID.SubscriptionID,
-		ResourceGroupName: operation.ExternalID.ResourceGroupName,
-		HCPClusterName:    operation.ExternalID.Parent.Name,
-		HCPNodePoolName:   operation.ExternalID.Name,
-	}
-
-	controllerCRUD := c.resourcesDBClient.HCPClusters(nodePoolKey.SubscriptionID, nodePoolKey.ResourceGroupName).NodePools(nodePoolKey.HCPClusterName).Controllers(nodePoolKey.HCPNodePoolName)
-	controllerDoc, getControllerErr := controllerCRUD.Get(ctx, nodepoolversion.NodepoolVersionControllerName)
-	if getControllerErr != nil {
-		return nil, utils.TrackError(getControllerErr)
-	}
-
-	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
-
-	if intentFailedCondition == nil {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version not yet calculated"), nil
-	}
-	// Customer desired version differs from the service provider resolved version, and the
-	// NodePoolVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted)
-	// for this version. Stay Accepted while resolution runs; fail once elapsed exceeds
-	// 129s from the first time this process observed the mismatch for this operation.
-	// This avoids immediately failing long-running operations after controller restarts
-	// and is double the relistDuration of the nodepool and serviceProviderNodePool coreinformers.
-	// This will not solve all the edge cases, but it will give enough time to the other controllers to act.
-	if intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != coreapi.VersionUpgradeNotAcceptedReason {
-		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
-		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operationID)
-		if !ok {
-			c.desiredVersionMismatchFirstSeen.Add(operationID, c.clock.Now())
-			return pending, nil
+// newClusterServiceClusterOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+// has not been attempted before.
+// It will return the response from Clusters Service which is the Cluster Service cluster or an error.
+// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+func newClusterServiceNodePoolOnceGetter(clusterServiceClient ocm.ClusterServiceClientSpec) func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+	var csResource *arohcpv1alpha1.NodePool
+	var err error
+	retrievedOnce := false
+	return func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
+		if retrievedOnce {
+			return csResource, err
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
-			return pending, nil
-		}
-		msg := fmt.Sprintf(
-			"timed out after 129s waiting for resolution of desired version from '%s' node pool version",
-			existingNodePool.Properties.Version.ID,
-		)
-		c.desiredVersionMismatchFirstSeen.Remove(operationID)
-		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent, msg, nil), nil
-	}
-	c.desiredVersionMismatchFirstSeen.Remove(operationID)
-	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent, intentFailedCondition.Message, nil), nil
-}
 
-func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSNodePoolStatus *arohcpv1alpha1.NodePoolStatus) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-	newOperationStatus, opError, err := operationbase.ConvertNodePoolStatus(operation, existingCSNodePoolStatus)
-	if err != nil {
-		return nil, utils.TrackError(err)
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		defer cancel()
+		csResource, err = clusterServiceClient.GetNodePool(csCtx, *clusterServiceID)
+		retrievedOnce = true
+		return csResource, err
 	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	state := operationbase.NewOperationState(newOperationStatus, "")
-	if opError != nil {
-		state.Message = opError.Message
-		state.WithCloudErrorCode(opError.Code)
-	}
-	return state, nil
 }

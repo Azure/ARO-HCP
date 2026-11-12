@@ -1,8 +1,9 @@
 param miseApplicationName string
 param entraAppOwnerIds string
 param miseApplicationDeploy bool
+param miseApplicationManage bool
 
-module miseApp '../modules/entra/app.bicep' = if (miseApplicationDeploy) {
+module miseApp '../modules/entra/app.bicep' = if (miseApplicationDeploy && miseApplicationManage) {
   name: 'mise-entra-app'
   params: {
     applicationName: miseApplicationName

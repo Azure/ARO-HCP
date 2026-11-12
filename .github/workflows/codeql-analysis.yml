@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
+    name: Analyze (${{ matrix.label }})
     runs-on: ubuntu-latest
     # Bound the job so a stuck/reclaimed runner fails fast and predictably
     # instead of running until GitHub-side infra kills it.
@@ -27,19 +27,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['go', 'python']
+        include:
+        - {language: go, shard: 0, label: "go shard 0", category: "/language:go/shard:0"}
+        - {language: go, shard: 1, label: "go shard 1", category: "/language:go/shard:1"}
+        - {language: go, shard: 2, label: "go shard 2", category: "/language:go/shard:2"}
+        - {language: go, shard: 3, label: "go shard 3", category: "/language:go/shard:3"}
+        - {language: go, shard: 4, label: "go shard 4", category: "/language:go/shard:4"}
+        - {language: go, shard: 5, label: "go shard 5", category: "/language:go/shard:5"}
+        - {language: go, shard: 6, label: "go shard 6", category: "/language:go/shard:6"}
+        - {language: python, shard: -1, label: python, category: "/language:python"}
     steps:
     - name: Checkout repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
     - name: Set up Go
       if: matrix.language == 'go'
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version-file: 'go.work'
         cache-dependency-path: '**/go.sum'
     # Initializes the CodeQL tools for scanning
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+      uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
       with:
         languages: ${{ matrix.language }}
         # Go doesn't support build-mode: none on this CodeQL version, so build
@@ -56,10 +64,53 @@ jobs:
         build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
+    - name: Add swap space (go)
+      if: matrix.language == 'go'
+      # Provide headroom for transient Go extractor memory spikes.
+      run: |
+        sudo fallocate -l 10G /mnt/codeql-swapfile
+        sudo chmod 600 /mnt/codeql-swapfile
+        sudo mkswap /mnt/codeql-swapfile
+        sudo swapon /mnt/codeql-swapfile
+        swapon --show
+        free -h
     - name: Build (go)
       if: matrix.language == 'go'
-      run: go list -f '{{.Dir}}/...' -m | xargs go build
+      # Reduce extractor heap headroom and Go build concurrency.
+      env:
+        GOMAXPROCS: "2"
+        GOGC: "50"
+      run: |
+        # Keep substantial modules on stable shards, apart from the largest
+        # builds. Distribute other workspace modules as go.work changes.
+        module_dirs=$(go list -f '{{.Dir}}/...' -m)
+        mapfile -t modules <<< "$module_dirs"
+        selected=()
+        other=0
+        for module in "${modules[@]}"; do
+          case "$module" in
+            */internal/...) target=0 ;;
+            */backend/...) target=1 ;;
+            */test/...) target=6 ;; # Keep the test module isolated.
+            */tooling/hcpctl/...) target=2 ;;
+            */kube-applier/...) target=3 ;;
+            */mgmt-agent/...|*/test-integration/...) target=4 ;;
+            */fleet/...) target=5 ;;
+            */frontend/...) target=5 ;;
+            *) target=$((other % 6)); other=$((other + 1)) ;;
+          esac
+          if (( target == ${{ matrix.shard }} )); then
+            selected+=("$module")
+          fi
+        done
+        if (( ${#selected[@]} == 0 )); then
+          echo "No Go modules assigned to shard ${{ matrix.shard }}" >&2
+          exit 1
+        fi
+        printf 'Shard %s builds %s modules:\n' '${{ matrix.shard }}' "${#selected[@]}"
+        printf '  %s\n' "${selected[@]}"
+        go build "${selected[@]}"
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+      uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
       with:
-        category: "/language:${{matrix.language}}"
+        category: ${{ matrix.category }}

@@ -1,0 +1,28 @@
+components:
+  istio-mesh-revision:
+    provider: azure-istio
+    # Pause automatic updates while managing a regional override manually.
+    paused: false
+    locations:
+    # Discover Azure's mesh-supported locations automatically; no list to maintain.
+    # Query mesh catalogs in parallel (up to eight regions at once).
+    # Missing, empty, or failed catalogs block updates; no region is skipped.
+    # The Helm chart can attempt to install this shared version where it does not exist.
+    - all
+    # The AKS version constrains which mesh revisions are eligible; the live
+    # value is read from the in-repo default below.
+    constraintVersionPath: defaults.svc.aks.kubernetesVersion
+    # Additional AKS versions the candidate must also support. sdp-pipelines
+    # pins svc AKS below the in-repo default in INT/STG/PROD (currently 1.35
+    # while the default is 1.36). AKS compatibility ranges are contiguous, so
+    # one pinned entry acts as the minimum supported version; the list stays
+    # open-ended for future providers whose compatibility is not a range.
+    # This repo cannot read that overlay, so the list is maintained by hand:
+    # when the sdp-pipelines pin changes, update it here in the same change.
+    # Stale entries fail closed rather than lingering: an entry equal to the
+    # live default is rejected at load, and discovery fails when the currently
+    # deployed mesh revision no longer supports a pinned version.
+    constraintVersions: ["1.35"]
+    targets:
+    - jsonPath: defaults.svc.istio.versions
+      filePath: ../../config/config.yaml

@@ -488,10 +488,12 @@ func preserveUnknownClusterFields(from, to *coreapi.Cluster) {
 			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
 		}
 		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility
+		// KeyVaultType was added in v20261001.
+		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyVaultType
 	}
 	// CryptoRestrictions was added in v2026_06_30_preview
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
-	// ContainerRegistry was added in v2026_10_01_preview.
+	// ContainerRegistry was added in v2026_10_01.
 	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }
 

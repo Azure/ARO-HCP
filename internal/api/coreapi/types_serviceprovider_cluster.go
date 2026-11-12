@@ -16,6 +16,7 @@ package coreapi
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver/v4"
 
@@ -25,8 +26,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
-
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // BackupScheduleState represents the desired state of backup scheduling for a cluster.
@@ -76,6 +75,12 @@ type ServiceProviderCluster struct {
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
 type ServiceProviderClusterSpec struct {
+	// DesiredDNSBaseDomain is the allocation candidate whose Fleet claim must be
+	// owned before publishing Cluster.ServiceProviderProperties.DNS.BaseDomain.
+	// It remains set after publication to record the controller's naming intent.
+	// Written by: ClusterDNSAllocation
+	DesiredDNSBaseDomain string `json:"desiredDNSBaseDomain,omitempty"`
+
 	// ControlPlaneVersion contains the desired control plane version information.
 	// Example JSON structure:
 	// {
@@ -89,6 +94,7 @@ type ServiceProviderClusterSpec struct {
 	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
+	// Written by: IngressServingCertificateK8sResources, KubeAPIServerServingCertificateK8sResources
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
@@ -124,7 +130,7 @@ type ServiceProviderClusterSpec struct {
 	// dissipated. Additionally, long recheck times are recommended for resources
 	// outside of their active phases. Order of at least six hours is, with
 	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, IdentityRoleAssignments
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfoController, FetchManagedIdentitiesInfo, IdentityRoleAssignments, DataPlaneOIDCFederation
 	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 
 	// PinnedVersion, when its ExactVersion is set, is an SRE-specified
@@ -132,9 +138,8 @@ type ServiceProviderClusterSpec struct {
 	// Assignment controller holds this cluster at PinnedVersion.ExactVersion until
 	// the fleet's bestExactVersion reaches PinnedVersion.UntilExactVersion, after
 	// which the pin is cleared and normal rollout selection resumes. An empty
-	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}. The
-	// Admin API setter is a follow-up; this change only implements consuming pins.
-	// Written by: Forced Cluster Desired Version Assignment (clear)
+	// PinnedVersion (nil ExactVersion) means no pin and serializes as {}.
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	PinnedVersion ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
@@ -161,12 +166,12 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterPinnedVersion struct {
 	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
 	// its previous version.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
 
 	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
 	// released and normal upgrade selection may continue.
-	// Written by: Forced Cluster Desired Version Assignment (clear); Admin API setter planned
+	// Written by: Forced Cluster Desired Version Assignment (clear), Admin API HCPVersionPinHandler (set/clear), Admin API FleetControlPlaneVersionPinHandler (set/clear)
 	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
@@ -226,6 +231,23 @@ type ServiceProviderClusterStatus struct {
 	// Written by: ControlPlaneActiveVersions
 	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
 
+	// ImageContentSources mirrors the observed HostedCluster's
+	// spec.imageContentSources verbatim. nil means the HostedCluster has not yet
+	// been observed, or a successful read found it absent and retracted the mirror.
+	// Admission fails closed without observed state. A non-nil pointer to a
+	// possibly empty slice means the HostedCluster has been observed. Empty
+	// observations use an empty, non-nil slice so JSON preserves that distinction.
+	// Written by: ActualHostedCluster
+	ImageContentSources *[]v1beta1.ImageContentSource `json:"imageContentSources,omitempty"`
+
+	// ControlPlaneVersionHistory mirrors HostedCluster.status.controlPlaneVersion.history
+	// verbatim, newest first. nil means not yet observed or retracted; a non-nil
+	// pointer to a possibly empty slice means the HostedCluster was observed.
+	// Empty observations use a non-nil slice to preserve that distinction in JSON.
+	// Admin version pin rollback checks use this history, not guest version history.
+	// Written by: ActualHostedCluster
+	ControlPlaneVersionHistory *[]v1beta1.ControlPlaneUpdateHistory `json:"controlPlaneVersionHistory,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
@@ -233,11 +255,6 @@ type ServiceProviderClusterStatus struct {
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []metav1.Condition `json:"validations,omitempty"`
 
-	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
-	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
-	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
-	// and the Maestro Bundle Name and ID at the Maestro API level.
-	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
 	// ManagementClusterResourceID is the resource ID of the management cluster
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
@@ -330,6 +347,143 @@ type ServiceProviderClusterStatus struct {
 	// eligible for a new backup. Empty means no rotation has been handled yet.
 	// Written by: KeyRotationBackup
 	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
+
+	// ManagedIdentityDetails is a map containing the details for the
+	// managed identities associated with the cluster.
+	// The key is the fully lowercased Azure Resource ID of the identity.
+	// Each entry contains identity metadata retrieved from the different sources
+	// that apply to that identity as well as whether those sources can be leveraged
+	// to retrieve the identity metadata. The sources are: the ARM User Assigned Identities API, the real Managed
+	// Identities Dataplane Service, and/or the Hardcoded Identity used when the dataplane service is not available.
+	// Depending on to what cluster operators the identity is associated with, different sources apply.
+	// Written by: FetchManagedIdentitiesInfo
+	// TODO: Move the controllers to use this information. For already introduced controllers that need to support identities replacement, move them
+	// to use this at the point those are updated to support identity replacement.
+	ManagedIdentityDetails map[string]*ManagedIdentityMetadata `json:"managedIdentityDetails,omitempty"`
+
+	// ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation tracks the OIDC Federation assignments configuration
+	// for the identities of the cluster's data plane operators.
+	// The map is keyed by DataplaneOIDCFederationAssignmentKey.
+	// The desired assignments are pairs from Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	// whose ManagedIdentityDetails entry has resolved MetadataFromARMUserAssignedIdentitiesAPI (ClientID, PrincipalID, and TenantID).
+	// The DataPlaneOIDCFederationIntent controller copies TargetIdentity from that ARM
+	// metadata onto every assignment that shares the identity ResourceID. When an existing
+	// assignment's TargetIdentity does not match those IDs, it clears
+	// EnsuredIdentity, AzureResources, and PendingAzureResources on that assignment,
+	// including draining neighbors, and it does not deconfigure. Assignments whose
+	// TargetIdentity already matches are left as-is.
+	// An operator that stops using an identity gets DeconfigureTimestamp on the corresponding
+	// assignment. This occurs even when another operator on the same identity still has
+	// unresolved ARM metadata. The DataPlaneOIDCFederation controller creates or deletes that
+	// assignment's federated identity credentials and copies TargetIdentity into
+	// EnsuredIdentity when those Azure FederatedIdentityCredential resources are ensured.
+	// It clears EnsuredIdentity when a desired FIC that was not already on AzureResources
+	// fails CreateOrUpdate. It removes the assignment after a successful deconfigure.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation map[DataplaneOIDCFederationAssignmentKey]*DataplaneOIDCFederationAssignmentStatus `json:"managedIdentitiesWithDataPlaneWorkloadsOIDCFederation,omitempty"`
+}
+
+// dataplaneOIDCFederationAssignmentKeySeparator is the text encoding separator
+// between IdentityResourceID and OperatorName. ARM resource IDs use '/' and
+// data-plane operator names use hyphens. Neither contains this character.
+const dataplaneOIDCFederationAssignmentKeySeparator = "|"
+
+// DataplaneOIDCFederationAssignmentKey is the Cosmos/JSON map key for one
+// data-plane OIDC federation assignment. IdentityResourceID is the fully
+// lowercased Azure Resource ID of the identity. OperatorName is the data-plane
+// operator name from DataPlaneOperators.
+type DataplaneOIDCFederationAssignmentKey struct {
+	IdentityResourceID string
+	OperatorName       string
+}
+
+// String returns the JSON map-key encoding of this assignment key.
+func (k DataplaneOIDCFederationAssignmentKey) String() string {
+	return fmt.Sprintf("%s%s%s", k.IdentityResourceID, dataplaneOIDCFederationAssignmentKeySeparator, k.OperatorName)
+}
+
+// MarshalText encodes the key so encoding/json can use it as a Cosmos map key.
+func (k DataplaneOIDCFederationAssignmentKey) MarshalText() ([]byte, error) {
+	if strings.Contains(k.IdentityResourceID, dataplaneOIDCFederationAssignmentKeySeparator) ||
+		strings.Contains(k.OperatorName, dataplaneOIDCFederationAssignmentKeySeparator) {
+		return nil, fmt.Errorf("data-plane OIDC federation assignment key fields must not contain %q", dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	return []byte(k.String()), nil
+}
+
+// UnmarshalText decodes a JSON map key into an assignment key and lowercases
+// the identity ResourceID.
+func (k *DataplaneOIDCFederationAssignmentKey) UnmarshalText(text []byte) error {
+	encoded := string(text)
+	identityResourceID, operatorName, ok := strings.Cut(encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	if !ok {
+		return fmt.Errorf("data-plane OIDC federation assignment key %q is missing %q separator", encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	if strings.Contains(operatorName, dataplaneOIDCFederationAssignmentKeySeparator) {
+		return fmt.Errorf("data-plane OIDC federation assignment key %q has more than one %q separator", encoded, dataplaneOIDCFederationAssignmentKeySeparator)
+	}
+	*k = DataplaneOIDCFederationAssignmentKey{
+		IdentityResourceID: strings.ToLower(identityResourceID),
+		OperatorName:       operatorName,
+	}
+	return nil
+}
+
+// DataplaneOIDCFederationAssignmentStatus tracks OIDC federation for one
+// data-plane operator on one identity.
+type DataplaneOIDCFederationAssignmentStatus struct {
+	// TargetIdentity is the metadata of the identity instance to federate for
+	// this assignment. When TargetIdentity on this assignment does not match the
+	// ARM ClientID/PrincipalID/TenantID for this ResourceID, the intent controller
+	// clears EnsuredIdentity, AzureResources, and PendingAzureResources on this
+	// assignment in the same write, so a new instance is never treated as ensured.
+	// Other controllers join this field with
+	// EnsuredIdentity to know whether federation completed for this operator on
+	// this instance.
+	// Written by: DataPlaneOIDCFederationIntent
+	TargetIdentity DataplaneOIDCFederationIdentityInstance `json:"targetIdentity,omitempty"`
+	// EnsuredIdentity is the TargetIdentity from the last pass that ensured every
+	// desired federated identity credential for this operator on this identity.
+	// The DataPlaneOIDCFederation controller copies TargetIdentity here when those
+	// FICs are configured. It clears it when a desired FIC that was not already on
+	// AzureResources fails CreateOrUpdate. A failed recheck of an already confirmed
+	// FIC leaves this field unchanged. The DataPlaneOIDCFederationIntent controller
+	// clears it when TargetIdentity changes. Federation for this assignment is
+	// complete when EnsuredIdentity is non-nil, equals TargetIdentity, and
+	// DeconfigureTimestamp is nil.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	EnsuredIdentity *DataplaneOIDCFederationIdentityInstance `json:"ensuredIdentity,omitempty"`
+	// DeconfigureTimestamp is when deconfigure of this operator's FederatedIdentityCredential resources on this
+	// identity was requested. Nil means deconfigure has not been requested.
+	// Once set, DataPlaneOIDCFederation waits 24 hours before Azure deletes.
+	// Cluster deletion (DeletionTimestamp set) starts deconfigure immediately.
+	// Cleared when this operator is desired on this identity again.
+	// Successful deconfigure removes this assignment rather than clearing this
+	// field in place.
+	// Written by: DataPlaneOIDCFederationIntent
+	DeconfigureTimestamp *metav1.Time `json:"deconfigureTimestamp,omitempty"`
+	// PendingAzureResources contains this operator's FederatedIdentityCredential
+	// resource IDs that have been requested but not yet confirmed. Persisted
+	// before CreateOrUpdate so a crash cannot lose the tracked set.
+	// DataPlaneOIDCFederationIntent clears this when TargetIdentity changes
+	// because the identity was recreated and child FICs are already gone.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingFederatedIdentityCredentials,omitempty"`
+	// AzureResources contains this operator's FederatedIdentityCredential resource
+	// IDs confirmed to exist in Azure.
+	// Written by: DataPlaneOIDCFederationIntent, DataPlaneOIDCFederation
+	AzureResources []*azcorearm.ResourceID `json:"federatedIdentityCredentials,omitempty"`
+}
+
+// DataplaneOIDCFederationIdentityInstance is the resolved metadata of an identity involved in the data plane workload identity oidc federation process.
+// ClientID/PrincipalID/TenantID within it are always set.
+type DataplaneOIDCFederationIdentityInstance struct {
+	// ClientID is the Client ID of the Azure identity.
+	ClientID string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the Azure identity.
+	PrincipalID string `json:"principalID,omitempty"`
+	// TenantID is the tenant ID of the Azure identity. This is not the same tenant as the one used to build the OIDC issuer URL, which is the cluster's tenant.
+	TenantID string `json:"tenantID,omitempty"`
 }
 
 // ServiceProviderClusterPlacementStatus holds placement-specific status for a
@@ -359,6 +513,8 @@ type ServiceProviderClusterMSIManagedIdentities struct {
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
 	// used by the cluster's control plane operators. The key is the fully lowercased
 	// Azure Resource ID of the identity. Which operators reference each identity is
+	// ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
+	// based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync
 	// tracked on Cluster.CustomerProperties, not here. Multiple operators may share
 	// one identity entry.
 	// Written by: FetchMSIIdentitiesInfo
@@ -453,6 +609,12 @@ type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
 type AzureResources struct {
 	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
 	DenyAssignments DenyAssignmentReferences `json:"denyAssignments,omitempty"`
+	// KubeAPIServerCertificate tracks the TLS certificate created for the kube-apiserver.
+	// Written by: KubeAPIServerTLSCertificate
+	KubeAPIServerCertificate *TLSCertificate `json:"kubeAPIServerCertificate,omitempty"`
+	// IngressCertificate tracks the TLS certificate created for ingress.
+	// Written by: IngressTLSCertificate
+	IngressCertificate *TLSCertificate `json:"ingressCertificate,omitempty"`
 	// ManagedResourceGroup tracks the managed resource group for the cluster.
 	// Written by: EnsureManagedResourceGroup
 	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
@@ -517,6 +679,27 @@ type DenyAssignmentReference struct {
 	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
 }
 
+// TLSCertificate tracks a single TLS certificate through its provisioning lifecycle.
+type TLSCertificate struct {
+	// PendingReference identifies a certificate not yet confirmed to be provisioned in Azure.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	PendingReference *AzureTLSCertificateReference `json:"pendingReference,omitempty"`
+	// AzureReference identifies a certificate confirmed to be provisioned in Azure.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	AzureReference *AzureTLSCertificateReference `json:"azureReference,omitempty"`
+}
+
+// AzureTLSCertificateReference identifies a single Azure Key Vault TLS certificate.
+// +k8s:deepcopy-gen=true
+type AzureTLSCertificateReference struct {
+	// KeyVaultURL mirrors the hosted-cluster secrets Key Vault URL of the management cluster.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	KeyVaultURL string `json:"keyVaultURL,omitempty"`
+	// CertificateName is the name of the certificate created in that vault.
+	// Written by: KubeAPIServerTLSCertificate, IngressTLSCertificate
+	CertificateName string `json:"certificateName"`
+}
+
 // ServiceProviderClusterStatusVersion contains the actual version information.
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
@@ -540,119 +723,76 @@ type ServiceProviderClusterActiveVersion struct {
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
-type MaestroBundleReference struct {
-	// Name is a logical name that represents the Maestro Bundle conceptually.
-	Name MaestroBundleInternalName `json:"name"`
-	// MaestroAPIMaestroBundleName is the name of the Maestro Bundle in the Maestro API.
-	// It must be unique within a given Maestro Consumer Name and Maestro Source ID.
-	// Maestro's ManifestWorks Go client abstraction uses Maestro Bundle Names to
-	// identify the Maestro Bundle.
-	MaestroAPIMaestroBundleName string `json:"maestroAPIMaestroBundleName"`
-	// MaestroAPIMaestroBundleID is the ID of the Maestro Bundle in the Maestro API.
-	// Returned by the Maestro API when the Maestro Bundle is first created.
-	// This attribute can be unset if the Maestro Bundle reference has been created
-	// but the Maestro Bundle has not been created yet.
-	// Maestro's REST API Go client abstraction uses Maestro Bundle IDs to identify the Maestro Bundle.
-	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
-	// ResourceIdentifiers contains the identifiers for all resources within the Maestro Bundle.
-	// Each entry corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
-	ResourceIdentifiers []MaestroBundleResourceIdentifier `json:"resourceIdentifiers,omitempty"`
+// ManagedIdentityMetadata holds the metadata retrieved for a single managed
+// identity from each source that applies to it. Sources that do not apply
+// are left as nil. Identity metadata on each source is last-pass-only: see
+// IdentityMetadataValue.
+type ManagedIdentityMetadata struct {
+	// ResourceID is the Azure Resource ID of the managed identity.
+	// Written by: FetchManagedIdentitiesInfo
+	ResourceID *azcorearm.ResourceID `json:"resourceID,omitempty"`
+
+	// MetadataFromARMUserAssignedIdentitiesAPI is the metadata for the identity retrieved from
+	// the ARM User Assigned Identities API (https://learn.microsoft.com/en-us/rest/api/managedidentity/user-assigned-identities)
+	// as the source. Nil when ARM does not apply: ARM is queried for control-plane and data-plane operator
+	// identities. It is not queried for an identity used only as the service managed identity, because
+	// end-users are not asked to grant the Service Managed Identity read on itself. If the same resource ID is also a
+	// control-plane or data-plane operator identity, ARM still applies.
+	// When this metadata source applies, a failure to retrieve this metadata using the API results in the
+	// ClientID, PrincipalID, and TenantID attributes being set to nil and RetrievalError records what went wrong. This includes the case
+	// where the identity does not exist in Azure.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromARMUserAssignedIdentitiesAPI *IdentityMetadataValue `json:"metadataFromARMUserAssignedIdentitiesAPI,omitempty"`
+	// MetadataFromManagedIdentitiesDataplaneService is the metadata for the identity retrieved from the **real**
+	// Managed Identities Dataplane Service as the source. Nil when:
+	// - The real Managed Identities Dataplane Service is not available in the environment
+	// - The identity is not configured as a cluster's control plane operator identity and/or as the cluster's service managed identity
+	// When this metadata source applies, if the identity does not exist the entry will be initialized with an empty ClientID, PrincipalID, and TenantID.
+	// This can also happen if there has been a transient error retrieving the identity metadata.
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromManagedIdentitiesDataplaneService *IdentityMetadataValue `json:"metadataFromManagedIdentitiesDataplaneService,omitempty"`
+	// MetadataFromHardcodedIdentity is the metadata for the identity retrieved from the Hardcoded Identity (backend/pkg/azure/client.HardcodedIdentity) as the source.
+	// This is set only in environments where the real Managed Identities Data Plane
+	// service is not available, and only for identities that are configured as a cluster's control plane operator identity and/or as
+	// the cluster's Service Managed Identity.
+	// When this metadata source applies, a failure to set this metadata results in the ClientID, PrincipalID and TenantID being set to nil
+	// Written by: FetchManagedIdentitiesInfo
+	MetadataFromHardcodedIdentity *IdentityMetadataValue `json:"metadataFromHardcodedIdentity,omitempty"`
 }
 
-// MaestroBundleResourceIdentifier identifies a single resource within a Maestro Bundle.
-// This corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
-type MaestroBundleResourceIdentifier struct {
-	// APIVersion is the API version of the resource (e.g. "hypershift.openshift.io/v1beta1").
-	APIVersion string `json:"apiVersion"`
-	// Kind is the kind of the resource (e.g. "HostedCluster").
-	Kind string `json:"kind"`
-	// Resource is the resource type (e.g. "hostedclusters").
-	// This corresponds to the ResourceIdentifier.Resource in the ManifestWork's ManifestConfigs.
-	Resource string `json:"resource"`
-	// Name is the name of the resource.
-	// For example, for a HostedCluster bundle this is the HostedCluster name on the management cluster.
-	Name string `json:"name"`
-	// Namespace is the namespace of the resource.
-	// For example, for a HostedCluster bundle this is the HostedCluster namespace on the management cluster.
-	Namespace string `json:"namespace"`
+// IdentityMetadataValue is ClientID/PrincipalID/TenantID retrieved from one
+// identity metadata source, a RetrievalError from the last retrieval attempt,
+// or an empty value (all fields nil) when that source applies but has not
+// been resolved yet or could not be resolved in this pass.
+//
+// ClientID, PrincipalID, and TenantID are the result of the most recent
+// retrieval for this source. They are not sticky. A later pass that fails,
+// including an intermittent API error, persists them as nil and may set
+// RetrievalError. A later successful pass can populate them again. Readers
+// must not assume that once-resolved values remain set.
+type IdentityMetadataValue struct {
+	// ClientID is the Client ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	ClientID *string `json:"clientID,omitempty"`
+	// PrincipalID is the Principal ID of the managed identity as returned by
+	// the source on the most recent retrieval. It may be nil even after a
+	// previous successful retrieval; see IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	PrincipalID *string `json:"principalID,omitempty"`
+	// TenantID is the Tenant ID of the managed identity as returned by the
+	// source on the most recent retrieval. It may be nil even after a previous
+	// successful retrieval. See IdentityMetadataValue.
+	// Written by: FetchManagedIdentitiesInfo
+	TenantID *string `json:"tenantID,omitempty"`
+	// RetrievalError, when non-nil, is the error (truncated to the first 1024
+	// characters) from the most recent attempt to retrieve this identity's
+	// metadata from this source. When set, ClientID, PrincipalID, and TenantID
+	// are nil because the last retrieval attempt failed, and any previously
+	// resolved values are no longer trustworthy. It is nil when the last
+	// retrieval succeeded. A later successful pass clears this and may restore
+	// ClientID, PrincipalID, and TenantID.
+	// Written by: FetchManagedIdentitiesInfo
+	RetrievalError *string `json:"retrievalError,omitempty"`
 }
-
-// MaestroBundleReferenceList is a list of Maestro Bundle references.
-type MaestroBundleReferenceList []*MaestroBundleReference
-
-// Get returns a copy to the Maestro Bundle reference for a given Maestro Bundle internal name. It returns a pointer
-// for a clear indication of "not found", it doesn't return a reference intended for mutation of the original list.
-// If the Maestro Bundle reference identifies by name does not exist, it returns nil.
-// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
-func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) (*MaestroBundleReference, error) {
-	var bundleReference *MaestroBundleReference
-
-	for _, bundle := range l {
-		if bundle.Name == name {
-			if bundleReference != nil {
-				return nil, utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
-			}
-			bundleReference = bundle.DeepCopy()
-		}
-	}
-	return bundleReference, nil
-}
-
-// Set sets the Maestro Bundle reference for a given Maestro Bundle internal name.
-// If the Maestro Bundle reference identifies by name does not exist, it is added.
-// If the Maestro Bundle reference identifies by name already exists, it is updated.
-func (l *MaestroBundleReferenceList) Set(maestroBundleReference *MaestroBundleReference) error {
-	existingMaestroBundleReference, err := l.Get(maestroBundleReference.Name)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
-	}
-	if existingMaestroBundleReference == nil {
-		*l = append(*l, maestroBundleReference)
-		return nil
-	}
-
-	newMaestroBundleReference := maestroBundleReference.DeepCopy()
-
-	for i := range *l {
-		if (*l)[i].Name == maestroBundleReference.Name {
-			(*l)[i] = newMaestroBundleReference
-			return nil
-		}
-	}
-
-	return nil
-}
-
-// Remove removes the Maestro Bundle reference for a given Maestro Bundle internal name.
-// If the Maestro Bundle reference identified by name does not exist, it is a no-op.
-// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
-func (l *MaestroBundleReferenceList) Remove(name MaestroBundleInternalName) error {
-	filtered := make(MaestroBundleReferenceList, 0, len(*l))
-	matched := 0
-	for _, bundle := range *l {
-		if bundle.Name == name {
-			matched++
-		} else {
-			filtered = append(filtered, bundle)
-		}
-	}
-	if matched > 1 {
-		return utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
-	}
-	*l = filtered
-	return nil
-}
-
-// MaestroBundleInternalName is a type that represents the internal name of a Maestro Bundle.
-// It is used to identify the Maestro Bundle internally and to retrieve it from the MaestroBundleReferenceList.
-type MaestroBundleInternalName string
-
-const (
-	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
-	// the Cluster's Hypershift's HostedCluster K8s resource.
-	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
-
-	// ReadonlyHypershiftControlPlaneComponentClusterAutoscaler is the internal name of the ReadDesire that mirrors
-	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
-	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
-)

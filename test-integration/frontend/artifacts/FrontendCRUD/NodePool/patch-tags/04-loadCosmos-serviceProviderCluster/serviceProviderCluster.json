@@ -1,0 +1,24 @@
+{
+	"_etag": "\"6224fffc-90db-4d6d-82dc-618a702ec1bb\"",
+	"id": "5ae193be-9f8d-55ba-816a-f420653b010b",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-tags/serviceProviderClusters/default",
+		"spec": {
+			"control_plane_version": {
+				"desired_version": "4.20.8"
+			}
+		},
+		"status": {
+			"control_plane_version": {
+				"active_versions": [
+					{
+						"version": "4.20.8"
+					}
+				]
+			}
+		}
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-tags/serviceProviderClusters/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+}

@@ -49,7 +49,7 @@ const (
 	v20251223 = "2025-12-23-preview"
 	v20260630 = "2026-06-30-preview"
 	v20260901 = "2026-09-01-preview"
-	v20261001 = "2026-10-01-preview"
+	v20261001 = "2026-10-01"
 )
 
 // crossVersionTestEntry pairs a subtest name with its runner function.
@@ -164,9 +164,18 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 		clusterPUTRoundTripTests(),
 		clusterPATCHRoundTripTests()...,
 	), nodepoolExternalAuthRoundTripTests()...)
+	var slots chan struct{}
+	if withMock {
+		slots = make(chan struct{}, maxParallelMockCases)
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if withMock {
+				t.Parallel()
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
@@ -334,7 +343,7 @@ func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
             "activeKey": {
               "name": "vc-encryption-key",
               "vaultName": "vc-key-vault",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             }
           }
         },
@@ -393,7 +402,7 @@ func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"
@@ -456,7 +465,7 @@ func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"
@@ -522,7 +531,7 @@ func clusterCreatePayloadTemplate(clusterName, apiVersion string) []byte {
           "kms": {
             "activeKey": {
               "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
+              "version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
             },
             "vaultName": "vc-key-vault",
             "visibility": "Public"

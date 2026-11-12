@@ -33,29 +33,28 @@ import (
 
 // AFECsToValidationOptions converts the API logic into validation compatible options.
 // Feature names are normalized to lowercase for case-insensitive comparison.
-func AFECsToValidationOptions(features []coreapi.Feature) []string {
-	ret := []string{}
+func AFECsToValidationOptions(features []coreapi.Feature) map[string]bool {
+	ret := map[string]bool{}
 
 	for _, curr := range features {
 		if curr.Name == nil || len(*curr.Name) == 0 {
 			continue
 		}
-		if ptr.Deref(curr.State, "") == "Registered" {
-			ret = append(ret, strings.ToLower(*curr.Name))
-		}
+		name := strings.ToLower(*curr.Name)
+		ret[name] = ret[name] || ptr.Deref(curr.State, "") == "Registered"
 	}
 
 	return ret
 }
 
 // BuildValidationOptions combines AFEC feature flags and the ARM API version
-// into a single options slice for operation.Operation.Options.
-func BuildValidationOptions(features []coreapi.Feature, apiVersion metadataapi.APIVersion) []string {
+// into a single options map for operation.Operation.Options.
+func BuildValidationOptions(features []coreapi.Feature, apiVersion metadataapi.APIVersion) map[string]bool {
 	options := AFECsToValidationOptions(features)
 	//apiVersion can be empty if this is call from within the backend
 	// as backend doesn't have this context
 	if apiVersion != "" {
-		options = append(options, metadataapi.APIVersionOption(apiVersion))
+		options[metadataapi.APIVersionOption(apiVersion)] = true
 	}
 	return options
 }

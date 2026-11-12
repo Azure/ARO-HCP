@@ -485,6 +485,35 @@ func TestBuildCSNodePool(t *testing.T) {
 					),
 				),
 		},
+		{
+			name: "passes disk encryption set ID to CS",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *coreapi.NodePool) {
+					hsc.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID(
+						"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+					ResourceName("").
+					VMSize("").
+					EncryptionAtHost(
+						arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+							State(csEncryptionAtHostStateDisabled),
+					).
+					OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+						SizeGibibytes(64).
+						StorageAccountType(string(metadataapi.DiskStorageAccountTypePremium_LRS)).
+						Persistence("persistent").
+						SseEncryptionSetResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"),
+					),
+				),
+		},
+		{
+			name:               "nil disk encryption set ID does not set SSE field",
+			hcpNodePool:        getHCPNodePoolResource(),
+			expectedCSNodePool: getBaseCSNodePoolBuilder(),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -698,7 +727,7 @@ func defaultTestKMSUpdateAzureBuilder() *arohcpv1alpha1.AzureBuilder {
 				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
 						ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
-							KeyVersion("test-version"))))))
+							KeyVersion("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"))))))
 }
 
 func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
@@ -721,11 +750,12 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 						EncryptionType("kms").
 						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 								KeyName("test-key").
 								KeyVaultName("test-vault").
-								KeyVersion("test-version"),
+								KeyVersion("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
 							),
 						),
 					))).
@@ -1164,6 +1194,7 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
@@ -1234,7 +1265,80 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate).
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test-key").
+										KeyVaultName("test-vault").
+										KeyVersion("v1"),
+									),
+								),
+							),
+						)).
+					ManagedResourceGroupName(coreapitesting.TestManagedResourceGroupName).
+					NetworkSecurityGroupResourceID(coreapitesting.TestNetworkSecurityGroupResourceID).
+					NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+						OutboundType(csOutboundType)).
+					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
+							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
+					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
+					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
+					SubnetResourceID(coreapitesting.TestSubnetResourceID).
+					VnetIntegrationSubnetResourceID(coreapitesting.TestVnetIntegrationSubnetResourceID).
+					SubscriptionID(strings.ToLower(coreapitesting.TestSubscriptionID)).
+					TenantID(coreapitesting.TestTenantID),
+				),
+		},
+		{
+			name: "CREATE - converts KMS encryption with ManagedHSM keyVaultType",
+			cluster: func() *coreapi.Cluster {
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						KeyVaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "v1",
+						},
+					},
+				}
+				return cluster
+			}(),
+			expectedCSCluster: ocmClusterDefaults(coreapitesting.TestLocation).
+				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+					Unit(csNodeDrainGracePeriodUnit).
+					Value(float64(0))).
+				Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+					PodPriorityThreshold(-10).
+					MaxNodeProvisionTime("15m").
+					MaxPodGracePeriod(600).
+					ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
+						MaxNodesTotal(0))).
+				Properties(map[string]string{}).
+				API(arohcpv1alpha1.NewClusterAPI().
+					Listening(arohcpv1alpha1.ListeningMethodExternal).
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
 										KeyVaultName("test-vault").
@@ -1279,11 +1383,12 @@ func TestBuildCSCluster(t *testing.T) {
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
 									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
 									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
 										KeyName("test-key").
 										KeyVaultName("test-vault").
-										KeyVersion("test-version"),
+										KeyVersion("4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"),
 									),
 								),
 							))).
@@ -1581,14 +1686,6 @@ func validProvisionShardBuilder(t *testing.T) *arohcpv1alpha1.ProvisionShardBuil
 			CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
 			CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
 			CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
-		).
-		MaestroConfig(
-			arohcpv1alpha1.NewProvisionShardMaestroConfig().
-				ConsumerName("test-consumer").
-				RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
-					Url("http://maestro.maestro.svc.cluster.local:8000")).
-				GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
-					Url("maestro-grpc.maestro.svc.cluster.local:8090")),
 		)
 }
 
@@ -1645,23 +1742,29 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 			expectedErrorSubstr: "failed to parse public DNS zone resource ID",
 		},
 		{
-			name: "missing maestro config",
+			name: "legacy Maestro config is ignored",
 			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
-				shard, err := arohcpv1alpha1.NewProvisionShard().
-					ID("11111111-2222-3333-4444-555555555555").
-					HREF("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555").
-					AzureShard(arohcpv1alpha1.NewAzureShard().
-						AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
-						PublicDnsZoneResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com").
-						CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
-						CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
-						CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
+				shard, err := validProvisionShardBuilder(t).
+					MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().
+						ConsumerName("test-consumer").
+						RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
+							Url("http://maestro.maestro.svc.cluster.local:8000")).
+						GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
+							Url("maestro-grpc.maestro.svc.cluster.local:8090")),
 					).
 					Build()
 				require.NoError(t, err)
 				return shard
 			},
-			expectedErrorSubstr: "no maestro config",
+			validate: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				shard, err := validProvisionShardBuilder(t).Build()
+				require.NoError(t, err)
+				expected, err := ConvertCSManagementClusterToInternal(shard)
+				require.NoError(t, err)
+				require.Len(t, mc.Status.Conditions, 1)
+				expected.Status.Conditions[0].LastTransitionTime = mc.Status.Conditions[0].LastTransitionTime
+				assert.Equal(t, expected, mc, "legacy Maestro config must not affect the converted management cluster")
+			},
 		},
 		{
 			name: "successful conversion populates all fields",
@@ -1691,11 +1794,6 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 
 				// Kube-applier
 				assert.Equal(t, "Manifests-MC-1", mc.Status.KubeApplierCosmosContainerName)
-
-				// Maestro config
-				assert.Equal(t, "test-consumer", mc.Status.MaestroConsumerName)
-				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroRESTAPIURL)
-				assert.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", mc.Status.MaestroGRPCTarget)
 			},
 		},
 		{
@@ -1990,6 +2088,48 @@ func TestConvertCSContainerRegistryPullCredentialsToRP(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, tt.expected.String(), result.String())
 			}
+		})
+	}
+}
+
+func TestConvertKmsKeyVaultTypeRPToCS(t *testing.T) {
+	tests := []struct {
+		name      string
+		vaultType string
+		want      arohcpv1alpha1.AzureKmsEncryptionKeyVaultType
+		wantErr   bool
+	}{
+		{
+			name:      "ManagedHSM maps to CS ManagedHsm",
+			vaultType: coreapi.KmsKeyVaultTypeManagedHSM,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm,
+		},
+		{
+			name:      "KeyVault maps to CS KeyVault",
+			vaultType: coreapi.KmsKeyVaultTypeKeyVault,
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+		{
+			name:      "empty defaults to CS KeyVault",
+			vaultType: "",
+			want:      arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault,
+		},
+		{
+			name:      "unknown type returns error",
+			vaultType: "InvalidType",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := convertKmsKeyVaultTypeRPToCS(tt.vaultType)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

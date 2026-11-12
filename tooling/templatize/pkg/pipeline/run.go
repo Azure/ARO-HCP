@@ -90,8 +90,15 @@ type BaseRunOptions struct {
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
 
+	// ResourceGroupTags are set in full on resource groups this run creates;
+	// on pre-existing groups they only replace keys already present, so
+	// shared groups never gain a run-scoped tag.
+	ResourceGroupTags map[string]string
+
 	SkipBicepparamValidation bool
 
+	// SubscriptionIdToAzureConfigDirectory maps a subscription ID to a logged-in Azure CLI config
+	// directory. These are read-only templates: each Shell step runs against its own private copy.
 	SubscriptionIdToAzureConfigDirectory map[string]string
 }
 
@@ -551,6 +558,16 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			suite := suites.Suites[0]
 			for id, info := range timing {
 				thisLogger := logger.WithValues("id", id.String())
+				// Skip steps that were never started or finished (empty timestamps).
+				// This typically happens when a step was queued but not executed due to
+				// earlier failures or context cancellation. Without this check, time.Parse()
+				// would fail with: parsing time "" as "2006-01-02T15:04:05Z07:00": cannot parse "" as "2006"
+				if info.StartedAt == "" || info.FinishedAt == "" {
+					thisLogger.Info("Skipping JUnit report entry for step that was not executed",
+						"state", info.State, "preempted", info.Preempted,
+						"startedAt", info.StartedAt, "finishedAt", info.FinishedAt)
+					continue
+				}
 				startedAt, err := time.Parse(time.RFC3339, info.StartedAt)
 				if err != nil {
 					thisLogger.Error(err, "error parsing started at")
@@ -562,7 +579,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					continue
 				}
 
-				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
+				testCase := &junit.TestCase{
+					Name:      fmt.Sprintf("Run pipeline step %s", id.String()),
+					Timestamp: startedAt.UTC().Format(time.RFC3339),
+					Duration:  finishedAt.Sub(startedAt).Seconds(),
+				}
 				if info.State == "failed" {
 					log := string(logging[id])
 					if info.Preempted {
@@ -914,20 +935,30 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	return details, runCount, nil
 }
 
+// stepContextTimeout returns the outer deadline for a step. Steps that carry their own timeout (Istio upgrades and
+// ARMStack deletes) get exactly that timeout, so a value above the default is not cut short.
 func stepContextTimeout(step types.Step) (time.Duration, error) {
-	istioStep, ok := step.(*types.IstioUpgradeStep)
-	if !ok {
+	var timeout, kind string
+	switch s := step.(type) {
+	case *types.IstioUpgradeStep:
+		timeout, kind = s.Timeout, "istio upgrade"
+	case *types.ARMStackStep:
+		if !s.IsDelete() {
+			return defaultStepContextTimeout, nil
+		}
+		timeout, kind = s.Timeout, "ARM stack delete"
+	default:
 		return defaultStepContextTimeout, nil
 	}
-	if istioStep.Timeout == "" {
+	if timeout == "" {
 		return defaultStepContextTimeout, nil
 	}
-	d, err := time.ParseDuration(istioStep.Timeout)
+	d, err := time.ParseDuration(timeout)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse istio upgrade step timeout %q: %w", istioStep.Timeout, err)
+		return 0, fmt.Errorf("failed to parse %s step timeout %q: %w", kind, timeout, err)
 	}
 	if d <= 0 {
-		return 0, fmt.Errorf("istio upgrade step timeout must be positive, got %q", istioStep.Timeout)
+		return 0, fmt.Errorf("%s step timeout must be positive, got %q", kind, timeout)
 	}
 	return d, nil
 }
@@ -1050,6 +1081,12 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return output, details, nil
 	case *types.ARMStackStep:
+		if step.IsDelete() {
+			if err := runArmStackDeleteStep(ctx, id, step, options, executionTarget, state); err != nil {
+				return nil, nil, fmt.Errorf("failed to run ARM stack delete step: %w", err)
+			}
+			return nil, nil, nil
+		}
 		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state, options.Environment, id.Stamp.String())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)

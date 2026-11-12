@@ -68,8 +68,7 @@ type AssetRequirement struct {
 }
 
 type InfrastructureIdentitiesConfig struct {
-	ProvisioningRegion string   `yaml:"provisioning_region,omitempty"`
-	IdentityNames      []string `yaml:"identity_names,omitempty"`
+	ProvisioningRegion string `yaml:"provisioning_region,omitempty"`
 }
 
 type AssetPool struct {
@@ -226,7 +225,7 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 			if !inventoryName.MatchString(pool.ResourceType) {
 				return fmt.Errorf("invalid resource type %q", pool.ResourceType)
 			}
-			prefixes[pool.ResourceType] = environment + "/" + pool.Name
+			prefixes[strings.ToLower(pool.ResourceType)] = environment + "/" + pool.Name
 			if err := pool.validateE2EIdentityResourceGroups(environment, dedicatedGroups); err != nil {
 				return err
 			}
@@ -240,16 +239,6 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 		if pool.Kind != KindInfrastructureIdentities {
 			return fmt.Errorf("asset pool %q has unknown or unsupported leased kind %q", pool.Name, pool.Kind)
 		}
-		if config := pool.InfrastructureIdentities; config != nil {
-			names := map[string]bool{}
-			for _, name := range config.IdentityNames {
-				key := strings.ToLower(name)
-				if !inventoryName.MatchString(name) || names[key] {
-					return fmt.Errorf("asset pool %q has invalid or duplicate identity name %q", pool.Name, name)
-				}
-				names[key] = true
-			}
-		}
 		if pool.Provisioning == "" {
 			pool.Provisioning = AssetProvisioningManaged
 		}
@@ -260,10 +249,11 @@ func (c *Catalog) validateAssetPools(resourceTypes map[string]string) error {
 			return fmt.Errorf("resource type %q is declared by both %s and asset pool %s", pool.ResourceType, previous, pool.Name)
 		}
 		resourceTypes[pool.ResourceType] = pool.Name
-		if previous, found := prefixes[pool.ResourceNamePrefix]; found {
+		normalizedPrefix := strings.ToLower(pool.ResourceNamePrefix)
+		if previous, found := prefixes[normalizedPrefix]; found {
 			return fmt.Errorf("duplicate resource names: prefix %q used by %s and asset pool %s", pool.ResourceNamePrefix, previous, pool.Name)
 		}
-		prefixes[pool.ResourceNamePrefix] = pool.Name
+		prefixes[normalizedPrefix] = pool.Name
 	}
 	_, err := c.AssetInventories()
 	return err

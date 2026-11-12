@@ -6,6 +6,7 @@ imageRepository: "tenant-quota-collector"
 imageTag: ""
 imageDigest: ""
 msiClientId: ""
+exitOnPanic: false
 secretProvider:
   keyVault: ""
   msiClientId: ""
@@ -18,5 +19,28 @@ prow:
   repository:
     org: ""
     name: ""
-  excludeJobs: []
-tenants: []
+  excludeJobs: ""
+ciJobOutcomes:
+  enabled: false
+  gcsBucket: "test-platform-results-public"
+  interval: "15m"
+  discoveryInterval: "30m"
+  completionDelay: "15m"
+  window: "24h"
+  startupSince: ""
+  repairInterval: "12h"
+  overlap: "10m"
+  workers: 10
+  discoveryWorkers: 2
+  cacheSize: 20000
+  cacheTTL: "15m"
+ciFailurePatterns:
+  results:
+    table: "ciFailurePatterns"
+    ingestionMapping: "ciFailurePatternsMapping"
+  interval: "5m"
+  workers: 4
+  cacheSize: 20000
+  cacheTTL: "15m"
+tenants: {}
+ci: {}

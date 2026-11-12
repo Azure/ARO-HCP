@@ -254,7 +254,7 @@ func TestSelectsResourceGroup_PersistTrueDeleteAfter15d(t *testing.T) {
 			{
 				Name:   "skip-shared-env-persist-true",
 				Action: RGDiscoveryActionSkip,
-				Match:  RGDiscoveryMatch{NameRegex: regexp.MustCompile(`^hcp-underlay-(cspr|dev|perf|int|stg|prod)-`)},
+				Match:  RGDiscoveryMatch{NameRegex: regexp.MustCompile(`^hcp-underlay-(dev|perf|int|stg|prod)-`)},
 				Conditions: RGDiscoveryConditions{
 					TagsEq: map[string]string{"persist": "true"},
 				},
@@ -322,16 +322,6 @@ func TestSelectsResourceGroup_PersistTrueDeleteAfter15d(t *testing.T) {
 			name: "shared env dev persist true is skipped",
 			rg: newResourceGroup(
 				"hcp-underlay-dev-usw3rvaz",
-				timePtr(now.Add(-20*24*time.Hour)),
-				map[string]string{"persist": "true"},
-				false,
-			),
-			expectSelected: false,
-		},
-		{
-			name: "shared env cspr persist true is skipped",
-			rg: newResourceGroup(
-				"hcp-underlay-cspr-usw3rvaz",
 				timePtr(now.Add(-20*24*time.Hour)),
 				map[string]string{"persist": "true"},
 				false,

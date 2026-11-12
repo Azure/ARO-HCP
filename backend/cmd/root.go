@@ -33,8 +33,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -71,6 +73,9 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	OrphanedMRGCleanupTargetSubscriptionAFECFlags                                                 string
+	OrphanedMRGCleanupExcludedSubscriptionAFECFlags                                               []string
+	OrphanedMRGCleanupRunningMode                                                                 string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -103,10 +108,9 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&f.LogVerbosity, "log-verbosity", f.LogVerbosity, "Log verbosity. 0 is the default verbosity level, equivalent to INFO. It must be a value >= 0, where a higher value means more verbose output.")
 
 	cmd.Flags().StringVar(&f.MaestroSourceEnvironmentIdentifier, "maestro-source-environment-identifier", f.MaestroSourceEnvironmentIdentifier,
-		"The environment name part used when generating Maestro Source IDs using the backend/pkg/maestro.GenerateMaestroSourceID function. "+
-			"It must be between 1 and 10 characters and can contain only lowercase letters. Example value: arohcpdev."+
-			"Changing the value causes the Maestro Source IDs generated to change which impacts visibility of previously existing resources. It is "+
-			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
+		"The environment identifier used in hosted cluster namespace names. "+
+			"It must be between 1 and 10 characters. Example value: arohcpdev. "+
+			"Keep this value stable for existing clusters; changing it changes namespace names and requires a migration plan.",
 	)
 
 	cmd.Flags().BoolVar(
@@ -236,6 +240,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 
+	cmd.Flags().StringVar(&f.OrphanedMRGCleanupTargetSubscriptionAFECFlags, "orphaned-mrg-cleanup-target-subscription-afec-flags", f.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+		"AFEC flag identifying subscriptions owned by this environment for orphaned MRG cleanup (e.g. Microsoft.RedHatOpenShift/STAGING-APPROVED)")
+	cmd.Flags().StringSliceVar(&f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags, "orphaned-mrg-cleanup-excluded-subscription-afec-flags", f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+		"AFEC flags identifying subscriptions owned by OTHER environments for orphaned MRG cleanup (comma-separated or repeated)")
+	cmd.Flags().StringVar(&f.OrphanedMRGCleanupRunningMode, "orphaned-mrg-cleanup-running-mode", f.OrphanedMRGCleanupRunningMode,
+		"Running mode for orphaned MRG cleanup: 'delete' to actually delete, 'dry-run' for read-only mode.")
+	cmd.MarkFlagsMutuallyExclusive("orphaned-mrg-cleanup-target-subscription-afec-flags", "orphaned-mrg-cleanup-excluded-subscription-afec-flags")
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -345,6 +357,14 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 	}
 
+	if len(f.OrphanedMRGCleanupTargetSubscriptionAFECFlags) != 0 && len(f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags) != 0 {
+		return utils.TrackError(fmt.Errorf("--orphaned-mrg-cleanup-target-subscription-afec-flags and --orphaned-mrg-cleanup-excluded-subscription-afec-flags are mutually exclusive"))
+	}
+
+	if f.OrphanedMRGCleanupRunningMode != "delete" && f.OrphanedMRGCleanupRunningMode != "dry-run" {
+		return utils.TrackError(fmt.Errorf("--orphaned-mrg-cleanup-running-mode must be 'delete' or 'dry-run', got %q", f.OrphanedMRGCleanupRunningMode))
+	}
+
 	return nil
 }
 
@@ -447,6 +467,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
+	var hardcodedIdentity *azureclient.HardcodedIdentity
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
 		// In ARO-HCP environments where we have a real FPA, we use the FPA identity to create the FPA MI dataplane client builder
@@ -491,14 +512,18 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst,
 		)
 
-		// In ARO-HCP environments where we don't have a real FPA, we use the HardcodedIdentityFPAMIDataplaneClientBuilder to create the FPA MI dataplane client builder
-		fpaMIDataplaneClientBuilder, err = newHardcodedIdentityFPAMIDataplaneClientBuilder(
+		// In ARO-HCP environments where we don't have a real FPA, we load the hardcoded identity
+		// and use it both as the mock MI dataplane source and as the identity metadata source.
+		hardcodedIdentity, err = newHardcodedIdentity(
 			f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
-			azureConfig,
 		)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("error getting hardcoded identity FPA MI dataplane client builder: %w", err))
+			return nil, utils.TrackError(fmt.Errorf("error loading hardcoded identity: %w", err))
 		}
+		fpaMIDataplaneClientBuilder = azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(
+			azureConfig.CloudEnvironment.CloudConfiguration(),
+			hardcodedIdentity,
+		)
 	}
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
@@ -509,8 +534,17 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		azCoreClientOptions,
 	)
 
+	orphanedMRGCleanupConfig := &controllerconfig.OrphanedMRGCleanupConfig{
+		TargetSubscriptionAFECFlags:   f.OrphanedMRGCleanupTargetSubscriptionAFECFlags,
+		ExcludedSubscriptionAFECFlags: f.OrphanedMRGCleanupExcludedSubscriptionAFECFlags,
+		RunningMode:                   f.OrphanedMRGCleanupRunningMode,
+	}
+	storageControllerContext := app.ControllerContext{
+		HasRealFPA:               !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		OrphanedMRGCleanupConfig: orphanedMRGCleanupConfig,
+	}
 	storageFactory, err := app.NewStorageFactory(f.AzureCosmosDBURL, f.AzureCosmosDBName, cosmosclient.Options{ClientOptions: azCoreClientOptions},
-		app.BackendStorageFactoryOptions(!f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock))
+		app.BackendStorageFactoryOptions(storageControllerContext))
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend storage factory: %w", err))
 	}
@@ -535,9 +569,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
 		AzureLocation:                      f.AzureLocation,
+		ServiceTenantID:                    azureConfig.AzureRuntimeConfig.ServiceTenantID,
 		LeaderElectionLock:                 leaderElectionLock,
 		StorageFactory:                     storageFactory,
 		ClustersServiceClient:              clustersServiceClient,
+		VersionProfileSource:               cincinnati.NewGraphDataClient(),
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
 		TracerProviderShutdownFunc:         otelShutdown,
@@ -549,6 +585,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ExitOnPanic:                        f.ExitOnPanic,
 		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
+		HardcodedIdentity:                  hardcodedIdentity,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		SMIClientBuilder:              smiClientBuilder,
 		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
@@ -556,6 +593,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		CloudEnvironment:              azureConfig.CloudEnvironment,
 		MetricsRegisterer:             legacyregistry.Registerer(),
 		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		OrphanedMRGCleanupConfig:      orphanedMRGCleanupConfig,
+		ClusterOIDCIssuerBaseURL:      azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 	}
 
 	return backendOptions, nil
@@ -579,6 +618,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
+		OrphanedMRGCleanupRunningMode:                   "dry-run",
 	}
 
 	return flags

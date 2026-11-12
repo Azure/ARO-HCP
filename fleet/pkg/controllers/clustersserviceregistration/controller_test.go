@@ -74,10 +74,8 @@ func testManagementCluster(stampIdentifier string) *fleetapi.ManagementCluster {
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
 			ClusterServiceProvisionShardID:                       &placeholderShardID,
-			MaestroConsumerName:                                  "consumer-1",
-			MaestroRESTAPIURL:                                    "http://maestro:8000",
-			MaestroGRPCTarget:                                    "maestro:8090",
 			KubeApplierCosmosContainerName:                       "kube-applier-test",
+			KubeApplierCosmosContainerMaxScale:                   19000,
 		},
 	}
 }
@@ -93,10 +91,10 @@ func testShardWithStatus(t *testing.T, href, aksResourceID, consumerName, status
 		HREF(href).
 		AzureShard(arohcpv1alpha1.NewAzureShard().
 			AksManagementClusterResourceId(aksResourceID),
-		).
-		MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().
-			ConsumerName(consumerName),
 		)
+	if consumerName != "" {
+		builder.MaestroConfig(arohcpv1alpha1.NewProvisionShardMaestroConfig().ConsumerName(consumerName))
+	}
 	if len(status) > 0 {
 		builder.Status(status)
 	}
@@ -255,17 +253,27 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "AKS resource ID mismatch",
 		},
 		{
-			name:              "stored shard found, consumer name mismatch: error",
+			name:              "stored shard found, legacy consumer is ignored",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
-				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(testShard(t, storedHREF, testAKSResourceID, "wrong-consumer"), nil)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(testShardWithStatus(t, storedHREF, testAKSResourceID, "legacy-consumer", ocm.CSProvisionShardStatusActive), nil)
 				return mock
 			},
-			wantErrContains: "consumer name mismatch",
+			wantHREF: storedHREF,
 		},
 		{
-			name: "initial registration, partial match AKS only: error",
+			name:              "stored shard found, no Maestro configuration",
+			managementCluster: testManagementCluster("s1"),
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(testShardWithStatus(t, storedHREF, testAKSResourceID, "", ocm.CSProvisionShardStatusActive), nil)
+				return mock
+			},
+			wantHREF: storedHREF,
+		},
+		{
+			name: "initial registration adopts AKS match despite legacy consumer",
 			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
@@ -275,15 +283,15 @@ func TestReconcileProvisionShard(t *testing.T) {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{
-						testShard(t, foundHREF, testAKSResourceID, "different-consumer"),
+						testShardWithStatus(t, foundHREF, testAKSResourceID, "different-consumer", ocm.CSProvisionShardStatusActive),
 					}, nil),
 				)
 				return mock
 			},
-			wantErrContains: "partially matches",
+			wantHREF: foundHREF,
 		},
 		{
-			name: "initial registration, partial match consumer only: error",
+			name: "initial registration adopts AKS match without Maestro configuration",
 			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
@@ -293,12 +301,31 @@ func TestReconcileProvisionShard(t *testing.T) {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{
-						testShard(t, foundHREF, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-cluster", testConsumerName),
+						testShardWithStatus(t, foundHREF, strings.ToUpper(testAKSResourceID), "", ocm.CSProvisionShardStatusActive),
 					}, nil),
 				)
 				return mock
 			},
-			wantErrContains: "partially matches",
+			wantHREF: foundHREF,
+		},
+		{
+			name: "initial registration ignores matching consumer on different AKS cluster",
+			managementCluster: func() *fleetapi.ManagementCluster {
+				managementCluster := testManagementCluster("s1")
+				managementCluster.Status.ClusterServiceProvisionShardID = nil
+				return managementCluster
+			}(),
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().ListProvisionShards().Return(
+					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{
+						testShard(t, "/api/aro_hcp/v1alpha1/provision_shards/other", "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-cluster", testConsumerName),
+						testShardWithStatus(t, foundHREF, testAKSResourceID, "", ocm.CSProvisionShardStatusActive),
+					}, nil),
+				)
+				return mock
+			},
+			wantHREF: foundHREF,
 		},
 		{
 			name: "initial registration, duplicate shards: error",
@@ -312,7 +339,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 				mock.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{
 						testShard(t, "/api/aro_hcp/v1alpha1/provision_shards/dup1", testAKSResourceID, testConsumerName),
-						testShard(t, "/api/aro_hcp/v1alpha1/provision_shards/dup2", testAKSResourceID, testConsumerName),
+						testShard(t, "/api/aro_hcp/v1alpha1/provision_shards/dup2", testAKSResourceID, "different-consumer"),
 					}, nil),
 				)
 				return mock

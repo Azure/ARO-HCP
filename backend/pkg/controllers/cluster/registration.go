@@ -16,9 +16,11 @@ package cluster
 
 import (
 	"strings"
+	"time"
 
 	utilsclock "k8s.io/utils/clock"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	clusterazureresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/azureresources"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
@@ -28,10 +30,13 @@ import (
 	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
+	clusterdataplaneworkloads "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dataplaneworkloads"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/denyassignments"
+	clusterdns "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/dns"
+	clusterhostedcluster "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/hostedcluster"
 	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
+	clusterk8sresources "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/k8sresources"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -43,25 +48,9 @@ import (
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version/rollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 )
-
-func registerDispatchRequestCredentialController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateDispatchRequestCredentialController, false),
-	}
-}
-
-func instantiateDispatchRequestCredentialController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
-	return legacycredentialrequest.NewDispatchRequestCredentialController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
-		controllerContext.ClustersServiceClient,
-		activeOperationInformer,
-	), nil
-}
 
 func registerAdminCredentialsDispatchRequestCredentialController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
@@ -78,6 +67,24 @@ func instantiateAdminCredentialsDispatchRequestCredentialController(controllerCo
 		controllerContext.ResourcesDBClient,
 		clusterLister,
 		activeOperationInformer,
+	), nil
+}
+
+func registerAzureClusterVnetIntegrationSubnetSizeValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateAzureClusterVnetIntegrationSubnetSizeValidationController, false),
+	}
+}
+
+func instantiateAzureClusterVnetIntegrationSubnetSizeValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderClusterLister := controllerContext.BackendInformers.ServiceProviderClusters()
+
+	return clustervalidation.NewClusterValidationController(
+		validationutils.NewAzureClusterVnetIntegrationSubnetSizeValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderClusterLister,
+		controllerContext.BackendInformers,
 	), nil
 }
 
@@ -386,30 +393,14 @@ func registerOperationClusterDeleteController() controllerconfig.ControllerRegis
 func instantiateOperationClusterDeleteController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	_, unionApplyDesireLister := controllerContext.UnionKubeApplierInformers.ApplyDesires()
 	return clusteroperations.NewOperationClusterDeleteController(
 		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.BillingDBClient,
 		controllerContext.KubeApplierDBClients,
 		unionReadDesireLister,
-		controllerContext.ClustersServiceClient,
-		controllerContext.AsyncOperationNotificationClient,
-		activeOperationInformer,
-	), nil
-}
-
-func registerOperationRequestCredentialController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateOperationRequestCredentialController, false),
-	}
-}
-
-func instantiateOperationRequestCredentialController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	activeOperationInformer, _ := controllerContext.BackendInformers.ActiveOperations()
-	return legacycredentialrequest.NewOperationRequestCredentialController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
+		unionApplyDesireLister,
 		controllerContext.ClustersServiceClient,
 		controllerContext.AsyncOperationNotificationClient,
 		activeOperationInformer,
@@ -506,6 +497,25 @@ func instantiateClusterPropertiesSyncController(controllerContext controllerconf
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterproperties.NewClusterPropertiesSyncController(
 		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		unionReadDesireLister,
+	), nil
+}
+
+func registerActualHostedClusterController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateActualHostedClusterController, true),
+	}
+}
+
+func instantiateActualHostedClusterController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return clusterhostedcluster.NewActualHostedClusterController(
+		controllerContext.ResourcesDBClient,
+		clusterLister,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
 		unionReadDesireLister,
@@ -731,7 +741,7 @@ func instantiateCreateClusterScopedReadDesiresController(controllerContext contr
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, controllerContext.ResourcesDBClient, controllerContext.KubeApplierDBClients,
-		serviceProviderClusterLister, unionReadDesireLister,
+		serviceProviderClusterLister, unionReadDesireLister, controllerContext.UnionKubeApplierInformers,
 		controllerContext.BackendInformers, controllerContext.MaestroSourceEnvironmentIdentifier,
 	), nil
 }
@@ -754,21 +764,33 @@ func instantiateCreateServiceProviderClusterController(controllerContext control
 	), nil
 }
 
-func registerCleanOrphanedClusterManagedResourceGroupController() controllerconfig.ControllerRegistration {
+func registerOrphanedManagedResourceGroupWatchingController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateCleanOrphanedClusterManagedResourceGroupController, false),
+		Workers: 50,
+		Enabled: func(ctx controllerconfig.ControllerContext) bool {
+			return ctx.OrphanedMRGCleanupConfig.Enabled()
+		},
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateOrphanedManagedResourceGroupWatchingController, false),
 	}
 }
 
-func instantiateCleanOrphanedClusterManagedResourceGroupController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	_, activeOperationLister := controllerContext.BackendInformers.ActiveOperations()
-	return clusterdeletion.NewCleanOrphanedClusterManagedResourceGroupController(
+func instantiateOrphanedManagedResourceGroupWatchingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, subscriptionLister := controllerContext.BackendInformers.Subscriptions()
+	_, clusterLister := controllerContext.BackendInformers.Clusters()
+	orphanedMRGController := clusterdeletion.NewOrphanedManagedResourceGroupController(
 		controllerContext.AzureLocation,
-		activeOperationLister,
 		controllerContext.ResourcesDBClient,
+		subscriptionLister,
+		clusterLister,
+		controllerContext.FPAClientBuilder,
+		controllerContext.OrphanedMRGCleanupConfig,
+	)
+	return controllerutils.NewManagedResourceGroupWatchingController(
+		controllerContext.AzureLocation,
+		orphanedMRGController,
 		controllerContext.FPAClientBuilder,
 		controllerContext.BackendInformers,
+		24*time.Hour,
 	), nil
 }
 
@@ -842,7 +864,7 @@ func instantiateClusterCredentialDeletionMarkerController(controllerContext cont
 func registerClusterChildResourcesCleanupController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterChildResourcesCleanupController, true),
 	}
 }
 
@@ -851,13 +873,14 @@ func instantiateClusterChildResourcesCleanupController(controllerContext control
 		controllerContext.ResourcesDBClient,
 		controllerContext.KubeApplierDBClients,
 		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
 func registerClusterDeletionController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, false),
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterDeletionController, true),
 	}
 }
 
@@ -868,6 +891,7 @@ func instantiateClusterDeletionController(controllerContext controllerconfig.Con
 		controllerContext.BillingDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.KubeApplierDBClients,
+		controllerContext.UnionKubeApplierInformers,
 	), nil
 }
 
@@ -942,6 +966,72 @@ func instantiatePendingCleanupController(controllerContext controllerconfig.Cont
 	), nil
 }
 
+func registerIngressCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressCertificateController, true),
+	}
+}
+
+func registerKubeAPIServerServingCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerServingCertificateController, true),
+	}
+}
+
+func registerKubeAPIServerTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateKubeAPIServerTLSCertificateController, false),
+	}
+}
+
+func instantiateKubeAPIServerTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewKubeAPIServerTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func registerIngressTLSCertificateController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateIngressTLSCertificateController, false),
+	}
+}
+
+func instantiateIngressTLSCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterazureresources.NewIngressTLSCertificateController(controllerContext.ResourcesDBClient, controllerContext.BackendInformers,
+		managementClusterLister, controllerContext.BackendIdentityAzureClients), nil
+}
+
+func instantiateIngressCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewIngressCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
+func instantiateKubeAPIServerServingCertificateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, managementClusterLister := controllerContext.FleetInformers.ManagementClusters()
+	return clusterk8sresources.NewKubeAPIServerServingCertificateController(
+		controllerContext.ResourcesDBClient,
+		controllerContext.KubeApplierDBClients,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+		managementClusterLister,
+		controllerContext.ServiceTenantID,
+		string(controllerContext.CloudEnvironment.Name()),
+	), nil
+}
+
 func registerBackupScheduleController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -989,6 +1079,66 @@ func instantiateFetchDataPlaneOperatorsManagedIdentitiesInfoController(controlle
 		controllerContext.ResourcesDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.SMIClientBuilder,
+	), nil
+}
+
+func registerFetchManagedIdentitiesInfoController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateFetchManagedIdentitiesInfoController, false),
+	}
+}
+
+func instantiateFetchManagedIdentitiesInfoController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	var fetchManagedIdentitiesInfoDataplaneBuilder azureclient.FPAMIDataplaneClientBuilder
+	// We only pass a non-nil FPAMIDataplaneClientBuilder to the controller when HardcodedIdentity is nil, which should occur we're
+	// running in an ARO-HCP environment where the Managed Identities Data Plane service is available.
+	if controllerContext.HardcodedIdentity == nil {
+		fetchManagedIdentitiesInfoDataplaneBuilder = controllerContext.FPAMIDataplaneClientBuilder
+	}
+	fetchManagedIdentitiesInfoController := clusteridentity.NewFetchManagedIdentitiesInfoController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.HardcodedIdentity,
+		fetchManagedIdentitiesInfoDataplaneBuilder,
+		controllerContext.SMIClientBuilder,
+	)
+
+	return fetchManagedIdentitiesInfoController, nil
+}
+
+func registerDataPlaneWorkloadsOIDCFederationIntentController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationIntentController, true),
+	}
+}
+
+func instantiateDataPlaneWorkloadsOIDCFederationIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationIntentController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+	), nil
+}
+
+func registerDataPlaneWorkloadsOIDCFederationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateDataPlaneWorkloadsOIDCFederationController, true),
+	}
+}
+
+func instantiateDataPlaneWorkloadsOIDCFederationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdataplaneworkloads.NewDataPlaneWorkloadIdentityOIDCFederationController(
+		controllerContext.Clock,
+		controllerContext.ResourcesDBClient,
+		controllerContext.BackendInformers,
+		controllerContext.SMIClientBuilder,
+		controllerContext.FPAMIDataplaneClientBuilder,
+		controllerContext.ClusterScopedIdentitiesConfig,
+		controllerContext.ClusterOIDCIssuerBaseURL,
 	), nil
 }
 
@@ -1145,7 +1295,58 @@ func instantiateControlPlaneVersionRolloutSeedingController(controllerContext co
 	), nil
 }
 
+func registerControlPlaneVersionCincinnatiSeedingController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionCincinnatiSeedingController, false),
+	}
+}
+
+func instantiateControlPlaneVersionCincinnatiSeedingController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionCincinnatiSeedingController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+		controllerContext.VersionProfileSource,
+	), nil
+}
+
+func registerControlPlaneVersionRolloutRetirementController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     1,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateControlPlaneVersionRolloutRetirementController, false),
+	}
+}
+
+func instantiateControlPlaneVersionRolloutRetirementController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return rollout.NewControlPlaneVersionRolloutRetirementController(
+		controllerContext.FleetDBClient, controllerContext.FleetInformers,
+	), nil
+}
+
+func registerDNSClaimCleanupController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 1, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSClaimCleanupController, false)}
+}
+
+func instantiateDNSClaimCleanupController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewCleanupController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.FleetInformers, ctx.BackendInformers, ctx.Clock), nil
+}
+
+func registerDNSAllocationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSAllocationController, false)}
+}
+func instantiateDNSAllocationController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewDNSAllocationController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.ClustersServiceClient, ctx.Clock), nil
+}
+func registerDNSBackfillController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{Workers: 20, Instantiate: controllerconfig.WithCacheSyncs(instantiateDNSBackfillController, true)}
+}
+func instantiateDNSBackfillController(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	return clusterdns.NewBackfillController(ctx.ResourcesDBClient, ctx.FleetDBClient, ctx.BackendInformers, ctx.FleetInformers, ctx.UnionKubeApplierInformers, ctx.Clock), nil
+}
+
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	registry[strings.ToLower(clusterdns.DNSAllocationControllerName)] = registerDNSAllocationController()
+	registry[strings.ToLower(clusterdns.BackfillControllerName)] = registerDNSBackfillController()
+	registry[strings.ToLower(clusterdns.CleanupControllerName)] = registerDNSClaimCleanupController()
 	registry[strings.ToLower(rollout.BestVersionSelectionControllerName)] = registerBestVersionSelectionController()
 	registry[strings.ToLower(rollout.StatusCollectorControllerName)] = registerStatusCollectorController()
 	registry[strings.ToLower(rollout.InitialNormalClusterDesiredVersionControllerName)] = registerInitialNormalClusterDesiredVersionController()
@@ -1153,7 +1354,8 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(rollout.ZStreamProgressiveDesiredVersionRolloutControllerName)] = registerZStreamProgressiveDesiredVersionRolloutController()
 	registry[strings.ToLower(rollout.ForcedClusterDesiredVersionControllerName)] = registerForcedClusterDesiredVersionController()
 	registry[strings.ToLower(rollout.RolloutSeedingControllerName)] = registerControlPlaneVersionRolloutSeedingController()
-	registry[strings.ToLower(legacycredentialrequest.DispatchRequestCredentialControllerName)] = registerDispatchRequestCredentialController()
+	registry[strings.ToLower(rollout.CincinnatiSeedingControllerName)] = registerControlPlaneVersionCincinnatiSeedingController()
+	registry[strings.ToLower(rollout.RolloutRetirementControllerName)] = registerControlPlaneVersionRolloutRetirementController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialDispatchRequestCredentialControllerName)] = registerAdminCredentialsDispatchRequestCredentialController()
 	registry[strings.ToLower(credentialrevocationoperations.SystemAdminCredentialDispatchRevokeCredentialsControllerName)] = registerAdminCredentialsDispatchRevokeCredentialsController()
 	registry[strings.ToLower(credentialrequestoperations.SystemAdminCredentialOperationRequestCredentialPollControllerName)] = registerAdminCredentialsOperationRequestCredentialPollController()
@@ -1173,13 +1375,13 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusteroperations.OperationClusterCreateControllerName)] = registerOperationClusterCreateController()
 	registry[strings.ToLower(clusteroperations.OperationClusterUpdateControllerName)] = registerOperationClusterUpdateController()
 	registry[strings.ToLower(clusteroperations.OperationClusterDeleteControllerName)] = registerOperationClusterDeleteController()
-	registry[strings.ToLower(legacycredentialrequest.OperationRequestCredentialControllerName)] = registerOperationRequestCredentialController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationAlwaysSuccessValidationControllerName)] = registerAlwaysSuccessClusterValidationController()
 	registry[strings.ToLower(clusterversion.ControlPlaneActiveVersionsControllerName)] = registerControlPlaneActiveVersionsController()
 
 	registry[strings.ToLower(clusterversion.TriggerControlPlaneUpgradeControllerName)] = registerTriggerControlPlaneUpgradeController()
 	registry[strings.ToLower(clusterproperties.ClusterBaseDomainPrefixSyncControllerName)] = registerClusterBaseDomainPrefixSyncController()
 	registry[strings.ToLower(clusterproperties.ClusterPropertiesSyncControllerName)] = registerClusterPropertiesSyncController()
+	registry[strings.ToLower(clusterhostedcluster.ActualHostedClusterControllerName)] = registerActualHostedClusterController()
 	registry[strings.ToLower(clusteridentity.ClusterIdentitySyncControllerName)] = registerClusterIdentitySyncController()
 	registry[strings.ToLower(clusterstatus.ClusterDegradedAggregatorControllerName)] = registerClusterDegradedAggregatorController()
 	registry[strings.ToLower(clusterstatus.ClusterRequirementsValidAggregatorControllerName)] = registerClusterRequirementsValidAggregatorController()
@@ -1191,9 +1393,10 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clustervalidation.ClusterValidationControlPlaneIdentitiesPermissionsClusterValidationControllerName)] = registerControlPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationDataPlaneIdentitiesPermissionsValidationControllerName)] = registerDataPlaneIdentitiesPermissionsValidationController()
 	registry[strings.ToLower(clustervalidation.ClusterValidationContainerRegistryPullCredentialsPermissionValidationControllerName)] = registerContainerRegistryPullCredentialsValidationController()
+	registry[strings.ToLower(clustervalidation.ClusterValidationAzureClusterVnetIntegrationSubnetSizeValidationControllerName)] = registerAzureClusterVnetIntegrationSubnetSizeValidationController()
 	registry[strings.ToLower(clusterreaddesires.CreateClusterScopedReadDesiresControllerName)] = registerCreateClusterScopedReadDesiresController()
 	registry[strings.ToLower(clustercreation.CreateServiceProviderClusterControllerName)] = registerCreateServiceProviderClusterController()
-	registry[strings.ToLower(clusterdeletion.CleanOrphanedClusterManagedResourceGroupControllerName)] = registerCleanOrphanedClusterManagedResourceGroupController()
+	registry[strings.ToLower(controllerutils.ManagedResourceGroupWatchingControllerName)] = registerOrphanedManagedResourceGroupWatchingController()
 	registry[strings.ToLower(clusterazureresources.ManagedResourceGroupControllerName)] = registerEnsureManagedResourceGroupController()
 	registry[strings.ToLower(clusterdeletion.ClusterClusterServiceDeleteDispatchControllerName)] = registerClusterDeletionClusterServiceDeleteDispatchController()
 	registry[strings.ToLower(clusterdeletion.ClusterDeletionClusterServiceIDClearerControllerName)] = registerClusterClusterServiceIDClearerController()
@@ -1205,8 +1408,15 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterplacement.PlacementControllerName)] = registerPlacementController()
 	registry[strings.ToLower(clusterplacement.PendingCleanupControllerName)] = registerPendingCleanupController()
 	registry[strings.ToLower(clusterbackups.BackupScheduleControllerName)] = registerBackupScheduleController()
+	registry[strings.ToLower(clusterk8sresources.IngressCertificateControllerName)] = registerIngressCertificateController()
+	registry[strings.ToLower(clusterk8sresources.KubeAPIServerServingCertificateControllerName)] = registerKubeAPIServerServingCertificateController()
+	registry[strings.ToLower(clusterazureresources.KubeAPIServerTLSCertificateControllerName)] = registerKubeAPIServerTLSCertificateController()
+	registry[strings.ToLower(clusterazureresources.IngressTLSCertificateControllerName)] = registerIngressTLSCertificateController()
 	registry[strings.ToLower(clusteridentity.FetchMSIIdentitiesInfoControllerName)] = registerFetchMSIIdentitiesInfoController()
 	registry[strings.ToLower(clusteridentity.FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)] = registerFetchDataPlaneOperatorsManagedIdentitiesInfoController()
+	registry[strings.ToLower(clusteridentity.FetchManagedIdentitiesInfoControllerName)] = registerFetchManagedIdentitiesInfoController()
+	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
+	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

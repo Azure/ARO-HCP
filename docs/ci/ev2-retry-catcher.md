@@ -131,7 +131,7 @@ It("...", labels.RequireHappyPathInfra, labels.AllowRetry, func(ctx context.Cont
 })
 ```
 
-At suite build time, `registerEV2RetryCatcher` (`test/cmd/aro-hcp-tests/main.go`) walks the full `ExtensionTestSpecs` once, before the suite runs, and precomputes the set of test names that carry the label:
+At suite build time, `registerEV2RetryCatcher` (`test/cmd/aro-hcp-tests/ev2_reporting.go`) walks the full `ExtensionTestSpecs` once, before the suite runs, and precomputes the set of test names that carry the label:
 
 ```go
 allowRetryNames := map[string]bool{}
@@ -237,7 +237,7 @@ The label and signal names went through some discussion (`flaky`, `retry-during-
 ## Where to look
 
 - `test/util/labels/labels.go` - `AllowRetry` label definition
-- `test/cmd/aro-hcp-tests/main.go` - `registerEV2RetryCatcher`, `writeEV2RetryMetadata`
+- `test/cmd/aro-hcp-tests/ev2_reporting.go` - `registerEV2RetryCatcher`, `writeEV2RetryMetadata`
 - `test/e2e/README.md` - test-author-facing documentation of the label
 - `test/e2e-pipeline.yaml` - `regionalGating` step's `automatedRetry` configuration
 - ARO-Tools `tools/prow-job-executor/prowjob/monitor.go` - `EV2RetryableError`, `EV2RetryableMarker`, `Monitor.allowEV2Retry`, `Monitor.maxAutoRetryFailures`, `ExecuteAndWait`

@@ -23,10 +23,11 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/skucache"
 	"github.com/Azure/ARO-HCP/fleet/pkg/compute"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // The Azure SDK exposes cluster and agent pool provisioning states as strings.
@@ -38,70 +39,47 @@ const (
 
 const deploymentName = "aks-cluster-create"
 
-// Per-role pod density and scheduling policy, hardcoded to match what the
-// mgmt-cluster Bicep (aks-cluster-base.bicep and modules/aks/pool.bicep) set
-// before this tool replaced it.
-const (
-	systemMaxPods = 100
-	workerMaxPods = 225
-	infraMaxPods  = 225
-)
-
 // run delegates cluster and pool writes and their polling to ARM. A stable
 // deployment name lets a restarted invocation wait for an interrupted deployment
 // before building a new payload from the latest cluster observation.
 func (o *completedOptions) run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	cluster := o.cluster
+
 	// Phase 1: resolve and validate the configured pools.
 	pools, err := o.desiredPools(ctx)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
-
-	// Phase 2: wait for previous operations and observe the current cluster.
-	if err := o.waitForDeployment(ctx, deploymentName); err != nil {
-		return err
-	}
-	cluster, err := getCluster(ctx, o.clustersClient, o.resourceGroup, o.clusterName)
-	if err != nil {
-		return fmt.Errorf("getting cluster: %w", err)
-	}
-	if cluster != nil {
-		cluster, err = o.waitForManagedCluster(ctx, cluster)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Phase 3: deploy changed cluster configuration and configured pools.
+	// Phase 2: deploy changed cluster configuration and configured pools.
 	deployment, changed, err := o.buildDeployment(cluster, pools)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 	logger.Info("deploying configured resources", "deployment", deploymentName, "poolCount", len(pools), "clusterFields", changed)
 	poller, err := o.deploymentsClient.BeginCreateOrUpdate(ctx, o.resourceGroup, deploymentName, deployment, nil)
 	if err != nil {
-		o.logDeploymentOperations(ctx, deploymentName)
-		return fmt.Errorf("submitting deployment %s: %w", deploymentName, err)
+		logDeploymentOperations(ctx, o.deploymentOperationsClient, o.resourceGroup, deploymentName)
+		return utils.TrackError(fmt.Errorf("submitting deployment %s: %w", deploymentName, err))
 	}
 	_, err = poller.PollUntilDone(ctx, nil)
-	o.logDeploymentOperations(ctx, deploymentName)
+	logDeploymentOperations(ctx, o.deploymentOperationsClient, o.resourceGroup, deploymentName)
 	if err != nil {
-		return fmt.Errorf("waiting for deployment %s: %w", deploymentName, err)
+		return utils.TrackError(fmt.Errorf("waiting for deployment %s: %w", deploymentName, err))
 	}
 
-	// Phase 4: refresh the cluster and finalize handover tags.
-	// Deployment success is the barrier for handover. Refresh the cluster and
-	// its ETag once, rather than observing every agent pool separately.
+	// Phase 3: reconcile tags and mark initial provisioning complete.
+	// Refresh the cluster and its ETag after deployment success, rather than
+	// observing every agent pool separately.
 	cluster, err = getCluster(ctx, o.clustersClient, o.resourceGroup, o.clusterName)
 	if err != nil {
-		return fmt.Errorf("refreshing cluster after deployment: %w", err)
+		return utils.TrackError(fmt.Errorf("refreshing cluster after deployment: %w", err))
 	}
 	if cluster == nil {
-		return fmt.Errorf("cluster missing after deployment %s", deploymentName)
+		return utils.TrackError(fmt.Errorf("cluster missing after deployment %s", deploymentName))
 	}
-	return o.reconcileClusterTags(ctx, cluster)
+	return utils.TrackError(o.reconcileClusterTags(ctx, cluster))
 }
 
 // getCluster returns the cluster, or nil if it does not exist.
@@ -112,7 +90,7 @@ func getCluster(ctx context.Context, client *armcontainerservice.ManagedClusters
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	return &resp.ManagedCluster, nil
 }
@@ -133,24 +111,26 @@ func (o *completedOptions) desiredPools(ctx context.Context) ([]compute.Pool, er
 	logger := logr.FromContextOrDiscard(ctx)
 	metadata, err := o.skuCache.SKUMetadataByVMSize(ctx, o.subscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("fetching SKU metadata: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("fetching SKU metadata: %w", err))
 	}
 
 	// The system pool is a single pool spanning all its zones (matching the
 	// inline agentPoolProfiles entry in aks-cluster-base.bicep), while the
-	// worker and infra blocks expand into one pool per zone plus non-zonal
-	// pools (matching modules/aks/pool.bicep).
+	// worker and infra blocks expand into one pool per zone.
 	systemPools, err := buildPools(o.system, compute.PoolRoleSystem, metadata)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
-	workerPools, err := buildPools(o.user, compute.PoolRoleWorker, metadata)
-	if err != nil {
-		return nil, err
-	}
-	infraPools, err := buildPools(o.infra, compute.PoolRoleInfra, metadata)
-	if err != nil {
-		return nil, err
+	var workerPools, infraPools []compute.Pool
+	if !o.systemPoolOnly {
+		workerPools, err = buildPools(o.user, compute.PoolRoleWorker, metadata)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		infraPools, err = buildPools(o.infra, compute.PoolRoleInfra, metadata)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
 	}
 
 	pools := make([]compute.Pool, 0, len(systemPools)+len(workerPools)+len(infraPools))
@@ -164,51 +144,28 @@ func (o *completedOptions) desiredPools(ctx context.Context) ([]compute.Pool, er
 
 // buildPools expands one configured pool block into concrete compute.Pools for
 // the role. PoolModeRegional builds a single pool spanning all zones;
-// PoolModePerZone expands into per-zone and non-zonal pools. Worker pools attach
-// the SKU's secondary NIC ceiling; system and infra pools attach none.
+// PoolModePerZone expands into per-zone pools.
 func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skucache.SKUMetadata) ([]compute.Pool, error) {
 	meta := metadata[cfg.vmSize]
 	if meta == nil {
-		return nil, fmt.Errorf("%s pool VM size %q not found in region SKUs", role, cfg.vmSize)
+		return nil, utils.TrackError(fmt.Errorf("%s pool VM size %q not found in region SKUs", role, cfg.vmSize))
 	}
 
-	var (
-		maxPods     int32
-		taints      []string
-		mode        compute.PoolMode
-		enableSwift bool
-	)
-	switch role {
-	case compute.PoolRoleSystem:
-		maxPods = systemMaxPods
-		taints = []string{compute.TaintCriticalAddonsOnly}
-		mode = compute.PoolModeRegional
-		enableSwift = true
-	case compute.PoolRoleWorker:
-		maxPods = workerMaxPods
-		mode = compute.PoolModePerZone
-		enableSwift = true
-	case compute.PoolRoleInfra:
-		maxPods = infraMaxPods
-		taints = []string{compute.TaintInfra}
-		mode = compute.PoolModePerZone
-	}
-
+	class := cfg.class
 	spec := compute.NewVMSpecFromSKU(meta)
-	// Only worker pools attach secondary NICs, sized to the SKU's NIC ceiling
-	// (set by NewVMSpecFromSKU). System and infra pools carry none.
-	if role != compute.PoolRoleWorker {
-		spec.SecondaryNICs = 0
+	var secondaryNICs int64
+	if class.AttachSecondaryNICs {
+		secondaryNICs = spec.SecondaryNICs
 	}
 
 	var placements []poolPlacement
-	if mode == compute.PoolModeRegional {
+	if cfg.mode == compute.PoolModeRegional {
 		placements = []poolPlacement{{name: cfg.name, zones: cfg.zones}}
 	} else {
 		var err error
 		placements, err = expandPoolPlacements(cfg.name, cfg.zones, cfg.poolCount)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 	}
 
@@ -216,16 +173,19 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 	for _, placement := range placements {
 		pools = append(pools, compute.Pool{
 			Role:              role,
+			AgentPoolMode:     class.AgentPoolMode,
+			SecondaryNICs:     secondaryNICs,
 			Name:              placement.name,
 			Spec:              spec,
 			AvailabilityZones: placement.zones,
 			MaxCount:          cfg.maxCount,
 			MinCount:          cfg.minCount,
 			OSDiskSizeGB:      cfg.osDiskSizeGB,
-			MaxPods:           maxPods,
+			MaxPods:           cfg.maxPods,
 			Labels:            map[string]string{compute.RoleLabel: string(role)},
-			Taints:            taints,
-			EnableSwift:       enableSwift,
+			Taints:            class.Taints,
+			EnableSwift:       class.EnableSwift,
+			UpgradeSettings:   &cfg.upgradeSettings,
 		})
 	}
 	return pools, nil
@@ -236,7 +196,7 @@ func buildPools(cfg poolConfig, role compute.PoolRole, metadata map[string]*skuc
 // matching the Bicep take(name, 12).
 func expandPoolPlacements(base string, zones []string, poolCount int) ([]poolPlacement, error) {
 	if poolCount > len(zones) {
-		return nil, fmt.Errorf("pool count %d exceeds available zones %d", poolCount, len(zones))
+		return nil, utils.TrackError(fmt.Errorf("pool count %d exceeds available zones %d", poolCount, len(zones)))
 	}
 	placements := make([]poolPlacement, 0, poolCount)
 	for i := range poolCount {

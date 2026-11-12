@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep"
+    }
+  },
+  "outputs": {
+    "managedHsmUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/managedHSMs', parameters('hsmName')), '2025-05-01').hsmUri]"
+    }
+  },
+  "parameters": {
+    "adminObjectIds": {
+      "metadata": {
+        "description": "Entra object IDs that should be initial Managed HSM administrators. The principal that activates the HSM must be included."
+      },
+      "minLength": 1,
+      "type": "array"
+    },
+    "enablePurgeProtection": {
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable irreversible purge protection. Recommended for production; leave false for disposable testing."
+      },
+      "type": "bool"
+    },
+    "hsmName": {
+      "metadata": {
+        "description": "Globally unique Managed HSM name (3-24 alphanumeric characters or hyphens)."
+      },
+      "type": "string"
+    },
+    "location": {
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources."
+      },
+      "type": "string"
+    },
+    "softDeleteRetentionInDays": {
+      "defaultValue": 7,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Soft-delete retention period in days. Azure Managed HSM requires at least 7 days."
+      },
+      "minValue": 7,
+      "type": "int"
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2025-05-01",
+      "location": "[parameters('location')]",
+      "name": "[parameters('hsmName')]",
+      "properties": {
+        "createMode": "default",
+        "enablePurgeProtection": "[parameters('enablePurgeProtection')]",
+        "enableSoftDelete": true,
+        "initialAdminObjectIds": "[parameters('adminObjectIds')]",
+        "publicNetworkAccess": "Enabled",
+        "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
+        "tenantId": "[tenant().tenantId]"
+      },
+      "sku": {
+        "family": "B",
+        "name": "Standard_B1"
+      },
+      "type": "Microsoft.KeyVault/managedHSMs"
+    }
+  ]
+}

@@ -16,6 +16,8 @@ package rollout
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -24,10 +26,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
@@ -127,16 +131,20 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 	}
 
 	mockFleet, lister := newTestRolloutStore(t, newTestRollout(yStreamChannel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	clusterLister := &statusClusterLister{ClusterLister: &corelistertesting.SliceClusterLister{Clusters: clusters}}
+	serviceProviderClusterLister := &statusServiceProviderClusterLister{ServiceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusters}}
 	syncer := &statusCollectorSyncer{
 		clock:                        clocktesting.NewFakeClock(statusTestNow),
 		rolloutLister:                lister,
 		fleetDBClient:                mockFleet,
-		serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusters},
-		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		clusterLister:                clusterLister,
 		config:                       NewDefaultRolloutConfig(),
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel}))
+	require.Equal(t, 1, clusterLister.calls)
+	require.Equal(t, 1, serviceProviderClusterLister.calls)
 
 	got, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, yStreamChannel)
 	require.NoError(t, err)
@@ -144,4 +152,139 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 	assert.Equal(t, int64(2), got.Status.ClusterCountByDesiredExactVersion["4.21.6"])
 	assert.Equal(t, int64(1), got.Status.ClusterCountByAchievedExactVersion["4.21.6"], "only c1 fully achieved 4.21.6")
 	assert.Equal(t, int64(1), got.Status.MismatchedClusterCountByDesiredExactVersion["4.21.6"], "c2 still upgrading")
+	require.Equal(t, ptr.To(int64(2)), got.Status.ReferencingClusterCount)
+
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel}))
+	after, err := mockFleet.ControlPlaneVersionRollouts().Get(ctx, yStreamChannel)
+	require.NoError(t, err)
+	require.Equal(t, got, after, "unchanged status must not be rewritten")
+}
+
+type statusClusterLister struct {
+	corelisters.ClusterLister
+	calls int
+	err   error
+}
+
+func (l *statusClusterLister) List(ctx context.Context) ([]*coreapi.Cluster, error) {
+	l.calls++
+	if l.err != nil {
+		return nil, l.err
+	}
+	return l.ClusterLister.List(ctx)
+}
+
+type statusServiceProviderClusterLister struct {
+	corelisters.ServiceProviderClusterLister
+	calls int
+	err   error
+}
+
+func (l *statusServiceProviderClusterLister) List(ctx context.Context) ([]*coreapi.ServiceProviderCluster, error) {
+	l.calls++
+	if l.err != nil {
+		return nil, l.err
+	}
+	return l.ServiceProviderClusterLister.List(ctx)
+}
+
+func TestStatusCollectorReferenceInventory(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mutate  func(*statusCollectorSyncer)
+		want    *int64
+		wantErr string
+	}{
+		{name: "empty inventory publishes explicit zero", want: ptr.To(int64(0))},
+		{name: "requested without SPC", want: ptr.To(int64(1)), mutate: func(c *statusCollectorSyncer) {
+			c.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster("c1", "stable", "4.21")}}
+		}},
+		{name: "deleting references remain outside progress", want: ptr.To(int64(1)), mutate: func(c *statusCollectorSyncer) {
+			cluster := newTestCluster("c1", "stable", "4.21")
+			cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: statusTestNow}
+			c.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}
+			c.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				newTestServiceProviderCluster("c1", v("4.21.1"), []coreapi.ServiceProviderClusterActiveVersion{completed("4.21.1")}, nil),
+			}}
+		}},
+		{name: "orphan retains status", wantErr: "cannot determine channel group", mutate: func(c *statusCollectorSyncer) {
+			c.serviceProviderClusterLister = &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				newTestServiceProviderCluster("orphan", v("4.21.1"), nil, nil),
+			}}
+		}},
+		{name: "cluster list failure retains status", wantErr: "cluster inventory unavailable", mutate: func(c *statusCollectorSyncer) {
+			c.clusterLister = &statusClusterLister{err: errors.New("cluster inventory unavailable")}
+		}},
+		{name: "service provider cluster list failure retains status", wantErr: "service provider cluster inventory unavailable", mutate: func(c *statusCollectorSyncer) {
+			c.serviceProviderClusterLister = &statusServiceProviderClusterLister{err: errors.New("service provider cluster inventory unavailable")}
+		}},
+		{name: "invalid reference retains status", wantErr: "invalid version", mutate: func(c *statusCollectorSyncer) {
+			c.clusterLister = &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{newTestCluster("c1", "stable", "invalid")}}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, initial := range []*int64{nil, ptr.To(int64(0)), ptr.To(int64(3))} {
+				db, lister := newTestRolloutStore(t, newTestRollout("stable-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{
+					ReferencingClusterCount:                      initial,
+					ClusterCountByDesiredExactVersion:            map[string]int64{"4.21.6": 5},
+					MismatchedClusterCountByDesiredExactVersion:  map[string]int64{"4.21.6": 3},
+					FailedClusterCountByDesiredExactVersion:      map[string]int64{"4.21.6": 1},
+					ClusterCountByAchievedExactVersion:           map[string]int64{"4.21.6": 2},
+					SuccessfulClusterCountByAchievedExactVersion: map[string]int64{"4.21.6": 1},
+				}))
+				before, err := db.ControlPlaneVersionRollouts().Get(t.Context(), "stable-4.21")
+				require.NoError(t, err)
+				c := &statusCollectorSyncer{
+					clock: clocktesting.NewFakeClock(statusTestNow), rolloutLister: lister, fleetDBClient: db,
+					clusterLister: &corelistertesting.SliceClusterLister{}, serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
+					config: NewDefaultRolloutConfig(),
+				}
+				if tc.mutate != nil {
+					tc.mutate(c)
+				}
+				clusterLister := &statusClusterLister{ClusterLister: c.clusterLister}
+				serviceProviderClusterLister := &statusServiceProviderClusterLister{ServiceProviderClusterLister: c.serviceProviderClusterLister}
+				c.clusterLister = clusterLister
+				c.serviceProviderClusterLister = serviceProviderClusterLister
+				err = c.SyncOnce(t.Context(), controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: "stable-4.21"})
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, tc.wantErr)
+				}
+				require.Equal(t, 1, clusterLister.calls)
+				if tc.wantErr == "cluster inventory unavailable" {
+					require.Zero(t, serviceProviderClusterLister.calls, "cluster list failure must stop collection immediately")
+				} else {
+					require.Equal(t, 1, serviceProviderClusterLister.calls)
+				}
+				got, err := db.ControlPlaneVersionRollouts().Get(t.Context(), "stable-4.21")
+				require.NoError(t, err)
+				if tc.wantErr != "" {
+					require.Equal(t, before, got, "collection errors must leave persisted status and ETag unchanged")
+					continue
+				}
+				require.Equal(t, tc.want, got.Status.ReferencingClusterCount)
+				require.Empty(t, got.Status.ClusterCountByDesiredExactVersion)
+				require.Empty(t, got.Status.ClusterCountByAchievedExactVersion)
+				require.Empty(t, got.Status.MismatchedClusterCountByDesiredExactVersion)
+				require.Empty(t, got.Status.FailedClusterCountByDesiredExactVersion)
+				require.Empty(t, got.Status.SuccessfulClusterCountByAchievedExactVersion)
+			}
+		})
+	}
+}
+
+func TestReferencingClusterCountSerializationAndDeepCopy(t *testing.T) {
+	status := fleetapi.ControlPlaneVersionRolloutStatus{}
+	data, err := json.Marshal(status)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(data))
+	status.ReferencingClusterCount = ptr.To(int64(0))
+	data, err = json.Marshal(status)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"referencingClusterCount":0}`, string(data))
+	copy := status.DeepCopy()
+	*copy.ReferencingClusterCount = 1
+	require.Zero(t, *status.ReferencingClusterCount, "deep copy must not share count storage")
 }

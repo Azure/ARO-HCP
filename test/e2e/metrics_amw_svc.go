@@ -109,7 +109,6 @@ var _ = Describe("Engineering", func() {
 
 				// MGMT cluster services
 				{`kube_applier_health`, "kube-applier health (MGMT)"},
-				{`maestro_build_info`, "maestro build info (MGMT)"},
 				{`hypershift_hostedclusters`, "hypershift hosted clusters gauge (MGMT)"},
 				{`capacity_reporting_sync_errors_total`, "mgmt-agent capacity reporting sync errors (MGMT)"},
 			}

@@ -35,6 +35,8 @@ import (
 // watchedGroupSuffixes is the hardcoded list of API group domain suffixes
 // whose resources will be discovered and watched.
 var watchedGroupSuffixes = []string{
+	// Remove after the ACM uninstall controller has been merged and deployed
+	// to all production management clusters; also remove that controller.
 	"open-cluster-management.io",
 	"cluster.x-k8s.io",
 	"hypershift.openshift.io",
@@ -64,6 +66,8 @@ var watchedExplicitGVRs = []schema.GroupVersionResource{
 	{Group: "batch", Version: "v1", Resource: "jobs"},
 	{Group: "monitoring.coreos.com", Version: "v1", Resource: "podmonitors"},
 	{Group: "monitoring.coreos.com", Version: "v1", Resource: "servicemonitors"},
+	{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"},
+	{Group: "secret-sync.x-k8s.io", Version: "v1alpha1", Resource: "secretsyncs"},
 	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
 	{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
 }

@@ -111,6 +111,12 @@ func (informers *trackingBackendInformers) ServiceProviderNodePools() (cache.Sha
 	return informer, lister
 }
 
+func (informers *trackingBackendInformers) ServiceProviderExternalAuths() (cache.SharedIndexInformer, corelisters.ServiceProviderExternalAuthLister) {
+	informer, lister := informers.BackendInformers.ServiceProviderExternalAuths()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 func (informers *trackingBackendInformers) Controllers() (cache.SharedIndexInformer, corelisters.ControllerLister) {
 	informer, lister := informers.BackendInformers.Controllers()
 	informers.tracking.add(informer.HasSynced)
@@ -146,6 +152,12 @@ type trackingFleetInformers struct {
 	tracking *cacheTracking
 }
 
+func (informers *trackingFleetInformers) DNSClaims() (cache.SharedIndexInformer, fleetlisters.DNSClaimLister) {
+	informer, lister := informers.FleetInformers.DNSClaims()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
 func (informers *trackingFleetInformers) Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister) {
 	informer, lister := informers.FleetInformers.Stamps()
 	informers.tracking.add(informer.HasSynced)
@@ -166,6 +178,12 @@ func (informers *trackingFleetInformers) ManagementClusterSchedulings() (cache.S
 
 func (informers *trackingFleetInformers) ControlPlaneVersionRollouts() (cache.SharedIndexInformer, fleetlisters.ControlPlaneVersionRolloutLister) {
 	informer, lister := informers.FleetInformers.ControlPlaneVersionRollouts()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
+func (informers *trackingFleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, fleetlisters.HCPResourceRequirementsLister) {
+	informer, lister := informers.FleetInformers.HCPResourceRequirements()
 	informers.tracking.add(informer.HasSynced)
 	return informer, lister
 }

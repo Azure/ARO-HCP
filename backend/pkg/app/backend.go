@@ -33,12 +33,17 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerconfig"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,12 +55,21 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	StorageFactory                     StorageFactory
-	AppShortDescriptionName            string
-	AppVersion                         string
-	AzureLocation                      string
+	StorageFactory          StorageFactory
+	AppShortDescriptionName string
+	AppVersion              string
+	AzureLocation           string
+	// ServiceTenantID is the Azure AD tenant where the ARO-HCP service's First Party
+	// Application (FPA) identity is registered. It is the tenantId used both to
+	// retrieve the FPA credential that calls the Managed Identities Data Plane, and
+	// as the Secrets Store CSI Driver's authentication tenant when delivering TLS
+	// certificates from Key Vault onto a management cluster. It is never a customer's
+	// tenant, and permissions granted here are not scoped to any individual
+	// customer's HostedCluster or subscription.
+	ServiceTenantID                    string
 	LeaderElectionLock                 resourcelock.Interface
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	VersionProfileSource               cincinnati.VersionProfileSource
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer
 	MetricsServerListenAddress         string
@@ -65,19 +79,32 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	// HasRealFPA indicates the backend runs against a real First Party Application rather than the
-	// insecure MI mock. Controllers that create Azure resources only a real FPA can create (e.g.
+	// insecure MI mock. This is the inverse of the command-line flag
+	// InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock
+	// and is also exposed through backend_insecure_mock_managed_identities_enabled.
+	// Controllers that create Azure resources only a real FPA can create (e.g.
 	// deny assignments) are disabled when this is false (dev/int environments).
-	HasRealFPA                                          bool
-	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                                         bool
-	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	HasRealFPA                        bool
+	BackendIdentityAzureClients       *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                       bool
+	FPAMIDataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
+	// HardcodedIdentity is the identity used for the cluster's control plane operator identities and the cluster's service managed identity when
+	// the Managed Identities Data Plane service is not available.
+	// HardcodedIdentity is nil when the real Managed Identities Data Plane is available.
+	HardcodedIdentity                                   *azureclient.HardcodedIdentity
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	OrphanedMRGCleanupConfig                            *controllerconfig.OrphanedMRGCleanupConfig
+	// ClusterOIDCIssuerBaseURL is the OIDC issuer base URL that clusters use to specify their OIDC Issuer URL. The
+	// OIDC issuer URL configured for them uses this base url as a base prefix of its full URL. The full OIDC issuer URL is then used as the issuer
+	// in all K8s ServiceAccount tokens generated by the control plane's K8s API server via --service-account-isuer flag.
+	// The full OIDC issuer URL is also used as the Issuer when configuring OIDC Federation on the cluster's data plane operator identities.
+	ClusterOIDCIssuerBaseURL string
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -86,6 +113,7 @@ type backendHealthzServer struct {
 	listenAddress     string
 	metricsRegisterer prometheus.Registerer
 	electionChecker   *leaderelection.HealthzAdaptor
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 type backendMetricsServer struct {
@@ -133,6 +161,19 @@ func (o *BackendOptions) NewBackend() (*Backend, error) {
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
+	// Expose the configured identity mode on every replica, including followers.
+	// CheckAccessV2 callers in mock mode share the much lower ARM Permissions
+	// Manager rate limit, so queue-depth alerts allow them more time to drain.
+	mockIdentities := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "backend_insecure_mock_managed_identities_enabled",
+		Help: "Whether InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is enabled (1) or disabled (0).",
+	})
+	if !o.HasRealFPA {
+		mockIdentities.Set(1)
+	}
+	if err := o.MetricsRegisterer.Register(mockIdentities); err != nil {
+		return nil, fmt.Errorf("failed to register backend identity mode metric: %w", err)
+	}
 	return &Backend{
 		clock:   utilsclock.RealClock{},
 		options: o,
@@ -157,6 +198,9 @@ func (o *BackendOptions) validate() error {
 	}
 	if o.BackupConfig == nil {
 		return fmt.Errorf("backup config must be set")
+	}
+	if o.VersionProfileSource == nil {
+		return fmt.Errorf("version profile source must be set")
 	}
 	return nil
 }
@@ -204,6 +248,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			listenAddress:     b.options.HealthzServerListenAddress,
 			metricsRegisterer: b.options.MetricsRegisterer,
 			electionChecker:   electionChecker,
+			resourcesDBClient: b.options.StorageFactory.ResourcesStorageClient(BackendInformersStorageName),
 		}
 		wg.Add(1)
 		go func() {
@@ -258,12 +303,20 @@ func (b *Backend) Run(ctx context.Context) error {
 }
 
 func (s *backendHealthzServer) Run(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.listenAddress, err)
 	}
+
+	addr := listener.Addr().String()
+	server := &http.Server{Addr: addr, Handler: s.handler(ctx)}
+	return runHTTPServer(ctx, "healthz server", addr, server, func() error {
+		return server.Serve(listener)
+	})
+}
+
+func (s *backendHealthzServer) handler(ctx context.Context) http.Handler {
+	logger := utils.LoggerFromContext(ctx)
 
 	backendHealthGauge := promauto.With(s.metricsRegisterer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
 
@@ -279,11 +332,26 @@ func (s *backendHealthzServer) Run(ctx context.Context) error {
 		backendHealthGauge.Set(1.0)
 	})
 
-	addr := listener.Addr().String()
-	server := &http.Server{Addr: addr, Handler: mux}
-	return runHTTPServer(ctx, "healthz server", addr, server, func() error {
-		return server.Serve(listener)
+	mux.HandleFunc("/startupz", func(w http.ResponseWriter, r *http.Request) {
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		iterator, err := s.resourcesDBClient.ResourcesGlobalListers().Subscriptions().List(queryCtx, &cosmosstorageutils.DBClientListResourceDocsOptions{
+			PageSizeHint: ptr.To(int32(1)),
+		})
+		if err == nil {
+			for range iterator.Items(queryCtx) {
+				break
+			}
+			err = iterator.GetError()
+		}
+		if err != nil {
+			logger.Error(err, "Startup probe failed")
+			http.Error(w, "Cosmos DB query failed", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	})
+	return mux
 }
 
 func (s *backendMetricsServer) Run(ctx context.Context) error {

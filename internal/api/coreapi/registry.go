@@ -69,9 +69,11 @@ const (
 	ClusterResourceTypeName                         = "hcpOpenShiftClusters"
 	ServiceProviderClusterResourceTypeName          = "serviceProviderClusters"
 	ServiceProviderNodePoolResourceTypeName         = "serviceProviderNodePools"
+	ServiceProviderExternalAuthResourceTypeName     = "serviceProviderExternalAuths"
 	VersionResourceTypeName                         = "hcpOpenShiftVersions"
 	NodePoolResourceTypeName                        = "nodePools"
 	ExternalAuthResourceTypeName                    = "externalAuths"
+	OperatorIdentityRoleSetResourceTypeName         = "hcpOperatorIdentityRoleSets"
 	OperationResultResourceTypeName                 = "hcpOperationResults"
 	OperationStatusResourceTypeName                 = "hcpOperationStatuses"
 	ControllerResourceTypeName                      = "hcpOpenShiftControllers"
@@ -83,19 +85,21 @@ const (
 )
 
 var (
-	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
-	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
-	NodePoolResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	ServiceProviderNodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
-	ExternalAuthResourceType            = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
-	PreflightResourceType               = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType                 = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
-	ClusterControllerResourceType       = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
-	NodePoolControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
-	ExternalAuthControllerResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
-	RequestAdminCredentialActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
-	RevokeAdminCredentialsActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
+	OperationStatusResourceType             = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
+	ClusterResourceType                     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	ServiceProviderClusterResourceType      = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
+	NodePoolResourceType                    = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ServiceProviderNodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
+	ServiceProviderExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ServiceProviderExternalAuthResourceTypeName))
+	ExternalAuthResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
+	PreflightResourceType                   = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType                     = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	OperatorIdentityRoleSetResourceType     = azcorearm.NewResourceType(ProviderNamespace, "locations/"+OperatorIdentityRoleSetResourceTypeName)
+	ClusterControllerResourceType           = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
+	NodePoolControllerResourceType          = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
+	ExternalAuthControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
+	RequestAdminCredentialActionType        = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
+	RevokeAdminCredentialsActionType        = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
 	// ClusterScopedManagementClusterContentResourceType is managementClusterContents nested directly under a Cluster
 	ClusterScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 	// NodePoolScopedManagementClusterContentResourceType is managementClusterContents nested under a Node Pool
@@ -126,6 +130,7 @@ type VersionedCluster VersionedCreatableResource[Cluster]
 type VersionedNodePool VersionedCreatableResource[NodePool]
 type VersionedExternalAuth VersionedCreatableResource[ExternalAuth]
 type VersionedOpenShiftVersion VersionedResource
+type VersionedOperatorIdentityRoleSet VersionedResource
 
 // ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
 // for this particular version.  This needs to be as close as possible, but perfection isn't required since fields
@@ -143,6 +148,7 @@ type Version interface {
 	NewNodePool(*NodePool) VersionedNodePool
 	NewExternalAuth(*ExternalAuth) VersionedExternalAuth
 	NewOpenShiftVersion(*OpenShiftVersion) VersionedOpenShiftVersion
+	NewOperatorIdentityRoleSet(*OperatorIdentityRoleSet) VersionedOperatorIdentityRoleSet
 
 	// Request Unmarshaling
 	UnmarshalClusterAdminCredentialRequest([]byte) (*ClusterAdminCredentialRequest, error)

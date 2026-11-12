@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -79,6 +80,7 @@ func NewCreateClusterScopedReadDesiresController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -91,14 +93,21 @@ func NewCreateClusterScopedReadDesiresController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CreateClusterScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHostedCluster)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, kubeapplierapi.ReadDesireNameServingCA)
+
+	return controller
 }
 
 func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -155,12 +164,13 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
-		// lister hasn't caught up). Skip and rely on retrigger. When the MC
-		// document is registered but misconfigured (e.g. missing its
-		// kube-applier container name), For() surfaces that loudly.
+		// lister hasn't caught up). Skip and rely on retrigger.
 		return nil
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -230,10 +240,8 @@ type desiredReadDesire struct {
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name
-// the backend uses for the HostedCluster mirror. It matches the existing
-// MaestroBundleInternalName in lowercase so the downstream
-// ManagementClusterContent document path stays stable across the migration.
-var readDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+// the backend uses for the HostedCluster mirror.
+const readDesireNameReadonlyHostedCluster = kubeapplierapi.ReadDesireNameReadonlyHostedCluster
 
 // hostedClusterTarget builds the ResourceReference that points at the
 // cluster's HostedCluster object in the management cluster. The naming

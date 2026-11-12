@@ -501,6 +501,11 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *coreap
 	if len(newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
 		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = oldInternalCluster.CustomerProperties.Platform.ManagedResourceGroup
 	}
+	if newKms := newInternalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; newKms != nil && newKms.Kms != nil && len(newKms.Kms.KeyVaultType) == 0 {
+		if oldKms := oldInternalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; oldKms != nil && oldKms.Kms != nil {
+			newKms.Kms.KeyVaultType = oldKms.Kms.KeyVaultType
+		}
+	}
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -585,13 +590,29 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *coreapi.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags == nil {
-		newInternalCluster.Tags = maps.Clone(oldInternalCluster.Tags)
+	// Tags must be read from the raw body rather than from newInternalCluster. Per
+	// RPC-Patch-V1-04 the request's tags replace all existing tags, but newExternalCluster
+	// above was seeded from oldInternalCluster and then overlaid by ApplyRequestBody, which
+	// is a JSON merge patch (RFC 7396) and merges objects key by key. So the stored tags
+	// survive the overlay, and newInternalCluster.Tags cannot tell us what the body asked
+	// for: it is never nil once the resource has tags, and "tags": {} leaves it unchanged.
+	//
+	// A nil map here means the body did not ask for a specific set of tags, either because
+	// "tags" was omitted or because it was explicitly null. In both cases we leave in place
+	// whatever the overlay produced. A non-nil map, even if empty, fully replaces the
+	// existing tags.
+	//
+	// The explicit "tags": null case is deliberately left to the overlay rather than given
+	// its own rule here. The RPC scopes RFC 7396 to the properties envelope and describes
+	// tags only in terms of the keys and values a request provides, so it does not say what
+	// a null tags member means. This code neither defines nor changes that behavior.
+	tags, err := coreapihelpers.TagsFromBody(body)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	if tags != nil {
+		newInternalCluster.Tags = tags
 	}
 
 	// set any missing defaults
@@ -733,17 +754,8 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	// TODO: TEMPORARY - Allow re-submitting DELETE for clusters stuck in legacy deletion.
-	// Remove once all legacy deletion clusters are cleaned up.
-	if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting && !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		logger.Info("allowing repeated DELETE for cluster stuck in legacy deletion approach",
-			"cluster", cluster.ID,
-			"provisioningState", cluster.ServiceProviderProperties.ProvisioningState,
-			"usesNewClusterDeletionApproach", cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach)
-	} else {
-		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
-			return utils.TrackError(err)
-		}
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, cosmosstorageutils.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
@@ -762,6 +774,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	return nil
 }
 
+// Adds a cluster delete operation and initializes child deletion when needed.
 func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction cosmosstorageutils.DBTransaction, cluster *coreapi.Cluster) error {
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
@@ -792,9 +805,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewClusterDeletionApproach = true
+
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -808,16 +819,14 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
+	now := f.clock.Now().UTC()
 	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
-		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
-	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 
-	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster)
+	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster, now)
 
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
@@ -825,37 +834,51 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	// recurse down to delete children
+	// Preserve initialized child deletions, but include children created while
+	// parent monitoring was Failed or admitted concurrently with deletion.
 	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteNodePoolToTransaction(ctx, nil, nil, transaction, nodePool); err != nil {
 			return utils.TrackError(err)
 		}
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return utils.TrackError(err)
 	}
 	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	for _, externalAuth := range externalAuthIterator.Items(ctx) {
+		if externalAuth.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
 		// don't include the writer/request so that we don't have conflicting notificationURIs
 		if err := f.addDeleteExternalAuthToTransaction(ctx, nil, nil, transaction, externalAuth); err != nil {
 			return utils.TrackError(err)
 		}
 	}
+	if err := externalAuthIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
 
 	return nil
 }
 
-func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster) *metav1.Time {
+// Computes the monitoring deadline for an accepted delete attempt.
+func computeDeleteOperationCompletionDeadline(cluster *coreapi.Cluster, now time.Time) *metav1.Time {
 	duration := admission.DefaultDeleteOperationCompletionDeadlineDuration
 	if cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout != nil {
 		duration = *cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout
 	}
-	deadline := metav1.NewTime(cluster.ServiceProviderProperties.DeletionTimestamp.Add(duration))
+	deadline := metav1.NewTime(now.Add(duration))
 	return &deadline
 }
 

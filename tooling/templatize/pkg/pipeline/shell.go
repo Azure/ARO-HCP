@@ -99,7 +99,26 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 	}
 
 	if azureConfigDir != "" {
-		envVars["AZURE_CONFIG_DIR"] = azureConfigDir
+		// Azure CLI persists its profile (azureProfile.json) with a non-atomic truncate-and-write and
+		// no locking, and an unparseable profile read mid-write is replaced with an empty one. Steps
+		// run concurrently and any of them may write the profile (`az account set`, `az login`), so
+		// sharing one config directory lets a concurrent reader wipe the subscription list for every
+		// other step ("subscription doesn't exist in cloud"). Give each step a private copy instead.
+		stepConfigDir, err := copyAzureConfigDir(azureConfigDir)
+		if err != nil {
+			return fmt.Errorf("failed to prepare Azure CLI config directory for step: %w", err)
+		}
+		defer func() {
+			if err := os.RemoveAll(stepConfigDir); err != nil {
+				logger.V(5).Error(err, "failed to remove step Azure CLI config directory", "dir", stepConfigDir)
+			}
+		}()
+		envVars["AZURE_CONFIG_DIR"] = stepConfigDir
+		// Every `az` invocation spawns a detached background process that uploads telemetry and
+		// keeps writing into the config directory (logs/, telemetry/) after the step returns. That
+		// races with the cleanup above ("directory not empty"). The directory is private and
+		// discarded, so there is nothing to collect; disable telemetry so no such process exists.
+		envVars["AZURE_CORE_COLLECT_TELEMETRY"] = "false"
 	}
 
 	cmd := createCommand(ctx, s.Command, workingDir, envVars)
@@ -314,6 +333,21 @@ func getAzureConfigDir(ctx context.Context, logger logr.Logger) (string, error) 
 	configDir := filepath.Dir(configFile)
 	logger.V(4).Info("Found Azure CLI config directory from az config get", "dir", configDir)
 	return configDir, nil
+}
+
+// copyAzureConfigDir creates a private, writable copy of the Azure CLI config directory template.
+// The template itself is never handed to a step, so it is never written and is always safe to copy
+// concurrently. The caller owns the returned directory and must remove it.
+func copyAzureConfigDir(templateDir string) (string, error) {
+	dir, err := os.MkdirTemp("", "azure-cli-step-config-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+	if err := os.CopyFS(dir, os.DirFS(templateDir)); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", fmt.Errorf("failed to copy Azure CLI config directory %q: %w", templateDir, err)
+	}
+	return dir, nil
 }
 
 func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string, error) {

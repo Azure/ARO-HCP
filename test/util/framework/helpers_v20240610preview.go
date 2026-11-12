@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 // ========================================================================
@@ -93,6 +94,7 @@ type NodePoolParams20240610 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	Tags             map[string]*string
+	EncryptionSetID  string
 }
 
 // ========================================================================
@@ -349,25 +351,20 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx
 // Functions from deployment_helper.go
 // ========================================================================
 
+// CreateHCPClusterFromParam20240610 records submission or provisioning time according to whether it waits for completion.
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
 	resourceGroupName string,
 	parameters ClusterParams20240610,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
 		defer cancel()
 	}
 	clusterName := parameters.ClusterName
-
-	startTime := time.Now()
-	defer func() {
-		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
-	}()
 
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
 
@@ -388,6 +385,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	return nil
 }
 
+// CreateNodePoolFromParam20240610 creates a node pool and records its provisioning duration.
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
@@ -396,14 +394,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	hcpClusterName string,
 	parameters NodePoolParams20240610,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
 	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestOperation(timing.KindCreateNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime, operationErr)
 	}()
 
 	nodePoolName := parameters.NodePoolName
@@ -430,28 +428,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 		nodePool,
 		timeout,
 	); err != nil {
-		// a separate context for console log download with its own timeout,
-		// to make sure logs are fetched even when the node pool deployment
-		// context is cancelled due to timeout
-		downloadTimeout := 5 * time.Minute
-		downloadCtx, downloadCancel := context.WithTimeoutCause(
-			ctx,
-			downloadTimeout,
-			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
-		defer downloadCancel()
-		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
-		if clientErr == nil {
-			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
-				downloadCtx,
-				computeFactory,
-				managedResourceGroupName,
-				tc.LogDirPath)
-			if consoleLogErr != nil {
-				logger.Error(consoleLogErr, "failed to download VM console logs")
-			}
-		} else {
-			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
-		}
+		tc.collectNodePoolFailureArtifacts(nodePoolCtx, logger, resourceGroupName, managedResourceGroupName, hcpClusterName, nodePoolName)
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
@@ -601,7 +578,7 @@ func deleteHCPClusterAttempt(
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 
@@ -611,13 +588,18 @@ func deleteHCPClusterAttempt(
 // DeleteHCPCluster20240610 deletes an hcp cluster and waits for the operation to complete
 // Transient ConflictingConcurrentWriteNotAllowed (409) errors are retried automatically
 // with exponential backoff.
-func DeleteHCPCluster20240610(
+func (tc *perItOrDescribeTestContext) DeleteHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
-) error {
+) (operationErr error) {
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestOperation(timing.KindDeleteCluster, fmt.Sprintf("Delete cluster %s/%s", resourceGroupName, hcpClusterName), startTime, time.Now(), operationErr)
+	}()
+
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
@@ -685,11 +667,25 @@ func UpdateHCPCluster20240610(
 	hcpClusterName string,
 	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
-) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+) (hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster, operationErr error) {
+	recorder := beginOperation()
+	startTime := time.Now()
+	defer func() {
+		recorder.Record(timing.KindUpdateCluster, fmt.Sprintf("Update HCP cluster %s/%s", resourceGroupName, hcpClusterName), startTime, time.Now(), operationErr)
+	}()
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
-	var hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating cluster %q in resource group %q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagClusterMaxUpdateDuration, timeout)
+
 	var lastTransientErr error
 	attempt := 0
 
@@ -761,7 +757,7 @@ func GetHCPCluster20240610(
 }
 
 // DeleteAllHCPClusters20240610 deletes all Clusters within a resource group and waits
-func DeleteAllHCPClusters20240610(
+func (tc *perItOrDescribeTestContext) DeleteAllHCPClusters20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -796,7 +792,7 @@ func DeleteAllHCPClusters20240610(
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			defer utilruntime.HandleCrashWithContext(ctx)
 
-			return DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, HCPClusterDeletionTimeout)
+			return tc.DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, HCPClusterDeletionTimeout)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {
@@ -856,7 +852,7 @@ func DeleteNodePool20240610(
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientDeleteResponse:
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 
@@ -915,9 +911,24 @@ func UpdateNodePoolAndWait20240610(
 	nodePoolName string,
 	update hcpsdk20240610preview.NodePoolUpdate,
 	timeout time.Duration,
-) (*hcpsdk20240610preview.NodePool, error) {
+) (nodePool *hcpsdk20240610preview.NodePool, operationErr error) {
+	recorder := beginOperation()
+	startTime := time.Now()
+	defer func() {
+		recorder.Record(timing.KindUpdateNodePool, fmt.Sprintf("Update node pool %s/%s", hcpClusterName, nodePoolName), startTime, time.Now(), operationErr)
+	}()
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	// A nil tag map means preserve existing tags, even when adding our deadline.
+	if update.Tags == nil {
+		current, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading tags before updating node pool %q in cluster %q resource group %q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+		}
+		update.Tags = current.Tags
+	}
+	update.Tags = updateTimeoutTags(update.Tags, metadataapi.TagNodePoolMaxUpdateDuration, timeout)
 
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {
@@ -1011,7 +1022,7 @@ func CreateOrUpdateExternalAuthAndWait20240610(
 		}
 		return &m.ExternalAuth, nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -1069,7 +1080,7 @@ func DeleteExternalAuthAndWait20240610(
 	case hcpsdk20240610preview.ExternalAuthsClientDeleteResponse:
 		return nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -1106,7 +1117,16 @@ func CreateHCPClusterAndWait20240610(
 	hcpClusterName string,
 	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
 	timeout time.Duration,
-) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+) (createdCluster *hcpsdk20240610preview.HcpOpenShiftCluster, operationErr error) {
+	recorder := beginOperation()
+	startTime := time.Now()
+	defer func() {
+		kind, format := timing.KindCreateCluster, "Deploy HCP cluster %s/%s"
+		if timeout <= 0*time.Second {
+			kind, format = timing.KindCreateClusterRequest, "Submit HCP cluster %s/%s"
+		}
+		recorder.Record(kind, fmt.Sprintf(format, resourceGroupName, hcpClusterName), startTime, time.Now(), operationErr)
+	}()
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
@@ -1153,7 +1173,7 @@ func CreateHCPClusterAndWait20240610(
 			}
 			return &m.HcpOpenShiftCluster, nil
 		default:
-			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 			return nil, fmt.Errorf("unknown type %T", m)
 		}
 	} else {
@@ -1173,14 +1193,14 @@ func BuildHCPClusterFromParams20240610(
 	parameters ClusterParams20240610,
 	location string,
 ) hcpsdk20240610preview.HcpOpenShiftCluster {
-
+	versionID, tags := buildControlPlaneVersion(parameters.OpenshiftVersionId, parameters.Tags)
 	return hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: parameters.Identity,
-		Tags:     parameters.Tags,
+		Tags:     tags,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{
-				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ID:           to.Ptr(versionID),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			Platform: &hcpsdk20240610preview.PlatformProfile{
@@ -1270,7 +1290,7 @@ func CreateNodePoolAndWait20240610(
 		}
 		return &m.NodePool, nil
 	default:
-		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -1298,6 +1318,10 @@ func BuildNodePoolFromParams20240610(
 				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 		},
+	}
+
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
 	}
 
 	if parameters.AutoScaling != nil {

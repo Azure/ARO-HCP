@@ -29,6 +29,9 @@
 			"state": "Disabled"
 		},
 		"cryptoRestrictions": "None",
+		"dns": {
+			"baseDomainPrefix": "cluster"
+		},
 		"etcd": {
 			"dataEncryption": {
 				"customerManaged": {
@@ -36,8 +39,9 @@
 					"kms": {
 						"activeKey": {
 							"name": "encryptionKeyName",
-							"version": "2024-12-01-preview"
+							"version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
 						},
+						"keyVaultType": "KeyVault",
 						"vaultName": "keyVaultName",
 						"visibility": "Public"
 					}

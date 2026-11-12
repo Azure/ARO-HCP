@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 deployment:
   replicas: {{ .maestro.server.k8s.replicas }}
   resources:

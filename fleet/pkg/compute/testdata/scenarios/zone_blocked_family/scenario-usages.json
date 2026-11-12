@@ -1,0 +1,47 @@
+[
+  {
+    "currentValue": 648,
+    "limit": 1632,
+    "name": {
+      "localizedValue": "Standard ESv3 Family vCPUs",
+      "value": "standardESv3Family"
+    },
+    "unit": "Count"
+  },
+  {
+    "currentValue": 0,
+    "limit": 100,
+    "name": {
+      "localizedValue": "Standard Edsv6 Family vCPUs",
+      "value": "StandardEdsv6Family"
+    },
+    "unit": "Count"
+  },
+  {
+    "currentValue": 0,
+    "limit": 100,
+    "name": {
+      "localizedValue": "Standard Edsv7 Family vCPUs",
+      "value": "StandardEdsv7Family"
+    },
+    "unit": "Count"
+  },
+  {
+    "currentValue": 0,
+    "limit": 100,
+    "name": {
+      "localizedValue": "Standard EDSv4 Family vCPUs",
+      "value": "standardEDSv4Family"
+    },
+    "unit": "Count"
+  },
+  {
+    "currentValue": 0,
+    "limit": 1376,
+    "name": {
+      "localizedValue": "Standard EDSv5 Family vCPUs",
+      "value": "standardEDSv5Family"
+    },
+    "unit": "Count"
+  }
+]

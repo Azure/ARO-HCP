@@ -25,7 +25,7 @@ func NewCommand(group string) (*cobra.Command, error) {
 		Short:   "Gather and analyze structured diagnostic snapshots",
 		GroupID: group,
 		Long: `Gather a minimal, structured diagnostic snapshot by tracing ARM requests
-through frontend, backend, Clusters Service, Maestro, and HyperShift.
+through frontend, backend, Clusters Service, and HyperShift.
 
 The output is a directory containing per-resource query results with a
 manifest.json index, suitable for automated analysis or manual review.

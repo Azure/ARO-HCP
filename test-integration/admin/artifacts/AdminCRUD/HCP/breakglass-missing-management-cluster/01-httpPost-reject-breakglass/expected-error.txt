@@ -1,0 +1,6 @@
+HTTP 404: {
+  "error": {
+    "code": "NotFound",
+    "message": "management cluster not found in fleet inventory"
+  }
+}

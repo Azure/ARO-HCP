@@ -174,7 +174,9 @@
         }
       ],
       "title": "CPU Usage per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -268,7 +270,9 @@
         }
       ],
       "title": "Memory Working Set per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -581,7 +585,9 @@
         }
       ],
       "title": "CPU Usage per Pod (cores)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -675,7 +681,9 @@
         }
       ],
       "title": "Memory Working Set per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -930,8 +938,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "Running"
+              "id": "byRegexp",
+              "options": "^[Rr][Uu][Nn][Nn][Ii][Nn][Gg]$"
             },
             "properties": [
               {
@@ -945,8 +953,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Pending"
+              "id": "byRegexp",
+              "options": "^[Pp][Ee][Nn][Dd][Ii][Nn][Gg]$"
             },
             "properties": [
               {
@@ -960,8 +968,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Failed"
+              "id": "byRegexp",
+              "options": "^[Ff][Aa][Ii][Ll][Ee][Dd]$"
             },
             "properties": [
               {
@@ -975,8 +983,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Succeeded"
+              "id": "byRegexp",
+              "options": "^[Ss][Uu][Cc][Cc][Ee][Ee][Dd][Ee][Dd]$"
             },
             "properties": [
               {
@@ -1020,44 +1028,11 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
+          "expr": "sum by (phase) (max without (prometheus_replica) (kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=~\"Running|Pending|Failed|Succeeded\"}))",
           "instant": true,
           "range": false,
-          "legendFormat": "Running",
+          "legendFormat": "{{phase}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Pending",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Failed",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource_hcp}"
-          },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Succeeded",
-          "refId": "D"
         }
       ],
       "title": "Current Pod Phase",
@@ -1157,7 +1132,9 @@
         }
       ],
       "title": "Container Restart Count per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1253,7 +1230,9 @@
         }
       ],
       "title": "OOMKilled Events Timeline",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1325,7 +1304,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "expr": "max without (prometheus_replica) (kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}) == 1",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -1350,24 +1329,6 @@
               "pod": "Pod",
               "reason": "Termination Reason"
             }
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 0
-                  }
-                },
-                "fieldName": "Active"
-              }
-            ],
-            "match": "any",
-            "type": "include"
           }
         }
       ],
@@ -1478,7 +1439,9 @@
         }
       ],
       "title": "Network Receive Bytes per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1572,7 +1535,9 @@
         }
       ],
       "title": "Network Transmit Bytes per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1678,7 +1643,9 @@
         }
       ],
       "title": "Network Error Rate per Pod",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -1792,7 +1759,9 @@
         }
       ],
       "title": "Filesystem Usage per Volume",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1886,7 +1855,9 @@
         }
       ],
       "title": "Disk Read Bytes per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -1980,7 +1951,9 @@
         }
       ],
       "title": "Disk Write Bytes per Container",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -2095,7 +2068,9 @@
         }
       ],
       "title": "etcd Disk WAL fsync Latency (p99)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2352,7 +2327,9 @@
         }
       ],
       "title": "HCP Namespace CPU Usage (cores)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2448,7 +2425,9 @@
         }
       ],
       "title": "HCP Namespace Memory Usage",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2554,7 +2533,9 @@
         }
       ],
       "title": "HCP Namespace Network I/O",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2642,14 +2623,16 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HCP Namespace CPU % per user (userswft) Node",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "datasource": {
@@ -2737,14 +2720,16 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"},\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    sum by (instance) (max without (prometheus_replica) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HCP Namespace Memory % per user (userswft) Node",
-      "type": "timeseries"
+      "type": "timeseries",
+      "interval": "1m",
+      "maxDataPoints": 300
     },
     {
       "collapsed": false,
@@ -3004,9 +2989,9 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${datasource_hcp}"
+          "uid": "${datasource_svc}"
         },
-        "definition": "label_values(apiserver_request_total, cluster)",
+        "definition": "query_result(count by (cluster) (kube_node_status_allocatable{resource=\"cpu\", cluster=~\".*-mgmt-[0-9]+\"}))",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster (MGMT)",
@@ -3014,11 +2999,11 @@
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total, cluster)",
+          "query": "query_result(count by (cluster) (kube_node_status_allocatable{resource=\"cpu\", cluster=~\".*-mgmt-[0-9]+\"}))",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
-        "regex": "^.*-mgmt-\\d+$",
+        "refresh": 1,
+        "regex": "/cluster=\"([^\"]+)\"/",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
@@ -3029,7 +3014,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+        "definition": "label_values(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}, namespace)",
         "hide": 0,
         "includeAll": false,
         "label": "Namespace (HCP)",
@@ -3037,10 +3022,10 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+          "query": "label_values(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=~\"ocm-.*\"}, namespace)",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "^ocm-.*$",
         "skipUrlSync": false,
         "sort": 1,
@@ -3054,7 +3039,7 @@
   },
   "timepicker": {},
   "timezone": "utc",
-  "refresh": "30s",
+  "refresh": "1m",
   "version": 0,
   "weekStart": ""
 }

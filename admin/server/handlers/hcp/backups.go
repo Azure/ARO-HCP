@@ -137,7 +137,10 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get kube-applier client: %w", err))
+	}
 	if kubeApplierClient == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
@@ -160,8 +163,7 @@ func (h *HCPGetBackupScheduleHandler) ServeHTTP(writer http.ResponseWriter, requ
 		if _, ok := readDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		scheduleName := strings.TrimPrefix(readDesire.ResourceID.Name, backup.BackupScheduleDesireNamePrefix)
-		detail := BackupScheduleDetail{Name: scheduleName}
+		detail := BackupScheduleDetail{Name: readDesire.Spec.TargetItem.Name}
 		if readDesire.Status.KubeContent != nil && readDesire.Status.KubeContent.Raw != nil {
 			var schedule velerov1api.Schedule
 			err := json.Unmarshal(readDesire.Status.KubeContent.Raw, &schedule)
@@ -272,7 +274,10 @@ func (h *HCPGetOnDemandBackupsHandler) ServeHTTP(writer http.ResponseWriter, req
 			"management cluster placement not resolved for cluster %s", clusterDetails.cluster.ResourceID.String())
 	}
 
-	kubeApplierClient := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	kubeApplierClient, err := h.kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get kube-applier client: %w", err))
+	}
 	if kubeApplierClient == nil {
 		return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
 			"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())

@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 # Global values that are shared with subcharts
 global:
   imageDigest: "{{ .clustersService.image.digest }}"

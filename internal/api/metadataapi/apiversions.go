@@ -43,7 +43,7 @@ const (
 	APIVersionV20251223Preview APIVersion = "2025-12-23-preview"
 	APIVersionV20260630Preview APIVersion = "2026-06-30-preview"
 	APIVersionV20260901Preview APIVersion = "2026-09-01-preview"
-	APIVersionV20261001Preview APIVersion = "2026-10-01-preview"
+	APIVersionV20261001        APIVersion = "2026-10-01"
 )
 
 // APIVersionOption returns the operation option string for an API version,
@@ -53,10 +53,11 @@ func APIVersionOption(version APIVersion) string {
 }
 
 // APIVersionFromOptions extracts the API version from operation options.
-// Returns an empty string if no API version option is present.
-func APIVersionFromOptions(options []string) APIVersion {
-	for _, opt := range options {
-		if version, ok := strings.CutPrefix(opt, apiVersionOptionPrefix); ok {
+// Returns an empty string if no API version option is enabled and defined.
+func APIVersionFromOptions(options map[string]bool) APIVersion {
+	for option := range options {
+		enabled, defined := options[option]
+		if version, ok := strings.CutPrefix(option, apiVersionOptionPrefix); ok && enabled && defined {
 			return APIVersion(version)
 		}
 	}

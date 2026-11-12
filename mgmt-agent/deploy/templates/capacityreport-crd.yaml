@@ -138,7 +138,7 @@ spec:
                         x-kubernetes-int-or-string: true
               usage:
                 description: >-
-                  Actual resource consumption across HCP workloads in ocm-* namespaces, sourced from metrics-server PodMetrics.
+                  Consumption across HCP namespaces from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
                 type: object
                 maxProperties: 16
                 additionalProperties:
@@ -150,7 +150,7 @@ spec:
                   x-kubernetes-int-or-string: true
               requested:
                 description: >-
-                  Sum of resource requests across regular (non-init) containers of non-terminal pods (phase is not Succeeded or Failed) in ocm-* namespaces. This approximates steady-state reservation.
+                  Sum of regular-container requests for Pending and Running pods in HCP namespaces, excluding init containers and pod overhead. This approximates steady-state reservation and may differ from actual usage.
                 type: object
                 maxProperties: 16
                 additionalProperties:
@@ -162,7 +162,7 @@ spec:
                   x-kubernetes-int-or-string: true
               hostedControlPlanes:
                 description: >-
-                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer and there is no need to track ownership of readyResourceIDs/notReadyResourceIDs individually.
+                  Reported as a single atomic unit: the whole object is replaced on every apply, since mgmt-agent is the sole writer. This removes stale identities and size buckets, including the final named bucket. Resource totals measure HCP workloads; overall identity lists and per-size ready counts deduplicate ARM resource IDs by exact, case-sensitive string equality, rather than counting measured HCP objects. Legacy reports may omit resources, readyResources and byClusterSizingConfiguration. Failed collections preserve the existing payload, including absent fields.
                 type: object
                 x-kubernetes-map-type: atomic
                 properties:
@@ -180,6 +180,132 @@ spec:
                     items:
                       type: string
                     x-kubernetes-list-type: set
+                  resources:
+                    description: >-
+                      Usage and requests for all HCPs, including HCPs without usable size attribution. Absence means not reported, not zero. Successful collections by new collectors always include this object and dual-write the same totals to the legacy status.usage and status.requested. Both maps include CPU, memory and aro.openshift.io/swift-nic, with zero values when no matching workload exists.
+                    type: object
+                    required:
+                    - usage
+                    - requested
+                    properties:
+                      usage:
+                        description: >-
+                          Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                      requested:
+                        description: >-
+                          Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                  readyResources:
+                    description: >-
+                      Usage and requests for all HCPs whose Available condition is True, including HCPs without usable size attribution. Absence means not reported, not zero. Successful collections by new collectors always include this object and CPU, memory and aro.openshift.io/swift-nic in both maps, with zero values when no HCP is ready.
+                    type: object
+                    required:
+                    - usage
+                    - requested
+                    properties:
+                      usage:
+                        description: >-
+                          Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                      requested:
+                        description: >-
+                          Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                  byClusterSizingConfiguration:
+                    description: >-
+                      HCP populations grouped by the associated HostedCluster's observed hypershift.openshift.io/hosted-cluster-size label. The HCP's hypershift.openshift.io/cluster annotation identifies that HostedCluster as namespace/name. Missing associations or noncanonical/reserved labels contribute only to overall accounting, so named buckets are not exhaustive. When no HCP has usable attribution this list is omitted or empty; that alone does not indicate a legacy report. Resource totals measure each bucket's HCP workloads; readyCount counts distinct ready ARM resource IDs, not measured HCP objects.
+                    type: array
+                    x-kubernetes-list-type: map
+                    x-kubernetes-list-map-keys:
+                    - size
+                    items:
+                      type: object
+                      required:
+                      - size
+                      - readyResources
+                      - readyCount
+                      properties:
+                        size:
+                          description: >-
+                            Canonical lowercase observed HostedCluster size label value, excluding the reserved name default.
+                          type: string
+                          minLength: 1
+                          maxLength: 63
+                          pattern: '^[a-z0-9]([-a-z0-9_.]*[a-z0-9])?$'
+                          x-kubernetes-validations:
+                          - rule: "self != 'default'"
+                            message: default is reserved for overall accounting
+                        readyResources:
+                          description: >-
+                            Usage and requests for HCPs in this size bucket whose Available condition is True. Required even when no HCP in the bucket is ready. Successful collections include CPU, memory and aro.openshift.io/swift-nic in both maps, with zero values for an empty ready population.
+                          type: object
+                          required:
+                          - usage
+                          - requested
+                          properties:
+                            usage:
+                              description: >-
+                                Consumption from PodMetrics, except aro.openshift.io/swift-nic usage, which equals its requested allocation.
+                              type: object
+                              maxProperties: 16
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                # Standard Kubernetes resource.Quantity validation pattern
+                                pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                                x-kubernetes-int-or-string: true
+                            requested:
+                              description: >-
+                                Sum of regular-container requests for Pending and Running pods, excluding init containers and pod overhead.
+                              type: object
+                              maxProperties: 16
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                # Standard Kubernetes resource.Quantity validation pattern
+                                pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                                x-kubernetes-int-or-string: true
+                        readyCount:
+                          description: >-
+                            Number of distinct ARM resource IDs of HCPs in this size bucket whose Available condition is True, using exact, case-sensitive string equality. Zero when no HCP in the bucket is ready.
+                          type: integer
+                          format: int32
+                          minimum: 0
               averageHCPResourceUsage:
                 description: >-
                   Average actual resource consumption per ready HCP. Omitted when readyResourceIDs is empty.

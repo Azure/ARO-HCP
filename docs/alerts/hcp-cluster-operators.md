@@ -108,6 +108,9 @@ This alert is *only* about the version operator, and it is the one alert that
 needs special treatment because the version operator reports differently from
 every other operator.
 
+For the behavior of this alert and the upgrade journey alerts after a version
+rollback, see [Version alerts after a rollback](post-rollback-version-alerts.md).
+
 `name="version"` is not an ordinary cluster operator. It is the `ClusterVersion`
 object, and its `Failing` condition is a roll-up: the CVO reads every constituent
 operator's health and folds it into `version Failing`. That roll-up is why we do

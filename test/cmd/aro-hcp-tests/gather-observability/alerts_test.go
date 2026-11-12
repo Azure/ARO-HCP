@@ -106,11 +106,11 @@ func TestToAlert(t *testing.T) {
 					},
 					Context: map[string]any{
 						"labels": map[string]any{
-							"alertname": "MaestroRESTAPIErrorRate",
+							"alertname": "BackendControllerQueueDepthHigh",
 						},
 						"annotations": map[string]any{
-							"summary":     "Maestro REST API error rate above 5%",
-							"description": "More than 5% of REST API requests are returning 5xx status codes.",
+							"summary":     "Backend controller workqueue depth is high",
+							"description": "Backend controller workqueue depth has exceeded 10 for more than 15 minutes.",
 						},
 					},
 				},
@@ -234,7 +234,7 @@ func TestAlertsPipeline(t *testing.T) {
 						"summary":       "Backend controller workqueue operationnodepooldelete retry hot loop",
 						"title":         "Backend controller workqueue operationnodepooldelete retry hot loop",
 					},
-					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\"}[10m]) ) ) ) > 0.5",
+					"expression": "( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace=\"aro-hcp\", name!~\"clustervalidation.*|nodepoolvalidation.*\"}[10m]) ) ) ) > 0.5",
 				},
 			},
 		},

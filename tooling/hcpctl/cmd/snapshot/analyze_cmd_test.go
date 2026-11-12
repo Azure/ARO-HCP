@@ -21,13 +21,193 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
 )
+
+func TestValidateClaudeCodeProvider(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts := defaultAnalyzeOptions()
+	opts.DataDir = dataDir
+	opts.AROHCPPath = dataDir
+	opts.HypershiftPath = dataDir
+	opts.ClustersServicePath = dataDir
+	cmd := &cobra.Command{}
+	if err := bindAnalyzeOptions(opts, cmd); err != nil {
+		t.Fatal(err)
+	}
+	// A legacy invocation must accept --maestro without checking or using its path.
+	if err := cmd.ParseFlags([]string{"--provider=claude-code", "--model=custom-model", "--maestro=" + filepath.Join(dataDir, "missing-maestro")}); err != nil {
+		t.Fatal(err)
+	}
+	validated, err := opts.validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(validated.worktreePaths) != 3 || validated.worktreePaths["maestro"] != "" {
+		t.Fatalf("compatibility flag changed source checkouts: %v", validated.worktreePaths)
+	}
+	if validated.claudeCodeConfig == nil || validated.claudeCodeConfig.Model != "custom-model" || validated.copilotConfig != nil || validated.claudeConfig != nil {
+		t.Fatal("claude-code did not select its own configuration")
+	}
+	opts.AnthropicAPIKeyFile = filepath.Join(dataDir, "missing-key")
+	if _, err := opts.validate(); err == nil || !strings.Contains(err.Error(), "--anthropic-api-key-file") {
+		t.Fatalf("missing API key file not rejected: %v", err)
+	}
+	if err := os.WriteFile(opts.AnthropicAPIKeyFile, []byte("test-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	validated, err = opts.validate()
+	if err != nil || validated.claudeCodeConfig.APIKeyFile != opts.AnthropicAPIKeyFile {
+		t.Fatalf("API key file not forwarded: %v", err)
+	}
+	if validated.claudeCodeConfig.Backend != agent.ClaudeBackendAPI {
+		t.Fatal("default API backend not forwarded")
+	}
+}
+
+func TestValidateCopilotContextWindow(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "AzureCLICredential")
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name      string
+		flags     []string
+		want      int
+		wantModel string
+		wantErr   string
+	}{
+		{name: "omitted"},
+		{name: "zero", flags: []string{"--context-window-size=0"}},
+		{name: "raw count", flags: []string{"--context-window-size=128000"}, want: 128000},
+		{name: "k suffix", flags: []string{"--context-window-size=200k"}, want: 200000},
+		{name: "uppercase suffix", flags: []string{"--context-window-size=900K"}, want: 900000},
+		{name: "preserves model override", flags: []string{"--model=other-deployment", "--context-window-size=900k"}, want: 900000, wantModel: "other-deployment"},
+		{name: "invalid size", flags: []string{"--context-window-size=1.5k"}, wantErr: "--context-window-size: invalid token count"},
+		{name: "logged-in", flags: []string{"--auth-mode=logged-in", "--context-window-size=128k"}, wantErr: "--auth-mode=byok"},
+		{name: "token", flags: []string{"--auth-mode=token", "--context-window-size=128k"}, wantErr: "--auth-mode=byok"},
+		{name: "claude", flags: []string{"--provider=claude", "--context-window-size=128k"}, wantErr: "--provider=copilot"},
+		{name: "claude-code", flags: []string{"--provider=claude-code", "--context-window-size=128k"}, wantErr: "--provider=copilot"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := defaultAnalyzeOptions()
+			opts.DataDir = dataDir
+			opts.AROHCPPath = dataDir
+			opts.HypershiftPath = dataDir
+			opts.ClustersServicePath = dataDir
+			cmd := &cobra.Command{}
+			if err := bindAnalyzeOptions(opts, cmd); err != nil {
+				t.Fatal(err)
+			}
+			flags := []string{"--auth-mode=byok", "--model-endpoint=https://example.invalid", "--model-deployment=ci-analysis"}
+			if err := cmd.ParseFlags(append(flags, tc.flags...)); err != nil {
+				t.Fatal(err)
+			}
+			got, err := opts.validate()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("validate() error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.copilotConfig.MaxPromptTokens != tc.want {
+				t.Errorf("MaxPromptTokens = %d, want %d", got.copilotConfig.MaxPromptTokens, tc.want)
+			}
+			if got.copilotConfig.Model != tc.wantModel || got.model != tc.wantModel || got.copilotConfig.ModelDeployment != "ci-analysis" {
+				t.Fatalf("context option changed model selection: %+v", got.copilotConfig)
+			}
+		})
+	}
+}
+
+func TestValidateClaudeBackends(t *testing.T) {
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, provider := range []string{providerClaude, providerClaudeCode} {
+		for _, test := range []struct {
+			name                    string
+			flags                   []string
+			envProject, envRegion   string
+			wantProject, wantRegion string
+			wantErr                 string
+		}{
+			{name: "missing project", flags: []string{"--claude-backend=vertex", "--vertex-region=us-east5"}, wantErr: "--vertex-project"},
+			{name: "missing region", flags: []string{"--claude-backend=vertex", "--vertex-project=test-project"}, wantErr: "--vertex-region"},
+			{
+				name:       "explicit vertex flags",
+				flags:      []string{"--claude-backend=vertex", "--vertex-project=test-project", "--vertex-region=us-east5", "--anthropic-api-key-file=" + filepath.Join(dataDir, "unused-key")},
+				envProject: "ignored-project", envRegion: "ignored-region", wantProject: "test-project", wantRegion: "us-east5",
+			},
+			{
+				name: "vertex environment fallback", flags: []string{"--claude-backend=vertex"},
+				envProject: "env-project", envRegion: "us-east5", wantProject: "env-project", wantRegion: "us-east5",
+			},
+			{name: "unknown backend", flags: []string{"--claude-backend=unsupported"}, wantErr: "unknown --claude-backend"},
+		} {
+			t.Run(provider+"/"+test.name, func(t *testing.T) {
+				t.Setenv("GOOGLE_VERTEX_PROJECT_ID", test.envProject)
+				t.Setenv("GOOGLE_VERTEX_REGION", test.envRegion)
+				opts := defaultAnalyzeOptions()
+				opts.DataDir = dataDir
+				opts.AROHCPPath = dataDir
+				opts.HypershiftPath = dataDir
+				opts.ClustersServicePath = dataDir
+				cmd := &cobra.Command{}
+				if err := bindAnalyzeOptions(opts, cmd); err != nil {
+					t.Fatal(err)
+				}
+				flags := append([]string{"--provider=" + provider, "--model=custom-model", "--anthropic-model=custom-anthropic-model"}, test.flags...)
+				if err := cmd.ParseFlags(flags); err != nil {
+					t.Fatal(err)
+				}
+				validated, err := opts.validate()
+				if test.wantErr != "" {
+					if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+						t.Fatalf("expected error containing %q, got %v", test.wantErr, err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if provider == providerClaudeCode {
+					want := &agent.ClaudeCodeConfig{
+						Backend: agent.ClaudeBackendVertex, VertexProject: test.wantProject, VertexRegion: test.wantRegion,
+						Model: "custom-model", APIKeyFile: opts.AnthropicAPIKeyFile,
+					}
+					if !reflect.DeepEqual(validated.claudeCodeConfig, want) || validated.claudeConfig != nil {
+						t.Fatalf("claude-code config = %+v, want %+v", validated.claudeCodeConfig, want)
+					}
+				} else {
+					want := &agent.ClaudeConfig{
+						Backend: agent.ClaudeBackendVertex, VertexProject: test.wantProject, VertexRegion: test.wantRegion,
+						Model: "custom-anthropic-model", APIKeyFile: opts.AnthropicAPIKeyFile,
+					}
+					if !reflect.DeepEqual(validated.claudeConfig, want) || validated.claudeCodeConfig != nil {
+						t.Fatalf("claude config = %+v, want %+v", validated.claudeConfig, want)
+					}
+				}
+			})
+		}
+	}
+}
 
 type fakeAnalysisSession struct {
 	usage               agent.UsageReport
@@ -193,5 +373,68 @@ func TestFinalizeAnalysisSessionReturnsUsageWriteError(t *testing.T) {
 	}
 	if !session.disconnectWasCalled || session.deleteWasCalled {
 		t.Errorf("session cleanup = disconnect:%t delete:%t, want disconnect only", session.disconnectWasCalled, session.deleteWasCalled)
+	}
+}
+
+func TestValidateReasoningEffort(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "manifest.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		provider, effort, wantErr string
+	}{
+		{provider: providerCopilot},
+		{provider: providerCopilot, effort: "high"},
+		{provider: providerCopilot, effort: "minimal"},
+		{provider: providerCopilot, effort: "bogus", wantErr: "--effort"},
+		{provider: providerClaude},
+		{provider: providerClaude, effort: "high"},
+		{provider: providerClaude, effort: "minimal", wantErr: "--effort"},
+		{provider: providerClaudeCode},
+		{provider: providerClaudeCode, effort: "max"},
+		{provider: providerClaudeCode, effort: "none", wantErr: "--effort"},
+	} {
+		t.Run(test.provider+"/"+test.effort, func(t *testing.T) {
+			opts := defaultAnalyzeOptions()
+			opts.DataDir = dataDir
+			opts.AROHCPPath = dataDir
+			opts.HypershiftPath = dataDir
+			opts.ClustersServicePath = dataDir
+			cmd := &cobra.Command{}
+			if err := bindAnalyzeOptions(opts, cmd); err != nil {
+				t.Fatal(err)
+			}
+			flags := []string{"--provider=" + test.provider}
+			if test.effort != "" {
+				flags = append(flags, "--effort="+test.effort)
+			}
+			if err := cmd.ParseFlags(flags); err != nil {
+				t.Fatal(err)
+			}
+			validated, err := opts.validate()
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", test.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got string
+			switch test.provider {
+			case providerCopilot:
+				got = validated.copilotConfig.ReasoningEffort
+			case providerClaude:
+				got = validated.claudeConfig.ReasoningEffort
+			case providerClaudeCode:
+				got = validated.claudeCodeConfig.ReasoningEffort
+			}
+			if got != test.effort {
+				t.Fatalf("forwarded effort = %q, want %q", got, test.effort)
+			}
+		})
 	}
 }

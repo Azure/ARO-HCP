@@ -15,10 +15,9 @@ The workflow has two steps:
 - Azure CLI logged in (`az login`) — needed for Kusto queries.
 - GitHub Copilot CLI [installed](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
   and authenticated (`gh auth login`) — needed for the analysis agent.
-- Local git checkouts of the four repositories at the commits that were deployed
+- Local git checkouts of the three repositories at the commits that were deployed
   when the test ran: ARO-HCP (this repository),
   [HyperShift](https://github.com/openshift/hypershift),
-  [Maestro](https://github.com/openshift-online/maestro),
   and [Clusters Service](https://github.com/openshift-online/aro-hcp-clusters-service).
 
 ## Step 1: Gather
@@ -42,13 +41,18 @@ and gathers:
 The output directory defaults to `snapshot-<timestamp>/` and can be overridden
 with `--output-dir`.
 
+### Ignition bootstrap diagnostics
+
+Cluster and node-pool snapshots include phase-bounded ignition-server log summaries and events once the HostedCluster namespace is discovered. Queries cover both the HostedCluster and hosted control plane namespaces. Per-resource results are written to `logs/hypershift/ignitionServerLogs.md` and `events/hypershift/ignitionServerEvents.md`.
+
+Log summaries preserve message/error content by replica with first/last occurrence and record count, falling back to the original log content for plain-text or unrecognized records. Events retain every reason and message, not just known failures. Both queries include sibling pools; token Secret event identities provide pool attribution. Kubernetes Event counts are cumulative, not window-local request counts. These diagnostics do not replace guest console logs or prove a per-VM boot outcome. Empty results are informational, not proof that bootstrap succeeded.
+
 ## Step 2: Analyze
 
 ```bash
 hcpctl snapshot analyze ./snapshot-20250101-120000/periodic-ci-.../1234567890/TestNodePoolCreation \
   --aro-hcp ~/code/ARO-HCP \
   --hypershift ~/code/hypershift \
-  --maestro ~/code/maestro \
   --clusters-service ~/code/clusters-service
 ```
 

@@ -28,7 +28,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v9"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/agentpools"
 	"github.com/Azure/ARO-HCP/fleet/pkg/azure/quota"
@@ -162,7 +162,7 @@ func (s *nodePoolSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Mana
 	}
 
 	resolved, err := compute.ResolveDesiredPools(ctx, s.skuCache, aksResourceID.SubscriptionID, s.profile, s.zones,
-		s.usageFetcher(aksResourceID.SubscriptionID))
+		poolZonesByRole(pools), s.usageFetcher(aksResourceID.SubscriptionID))
 	if err != nil {
 		return utils.TrackError(err)
 	}

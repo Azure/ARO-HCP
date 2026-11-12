@@ -22,10 +22,12 @@ const (
 	// For an ApplyDesire it is retained for backwards compatibility and mirrors
 	// whichever operation-specific condition applies — ConditionTypeSuccessfullyApplied
 	// for Type=ServerSideApply, ConditionTypeSuccessfullyDeleted for Type=Delete.
-	// Readers should prefer the operation-specific condition (see
-	// kubeapplierapihelpers.IsConditionTruePreferring) and fall back to this one
+	// For Type=ServerSideApply, readers should prefer the operation-specific condition
+	// and fall back to this one
 	// only when the operation-specific condition is absent (e.g. a document last
-	// written by an older kube-applier). It remains the primary condition for a
+	// written by an older kube-applier). For Type=Delete, readers must require
+	// ConditionTypeSuccessfullyDeleted as the authoritative delete-completion signal.
+	// ConditionTypeSuccessful remains the primary condition for a
 	// ReadDesire, which has a single observe operation.
 	ConditionTypeSuccessful = "Successful"
 

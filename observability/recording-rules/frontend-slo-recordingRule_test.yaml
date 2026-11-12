@@ -83,16 +83,18 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-1"}'
       value: 0.25
-  - expr: sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}
+  # Allow only sub-picosecond rounding differences in interpolated quantiles.
+  # The bool comparison still requires a sample with the expected cluster label.
+  - expr: abs(sli:frontend_http:latency_p99:rate5m{cluster="svc-1"} - 0.964) < bool 1e-12
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="sli:frontend_http:latency_p99:rate5m", cluster="svc-1"}'
-      value: 0.9639999999999997
-  - expr: sli:frontend_http:latency_p95:rate5m{cluster="svc-1"}
+    - labels: '{cluster="svc-1"}'
+      value: 1
+  - expr: abs(sli:frontend_http:latency_p95:rate5m{cluster="svc-1"} - 0.82) < bool 1e-12
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="sli:frontend_http:latency_p95:rate5m", cluster="svc-1"}'
-      value: 0.8199999999999994
+    - labels: '{cluster="svc-1"}'
+      value: 1
   - expr: sli:frontend:ready:ratio5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:

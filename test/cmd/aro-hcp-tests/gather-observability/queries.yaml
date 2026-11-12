@@ -70,13 +70,13 @@ panels:
       (
         sum by (name, cluster) (
           max without(prometheus_replica) (
-            rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
+            rate(workqueue_retries_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
           )
         )
         /
         sum by (name, cluster) (
           max without(prometheus_replica) (
-            rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
+            rate(workqueue_adds_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
           )
         )
       )
@@ -314,7 +314,7 @@ panels:
 - title: "CosmosDB Metrics"
   queries:
   - title: "RU Consumption vs Provisioned"
-    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). This is the hottest physical partition's worst single second, not container average: a single hot partition (e.g. one subscription) pins it at 100% even when total usage is low and no 429s are occurring. Split by PartitionKeyRangeId to find the hot partition; only actionable alongside the 'Cosmos DB Throttled Requests High' alert."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Maximum
@@ -435,100 +435,6 @@ panels:
     legendLabels:
       container: calling_service
       source_kind: source_kind
-- title: "Maestro Metrics"
-  queries:
-  - title: "REST API Request Rate by Status"
-    description: "Rate of REST API requests grouped by HTTP status code. Clusters-service and backend use this API for resource CRUD. Non-2xx codes indicate client errors (4xx) or server failures (5xx)."
-    query: |
-      sum by (code) (
-        rate(rest_api_inbound_request_count{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "gRPC Server Call Rate"
-    description: "Rate of gRPC calls by type (publish/subscribe). Publish distributes resource specs to management cluster work agents. Subscribe receives status updates back. Shows communication volume between Maestro and its clients."
-    query: |
-      sum by (type) (
-        rate(grpc_server_called_total{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "gRPC Server Error Rate"
-    description: "Rate of gRPC calls completed with non-OK status codes, by type and error code. Non-zero values indicate communication failures between Maestro and source clients or management cluster agents."
-    query: |
-      sum by (type, code) (
-        rate(grpc_server_processed_total{namespace="maestro", code!="OK"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "gRPC Registered Source Clients"
-    description: "Number of source clients (clusters-service, backend) connected to the Maestro gRPC server. Source clients subscribe to resource status updates broadcast by Maestro when management cluster work agents report back."
-    query: |
-      sum by (cluster) (
-        grpc_server_registered_source_clients{namespace="maestro"}
-      )
-    unit: clients
-    workspace: svc
-    step: "60s"
-  - title: "Spec Controller Reconcile Rate"
-    description: "Rate of spec controller reconciliations by status (success/error). The spec controller distributes resource specs to management cluster work agents via CloudEvents. Errors mean resources are not reaching their target clusters."
-    query: |
-      sum by (status) (
-        rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "Status Controller Reconcile Rate"
-    description: "Rate of status controller reconciliations by status (success/error). The status controller processes resource status updates received from management cluster work agents and broadcasts them to source clients."
-    query: |
-      sum by (status) (
-        rate(status_controller_event_reconcile_total{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "Resource Processing Rate"
-    description: "Rate of resources processed by the Maestro server, broken down by action (create, update, delete). Incremented in the resource service each time a resource bundle is successfully applied."
-    query: |
-      sum by (action) (
-        rate(resource_processed_total{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "CloudEvents Flow"
-    description: "Rate of CloudEvents sent from the Maestro server to work agents on management clusters, broken down by action and event type. Tracks the flow of resource spec updates (create, update, delete, resync) from the control plane to management clusters."
-    query: |
-      sum by (action, type) (
-        rate(cloudevents_sent_total{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
-  - title: "Advisory Lock Latency p99"
-    description: "99th percentile of PostgreSQL advisory lock hold duration. Maestro uses advisory locks to prevent race conditions in resource operations and for leader election. Sustained high latency indicates database contention."
-    query: |
-      histogram_quantile(0.99,
-        sum by (le) (
-          rate(advisory_lock_duration_bucket{namespace="maestro"}[5m])
-        )
-      )
-    unit: seconds
-    workspace: svc
-    step: "60s"
-  - title: "Advisory Lock Rate"
-    description: "Rate of advisory lock acquisitions by type (resources, resource_status, events, instances). Shows database locking activity patterns. High lock rates on a specific type may indicate contention."
-    query: |
-      sum by (type) (
-        rate(advisory_lock_count{namespace="maestro"}[5m])
-      )
-    unit: /s
-    workspace: svc
-    step: "60s"
 - title: "Service Workload Metrics"
   queries:
   - title: "Top 20 Container CPU Usage"
@@ -540,7 +446,7 @@ panels:
             rate(container_cpu_usage_seconds_total{
               container!="",
               container!="POD",
-              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
             }[5m])
           )
         )
@@ -557,7 +463,7 @@ panels:
             container_memory_working_set_bytes{
               container!="",
               container!="POD",
-              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
+              namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|prometheus|secret-sync-controller|sessiongate"
             }
           )
         )
@@ -572,7 +478,7 @@ panels:
         max by (cluster, namespace, pod) (
           kube_pod_status_phase{
             job="kube-state-metrics",
-            namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",
+            namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|clusters-service|fleet|kube-applier|mgmt-agent|prometheus|secret-sync-controller|sessiongate",
             phase="Running"
           } == 1
         )

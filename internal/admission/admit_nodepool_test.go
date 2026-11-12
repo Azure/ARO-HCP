@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -34,8 +36,36 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/validation"
 )
+
+func TestAdmitNodePoolNotDeleting(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		op       operation.Type
+		deleting bool
+	}{
+		{name: "create", op: operation.Create},
+		{name: "failed update", op: operation.Update},
+		{name: "failed deletion update", op: operation.Update, deleting: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var oldObj *coreapi.NodePool
+			if tc.op == operation.Update {
+				oldObj = &coreapi.NodePool{Properties: coreapi.NodePoolProperties{ProvisioningState: coreapi.ProvisioningStateFailed}}
+				if tc.deleting {
+					oldObj.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				}
+			}
+			// The stored object, not the incoming object, carries deletion intent.
+			errs := AdmitNodePool(t.Context(), &NodePoolAdmissionContext{Cluster: &coreapi.Cluster{}}, operation.Operation{Type: tc.op}, &coreapi.NodePool{}, oldObj)
+			if tc.deleting {
+				require.Equal(t, field.ErrorList{field.Forbidden(field.NewPath(""), "node pool is being deleted and cannot be updated")}, errs)
+			} else {
+				require.Empty(t, errs)
+			}
+		})
+	}
+}
 
 func TestMutateNodePool(t *testing.T) {
 	const (
@@ -117,6 +147,7 @@ func TestMutateNodePool(t *testing.T) {
 			require.Empty(t, errs)
 			// Clear the deadline before comparison — it's time-dependent and tested separately.
 			tt.newObj.ServiceProviderProperties.CreateOperationCompletionDeadline = nil
+			tt.newObj.ServiceProviderProperties.UpdateOperationCompletionDeadline = nil
 			assertNodePoolEqual(t, tt.expected, tt.newObj)
 		})
 	}
@@ -469,6 +500,82 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	}
 }
 
+func TestAdmitNodePool_OSDiskEncryptionSet(t *testing.T) {
+	const (
+		managedResourceGroup    = "managed-rg"
+		encryptionSetOutsideMRG = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/diskEncryptionSets/des1"
+		encryptionSetInsideMRG  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Compute/diskEncryptionSets/des2"
+	)
+
+	parseID := func(s string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(s))
+	}
+
+	cluster := &coreapi.Cluster{
+		CustomerProperties: coreapi.ClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{ManagedResourceGroup: managedResourceGroup},
+			Version:  coreapi.VersionProfile{ChannelGroup: "stable"},
+		},
+	}
+
+	nodePoolWithEncryptionSetID := func(encryptionSetID string) *coreapi.NodePool {
+		np := &coreapi.NodePool{
+			Properties: coreapi.NodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ChannelGroup: "stable"},
+			},
+		}
+		if encryptionSetID != "" {
+			np.Properties.Platform.OSDisk.EncryptionSetID = parseID(encryptionSetID)
+		}
+		return np
+	}
+
+	admissionContext := &NodePoolAdmissionContext{Cluster: cluster}
+
+	tests := []struct {
+		name         string
+		op           operation.Type
+		newObj       *coreapi.NodePool
+		oldObj       *coreapi.NodePool
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create: no encryption set is valid",
+			op:           operation.Create,
+			newObj:       nodePoolWithEncryptionSetID(""),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create: encryption set outside managed resource group allowed",
+			op:           operation.Create,
+			newObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:   "create: encryption set in managed resource group rejected",
+			op:     operation.Create,
+			newObj: nodePoolWithEncryptionSetID(encryptionSetInsideMRG),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.osDisk.encryptionSetId", Message: "must not be the same resource group name"},
+			},
+		},
+		{
+			name:         "update: unchanged encryption set outside managed resource group allowed",
+			op:           operation.Update,
+			oldObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			newObj:       nodePoolWithEncryptionSetID(encryptionSetOutsideMRG),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := AdmitNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
 // assertNodePoolEqual compares node pools via their JSON representations so
 // that pointers to types with unexported fields (e.g. *azcorearm.ResourceID)
 // are compared by their externally-visible state.
@@ -483,13 +590,12 @@ func assertNodePoolEqual(t *testing.T, expected, actual *coreapi.NodePool) {
 
 func TestAdmitNodePool_VersionValidation(t *testing.T) {
 	tests := []struct {
-		name               string
-		newVersion         string
-		activeVersions     []string // current active versions in ServiceProviderNodePool (first is highest)
-		clusterVersions    []string // active versions in ServiceProviderCluster (first is highest)
-		desiredVersion     string   // desired version in ServiceProviderNodePool.Spec
-		allowMajorUpgrades bool     // experimental feature flag
-		expectErrors       []utils.ExpectedError
+		name            string
+		newVersion      string
+		activeVersions  []string // current active versions in ServiceProviderNodePool (first is highest)
+		clusterVersions []string // active versions in ServiceProviderCluster (first is highest)
+		desiredVersion  string   // desired version in ServiceProviderNodePool.Spec
+		expectErrors    []utils.ExpectedError
 	}{
 		{
 			name:            "valid z-stream upgrade",
@@ -530,42 +636,29 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			desiredVersion:  "4.18.0",
 		},
 		{
-			name:            "cross-major downgrade fails without flag",
+			name:            "cross-major downgrade succeeds without AFEC",
 			activeVersions:  []string{"5.0.1"},
 			newVersion:      "4.22.0",
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "5.0.1",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major downgrade succeeds with flag",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.22.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
-		},
-		{
-			name:               "cross-major downgrade to unsupported minor fails",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.20.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
+			name:            "cross-major downgrade to unsupported minor fails",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.20.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:               "cross-major downgrade to incompatible CP minor fails",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.23.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
+			name:            "cross-major downgrade to incompatible CP minor fails",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.23.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
 			},
@@ -589,62 +682,47 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			},
 		},
 		{
-			name:            "major version change not allowed by default",
+			name:            "major version change allowed without AFEC",
 			activeVersions:  []string{"4.22.0"},
 			newVersion:      "5.0.0",
 			clusterVersions: []string{"5.0.0"},
 			desiredVersion:  "4.22.0",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "valid major upgrade 4.22 to 5.0",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "valid major upgrade 4.23 to 5.1",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "5.1.0",
+			clusterVersions: []string{"5.1.0"},
+			desiredVersion:  "4.23.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "valid major upgrade 4.23 to 5.1",
-			activeVersions:     []string{"4.23.0"},
-			newVersion:         "5.1.0",
-			clusterVersions:    []string{"5.1.0"},
-			desiredVersion:     "4.23.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
-		},
-		{
-			name:               "invalid major upgrade 4.22 to 5.1",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "5.1.0",
-			clusterVersions:    []string{"5.1.0"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.22 to 5.1",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "5.1.0",
+			clusterVersions: []string{"5.1.0"},
+			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "4.22 can only upgrade to 5.0"},
 			},
 		},
 		{
-			name:               "invalid major upgrade 4.23 to 5.0",
-			activeVersions:     []string{"4.23.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.23.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.23 to 5.0",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.0"},
+			desiredVersion:  "4.23.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "4.23 can only upgrade to 5.1"},
 			},
 		},
 		{
-			name:               "invalid major upgrade 4.20 not supported",
-			activeVersions:     []string{"4.20.0"},
-			newVersion:         "5.0.0",
-			clusterVersions:    []string{"5.0.0"},
-			desiredVersion:     "4.20.0",
-			allowMajorUpgrades: true,
+			name:            "invalid major upgrade 4.20 not supported",
+			activeVersions:  []string{"4.20.0"},
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.0"},
+			desiredVersion:  "4.20.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "major version upgrades are not supported"},
 			},
@@ -742,44 +820,31 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 		},
 		// Cross-major downgrade: additional skew map entries
 		{
-			name:               "valid major downgrade 5.0 to 4.21",
-			activeVersions:     []string{"5.0.1"},
-			newVersion:         "4.21.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "5.0.1",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "valid major downgrade 5.0 to 4.21",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		// Cross-major skew: same-major NP change when CP is different major
 		{
-			name:               "same-major NP change with cross-major CP - valid skew",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "4.21.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
-		},
-		{
-			name:               "same-major NP change with cross-major CP - invalid skew",
-			activeVersions:     []string{"4.22.0"},
-			newVersion:         "4.15.0",
-			clusterVersions:    []string{"5.0.1"},
-			desiredVersion:     "4.22.0",
-			allowMajorUpgrades: true,
+			name:            "same-major NP change with cross-major CP - invalid skew",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "4.15.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:            "same-major NP change with cross-major CP - rejected without AFEC",
+			name:            "same-major NP change with cross-major CP - allowed without AFEC",
 			activeVersions:  []string{"4.22.0"},
 			newVersion:      "4.21.0",
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "4.22.0",
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
 		{
@@ -871,7 +936,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 
 			// Use cluster version from test case's clusterVersions if cross-major upgrade
 			clusterVersion := "4.18"
-			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+			if len(tt.clusterVersions) > 0 {
 				clusterVersion = tt.clusterVersions[0]
 			}
 
@@ -884,19 +949,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Create operation based on allowMajorUpgrades flag
-			var op operation.Operation
-			if tt.allowMajorUpgrades {
-				op = operation.Operation{
-					Type: operation.Update,
-					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
-						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
-						State: ptr.To("Registered"),
-					}}),
-				}
-			} else {
-				op = operation.Operation{Type: operation.Update}
-			}
+			op := operation.Operation{Type: operation.Update}
 
 			// Build ServiceProviderNodePool with active versions
 			var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
@@ -948,11 +1001,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 
 func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 	tests := []struct {
-		name               string
-		newVersion         string
-		clusterVersions    []string
-		allowMajorUpgrades bool
-		expectErrors       []utils.ExpectedError
+		name            string
+		newVersion      string
+		clusterVersions []string
+		expectErrors    []utils.ExpectedError
 	}{
 		{
 			name:            "valid version within N-2 skew",
@@ -977,34 +1029,29 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 			},
 		},
 		{
-			name:            "cross-major rejected without AFEC",
+			name:            "cross-major valid skew without AFEC",
 			newVersion:      "4.22.0",
 			clusterVersions: []string{"5.0.1"},
-			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
-			},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major valid skew with AFEC",
-			newVersion:         "4.22.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
-			expectErrors:       []utils.ExpectedError{},
+			name:            "OpenShift 5.0 node pool create without AFEC",
+			newVersion:      "5.0.0",
+			clusterVersions: []string{"5.0.1"},
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:               "cross-major invalid skew with AFEC",
-			newVersion:         "4.20.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
+			name:            "cross-major invalid skew",
+			newVersion:      "4.20.0",
+			clusterVersions: []string{"5.0.1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
 			},
 		},
 		{
-			name:               "cross-major incompatible CP minor with AFEC",
-			newVersion:         "4.23.0",
-			clusterVersions:    []string{"5.0.1"},
-			allowMajorUpgrades: true,
+			name:            "cross-major incompatible CP minor",
+			newVersion:      "4.23.0",
+			clusterVersions: []string{"5.0.1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
 			},
@@ -1023,7 +1070,7 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 			}
 
 			clusterVersion := "4.22"
-			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+			if len(tt.clusterVersions) > 0 {
 				clusterVersion = tt.clusterVersions[0]
 			}
 
@@ -1036,18 +1083,7 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 				},
 			}
 
-			var op operation.Operation
-			if tt.allowMajorUpgrades {
-				op = operation.Operation{
-					Type: operation.Create,
-					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
-						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
-						State: ptr.To("Registered"),
-					}}),
-				}
-			} else {
-				op = operation.Operation{Type: operation.Create}
-			}
+			op := operation.Operation{Type: operation.Create}
 
 			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 
@@ -1132,6 +1168,7 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 	makeDeletingNodePool := func(name string) *coreapi.NodePool {
 		nodePool := makeTestNodePool(name)
 		nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateDeleting
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
 		return nodePool
 	}
 
@@ -1148,13 +1185,25 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			expectErrors:         []utils.ExpectedError{},
 		},
 		{
-			name: "allows delete when the only other remaining node pool is being deleted",
+			name: "allows delete when another active node pool exists alongside one already being deleted",
+			existingNodePools: []*coreapi.NodePool{
+				makeTestNodePool("workers"),
+				makeTestNodePool("infra"),
+				makeDeletingNodePool("spot"),
+			},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "rejects delete when the only other remaining node pool is already being deleted",
 			existingNodePools: []*coreapi.NodePool{
 				makeDeletingNodePool("workers"),
 				makeTestNodePool("infra"),
 			},
 			nodePoolBeingDeleted: makeTestNodePool("infra"),
-			expectErrors:         []utils.ExpectedError{},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
+			},
 		},
 		{
 			name:                 "rejects delete of last node pool",
@@ -1163,6 +1212,29 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
 			},
+		},
+		{
+			// A retried DELETE call can observe the node pool it is deleting with its own
+			// DeletionTimestamp already set by the first request. The deletion was already
+			// accepted and is already underway, so the retry is accepted idempotently without
+			// re-running the last-node-pool count.
+			name: "allows retried delete of a node pool that already has its own DeletionTimestamp set",
+			existingNodePools: []*coreapi.NodePool{
+				makeDeletingNodePool("workers"),
+				makeTestNodePool("infra"),
+			},
+			nodePoolBeingDeleted: makeDeletingNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			// Even when it is the only node pool left, a retried delete of a node pool that
+			// already has its own DeletionTimestamp set is accepted idempotently: the deletion
+			// is already underway (e.g. via cluster cascade delete, which never runs this check)
+			// and will proceed regardless of this request's outcome.
+			name:                 "allows retried delete of the last node pool which already has its own DeletionTimestamp set",
+			existingNodePools:    []*coreapi.NodePool{makeDeletingNodePool("workers")},
+			nodePoolBeingDeleted: makeDeletingNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
 		},
 	}
 
@@ -1193,5 +1265,155 @@ func serviceProviderClusterWithVersions(t *testing.T, versions []string) *coreap
 				ActiveVersions: active,
 			},
 		},
+	}
+}
+
+// TestAdmitNodePool_ReplicasZeroFloor covers admitReplicas: an update must not
+// take the cluster to a forced zero worker nodes. Only a fixed replicas=0 pool is
+// a forced zero; autoscaling pools (max>0) always count as worker capacity, even
+// at min=0, because the cluster autoscaler keeps nodes that workloads need and can
+// scale up from zero. See https://redhat.atlassian.net/browse/OCPBUGS-85364.
+func TestAdmitNodePool_ReplicasZeroFloor(t *testing.T) {
+	t.Parallel()
+
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+
+	// makeNodePool builds a node pool with a stable ID derived from name so that
+	// admitReplicas can match the pool under update against its stored copy in the
+	// NodePools list. A non-nil autoScaling means replicas is 0 (mirroring static
+	// validation, which forbids replicas>0 when autoscaling is enabled).
+	makeNodePool := func(name string, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.NodePool {
+		id := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &coreapi.NodePool{
+			CosmosMetadata:  coreapi.CosmosMetadata{ResourceID: id},
+			TrackedResource: coreapi.NewTrackedResource(id, "eastus"),
+			Properties: coreapi.NodePoolProperties{
+				Replicas:    replicas,
+				AutoScaling: autoScaling,
+			},
+		}
+	}
+
+	fixed := func(replicas int32) *coreapi.NodePool { return makeNodePool("workers", replicas, nil) }
+	autoscaling := func(min, max int32) *coreapi.NodePool {
+		return makeNodePool("workers", 0, &coreapi.NodePoolAutoScaling{Min: min, Max: max})
+	}
+	makeDeletingNodePool := func(name string, replicas int32) *coreapi.NodePool {
+		np := makeNodePool(name, replicas, nil)
+		// Use time.Now() and wrap in metav1.Time
+		now := time.Now()
+		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
+		return np
+	}
+
+	forbidden := []utils.ExpectedError{
+		{FieldPath: "properties.replicas", Message: "cannot scale this node pool down to zero replicas"},
+	}
+
+	tests := []struct {
+		name string
+		op   operation.Type
+		// newObj/oldObj are the incoming and stored states of the pool under change.
+		newObj *coreapi.NodePool
+		oldObj *coreapi.NodePool
+		// clusterNodePools is every node pool for the cluster (including the stored
+		// copy of the one under change), as the frontend passes it to admission.
+		clusterNodePools []*coreapi.NodePool
+		expectErrors     []utils.ExpectedError
+	}{
+		{
+			name:             "update: last fixed node pool downgraded 3->0 rejected",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3)},
+			expectErrors:     forbidden,
+		},
+		{
+			name:             "update: last node pool converted from autoscaling to fixed 0 rejected",
+			op:               operation.Update,
+			oldObj:           autoscaling(0, 5),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{autoscaling(0, 5)},
+			expectErrors:     forbidden,
+		},
+		{
+			name:             "update: downgrade 3->0 allowed when a sibling node pool keeps replicas",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3), makeNodePool("infra", 2, nil)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: downgrade 3->0 allowed when the only sibling is autoscaling min=0 (scale-from-zero)",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3), makeNodePool("infra", 0, &coreapi.NodePoolAutoScaling{Min: 0, Max: 10})},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: last nodepool converted from fixed to autoscaling min=0 allowed",
+			op:               operation.Update,
+			oldObj:           fixed(2),
+			newObj:           autoscaling(0, 5),
+			clusterNodePools: []*coreapi.NodePool{fixed(2)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: last autoscaling nodepool min lowered 2->0 allowed",
+			op:               operation.Update,
+			oldObj:           autoscaling(2, 5),
+			newObj:           autoscaling(0, 5),
+			clusterNodePools: []*coreapi.NodePool{autoscaling(2, 5)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: non-reducing edit on an already-zero cluster allowed",
+			op:               operation.Update,
+			oldObj:           fixed(0),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(0)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:             "update: raising replicas 0->2 allowed",
+			op:               operation.Update,
+			oldObj:           fixed(0),
+			newObj:           fixed(2),
+			clusterNodePools: []*coreapi.NodePool{fixed(0)},
+			expectErrors:     []utils.ExpectedError{},
+		},
+		{
+			name:         "create: zero-replica node pool allowed (additive, cannot reduce existing capacity)",
+			op:           operation.Create,
+			newObj:       fixed(0),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:             "update: last nodepool marked for deletion does not count as available capacity",
+			op:               operation.Update,
+			oldObj:           fixed(3),
+			newObj:           fixed(0),
+			clusterNodePools: []*coreapi.NodePool{fixed(3), makeDeletingNodePool("infra", 5)},
+			expectErrors:     forbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &NodePoolAdmissionContext{
+				// Empty cluster keeps the subnet VNet check inert (both subnets nil).
+				Cluster:          &coreapi.Cluster{},
+				OriginalNodePool: tt.newObj,
+				ClusterNodePools: tt.clusterNodePools,
+			}
+			errs := AdmitNodePool(context.Background(), admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
 	}
 }

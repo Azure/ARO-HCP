@@ -1,9 +1,9 @@
 # Regenerate the controller and resource flow reference
 
-Work from the current checkout of ARO-HCP. Regenerate `docs/cosmos-data-flow.md`
-and the Graphviz sources and PNGs in `docs/diagrams/controller-flows/`.
-The historical Markdown filename is retained for existing links; the reference
-covers controller behavior, external effects, and resource lifecycles, not only
+Work from the current checkout of ARO-HCP. Regenerate `docs/generated/service-provider-control-flow.md`
+and the Graphviz sources and PNGs in `docs/generated/diagrams/controller-flows/`.
+The generated reference now lives at `docs/generated/service-provider-control-flow.md`
+and covers controller behavior, external effects, and resource lifecycles, not only
 Cosmos DB. This prompt is maintained separately from the generated reference.
 
 ## Establish scope and evidence
@@ -18,7 +18,7 @@ Cosmos DB. This prompt is maintained separately from the generated reference.
 3. Cover backend, fleet, kube-applier, mgmt-agent, and sessiongate. Include shared
    infrastructure controllers such as union kube-applier informers. Explain
    wrappers once; do not count each generic wrapper as a business controller.
-   Include external components (Cluster Service, Maestro/work-agent, HyperShift,
+   Include external components (Cluster Service, HyperShift,
    Kubernetes controllers, Azure) as boundary nodes, not as in-repo controllers.
 4. Read implementations and delegated helpers, not just comments or names.
    Cross-check each summary and dependency against the actual guards, calls,

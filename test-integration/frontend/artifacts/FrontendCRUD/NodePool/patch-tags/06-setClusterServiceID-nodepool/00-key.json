@@ -1,0 +1,5 @@
+{
+	"_artifactStep": "setClusterServiceID",
+	"id": "2385a665-9777-5274-92ae-3d7f41982741",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-tags/nodePools/patch-tags-np"
+}

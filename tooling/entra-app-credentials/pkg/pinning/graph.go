@@ -19,24 +19,20 @@ import (
 	"crypto/sha1" //nolint:gosec // Microsoft Entra certificate thumbprints are defined as SHA-1.
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"strings"
 	"time"
 
-	kiotaabstractions "github.com/microsoft/kiota-abstractions-go"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphapplications "github.com/microsoftgraph/msgraph-sdk-go/applications"
 	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
 )
-
-const graphScope = "https://graph.microsoft.com/.default"
-
-var retryInterval = 2 * time.Second
 
 type graphAPI interface {
 	ListApplications(ctx context.Context, filter string) ([]graphmodels.Applicationable, error)
@@ -49,70 +45,80 @@ type microsoftGraphAPI struct {
 }
 
 type graphClient struct {
-	api graphAPI
+	api           graphAPI
+	retryInterval time.Duration
+}
+
+// GraphClientOption configures a graph client.
+type GraphClientOption func(*graphClient)
+
+// WithRetryInterval sets how long lookups wait between attempts while an object
+// is still replicating in Microsoft Graph.
+func WithRetryInterval(interval time.Duration) GraphClientOption {
+	return func(c *graphClient) {
+		c.retryInterval = interval
+	}
 }
 
 // NewGraphClient creates an application client backed by Microsoft's official
 // Graph SDK.
-func NewGraphClient(credential azcore.TokenCredential) (ApplicationClient, error) {
-	client, err := msgraphsdk.NewGraphServiceClientWithCredentials(credential, []string{graphScope})
+func NewGraphClient(credential azcore.TokenCredential, options ...GraphClientOption) (ApplicationClient, error) {
+	client, err := msgraphsdk.NewGraphServiceClientWithCredentials(credential, []string{graph.Scope})
 	if err != nil {
 		return nil, fmt.Errorf("create Microsoft Graph client: %w", err)
 	}
-	return newGraphClient(&microsoftGraphAPI{client: client}), nil
+	return newGraphClient(&microsoftGraphAPI{client: client}, options...), nil
 }
 
-func newGraphClient(api graphAPI) ApplicationClient {
-	return &graphClient{api: api}
+func newGraphClient(api graphAPI, options ...GraphClientOption) ApplicationClient {
+	client := &graphClient{api: api, retryInterval: graph.DefaultRetryInterval}
+	for _, option := range options {
+		option(client)
+	}
+	return client
 }
 
 func (c *graphClient) FindApplication(ctx context.Context, displayName string) (*Application, error) {
-	var application *Application
-	err := retry(ctx, func() error {
-		filter := fmt.Sprintf("displayName eq '%s'", strings.ReplaceAll(displayName, "'", "''"))
+	return graph.Retry(ctx, c.retryInterval, func(ctx context.Context) (*Application, error) {
+		filter := fmt.Sprintf("displayName eq '%s'", graph.QuoteFilterValue(displayName))
 		applications, err := c.api.ListApplications(ctx, filter)
 		if err != nil {
-			return classifyGraphError(err)
+			return nil, err
 		}
+
 		switch len(applications) {
 		case 0:
-			return &transientError{err: fmt.Errorf("application %q is not visible in Microsoft Graph yet", displayName)}
+			return nil, fmt.Errorf("application %q is %w", displayName, graph.ErrNotVisible)
 		case 1:
-			application, err = convertApplication(applications[0])
-			return err
+			return convertApplication(applications[0])
 		default:
-			return fmt.Errorf("display name %q matched %d applications; expected exactly one", displayName, len(applications))
+			return nil, fmt.Errorf("display name %q matched %d applications; expected exactly one", displayName, len(applications))
 		}
 	})
-	return application, err
 }
 
 func (c *graphClient) ReplaceKeyCredentials(ctx context.Context, applicationID, certificateName string, certificate []byte) error {
-	return retry(ctx, func() error {
-		return classifyGraphError(c.api.ReplaceKeyCredentials(ctx, applicationID, certificateName, certificate))
+	return graph.RetryDo(ctx, c.retryInterval, func(ctx context.Context) error {
+		return c.api.ReplaceKeyCredentials(ctx, applicationID, certificateName, certificate)
 	})
 }
 
 func (c *graphClient) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
-	var application *Application
-	err := retry(ctx, func() error {
-		graphApplication, err := c.api.GetApplication(ctx, applicationID)
+	return graph.Retry(ctx, c.retryInterval, func(ctx context.Context) (*Application, error) {
+		application, err := c.api.GetApplication(ctx, applicationID)
 		if err != nil {
-			return classifyGraphError(err)
+			return nil, err
 		}
-		application, err = convertApplication(graphApplication)
-		return err
+		return convertApplication(application)
 	})
-	return application, err
 }
 
 func (c *microsoftGraphAPI) ListApplications(ctx context.Context, filter string) ([]graphmodels.Applicationable, error) {
-	top := int32(2)
 	response, err := c.client.Applications().Get(ctx, &graphapplications.ApplicationsRequestBuilderGetRequestConfiguration{
 		QueryParameters: &graphapplications.ApplicationsRequestBuilderGetQueryParameters{
 			Filter: &filter,
 			Select: []string{"id", "appId", "displayName", "keyCredentials"},
-			Top:    &top,
+			Top:    ptr.To(int32(2)),
 		},
 	})
 	if err != nil {
@@ -125,17 +131,16 @@ func (c *microsoftGraphAPI) ListApplications(ctx context.Context, filter string)
 }
 
 func (c *microsoftGraphAPI) ReplaceKeyCredentials(ctx context.Context, applicationID, certificateName string, certificate []byte) error {
-	credentialType := keyCredentialType
-	credentialUsage := keyCredentialUsage
 	keyCredential := graphmodels.NewKeyCredential()
 	keyCredential.SetDisplayName(&certificateName)
 	keyCredential.SetKey(certificate)
-	keyCredential.SetTypeEscaped(&credentialType)
-	keyCredential.SetUsage(&credentialUsage)
+	keyCredential.SetTypeEscaped(ptr.To(keyCredentialType))
+	keyCredential.SetUsage(ptr.To(keyCredentialUsage))
 
 	application := graphmodels.NewApplication()
 	application.SetKeyCredentials([]graphmodels.KeyCredentialable{keyCredential})
-	if _, err := c.client.Applications().ByApplicationId(applicationID).Patch(ctx, application, nil); err != nil {
+	_, err := c.client.Applications().ByApplicationId(applicationID).Patch(ctx, application, nil)
+	if err != nil {
 		return fmt.Errorf("patch application: %w", err)
 	}
 	return nil
@@ -160,7 +165,7 @@ func (c *microsoftGraphAPI) GetApplication(ctx context.Context, applicationID st
 }
 
 func convertApplication(application graphmodels.Applicationable) (*Application, error) {
-	if application == nil || application.GetId() == nil || strings.TrimSpace(*application.GetId()) == "" {
+	if application == nil || strings.TrimSpace(ptr.Deref(application.GetId(), "")) == "" {
 		return nil, fmt.Errorf("application returned by Microsoft Graph has no ID")
 	}
 
@@ -171,14 +176,14 @@ func convertApplication(application graphmodels.Applicationable) (*Application, 
 		}
 		credentials = append(credentials, KeyCredential{
 			CustomKeyIdentifier: normalizeCustomKeyIdentifier(credential.GetCustomKeyIdentifier()),
-			Type:                valueOrEmpty(credential.GetTypeEscaped()),
-			Usage:               valueOrEmpty(credential.GetUsage()),
+			Type:                ptr.Deref(credential.GetTypeEscaped(), ""),
+			Usage:               ptr.Deref(credential.GetUsage(), ""),
 		})
 	}
 	return &Application{
 		ID:             *application.GetId(),
-		AppID:          valueOrEmpty(application.GetAppId()),
-		DisplayName:    valueOrEmpty(application.GetDisplayName()),
+		AppID:          ptr.Deref(application.GetAppId(), ""),
+		DisplayName:    ptr.Deref(application.GetDisplayName(), ""),
 		KeyCredentials: credentials,
 	}, nil
 }
@@ -199,67 +204,4 @@ func normalizeCustomKeyIdentifier(value []byte) []byte {
 		return decoded
 	}
 	return value
-}
-
-func valueOrEmpty(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
-type transientError struct {
-	err error
-}
-
-func (e *transientError) Error() string {
-	return e.err.Error()
-}
-
-func (e *transientError) Unwrap() error {
-	return e.err
-}
-
-func retry(ctx context.Context, operation func() error) error {
-	var lastErr error
-	for {
-		err := operation()
-		if err == nil {
-			return nil
-		}
-		var transient *transientError
-		if !errors.As(err, &transient) {
-			return err
-		}
-		lastErr = err
-		timer := time.NewTimer(retryInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return fmt.Errorf("retry Microsoft Graph operation: %w (last error: %v)", ctx.Err(), lastErr)
-		case <-timer.C:
-		}
-	}
-}
-
-func classifyGraphError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	// Kiota handles its retryable HTTP statuses. The outer retry only covers
-	// Graph propagation and transport failures that escape the SDK middleware.
-	var apiError kiotaabstractions.ApiErrorable
-	if errors.As(err, &apiError) {
-		if apiError.GetStatusCode() == http.StatusNotFound {
-			return &transientError{err: err}
-		}
-		return err
-	}
-
-	var networkError net.Error
-	if errors.As(err, &networkError) {
-		return &transientError{err: err}
-	}
-	return err
 }

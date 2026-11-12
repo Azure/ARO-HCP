@@ -17,11 +17,13 @@ package deletion
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -31,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,6 +58,7 @@ func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
@@ -63,24 +67,36 @@ func NewClusterChildResourcesCleanupController(
 		kubeApplierDBClients: kubeApplierDBClients,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterChildResourcesCleanupControllerControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(0, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *coreapi.Cluster) bool {
-	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
-	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID == nil
@@ -241,8 +257,9 @@ func hasSkippedResourceTypePrefix(resourceID *azcorearm.ResourceID, skipSubtreeT
 }
 
 // extraDeleteGateShouldDeleteServiceProviderCluster returns false while the
-// ServiceProviderCluster still has Maestro readonly bundles or cluster-scoped
-// kube-applier *Desire documents.
+// ServiceProviderCluster still has a managed resource group, remaining
+// data-plane OIDC federation credentials, or cluster-scoped kube-applier
+// *Desire documents.
 func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderCluster(ctx context.Context, serviceProviderClusterResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -282,6 +299,31 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 			"managedResourceGroupID", mrgID.String())
 		return false, nil
 	}
+	if spc.Status.AzureResources.KubeAPIServerCertificate != nil || spc.Status.AzureResources.IngressCertificate != nil {
+		logger.Info("waiting for TLS certificate references to be cleared before removing the ServiceProviderCluster document")
+		return false, nil
+	}
+
+	// Do not delete the ServiceProviderCluster while there are any remaining data-plane federated identity credential
+	// still reflected as present (either confirmed or pending). We keep the ServiceProviderCluster document alive
+	// so that reflected state remains available.
+	remainingFederatedIdentityCredentialIDStrs := make([]string, 0)
+	for _, status := range spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation {
+		if status == nil {
+			continue
+		}
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.AzureResources)...)
+		remainingFederatedIdentityCredentialIDStrs = append(remainingFederatedIdentityCredentialIDStrs,
+			c.resourceIDStrings(status.PendingAzureResources)...)
+	}
+	if len(remainingFederatedIdentityCredentialIDStrs) > 0 {
+		slices.Sort(remainingFederatedIdentityCredentialIDStrs)
+		logger.Info("waiting for data-plane OIDC federation to be deleted before removing the ServiceProviderCluster document",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"federatedIdentityCredentialResourceIDs", remainingFederatedIdentityCredentialIDStrs)
+		return false, nil
+	}
 
 	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments.
 	// Deny assignments are scoped to the managed resource group, so Azure deletes them in cascade
@@ -290,16 +332,12 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	// would block cleanup forever. (Per Manyanda Chitimbo's note on
 	// https://github.com/Azure/ARO-HCP/pull/6269#discussion_r3656341978.)
 
-	// Check if there are any Maestro readonly bundles remaining.
-	if len(spc.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"serviceProviderClusterResourceID", spc.ResourceID.String(), "remainingBundles", len(spc.Status.MaestroReadonlyBundles))
-		return false, nil
-	}
-
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		kaClient, err := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if err != nil {
+			return false, err
+		}
 		if kaClient == nil {
 			logger.Info("no kube-applier client for management cluster. Continuing with deletion of ServiceProviderCluster document",
 				"serviceProviderClusterResourceID", spc.ResourceID.String(),
@@ -357,9 +395,12 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return nil
 	}
 
-	// Best-effort: if the kube-applier client is unavailable, skip desire deletion here.
+	// Best-effort: if the management cluster is unregistered, skip desire deletion here.
 	// Remaining *Desires are cleaned up by later deletion stages and the orphan scraper.
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kaClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kaClient == nil {
 		logger.Info("no kube-applier client configured for management cluster; skipping cluster-scoped desire deletion",
 			"managementClusterResourceID", mcResourceID.String())
@@ -391,11 +432,26 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return skipBackupDesires(ctx, resourceID)
 	}
 
+	// Combined gate for ClusterScopedReadDesire: first check ownership (owned ReadDesires
+	// must be torn down by their controller), then check if it's a backup desire.
+	readDesireGate := func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) {
+		// Check ownership first
+		shouldDeleteBasedOnOwnership, err := c.extraDeleteGateShouldDeleteReadDesire(kaClient, clusterResourceID)(ctx, resourceID)
+		if err != nil {
+			return false, err
+		}
+		if !shouldDeleteBasedOnOwnership {
+			return false, nil
+		}
+		// Then check if it's a backup desire
+		return skipBackupDesires(ctx, resourceID)
+	}
+
 	// extraDeleteGates uses lowercased kubeapplier.*DesireResourceTypeName keys. Types not
 	// in the map are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
 		strings.ToLower(kubeapplierapi.ClusterScopedApplyDesireResourceType.String()): applyDesireGate,
-		strings.ToLower(kubeapplierapi.ClusterScopedReadDesireResourceType.String()):  skipBackupDesires,
+		strings.ToLower(kubeapplierapi.ClusterScopedReadDesireResourceType.String()):  readDesireGate,
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
@@ -436,6 +492,17 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	logger.Info("all included cluster-scoped kube-applier child resources deleted")
 
 	return nil
+}
+
+func (c *clusterChildResourcesCleanupController) resourceIDStrings(resourceIDs []*azcorearm.ResourceID) []string {
+	ids := make([]string, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		if resourceID == nil {
+			continue
+		}
+		ids = append(ids, resourceID.String())
+	}
+	return ids
 }
 
 func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
@@ -534,6 +601,54 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteAppl
 		if owningController := applyDesire.Tags[kubeapplierapi.TagControllerName]; len(owningController) > 0 {
 			logger.Info("waiting for owning controller to tear down cluster-scoped ApplyDesire",
 				"applyDesireResourceID", applyDesireResourceID.String(), "owningController", owningController)
+			return false, nil
+		}
+
+		return true, nil
+	}
+}
+
+// extraDeleteGateShouldDeleteReadDesire reports whether a cluster-scoped
+// ReadDesire document may be removed here.
+//
+// ReadDesires owned by ClusterResourcesController have their own cleanup path
+// (paired with ApplyDesire removal), so we skip them here. All other ReadDesires
+// are deleted here, including those from controllers like CreateClusterScopedReadDesires
+// that don't implement their own cleanup.
+//
+// Untagged desires have no owner left to reap them, so they are deleted here.
+func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteReadDesire(
+	kaClient kubeappliercosmosstorage.KubeApplierDBClient,
+	clusterResourceID *azcorearm.ResourceID,
+) func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+	return func(ctx context.Context, readDesireResourceID *azcorearm.ResourceID) (bool, error) {
+		logger := utils.LoggerFromContext(ctx)
+
+		readDesireCRUD, err := kaClient.ReadDesiresForCluster(
+			clusterResourceID.SubscriptionID,
+			clusterResourceID.ResourceGroupName,
+			clusterResourceID.Name,
+		)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create cluster-scoped ReadDesire CRUD: %w", err))
+		}
+
+		readDesire, err := readDesireCRUD.Get(ctx, strings.ToLower(readDesireResourceID.Name))
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// Raced with the owner purging it; nothing left to delete.
+			return false, nil
+		}
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to get ReadDesire %q: %w", readDesireResourceID.String(), err))
+		}
+
+		// Only skip ReadDesires owned by ClusterResourcesController, which has its own
+		// cleanup path (paired with ApplyDesire removal). All other ReadDesires,
+		// including those from CreateClusterScopedReadDesires, are cleaned up here
+		// since those controllers don't implement their own deletion logic.
+		if owningController := readDesire.Tags[kubeapplierapi.TagControllerName]; owningController == clusterresources.ClusterResourcesControllerName {
+			logger.Info("waiting for ClusterResources controller to tear down cluster-scoped ReadDesire",
+				"readDesireResourceID", readDesireResourceID.String())
 			return false, nil
 		}
 

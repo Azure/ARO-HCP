@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func writeReleaseTestState(t *testing.T, sharedDir string) {
@@ -53,7 +54,7 @@ func writeReleaseTestState(t *testing.T, sharedDir string) {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
 	contract := slots.NewRuntimeContractBuilder()
-	if err := contract.Add("core", "ARO_HCP_E2E_SLOT_NAME", state.LeasedResourceName); err != nil {
+	if err := contract.Add("core", leaseenv.SlotName, state.LeasedResourceName); err != nil {
 		t.Fatal(err)
 	}
 	if err := slots.WriteRuntimeContract(sharedDir, contract); err != nil {

@@ -35,6 +35,37 @@ func TestGetServicesQueries(t *testing.T) {
 	assert.Len(t, queries, len(ServicesTables))
 }
 
+func TestARMServiceLogsIgnoreClusterSelection(t *testing.T) {
+	factory, err := kusto.NewQueryFactory()
+	require.NoError(t, err)
+	for _, scope := range []string{"resourceGroup", "clusterID", "clusterName"} {
+		t.Run(scope, func(t *testing.T) {
+			opts := kusto.NewQueryOptions()
+			opts.SubscriptionId = "test-sub"
+			opts.ResourceGroupName = "test-rg"
+			switch scope {
+			case "clusterID":
+				opts.ClusterIds = []string{"cs-cluster-id"}
+			case "clusterName":
+				opts.ClusterNames = []string{"cluster-gpu-np"}
+			}
+			queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cs-cluster-id"}, nil)
+			require.NoError(t, err)
+			require.Len(t, queries, len(ServicesTables))
+			for i, query := range queries {
+				text := query.GetQuery().String()
+				if ServicesTables[i] == "containerLogs" || ServicesTables[i] == "clustersServiceLogs" {
+					assert.Contains(t, text, "'cs-cluster-id'", "container and CS logs retain their cluster filter")
+					continue
+				}
+				assert.Contains(t, text, "| where log has '/subscriptions/test-sub/resourceGroups/test-rg'")
+				assert.NotContains(t, text, "log has_any", "ARM service logs must not require a CS ID in the log")
+				assert.NotContains(t, text, "cs-cluster-id", "CS IDs must not narrow ARM service logs, even with explicit cluster selection")
+			}
+		})
+	}
+}
+
 func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	require.NoError(t, err)

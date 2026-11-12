@@ -37,6 +37,19 @@ type BillingDocument struct {
 	CreationTime time.Time `json:"creationTime,omitempty"`
 	// The cluster deletion time
 	DeletionTime *time.Time `json:"deletionTime,omitempty"`
+	// OrphanedSince is the first observation of an unreferenced billing record,
+	// not the cluster's deletion time. Nil cancels a previous orphan candidacy.
+	// Written by: OrphanedBillingCleanup
+	OrphanedSince *time.Time `json:"orphanedSince,omitempty"`
+
+	// LastBillingTimeOfVMEvent is the compute event batch-processing watermark.
+	// Nil means no watermark has been persisted yet.
+	// Written by: HCP Billing service after successful compute usage processing.
+	LastBillingTimeOfVMEvent *time.Time `json:"lastBillingTimeOfVMEvent,omitempty"`
+	// LastBillingTimeOfMngtEvent is the end of the last successfully billed hosting interval.
+	// Nil means no watermark has been persisted yet.
+	// Written by: HCP Billing service after successful hosting usage processing.
+	LastBillingTimeOfMngtEvent *time.Time `json:"lastBillingTimeOfMngtEvent,omitempty"`
 
 	// The location of the HCP cluster
 	Location string `json:"location,omitempty"`
@@ -47,6 +60,7 @@ type BillingDocument struct {
 	// The HCP cluster ARM resource ID
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 	// The ARM resource ID of the managed resource group of the HCP cluster
+	// Written by: CreateBillingDoc, ReconcileBillingManagedResourceGroup
 	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
 }
 
@@ -68,6 +82,23 @@ type BillingDocumentPatchOperations struct {
 // SetDeletionTime appends a set operation for the DeletionTime field.
 func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time) {
 	p.AppendSet("/deletionTime", deletionTime)
+	// Check at write time: a stale read must not overwrite an existing cutoff.
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// SetOrphanedSince records or clears candidacy without changing the billing cutoff.
+func (p *BillingDocumentPatchOperations) SetOrphanedSince(observedAt *time.Time) {
+	p.AppendSet("/orphanedSince", observedAt)
+	p.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+}
+
+// NewActiveBillingManagedResourceGroupPatch sets only the managed RG of an active
+// record, preserving concurrent billing watermarks and rejecting closed records.
+func NewActiveBillingManagedResourceGroupPatch(resourceGroupID string) BillingDocumentPatchOperations {
+	var patch BillingDocumentPatchOperations
+	patch.AppendSet("/managedResourceGroup", resourceGroupID)
+	patch.SetCondition("FROM c WHERE NOT IS_DEFINED(c.deletionTime) OR IS_NULL(c.deletionTime)")
+	return patch
 }
 
 // BillingDocumentList is a list of billing documents for use with Kubernetes informers.
@@ -88,6 +119,9 @@ func (in *BillingDocument) GetObjectKind() schema.ObjectKind {
 func (in *BillingDocument) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	om.Name = strings.ToLower(in.ID)
+	// Informers must distinguish changed documents from unchanged relists so
+	// update handlers run even when their periodic resync is not due.
+	om.ResourceVersion = string(in.CosmosETag)
 	return om
 }
 
@@ -107,6 +141,20 @@ func (in *BillingDocument) DeepCopy() *BillingDocument {
 	if in.DeletionTime != nil {
 		out.DeletionTime = new(time.Time)
 		*out.DeletionTime = *in.DeletionTime
+	}
+
+	if in.LastBillingTimeOfVMEvent != nil {
+		out.LastBillingTimeOfVMEvent = new(time.Time)
+		*out.LastBillingTimeOfVMEvent = *in.LastBillingTimeOfVMEvent
+	}
+	if in.OrphanedSince != nil {
+		out.OrphanedSince = new(time.Time)
+		*out.OrphanedSince = *in.OrphanedSince
+	}
+
+	if in.LastBillingTimeOfMngtEvent != nil {
+		out.LastBillingTimeOfMngtEvent = new(time.Time)
+		*out.LastBillingTimeOfMngtEvent = *in.LastBillingTimeOfMngtEvent
 	}
 
 	if in.ResourceID != nil {

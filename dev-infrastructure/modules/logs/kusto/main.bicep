@@ -83,8 +83,11 @@ var allServiceLogsTablesKQL = {
   resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
   cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
   ciJobOutcomes: loadTextContent('tables/ciJobOutcomes.kql')
+  ciDiscoveredJobs: loadTextContent('tables/ciDiscoveredJobs.kql')
+  ciProcessedJobs: loadTextContent('tables/ciProcessedJobs.kql')
   ciTestNames: loadTextContent('tables/ciTestNames.kql')
   ciTestResults: loadTextContent('tables/ciTestResults.kql')
+  ciFailurePatterns: loadTextContent('tables/ciFailurePatterns.kql')
   maestroMqttConnections: loadTextContent('tables/maestroMqttConnections.kql')
 }
 

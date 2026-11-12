@@ -26,7 +26,9 @@
 				"state": "Disabled"
 			},
 			"cryptoRestrictions": "None",
-			"dns": {},
+			"dns": {
+				"baseDomainPrefix": "cluster"
+			},
 			"etcd": {
 				"dataEncryption": {
 					"customerManaged": {
@@ -35,8 +37,9 @@
 							"activeKey": {
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
-								"version": "2024-12-01-preview"
+								"version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
 							},
+							"keyVaultType": "KeyVault",
 							"visibility": "Public"
 						}
 					},
@@ -108,8 +111,7 @@
 			"dns": {},
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
-			"provisioningState": "Succeeded",
-			"usesNewClusterDeletionApproach": false
+			"provisioningState": "Succeeded"
 		},
 		"status": {},
 		"systemData": {

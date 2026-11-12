@@ -18,3 +18,7 @@ spec:
   - port: metrics
     interval: 5m
     path: /metrics
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label

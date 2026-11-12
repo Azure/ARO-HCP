@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
@@ -150,6 +151,12 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce_TriggersUpgradeFromCache(t *testi
 }
 
 func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
+	writeContext := gomock.Cond[context.Context](func(ctx context.Context) bool {
+		deadline, ok := ctx.Deadline()
+		remaining := time.Until(deadline)
+		return ok && remaining > controllerutils.CSWriteTimeout-time.Second && remaining <= controllerutils.CSWriteTimeout
+	})
+
 	testNodePoolServiceID, _ := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
 
 	tests := []struct {
@@ -192,7 +199,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 				expectedBuilder := arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20")
 				mc.EXPECT().
 					PostNodePoolUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
@@ -214,7 +221,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 				expectedBuilder := arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20")
 				mc.EXPECT().
 					PostNodePoolUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
@@ -249,7 +256,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 				// Policy creation fails
 				mc.EXPECT().
 					PostNodePoolUpgradePolicy(
-						context.Background(),
+						writeContext,
 						testNodePoolServiceID,
 						arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20"),
 					).

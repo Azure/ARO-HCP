@@ -144,8 +144,6 @@ spec:
         - "production"
         - "--azure-region-availability-zone-count"
         - "3"
-        - "--nodepool-zones"
-        - ""
         ports:
         - name: healthz
           containerPort: 8080
@@ -153,6 +151,19 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: healthz
+          timeoutSeconds: 6
+          periodSeconds: 10
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz
@@ -222,6 +233,10 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    relabelings:
+    - action: replace
+      replacement: service
+      targetLabel: microsoft_metrics_include_label
   namespaceSelector:
     matchNames:
     - 'fleet'

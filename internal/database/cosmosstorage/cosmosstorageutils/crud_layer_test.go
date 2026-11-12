@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -49,6 +50,7 @@ type recordingCRUD struct {
 	calls       int
 	lastContext context.Context
 	lastID      string
+	lastETag    azcore.ETag
 	object      *coreapi.Subscription
 	options     *azcosmos.ItemOptions
 	listOptions *DBClientListResourceDocsOptions
@@ -81,6 +83,12 @@ func (c *recordingCRUD) Replace(ctx context.Context, obj *coreapi.Subscription, 
 }
 func (c *recordingCRUD) Delete(ctx context.Context, id string) error {
 	c.lastID = id
+	_, err := c.record(ctx)
+	return err
+}
+func (c *recordingCRUD) DeleteWithETag(ctx context.Context, id string, expectedETag azcore.ETag) error {
+	c.lastID = id
+	c.lastETag = expectedETag
 	_, err := c.record(ctx)
 	return err
 }
@@ -151,6 +159,53 @@ func TestResourceCRUDLayer(t *testing.T) {
 			require.ErrorIs(t, call(), inner.err)
 			require.Equal(t, 2, before)
 			require.Equal(t, 2, after)
+		})
+	}
+}
+
+func TestConditionalDeleteForwarding(t *testing.T) {
+	for _, wrapper := range []string{"validating", "layered", "layered validating"} {
+		t.Run(wrapper, func(t *testing.T) {
+			inner := &recordingCRUD{}
+			layerCalls := 0
+			var layerErr error
+			layerCtx := context.WithValue(t.Context(), layerContextKey{}, "conditional delete")
+			layer := crudLayerFunc(func(ctx context.Context, operation func(context.Context) error) error {
+				layerCalls++
+				require.Same(t, t.Context(), ctx)
+				if layerErr != nil {
+					return layerErr
+				}
+				return operation(layerCtx)
+			})
+			var crud ConditionalDeleter
+			switch wrapper {
+			case "validating":
+				crud = NewValidatingCRUD(inner, nil, nil)
+			case "layered":
+				crud = NewLayeredResourceCRUD(inner, layer)
+			case "layered validating":
+				crud = NewLayeredValidatingResourceCRUD(NewValidatingCRUD(inner, nil, nil), layer)
+			}
+			for _, expectedETag := range []azcore.ETag{"evaluated", ""} {
+				require.NoError(t, crud.DeleteWithETag(t.Context(), "id", expectedETag))
+				require.Equal(t, "id", inner.lastID)
+				require.Equal(t, expectedETag, inner.lastETag)
+			}
+			inner.err = errors.New("delete failed")
+			require.ErrorIs(t, crud.DeleteWithETag(t.Context(), "id", "evaluated"), inner.err)
+			require.Equal(t, 3, inner.calls)
+			if wrapper == "validating" {
+				require.Same(t, t.Context(), inner.lastContext)
+				require.Zero(t, layerCalls)
+				return
+			}
+			require.Same(t, layerCtx, inner.lastContext)
+			require.Equal(t, 3, layerCalls)
+			layerErr = errors.New("blocked")
+			require.ErrorIs(t, crud.DeleteWithETag(t.Context(), "id", "evaluated"), layerErr)
+			require.Equal(t, 3, inner.calls, "rejected operations never reach storage")
+			require.Equal(t, 4, layerCalls)
 		})
 	}
 }

@@ -16,7 +16,6 @@ package framework
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -24,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 
@@ -76,6 +76,52 @@ func buildClusterNetworking(disableSwift bool, tags map[string]*string, subnetID
 		return tags, nil
 	}
 	return tags, to.Ptr(subnetID)
+}
+
+// buildControlPlaneVersion encodes exact builds in a tag that survives GET and
+// unrelated PATCH requests. Raw parameters remain available for version selection.
+// Non-exact IDs and explicit tags are left for the RP to interpret and validate.
+func buildControlPlaneVersion(versionID string, tags map[string]*string) (string, map[string]*string) {
+	tags = maps.Clone(tags)
+	exact, err := semver.Parse(versionID)
+	if err != nil {
+		return versionID, tags
+	}
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key := range tags {
+		if strings.EqualFold(key, metadataapi.TagClusterControlPlaneExactVersion) {
+			delete(tags, key)
+		}
+	}
+	tags[metadataapi.TagClusterControlPlaneExactVersion] = to.Ptr(versionID)
+	return fmt.Sprintf("%d.%d", exact.Major, exact.Minor), tags
+}
+
+// ControlPlaneExactVersionPatchTags encodes an explicit version change. A bare
+// release line removes a stored pin via JSON null; omission would preserve it.
+func ControlPlaneExactVersionPatchTags(versionID string) (string, map[string]*string) {
+	return buildControlPlaneVersion(versionID, map[string]*string{
+		metadataapi.TagClusterControlPlaneExactVersion: nil,
+	})
+}
+
+// updateTimeoutTags leaves one minute for the test to receive the server's
+// timeout error before its own context expires, without changing caller tags.
+// Callers must resolve omitted tags from the current resource before calling.
+func updateTimeoutTags(tags map[string]*string, timeoutTag string, timeout time.Duration) map[string]*string {
+	tags = maps.Clone(tags)
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key := range tags {
+		if strings.EqualFold(key, timeoutTag) {
+			delete(tags, key)
+		}
+	}
+	tags[timeoutTag] = to.Ptr((timeout - time.Minute).String())
+	return tags
 }
 
 var (
@@ -156,8 +202,8 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 func DefaultOpenshiftControlPlaneVersionId() string {
 	version, err := resolveDefaultControlPlaneVersion()
 	if err != nil {
-		if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrNoParseableNightlyTags) {
-			Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, DefaultOpenshiftChannelGroup(), err.Error()))
+		if IsVersionNotFoundError(err) || IsIncompatibleNightlyVersionError(err) {
+			Skip(fmt.Sprintf("No usable install version found in %s channel (%s)", DefaultOpenshiftChannelGroup(), err.Error()))
 		} else {
 			Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", DefaultOpenshiftChannelGroup(), err.Error()))
 		}
@@ -210,8 +256,8 @@ func DefaultOpenshiftNodePoolVersionId() string {
 		// Nightly is not served by the update service graph API; use the release-stream API.
 		resolved, err := GetLatestNightlyInstallVersion(context.Background(), channelGroup, minor)
 		if err != nil {
-			if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrNoParseableNightlyTags) {
-				Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", minor, channelGroup, err.Error()))
+			if IsVersionNotFoundError(err) || IsIncompatibleNightlyVersionError(err) {
+				Skip(fmt.Sprintf("No usable install version found for %s in %s channel (%s)", minor, channelGroup, err.Error()))
 			} else {
 				Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
 			}
@@ -251,6 +297,32 @@ func applyCPOImageOverride(tags map[string]*string) {
 	if cpoImage := os.Getenv("CPO_IMAGE_OVERRIDE"); cpoImage != "" {
 		tags[metadataapi.TagClusterCPOImageOverride] = to.Ptr(cpoImage)
 	}
+}
+
+// TagsForPatch returns the complete tag set a PATCH body must carry.
+//
+// Per ARM RPC-Patch-V1-04 the tags in a PATCH request replace all existing tags on the
+// resource, so a PATCH that sends only the tag it wants to change deletes every other
+// tag. That includes the experimental tags this suite depends on, above all
+// aro-hcp.experimental.cluster.size-override, whose loss both stalls the update and
+// makes resource group cleanup refuse to delete the cluster.
+//
+// Pass the tags the resource was created with (ClusterParams.Tags) as base and the keys
+// to change as overrides. A nil override value removes that key from the result. The
+// base map is never mutated.
+func TagsForPatch(base, overrides map[string]*string) map[string]*string {
+	tags := maps.Clone(base)
+	if tags == nil {
+		tags = map[string]*string{}
+	}
+	for key, value := range overrides {
+		if value == nil {
+			delete(tags, key)
+			continue
+		}
+		tags[key] = value
+	}
+	return tags
 }
 
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling

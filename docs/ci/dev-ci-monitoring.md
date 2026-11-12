@@ -258,7 +258,7 @@ Validate the complete path after routing or secret changes:
 | Concern | Source |
 | --- | --- |
 | Alert names, expressions, thresholds, durations, annotations, and routing | [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) |
-| Per-environment quota dashboards (panels, subscriptions, regions charted) | [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep), [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep), and `ci.<env>.dashboardRegions` / `opstool.tenantQuota` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |
+| Per-environment quota dashboards (panels, subscriptions, regions charted) | [`tooling/tenant-quota/dashboards.bicep`](../../tooling/tenant-quota/dashboards.bicep), [`tenant-quota-dashboard.bicep`](../../dev-infrastructure/modules/monitor/tenant-quota-dashboard.bicep), and `ci.<env>.regions` / `opstool.tenantQuota` in [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |
 | Registered collectors and HTTP endpoints | [`tooling/tenant-quota/main.go`](../../tooling/tenant-quota/main.go) |
 | Metric collection and credential behavior | [`tooling/tenant-quota/pkg/`](../../tooling/tenant-quota/pkg/) |
 | DEV CI deployment configuration | [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) |

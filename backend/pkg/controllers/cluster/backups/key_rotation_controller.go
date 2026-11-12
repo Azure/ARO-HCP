@@ -93,7 +93,7 @@ func NewKeyRotationBackupController(
 
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
-	applyDesireInformer, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &keyRotationBackupSyncer{
@@ -114,12 +114,14 @@ func NewKeyRotationBackupController(
 		5*time.Minute,
 		syncer,
 	)
+	// Backup desire names include runtime namespace/configuration or key fingerprints.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
 
-	if kubeApplierInformers != nil {
-		if err := controller.QueueForInformers(5*time.Minute, applyDesireInformer); err != nil {
-			panic(err)
-		}
-	}
+	// NewClusterWatchingController already watches ApplyDesire changes with no
+	// resync. Resync cluster keys once, not once for every input.
 
 	return controller
 }
@@ -153,7 +155,7 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, _, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
 	if err != nil {
@@ -168,7 +170,10 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		return nil
 	}
@@ -194,11 +199,16 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 	alreadyHandled := cachedServiceProviderCluster.Status.KeyRotationBackupFingerprint == kmsKeyFingerprint
 
 	if !alreadyHandled {
-		// Same pause toggle the schedule controller uses: fleet-wide config
-		// switch OR the per-cluster admin API state. A backup already in flight
-		// (ApplyDesire exists) is never abandoned once pause takes effect.
-		backupsPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled ||
-			(c.backupConfig != nil && c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled)
+		// Use the same effective pause decision as the schedule controller.
+		// A backup already in flight (ApplyDesire exists) is never abandoned
+		// once pause takes effect.
+		backupsPaused := cachedServiceProviderCluster.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled
+		if c.backupConfig != nil {
+			backupsPaused = c.backupConfig.SchedulePaused(
+				cachedServiceProviderCluster.Spec.BackupScheduleState,
+				cachedCluster.ServiceProviderProperties.ExperimentalFeatures.BackupScheduleOverride,
+			)
+		}
 
 		inFlight := false
 		if backupsPaused {
@@ -296,7 +306,10 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 	cachedServiceProviderCluster *coreapi.ServiceProviderCluster,
 ) error {
 	managementClusterResourceID := cachedServiceProviderCluster.Status.ManagementClusterResourceID
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		return nil
 	}
@@ -321,7 +334,7 @@ func (c *keyRotationBackupSyncer) syncDeletion(
 			continue
 		}
 		logger.Info("purging on-demand backup ApplyDesire for deleted cluster", "desire", applyDesire.ResourceID.Name)
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return err
 		}
 	}
@@ -416,7 +429,7 @@ func (c *keyRotationBackupSyncer) purgeCompletedOnDemandApplyDesires(
 
 		logger.Info("purging on-demand backup ApplyDesire", "desire", applyDesire.ResourceID.Name, "reason", reason)
 		// Purge the Cosmos document directly, leaving the Velero Backup to expire at its TTL.
-		if err := purgeApplyDesire(ctx, *applyDesire, applyDesireCRUD); err != nil {
+		if err := kubeapplierhelpers.PurgeApplyDesire(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return false, err
 		}
 		return true, nil

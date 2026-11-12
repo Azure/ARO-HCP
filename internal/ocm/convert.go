@@ -226,6 +226,17 @@ func convertEnableEncryptionAtHostToCSBuilder(in coreapi.NodePoolPlatformProfile
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
+func buildCSOsDisk(osDisk coreapi.OSDiskProfile, storageAccountType, persistence string) *arohcpv1alpha1.AzureNodePoolOsDiskBuilder {
+	builder := arohcpv1alpha1.NewAzureNodePoolOsDisk().
+		SizeGibibytes(int(*osDisk.SizeGiB)).
+		StorageAccountType(storageAccountType).
+		Persistence(persistence)
+	if osDisk.EncryptionSetID != nil {
+		builder.SseEncryptionSetResourceId(osDisk.EncryptionSetID.String())
+	}
+	return builder
+}
+
 func convertClusterImageRegistryStateRPToCS(in coreapi.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
 	case metadataapi.ClusterImageRegistryStateDisabled:
@@ -298,24 +309,42 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
+			kms := in.DataEncryption.CustomerManaged.Kms
 			activeKeyBuilder.
-				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+				KeyName(kms.ActiveKey.Name).
+				KeyVaultName(kms.ActiveKey.VaultName)
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
-				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
+			if len(kms.Visibility) != 0 {
+				visibility, err := convertKeyVaultVisibilityRPToCS(kms.Visibility)
 				if err != nil {
 					return nil, err
 				}
 				azureKmsEncryptionBuilder.Visibility(visibility)
 			}
 
+			keyVaultType, err := convertKmsKeyVaultTypeRPToCS(kms.KeyVaultType)
+			if err != nil {
+				return nil, err
+			}
+			azureKmsEncryptionBuilder.KeyVaultType(keyVaultType)
+
 			azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		}
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
+}
+
+func convertKmsKeyVaultTypeRPToCS(vaultType string) (arohcpv1alpha1.AzureKmsEncryptionKeyVaultType, error) {
+	switch vaultType {
+	case "", coreapi.KmsKeyVaultTypeKeyVault:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault, nil
+	case coreapi.KmsKeyVaultTypeManagedHSM:
+		return arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeManagedHsm, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.AzureKmsEncryptionKeyVaultType](vaultType)
+	}
 }
 
 func convertContainerRegistryPullCredentialsToCS(resourceID *azcorearm.ResourceID) *arohcpv1alpha1.AzureContainerRegistryBuilder {
@@ -645,8 +674,11 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clus
 	}
 
 	// Cluster Service rejects an empty DomainPrefix string.
-	if cluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
+	if len(cluster.CustomerProperties.DNS.BaseDomainPrefix) != 0 {
 		clusterBuilder.DomainPrefix(cluster.CustomerProperties.DNS.BaseDomainPrefix)
+	}
+	if len(cluster.ServiceProviderProperties.DNS.BaseDomain) != 0 {
+		clusterBuilder.DNS(arohcpv1alpha1.NewDNS().BaseDomain(cluster.ServiceProviderProperties.DNS.BaseDomain))
 	}
 
 	return clusterBuilder, azureBuilder, nil
@@ -680,10 +712,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.NodePool, updating b
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(csDiskStorageAccountType).
-					Persistence(csPersistence))).
+				OsDisk(buildCSOsDisk(nodePool.Properties.Platform.OSDisk, csDiskStorageAccountType, csPersistence))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
@@ -841,19 +870,6 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 		return nil, fmt.Errorf("failed to parse public DNS zone resource ID %q: %w", azureShard.PublicDnsZoneResourceId(), err)
 	}
 
-	maestroConfig := csShard.MaestroConfig()
-	if maestroConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro config", shardID)
-	}
-	restConfig := maestroConfig.RestApiConfig()
-	if restConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro REST API config", shardID)
-	}
-	grpcConfig := maestroConfig.GrpcApiConfig()
-	if grpcConfig == nil {
-		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
-	}
-
 	hostedClustersSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
 	hostedClustersManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
 	hostedClustersSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
@@ -912,9 +928,6 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			HostedClustersSecretsKeyVaultURL:                     hostedClustersSecretsKeyVaultURL,
 			HostedClustersManagedIdentitiesKeyVaultURL:           hostedClustersManagedIdentitiesKeyVaultURL,
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: hostedClustersSecretsKeyVaultManagedIdentityClientID,
-			MaestroConsumerName:                                  maestroConfig.ConsumerName(),
-			MaestroRESTAPIURL:                                    restConfig.Url(),
-			MaestroGRPCTarget:                                    grpcConfig.Url(),
 			ClusterServiceProvisionShardID:                       &shardID,
 			// i hate this a lot but there is no representation of the cosmosdb container as of now
 			// in CS or the RP so we replicate the naming convention here.

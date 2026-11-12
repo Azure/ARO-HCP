@@ -1,9 +1,21 @@
 ConfigPath: ../../config/rendered/dev/dev/westus3.yaml
 TopologyDir: ../..
+ValidateDaemonSetUpdateStrategies: true
 Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
 # Components exempt from requiring resources.requests.memory
+# ServiceMonitors/PodMonitors exempt from requiring the microsoft_metrics_include_label=service
+# routing label (without the label, scraped series are dropped by the filtered services DCR).
+MetricsRoutingLabelAllowlist:
+# Upstream kube-prometheus-stack operator self-monitoring ServiceMonitor
+- ServiceMonitor/prometheus-operator
+# ServiceMonitors/PodMonitors whose series route to a different data collection
+# rule and must therefore set a non-default microsoft_metrics_include_label value.
+# Maps a "Kind/name" glob pattern to the required replacement value.
+MetricsRoutingLabelOverrides:
+  # KSM custom-resource metrics route to the HCP data collection rule, not the services DCR.
+  ServiceMonitor/kube-state-metrics-crs: hcp
 ResourceRequestsAllowlist:
 # Standing exemptions
 # (no standing exemptions for requests at the moment)
@@ -17,10 +29,6 @@ ResourceRequestsAllowlist:
 - DaemonSet/set-kubelet-parameters-for-scale/kubelet-parameters
 - Deployment/admin-api-certificate-refresher/init-container-msg-container-init
 - Deployment/frontend-certificate-refresher/init-container-msg-container-init
-- Deployment/maestro/maestro-server-migration
-- Deployment/maestro-agent/init
-- Deployment/maestro-agent/maestro-agent
-- Deployment/maestro-agent/metrics-proxy
 - Deployment/mise/mise
 - Deployment/misev2/misev2
 - Deployment/postgres-breakglass/init
@@ -28,8 +36,6 @@ ResourceRequestsAllowlist:
 - Deployment/secrets-store-sync-controller-manager/manager
 - Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
 - Job/delete-sc-pre-upgrade/delete-sc
-- Job/finalize-mce/finalize
-- Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
@@ -50,8 +56,6 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/kube-events/* # config sets memory: unlimited
 - Deployment/sessiongate/* # config sets memory: unlimited
 - Deployment/secrets-store-sync-controller-manager/provider-azure-installer # config sets memory: unlimited
-- Deployment/maestro/maestro-server # config sets memory: unlimited (template omits limits)
-- Deployment/maestro/maestro-server-migration # initContainer has no limits set (also missing requests)
 # Upstream charts - currently missing limits
 - DaemonSet/arobit-forwarder/mdsd-cert-watchdog # temporarily allowlisted while auditing upstream arobit chart resource settings
 - Job/*/fleet-registration # fleet registration job name varies by environment
@@ -72,9 +76,6 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/grc-policy-propagator/governance-policy-propagator
 - Deployment/klusterlet-addon-controller-v2/klusterlet-addon-controller
 - Deployment/kube-applier/kube-applier
-- Deployment/maestro-agent/init
-- Deployment/maestro-agent/maestro-agent
-- Deployment/maestro-agent/metrics-proxy
 - Deployment/mgmt-agent/mgmt-agent-controller
 - Deployment/mise/mise
 - Deployment/misev2/misev2
@@ -83,8 +84,6 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/secrets-store-sync-controller-manager/manager
 - Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
 - Job/delete-sc-pre-upgrade/delete-sc
-- Job/finalize-mce/finalize
-- Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
 - Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment

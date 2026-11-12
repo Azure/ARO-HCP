@@ -106,6 +106,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}, nil
 }
 
+// Complete loads recorded timing intervals, retaining lifecycle and operation metadata.
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	timingPathMatcher, err := regexp.Compile(`timing-metadata-[a-z0-9]+\.yaml(\.gz)?`)
 	if err != nil {
@@ -169,23 +170,14 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			logger.Error(err, "failed to parse finish date", "identifier", item.Identifier)
 			continue
 		}
-		var steps []StepTimingMetadata
-		for _, step := range item.Steps {
-			stepStarted, err := time.Parse(time.RFC3339Nano, step.StartedAt)
+		steps := parseSteps(item.Steps, logger)
+		phases := parseSteps(item.Phases, logger)
+		var cleanupStarted time.Time
+		if item.CleanupStartedAt != "" {
+			cleanupStarted, err = time.Parse(time.RFC3339Nano, item.CleanupStartedAt)
 			if err != nil {
-				logger.Error(err, "failed to parse start date", "identifier", step.Name)
-				continue
+				logger.Error(err, "failed to parse cleanup start date", "identifier", item.Identifier)
 			}
-			stepFinished, err := time.Parse(time.RFC3339Nano, step.FinishedAt)
-			if err != nil {
-				logger.Error(err, "failed to parse finish date", "identifier", step.Name)
-				continue
-			}
-			steps = append(steps, StepTimingMetadata{
-				Name:       step.Name,
-				StartedAt:  stepStarted,
-				FinishedAt: stepFinished,
-			})
 		}
 		deployments := make(map[string]map[string][]ARMOperation)
 		for resourceGroup, deploymentNames := range item.Deployments {
@@ -203,11 +195,14 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			}
 		}
 		times = append(times, TestInfo{
-			Identifier:  item.Identifier,
-			StartedAt:   s,
-			FinishedAt:  f,
-			Steps:       steps,
-			Deployments: deployments,
+			Identifier:       item.Identifier,
+			StartedAt:        s,
+			FinishedAt:       f,
+			CleanupStartedAt: cleanupStarted,
+			Outcome:          item.Outcome,
+			Phases:           phases,
+			Steps:            steps,
+			Deployments:      deployments,
 		})
 	}
 
@@ -305,16 +300,21 @@ func parseISO8601Duration(from string) (time.Duration, error) {
 }
 
 type TestInfo struct {
-	Identifier []string
-	StartedAt  time.Time
-	FinishedAt time.Time
-
-	Steps       []StepTimingMetadata
-	Deployments map[string]map[string][]ARMOperation
+	Identifier       []string
+	StartedAt        time.Time
+	FinishedAt       time.Time
+	CleanupStartedAt time.Time
+	Outcome          string
+	Phases           []StepTimingMetadata
+	Steps            []StepTimingMetadata
+	Deployments      map[string]map[string][]ARMOperation
 }
 
 type StepTimingMetadata struct {
 	Name       string
+	Kind       string
+	Outcome    string
+	Incomplete bool
 	StartedAt  time.Time
 	FinishedAt time.Time
 }
@@ -327,6 +327,7 @@ type ARMOperation struct {
 	Children      []ARMOperation
 }
 
+// Visualize writes timing charts and successful-test operation summaries.
 func (o *Options) Visualize(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -355,6 +356,11 @@ func (o *Options) Visualize(ctx context.Context) error {
 	}()
 	rendered := waterfall.RenderContent()
 	rendered = bytes.Replace(rendered, []byte("<head>"), []byte(`<head><meta name="viewport" content="width=device-width, initial-scale=1">`), 1)
+	summary, err := lifecycleSummaryHTML(o.Times)
+	if err != nil {
+		return fmt.Errorf("failed to render timing summary: %w", err)
+	}
+	rendered = bytes.Replace(rendered, []byte("<body>"), append([]byte("<body>"), summary...), 1)
 	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
 	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
 	if _, err := output.Write(rendered); err != nil {
@@ -373,7 +379,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	return nil
 }
 
-// testTimingChart needs nonempty input and sorts it in chronological order.
+// Renders lifecycle rows with semantic colors and responsive zoom behavior.
 func testTimingChart(times []TestInfo) *charts.Bar {
 	slices.SortFunc(times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
@@ -386,61 +392,41 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	startTime := times[0].StartedAt
 	endTime := startTime
 
-	testNameSet := sets.New[string]()
-	for _, item := range times {
-		testNameSet.Insert(strings.Join(item.Identifier, " "))
-	}
-	testNames := sets.List(testNameSet)
-
 	waterfall := charts.NewBar()
 	waterfall.Renderer = render.NewChartRender(testChart{waterfall}, waterfall.Validate)
 	var highWaterMark, durations []opts.BarData
 	var names []string
-	startTimes := map[string]time.Time{}
+	var groups []timingChartGroup
 	for _, item := range times {
-		identifier := strings.Join(item.Identifier, " ")
 		if item.FinishedAt.After(endTime) {
 			endTime = item.FinishedAt
 		}
-		startTimes[identifier] = item.StartedAt
-	}
-	// Keep the original per-test palette order without a series for every test.
-	slices.SortFunc(testNames, func(a, b string) int {
-		return startTimes[a].Compare(startTimes[b])
-	})
-	colors := map[string]string{}
-	for i, testName := range testNames {
-		colors[testName] = waterfall.Colors[i%len(waterfall.Colors)]
 	}
 	for _, item := range times {
 		identifier := strings.Join(item.Identifier, " ")
-
-		highWaterMark = append(highWaterMark, opts.BarData{
-			Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond),
-		})
-		durations = append(durations, opts.BarData{
-			Name:  identifier,
-			Value: float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
-			ItemStyle: &opts.ItemStyle{
-				Color:       colors[identifier],
-				BorderColor: "black",
-				BorderWidth: 1,
-			},
-		})
-		names = append(names, identifier)
-		for _, step := range item.Steps {
-			highWaterMark = append(highWaterMark, opts.BarData{
-				Value: float64(step.StartedAt.Sub(startTime)) / float64(time.Millisecond),
-			})
-			durations = append(durations, opts.BarData{
-				Name:  fmt.Sprintf("%s: %s", identifier, step.Name),
-				Value: float64(step.FinishedAt.Sub(step.StartedAt)) / float64(time.Millisecond),
-				ItemStyle: &opts.ItemStyle{
-					Color: colors[identifier],
-				},
-			})
-			names = append(names, step.Name)
+		group := timingChartGroup{
+			Name:          identifier,
+			StartTime:     item.StartedAt.UnixMilli(),
+			Duration:      float64(item.FinishedAt.Sub(item.StartedAt)) / float64(time.Millisecond),
+			FirstRow:      len(names),
+			Outcome:       item.Outcome,
+			FullLifecycle: hasFullLifecycle(item),
 		}
+		highWaterMark = append(highWaterMark, opts.BarData{Value: float64(item.StartedAt.Sub(startTime)) / float64(time.Millisecond)})
+		durations = append(durations, opts.BarData{Name: identifier, Value: group.Duration})
+		names = append(names, identifier)
+		for _, row := range lifecycleRows(item) {
+			color := timingColor(row.Kind)
+			if color == "" {
+				color = "#5470c6"
+			}
+			group.Segments = append(group.Segments, timingChartSegment{
+				Name: row.Name, Kind: row.Kind, Color: color,
+				Start: float64(row.StartedAt.Sub(startTime)) / float64(time.Millisecond),
+				End:   float64(row.FinishedAt.Sub(startTime)) / float64(time.Millisecond),
+			})
+		}
+		groups = append(groups, group)
 	}
 
 	waterfall.SetGlobalOptions(
@@ -448,12 +434,12 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithInitializationOpts(opts.Initialization{
 			PageTitle: "Test Timing Analysis",
 			Renderer:  "canvas",
-			Height:    "1024px",
+			Height:    "90vh",
 			Width:     "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:      "ARO HCP End-to-End Test Timing",
-			Subtitle:   fmt.Sprintf("Overall Runtime: %s", endTime.Sub(startTime).String()),
+			Title:      "Test timing",
+			Subtitle:   lifecycleSubtitle(times, endTime.Sub(startTime)),
 			TitleStyle: &opts.TextStyle{Align: "left"},
 			TextAlign:  "left",
 			Left:       "center",
@@ -474,6 +460,9 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 		charts.WithDataZoomOpts(opts.DataZoom{
 			Type: "slider", Orient: "vertical", YAxisIndex: []int{0}, Start: 0, End: 100,
 		}),
+		charts.WithDataZoomOpts(opts.DataZoom{
+			Type: "slider", Orient: "horizontal", XAxisIndex: []int{0}, Start: 0, End: 100, FilterMode: "none",
+		}),
 	)
 	waterfall.SetXAxis(names).
 		AddSeries("Placeholder", highWaterMark,
@@ -492,9 +481,380 @@ func testTimingChart(times []TestInfo) *charts.Bar {
 	waterfall.AddJSFuncStrs(
 		opts.FuncOpts(render.EchartsInstancePlaceholder+`.setOption({xAxis: {axisLabel: {formatter: `+millisecondAxisFormatter(startTime.Format(time.RFC3339Nano))+`}}, tooltip: {confine: true, formatter: `+testTimingTooltipFormatter+`}});`),
 		opts.FuncOpts(`window.addEventListener('resize', () => {`+render.EchartsInstancePlaceholder+`.resize();});`),
+		opts.FuncOpts(`(() => {
+			const chart = `+render.EchartsInstancePlaceholder+`;
+			const applyTheme = () => {
+				const style = getComputedStyle(document.body);
+				const color = style.color;
+				chart.setOption({
+					backgroundColor: 'transparent',
+					textStyle: {color},
+					title: {textStyle: {color}, subtextStyle: {color}},
+					xAxis: {axisLabel: {color}, axisLine: {lineStyle: {color}}, splitLine: {lineStyle: {color, opacity: 0.15}}},
+					tooltip: {backgroundColor: style.backgroundColor, borderColor: color, textStyle: {color}},
+					dataZoom: [{textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}, {textStyle: {color}, borderColor: color, backgroundColor: style.backgroundColor}],
+				});
+			};
+			applyTheme();
+			window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+			new MutationObserver(applyTheme).observe(document.documentElement, {
+				attributes: true, attributeFilter: ['class', 'style', 'data-darkreader-scheme']
+			});
+		})();`),
+		opts.FuncOpts(timingChartSortingJS(render.EchartsInstancePlaceholder, groups, float64(endTime.Sub(startTime))/float64(time.Millisecond))),
 	)
 
 	return waterfall
+}
+
+const timingChartMinimumWindowMillis = 1000
+const timingChartRowHeight = 26
+const timingChartMinimumOverviewHeight = 640
+
+type timingChartGroup struct {
+	Name          string               `json:"name"`
+	StartTime     int64                `json:"startTime"`
+	Duration      float64              `json:"duration"`
+	FirstRow      int                  `json:"firstRow"`
+	Segments      []timingChartSegment `json:"segments"`
+	Outcome       string               `json:"outcome"`
+	FullLifecycle bool                 `json:"fullLifecycle"`
+}
+
+type timingChartSegment struct {
+	Name  string  `json:"name"`
+	Kind  string  `json:"kind"`
+	Color string  `json:"color"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+}
+
+// Builds the segmented test bars, sorting, and zoom script for the timing chart.
+func timingChartSortingJS(chart string, groups []timingChartGroup, totalDurationMillis float64) string {
+	encoded, _ := json.Marshal(groups)
+	if bytes.Contains(encoded, []byte("__f__")) {
+		encoded = bytes.ReplaceAll(encoded, []byte("__f__"), []byte(`\u005f\u005ff\u005f\u005f`))
+	}
+	if totalDurationMillis <= 0 {
+		totalDurationMillis = timingChartMinimumWindowMillis
+	}
+	replacements := strings.NewReplacer(
+		"__CHART__", chart,
+		"__GROUPS__", string(encoded),
+		"__TIME_RANGE__", strconv.FormatFloat(totalDurationMillis, 'f', -1, 64),
+		"__MINIMUM_WINDOW__", strconv.Itoa(timingChartMinimumWindowMillis),
+		"__ROW_HEIGHT__", strconv.Itoa(timingChartRowHeight),
+		"__MINIMUM_OVERVIEW_HEIGHT__", strconv.Itoa(timingChartMinimumOverviewHeight),
+	)
+	return replacements.Replace(`(() => {
+	const chart = __CHART__;
+	const groups = __GROUPS__;
+	const initial = chart.getOption();
+	chart.setOption({dataZoom: initial.dataZoom.map((zoom, index) => ({...zoom, id: index === 0 ? 'timing-rows' : 'timing-time', ...(index === 0 ? {showDataShadow:true} : {})}))}, {replaceMerge: ['dataZoom']});
+	const allOffsets = initial.series[0].data;
+	const allDurations = initial.series[1].data;
+	let currentLabels = groups.map(group => group.name);
+	let currentOffsets = allOffsets;
+	let currentDurations = allDurations;
+	/* The detail is pinned explicitly rather than relying on triggerOn alone:
+	   ECharts still hides a tooltip when the pointer leaves the chart or the HTML
+	   tooltip, so while pinned the tooltip is kept visible until another row is
+	   pinned or the click lands outside the plot. */
+	let pinnedIndex = null;
+	const pin = (index, x, y) => {
+		pinnedIndex = index;
+		chart.setOption({tooltip: {alwaysShowContent: true}});
+		chart.dispatchAction({type: 'showTip', x, y});
+	};
+	const unpin = () => {
+		pinnedIndex = null;
+		chart.setOption({tooltip: {alwaysShowContent: false}});
+		chart.dispatchAction({type: 'hideTip'});
+	};
+	const sort = document.getElementById('timing-sort');
+	const outcomeFilters = {
+		skipped: document.getElementById('timing-show-skipped'),
+		passed: document.getElementById('timing-show-passed'),
+		failed: document.getElementById('timing-show-failed')
+	};
+	const isVisible = test => {
+		const outcome = String(test.outcome || '').toLowerCase();
+		const category = ['skipped','pending'].includes(outcome) ? 'skipped'
+			: outcome === 'passed' ? 'passed'
+			: ['failed','timedout','panicked','interrupted','aborted'].includes(outcome) ? 'failed' : null;
+		return category === null || outcomeFilters[category]?.checked !== false;
+	};
+	/* An auto-height iframe cannot also determine its content height. */
+	let viewportWindow;
+	try {
+		viewportWindow = window.top || window;
+		void viewportWindow.innerHeight;
+	} catch {
+		viewportWindow = null;
+	}
+	const overviewHeight = () => viewportWindow
+		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight * 0.9))
+		: __MINIMUM_OVERVIEW_HEIGHT__;
+	const renderItem = (params, api) => {
+		const test = ordered[params.dataIndex];
+		const y = api.coord([0, api.value(0)])[1];
+		const height = Math.max(1, Math.min(__ROW_HEIGHT__, api.size([0, 1])[1]) * 0.8);
+		const segments = test.segments || [];
+		const start = api.value(1), end = api.value(2);
+		const boundaries = [...new Set([start, end, ...segments.flatMap(s => [s.start, s.end])])].sort((a,b) => a-b);
+		const children = [];
+		for (let i = 1; i < boundaries.length; i++) {
+			const left = boundaries[i-1], right = boundaries[i];
+			if (right <= left) continue;
+			const active = segments.filter(s => s.start < right && s.end > left);
+			const operations = active.filter(s => s.kind !== 'phase' && s.kind !== 'gap');
+			const gaps = active.filter(s => s.kind === 'gap');
+			const phases = active.filter(s => s.kind === 'phase');
+			const layers = operations.length ? operations : gaps.length ? gaps : phases;
+			const colors = layers.length ? layers.map(s => s.color) : ['#64748b'];
+			const x = api.coord([left, 0])[0], xEnd = api.coord([right, 0])[0];
+			colors.forEach((color, lane) => {
+				const shape = echarts.graphic.clipRectByRect({x, y:y-height/2+lane*height/colors.length, width:xEnd-x, height:height/colors.length}, params.coordSys);
+				if (shape) children.push({type:'rect', shape, style:{fill:color}});
+			});
+		}
+		return {type:'group', children};
+	};
+	let ordered = groups.slice();
+	const tooltip = params => {
+		const item = Array.isArray(params) ? params.find(value => value.seriesId === 'timing-tests') : params;
+		if (!item) return '';
+		const test = ordered[item.dataIndex];
+		if (!test) return '';
+		const start = Number(currentOffsets[item.dataIndex].value);
+		const duration = Math.max(0, test.duration);
+		const testEnd = start + duration;
+		const endpointTolerance = Number.EPSILON * Math.max(1, Math.abs(start), duration, Math.abs(testEnd)) * 4;
+		const formatDuration = value => {
+			if (value > 0 && value < 1000) return '<1s';
+			const total = Math.floor(value / 1000);
+			const hours = Math.floor(total / 3600);
+			const minutes = Math.floor(total % 3600 / 60);
+			return (hours ? hours + 'h' : '') + (minutes ? minutes + 'm' : '') + total % 60 + 's';
+		};
+		const element = (tag, style, text) => {
+			const node = document.createElement(tag);
+			Object.assign(node.style, style);
+			if (text !== undefined) node.textContent = text;
+			return node;
+		};
+		const content = element('div', {width:'min(720px, 80vw)', maxHeight:Math.max(1, Math.min(520, chart.getHeight() - 32)) + 'px', overflowY:'auto', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
+		content.append(
+			element('div', {fontWeight:'600', fontSize:'14px', overflowWrap:'anywhere'}, test.name),
+			element('div', {opacity:'0.75', margin:'4px 0 12px'}, 'Total duration: ' + formatDuration(duration))
+		);
+		const gaps = (test.segments || []).filter(segment => segment.kind === 'gap');
+		const gapDuration = gaps.reduce((total, segment) => total + segment.end - segment.start, 0);
+		const gapPercent = duration > 0 ? gapDuration / duration * 100 : 0;
+		const percentage = gapPercent > 0 && gapPercent < 1 ? '<1%' : Math.round(gapPercent) + '%';
+		content.append(
+			element('div', {opacity:'0.8', margin:'0 0 12px'}, 'No recorded operation: ' + formatDuration(gapDuration) + ' (' + percentage + ' of recorded time)'),
+			...(test.fullLifecycle === false ? [element('div', {opacity:'0.7', marginBottom:'12px'}, 'Recorded interval only; cleanup coverage unknown.')] : [])
+		);
+		const timelineGrid = (segments, showAxis = false) => {
+			const grid = element('div', {display:'grid', gridTemplateColumns:'minmax(0, 1.2fr) minmax(0, 1.8fr) 64px', gap:'8px 12px', alignItems:'center'});
+			if (showAxis) {
+				const axis = element('div', {display:'flex', justifyContent:'space-between', opacity:'0.65', fontSize:'11px'});
+				axis.append(element('span', {}, '0s'));
+				if (duration > 0) axis.append(element('span', {}, formatDuration(duration / 2)), element('span', {}, formatDuration(duration)));
+				grid.append(element('span', {opacity:'0.65'}, 'Stage / operation'), axis, element('span', {opacity:'0.65'}, 'Duration'));
+			}
+			for (const segment of segments) {
+				const stage = segment.kind === 'phase';
+				const primary = segment.displayName || (segment.kind === 'gap' ? 'No recorded operation' : segment.name);
+				const label = element(stage ? 'h3' : 'div', {borderLeft:'3px solid ' + segment.color, paddingLeft:stage ? '6px' : '14px', margin:'0', fontSize:stage ? '13px' : '12px', fontWeight:stage ? '600' : '400', overflowWrap:'anywhere'}, primary);
+				if (segment.kind === 'gap' && segment.name && segment.name !== primary) label.append(element('div', {opacity:'0.7', fontSize:'11px'}, segment.name));
+				const track = element('div', {position:'relative', height:'10px', borderRadius:'2px', overflow:'hidden', background:'rgba(128,128,128,0.18)'});
+				const left = duration > 0 ? (segment.start - start) / duration * 100 : 0;
+				const width = duration > 0 ? (segment.end - segment.start) / duration * 100 : 0;
+				track.append(element('div', {position:'absolute', top:'0', bottom:'0', left:width === 0 ? 'min(' + left + '%, calc(100% - 2px))' : left + '%', width:width + '%', minWidth:'2px', background:segment.color, borderRadius:'2px'}));
+				grid.append(label, track, element('span', {textAlign:'right', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}, formatDuration(segment.end - segment.start)));
+			}
+			return grid;
+		};
+		const segments = (test.segments || []).slice().sort((a,b) => a.start - b.start || b.end - a.end);
+		const stageName = phase => phase.name.replace(/^Phase: /, '');
+		const stages = segments.filter(segment => segment.kind === 'phase').map(phase => ({phase, rows:[]}));
+		const crossing = [], outside = [];
+		for (const segment of segments.filter(segment => segment.kind !== 'phase')) {
+			const overlaps = stages.filter(({phase}) => segment.start === segment.end
+				? phase.start <= segment.start && (segment.start < phase.end || Math.abs(phase.end - testEnd) <= endpointTolerance && segment.start === phase.end || phase.start === phase.end && segment.start === phase.start)
+				: phase.start < segment.end && phase.end > segment.start);
+			if (overlaps.length === 1 && overlaps[0].phase.start <= segment.start && overlaps[0].phase.end >= segment.end) {
+				overlaps[0].rows.push(segment);
+			} else if (overlaps.length) {
+				let cursor = segment.start, uncovered = false;
+				for (const {phase} of overlaps) {
+					if (phase.start > cursor) uncovered = true;
+					cursor = Math.max(cursor, phase.end);
+				}
+				uncovered ||= cursor < segment.end;
+				const context = overlaps.map(({phase}) => stageName(phase));
+				if (uncovered) context.push('outside recorded stages');
+				crossing.push({...segment, displayName:(segment.kind === 'gap' ? 'No recorded operation' : segment.name) + '; overlaps: ' + context.join(', ')});
+			} else {
+				outside.push({...segment, displayName:segment.name});
+			}
+		}
+		const appendRows = (section, rows) => {
+			const tiny = segment => segment.kind === 'gap' && segment.end > segment.start && segment.end - segment.start < 1000;
+			const tinyGaps = rows.filter(tiny);
+			section.append(timelineGrid(rows.filter(segment => !tiny(segment))));
+			if (tinyGaps.length) {
+				const details = element('details', {marginTop:'10px'});
+				const tinyDuration = tinyGaps.reduce((total, segment) => total + segment.end - segment.start, 0);
+				details.append(
+					element('summary', {cursor:'pointer', opacity:'0.8', marginBottom:'8px', paddingLeft:'14px'}, 'Small uncovered intervals (<1s): ' + tinyGaps.length + ', total ' + formatDuration(tinyDuration)),
+					timelineGrid(tinyGaps)
+				);
+				section.append(details);
+			}
+		};
+		content.append(timelineGrid([], true));
+		for (const {phase, rows} of stages) {
+			const section = element('section', {marginTop:'12px', borderTop:'1px solid rgba(128,128,128,0.25)', background:'rgba(128,128,128,0.06)'});
+			const details = element('details', {padding:'8px 0'});
+			const summary = element('summary', {cursor:'pointer', listStyle:'none'});
+			summary.append(timelineGrid([{...phase, displayName:stageName(phase)}]));
+			const body = element('div', {marginTop:'8px'});
+			appendRows(body, rows);
+			details.append(summary, body);
+			section.append(details);
+			content.append(section);
+		}
+		for (const [name, rows] of [['Across recorded stages', crossing], ['Outside recorded stages', outside]]) {
+			if (!rows.length) continue;
+			const section = element('section', {marginTop:'12px', paddingTop:'8px', borderTop:'1px solid rgba(128,128,128,0.25)'});
+			section.append(element('h3', {fontSize:'13px', margin:'0 0 8px', fontWeight:'600'}, name));
+			appendRows(section, rows);
+			content.append(section);
+		}
+		return content;
+	};
+	const visibleRowBounds = (start, end) => {
+		const lastIndex = currentLabels.length - 1;
+		if (lastIndex < 0) return [0, -1];
+		return [
+			Math.max(0, Math.round(lastIndex * start / 100)),
+			Math.min(lastIndex, Math.round(lastIndex * end / 100))
+		];
+	};
+	const fitViewportHeight = () => {
+		const height = overviewHeight();
+		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
+		chart.getDom().style.height = height + 'px';
+		chart.resize({height});
+	};
+	window.addEventListener('resize', fitViewportHeight);
+	if (viewportWindow && viewportWindow !== window) viewportWindow.addEventListener('resize', fitViewportHeight);
+	const fitTimeRange = (start, end) => {
+		const [first, last] = visibleRowBounds(start, end);
+		let earliest = Infinity;
+		let latest = -Infinity;
+		for (let i = first; i <= last; i++) {
+			const offset = Number(currentOffsets[i].value);
+			earliest = Math.min(earliest, offset);
+			latest = Math.max(latest, offset + Number(currentDurations[i].value));
+		}
+		if (!Number.isFinite(earliest)) return;
+		const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
+		const totalDuration = __TIME_RANGE__;
+		const timeStart = Math.max(0, earliest - padding);
+		const timeEnd = Math.min(totalDuration, latest + padding);
+		const startPercent = timeStart / totalDuration * 100;
+		const endPercent = Math.min(100, Math.max(startPercent + 0.1, timeEnd / totalDuration * 100));
+		chart.dispatchAction({type: 'dataZoom', dataZoomId: 'timing-time', start: startPercent, end: endPercent});
+	};
+	const update = () => {
+		if (pinnedIndex !== null) unpin();
+		const visible = groups.filter(isVisible);
+		const mode = sort.value;
+		visible.sort((a, b) => {
+			if (mode === 'duration' && a.duration !== b.duration) return b.duration - a.duration;
+			if (mode === 'name') {
+				const byName = a.name.localeCompare(b.name);
+				if (byName) return byName;
+			}
+			return a.startTime - b.startTime || a.name.localeCompare(b.name);
+		});
+		ordered = visible;
+		const labels = visible.map(group => group.name);
+		const offsets = visible.map(group => allOffsets[group.firstRow]);
+		const durations = visible.map(group => allDurations[group.firstRow]);
+		const visibleRows = labels.length;
+		const end = 100;
+		const timeRange = {start: 0, end: 100};
+		let earliest = Infinity;
+		let latest = -Infinity;
+		for (let i = 0; i < visibleRows; i++) {
+			const offset = Number(offsets[i].value);
+			earliest = Math.min(earliest, offset);
+			latest = Math.max(latest, offset + Number(durations[i].value));
+		}
+		if (visibleRows > 0) {
+			const padding = Math.max(__MINIMUM_WINDOW__, (latest - earliest) * 0.08);
+			const totalDuration = __TIME_RANGE__;
+			const timeStart = Math.max(0, earliest - padding);
+			const timeEnd = Math.min(totalDuration, latest + padding);
+			timeRange.start = timeStart / totalDuration * 100;
+			timeRange.end = Math.min(100, Math.max(timeRange.start + 0.1, timeEnd / totalDuration * 100));
+		}
+		currentLabels = labels;
+		currentOffsets = offsets;
+		currentDurations = durations;
+		chart.setOption({
+			xAxis: {min:0, max:__TIME_RANGE__}, yAxis: {data: labels},
+			tooltip: {trigger:'axis', triggerOn:'click', axisPointer:{axis:'y',type:'shadow'}, confine:true, enterable:true, hideDelay:200, formatter:tooltip},
+			series: [{id:'timing-tests', type:'custom', renderItem, encode:{x:[1,2],y:0},
+				data:visible.map((group,index) => ({name:group.name, value:[index,Number(offsets[index].value),Number(offsets[index].value)+Number(durations[index].value)]}))}],
+			dataZoom: [{id: 'timing-rows', start: 0, end}, {id: 'timing-time', ...timeRange}]
+		}, {replaceMerge:['series']});
+		fitViewportHeight();
+		const counter = document.getElementById('timing-visible-count');
+		if (counter) counter.textContent = visibleRows + ' of ' + groups.length + ' tests shown';
+	};
+	sort.addEventListener('change', update);
+	Object.values(outcomeFilters).forEach(control => control?.addEventListener?.('change', update));
+	chart.on('datazoom', event => {
+		const updates = event.batch || [event];
+		const rows = updates.find(item => item.dataZoomId === 'timing-rows');
+		if (!rows) return;
+		fitTimeRange(rows.start, rows.end);
+	});
+	/* A click inside the plot pins that row's detail, so moving the pointer over
+	   another row, into the tooltip or out of the chart keeps it. Clicks outside
+	   the plot dismiss it. Rows are resolved from the grid geometry rather than the
+	   event target so rows with no drawn bar, such as zero-duration tests, remain
+	   inspectable. */
+	chart.getZr().on('click', event => {
+		const grid = chart.getModel().getComponent('grid');
+		const rect = grid.coordinateSystem.getRect();
+		const inside = event.offsetX >= rect.x && event.offsetX <= rect.x + rect.width &&
+			event.offsetY >= rect.y && event.offsetY <= rect.y + rect.height;
+		if (!inside) {
+			unpin();
+			return;
+		}
+		const rows = Math.max(1, currentLabels.length);
+		const row = Math.max(0, Math.min(rows - 1, Math.floor((event.offsetY - rect.y) / (rect.height / rows))));
+		pin(row, event.offsetX, event.offsetY);
+	});
+	/* The chart surface only sees its own clicks. A pinned detail is also dismissed
+	   by clicking anywhere else on the page, while clicks inside the chart, including
+	   its tooltip, stay with the chart handler above. */
+	document.addEventListener?.('click', event => {
+		if (pinnedIndex === null) return;
+		if (chart.getDom().contains?.(event.target)) return;
+		unpin();
+	});
+	update();
+	window.addEventListener('load', fitViewportHeight);
+})();`)
 }
 
 type testChart struct {
@@ -713,7 +1073,7 @@ const testTimingTooltipFormatter = `(params) => {
 	content.style.maxWidth = 'min(600px, 80vw)';
 	const hours = Math.floor(item.value / 3600000);
 	const minutes = Math.floor(item.value % 3600000 / 60000);
-	const seconds = item.value % 60000 / 1000;
+	const seconds = Math.floor(item.value % 60000 / 1000);
 	content.textContent = item.name + ': ' + (hours ? hours + 'h' : '') +
 		(hours || minutes ? minutes + 'm' : '') + seconds + 's';
 	return content;
@@ -729,7 +1089,6 @@ const multiValueFormatter = `(params) => {
 		const hours = Math.floor(totalMilliseconds / (60 * 60 * 1000));
     	const minutes = Math.floor((totalMilliseconds % (60 * 60 * 1000)) / (60 * 1000));
     	const seconds = Math.floor((totalMilliseconds % (60 * 1000))/1000);
-		const milliseconds = totalMilliseconds % (1000);
 
     	let result = '';
     	if (hours > 0) {
@@ -738,7 +1097,7 @@ const multiValueFormatter = `(params) => {
 	    if (minutes > 0 || hours > 0) {
 	        result += ` + "`${minutes}m`" + `;
 	    }
-	    result += ` + "`${seconds}.${milliseconds}s`" + `;
+	    result += ` + "`${seconds}s`" + `;
 	    return item.name + ": " + result;
 	}
 }`

@@ -264,6 +264,18 @@ func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			rollout:                nil,
 			wantDesired:            v("4.21.2"),
 		},
+		{
+			name:                   "nightly pin holds without a rollout",
+			cluster:                newTestCluster(clusterName, "nightly", "4.22"),
+			serviceProviderCluster: newTestServiceProviderCluster(clusterName, v("4.22.0-0.nightly-multi-2026-04-08-114433"), nil, pin("4.22.0-0.nightly-multi-2026-04-07-114433", "")),
+			wantDesired:            v("4.22.0-0.nightly-multi-2026-04-07-114433"),
+		},
+		{
+			name:                   "nightly pin advances without a rollout",
+			cluster:                newTestCluster(clusterName, "nightly", "4.22"),
+			serviceProviderCluster: newTestServiceProviderCluster(clusterName, v("4.22.0-0.nightly-multi-2026-04-07-114433"), nil, pin("4.22.0-0.nightly-multi-2026-04-09-114433", "")),
+			wantDesired:            v("4.22.0-0.nightly-multi-2026-04-09-114433"),
+		},
 	}
 
 	for _, tc := range tests {

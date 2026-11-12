@@ -1,0 +1,273 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package testrunner
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	releaseutil "helm.sh/helm/v4/pkg/release/v1/util"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-Tools/config"
+
+	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
+)
+
+func TestTenantQuotaCIJobOutcomes(t *testing.T) {
+	const chartDir = "../../tenant-quota/deploy"
+
+	provider, err := config.NewConfigProvider("../../../config/config-dev-ci.yaml")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "dev-ci",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+	})
+	require.NoError(t, err)
+	cfg, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	// The standalone schema describes layers, not the flattened runtime config.
+	validateSchema := func(configuration map[string]any) error {
+		return resolver.ValidateSchema(map[string]any{
+			"clouds": map[string]any{"dev": map[string]any{"defaults": configuration}},
+		})
+	}
+	require.NoError(t, validateSchema(cfg))
+	resolved, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name             string
+		values           string
+		custom           bool
+		omitStartupSince bool
+	}{
+		{name: "deployed", values: "values.yaml.tmpl"},
+		{name: "defaults", values: "values.yaml"},
+		{name: "custom controller settings", values: "values.yaml.tmpl", custom: true},
+		{name: "omitted startup since", values: "values.yaml.tmpl", omitStartupSince: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var testConfig map[string]any
+			require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+			expected := map[string]any{
+				"interval": "15m", "window": "24h", "repairInterval": "12h", "overlap": "10m",
+				"workers": float64(10), "cacheSize": float64(20000), "cacheTTL": "15m",
+				"discoveryInterval": "30m", "completionDelay": "15m", "discoveryWorkers": float64(2),
+				"gcsBucket":    "test-platform-results-public",
+				"startupSince": "",
+			}
+			if tc.values == "values.yaml.tmpl" {
+				expected["jobFilter"] = "e2e-parallel"
+				for field, table := range map[string]string{
+					"outcomes": "ciJobOutcomes", "testNames": "ciTestNames", "testResults": "ciTestResults",
+					"discovered": "ciDiscoveredJobs", "processed": "ciProcessedJobs",
+				} {
+					expected[field] = map[string]any{"table": table, "ingestionMapping": table + "Mapping"}
+				}
+			}
+			if tc.custom {
+				for key, value := range map[string]any{
+					"interval": "1m", "window": "48h", "repairInterval": "6h", "overlap": "2h",
+					"workers": float64(3), "cacheSize": float64(100), "cacheTTL": "2m",
+					"discoveryInterval": "5m", "completionDelay": "3m", "discoveryWorkers": float64(4),
+					"gcsBucket":    "custom-results",
+					"discovered":   map[string]any{"table": "customDiscovered", "ingestionMapping": "customDiscoveryMapping"},
+					"processed":    map[string]any{"table": "customProcessed", "ingestionMapping": "customProcessingMapping"},
+					"startupSince": "2026-09-15T00:00:00Z",
+				} {
+					expected[key] = value
+				}
+				tenantQuota := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)
+				tenantQuota["exitOnPanic"] = true
+				outcomes := tenantQuota["ciJobOutcomes"].(map[string]any)
+				for key, value := range expected {
+					outcomes[key] = value
+				}
+			}
+			if tc.omitStartupSince {
+				outcomes := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["ciJobOutcomes"].(map[string]any)
+				delete(outcomes, "startupSince")
+			}
+			data, err := yaml.Marshal(testConfig)
+			require.NoError(t, err)
+			require.NoError(t, validateSchema(testConfig))
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configPath, data, 0600))
+			manifest, err := runTest(t.Context(), &internal.Settings{ConfigPath: configPath}, internal.TestCase{
+				Name:         "tenant-quota",
+				Namespace:    "tenant-quota",
+				Values:       filepath.Join(chartDir, tc.values),
+				HelmChartDir: chartDir,
+			})
+			require.NoError(t, err)
+
+			var cm corev1.ConfigMap
+			var deployment appsv1.Deployment
+			for _, document := range releaseutil.SplitManifests(manifest) {
+				var object metav1.TypeMeta
+				require.NoError(t, yaml.Unmarshal([]byte(document), &object))
+				switch object.Kind {
+				case "ConfigMap":
+					require.NoError(t, yaml.Unmarshal([]byte(document), &cm))
+				case "Deployment":
+					require.NoError(t, yaml.Unmarshal([]byte(document), &deployment))
+				}
+			}
+			pod := deployment.Spec.Template
+			require.Equal(t, "true", pod.Labels["azure.workload.identity/use"])
+			require.Len(t, pod.Spec.Containers, 1)
+			require.Equal(t, "1Gi", pod.Spec.Containers[0].Resources.Requests.Memory().String())
+			require.Equal(t, "1Gi", pod.Spec.Containers[0].Resources.Limits.Memory().String())
+			require.Contains(t, pod.Spec.Containers[0].Env, corev1.EnvVar{
+				Name: "AZURE_TOKEN_CREDENTIALS", Value: "WorkloadIdentityCredential",
+			})
+			var runtime map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(cm.Data["config.yaml"]), &runtime))
+			require.Equal(t, tc.custom, runtime["exitOnPanic"])
+			require.Equal(t, "30s", runtime["timeout"], "global collector timeout is unchanged")
+			require.Equal(t, "24h", runtime["cacheTTL"], "global collector cache TTL is unchanged")
+			outcomes := runtime["ciJobOutcomes"].(map[string]any)
+			require.NotContains(t, outcomes, "timeout", "CI reconciles have no timeout")
+			require.NotContains(t, outcomes, "sippyURI", "discovery reads GCS directly")
+			require.NotContains(t, outcomes, "releases", "discovery does not depend on Sippy releases")
+			for key, value := range expected {
+				require.Equal(t, value, outcomes[key], "controller setting %s", key)
+			}
+			if tc.values == "values.yaml.tmpl" {
+				require.Equal(t, expectedTenants(testConfig), runtime["tenants"])
+			} else {
+				expected["enabled"] = false
+				require.Equal(t, expected, outcomes)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		field string
+		value any
+	}{
+		{field: "workers", value: 0},
+		{field: "discoveryWorkers", value: 0},
+		{field: "discoveryWorkers", value: -1},
+		{field: "cacheSize", value: 0},
+		{field: "gcsBucket", value: "gs://test-platform-results-public"},
+		{field: "gcsBucket", value: "https://storage.googleapis.com/test-platform-results-public"},
+		{field: "gcsBucket", value: "bucket/path"},
+		{field: "gcsBucket", value: "bucket name"},
+		{field: "gcsBucket", value: ""},
+		{field: "sippyURI", value: "https://sippy.dptools.openshift.org"},
+		{field: "releases", value: []string{"Presubmits"}},
+		{field: "timeout", value: "10m"},
+		{field: "startupSince", value: "not-a-date"},
+		{field: "startupSince", value: "2026-09-31T00:00:00Z"},
+		{field: "startupSince", value: "2026-09-15"},
+	} {
+		t.Run("schema rejects "+tc.field, func(t *testing.T) {
+			var invalid map[string]any
+			require.NoError(t, yaml.Unmarshal(resolved, &invalid))
+			outcomes := invalid["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["ciJobOutcomes"].(map[string]any)
+			outcomes[tc.field] = tc.value
+			err := validateSchema(invalid)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.field)
+		})
+	}
+}
+
+// expectedTenants derives the rendered collector tenants from the ci.<env> CSV
+// inventory, independently of the chart's Helm implementation.
+func expectedTenants(testConfig map[string]any) []any {
+	ci := testConfig["ci"].(map[string]any)
+	tenants := testConfig["opstool"].(map[string]any)["tenantQuota"].(map[string]any)["tenants"].(map[string]any)
+	csv := func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(s, ",")
+	}
+	regionList := func(s string) []any {
+		var out []any
+		for _, r := range csv(s) {
+			out = append(out, r)
+		}
+		return out
+	}
+	var subscriptions []any
+	add := func(env, field string) {
+		e := ci[env].(map[string]any)
+		subs, _ := e[field].(string)
+		for _, pair := range csv(subs) {
+			name := pair[strings.Index(pair, "=")+1:]
+			subscriptions = append(subscriptions, map[string]any{"name": name, "regions": regionList(e["regions"].(string))})
+		}
+	}
+	add("dev", "infrastructureSubscriptions")
+	for _, env := range []string{"dev", "int", "stg", "prod"} {
+		add(env, "e2eSubscriptions")
+	}
+	tenant := func(key string, subs []any) map[string]any {
+		t := tenants[key].(map[string]any)
+		return map[string]any{
+			"tenantId": t["tenantId"], "tenantName": t["tenantName"],
+			"servicePrincipalClientId": t["servicePrincipalClientId"], "keyVaultSecretName": t["keyVaultSecretName"],
+			"scope": "https://graph.microsoft.com/.default", "directoryQuota": t["directoryQuota"],
+			"subscriptions": subs,
+		}
+	}
+	other := tenants["testTestAro"].(map[string]any)
+	return []any{
+		tenant("redHat0", subscriptions),
+		tenant("testTestAro", []any{map[string]any{"name": other["subscriptionName"], "regions": regionList(other["regions"].(string))}}),
+	}
+}
+
+func TestTenantQuotaSchemaRejectsAmbiguousSubscriptionNames(t *testing.T) {
+	provider, err := config.NewConfigProvider("../../../config/config-dev-ci.yaml")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement: "dev", EnvironmentReplacement: "dev-ci", RegionReplacement: "westus3",
+		RegionShortReplacement: "usw3", StampReplacement: "1",
+	})
+	require.NoError(t, err)
+	cfg, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	resolved, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+	validate := func(csv string) error {
+		var testConfig map[string]any
+		require.NoError(t, yaml.Unmarshal(resolved, &testConfig))
+		testConfig["ci"].(map[string]any)["int"].(map[string]any)["e2eSubscriptions"] = csv
+		return resolver.ValidateSchema(map[string]any{
+			"clouds": map[string]any{"dev": map[string]any{"defaults": testConfig}},
+		})
+	}
+	require.NoError(t, validate("64f0619f-ebc2-4156-9d91-c4c781de7e54=Name - With (Punctuation)"))
+	for _, csv := range []string{"id=Engineering=Canary", "id=a,id2=b=c", "id=Team's Subscription", `id=Say "hi"`, `id=back\slash`, "id=${interp}", "id=back`tick"} {
+		err := validate(csv)
+		require.Error(t, err, csv)
+		require.ErrorContains(t, err, "e2eSubscriptions")
+	}
+}

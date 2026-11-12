@@ -59,7 +59,7 @@ func BindQueryOptions(opts *RawQueryOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
-	cmd.Flags().StringArrayVar(&opts.ClusterIds, "cluster-id", opts.ClusterIds, "filter by HCP cluster ID (repeatable, combinable with --cluster-name; custom queries may still be resource-group scoped)")
+	cmd.Flags().StringArrayVar(&opts.ClusterIds, "cluster-id", opts.ClusterIds, "filter by Clusters Service ID (repeatable, combinable with --cluster-name; RP, kube-applier, fleet, and custom logs may remain resource-group scoped)")
 	cmd.Flags().StringArrayVar(&opts.ClusterNames, "cluster-name", opts.ClusterNames, "filter by HCP cluster name (repeatable, resolved to cluster IDs via Kusto)")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().BoolVar(&opts.SkipKubernetesEventsLogs, "skip-kubernetes-events-logs", opts.SkipKubernetesEventsLogs, "Do not gather Kubernetes events logs")

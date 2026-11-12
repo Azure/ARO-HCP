@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/wait"
 	metaac "k8s.io/client-go/applyconfigurations/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -66,6 +67,7 @@ type CapacityReportController struct {
 	podLister            corelisters.PodLister
 	namespaceLister      corelisters.NamespaceLister
 	hcpLister            hypershiftlisters.HostedControlPlaneLister
+	hcLister             hypershiftlisters.HostedClusterLister
 	metricsClient        metricsclientset.Interface
 	capacityReportClient capacityreportclient.Interface
 	nowFunc              func() time.Time
@@ -78,6 +80,7 @@ func NewCapacityReportController(
 	podInformer coreinformers.PodInformer,
 	namespaceInformer coreinformers.NamespaceInformer,
 	hcpInformer hypershiftinformers.HostedControlPlaneInformer,
+	hcInformer hypershiftinformers.HostedClusterInformer,
 	metricsClient metricsclientset.Interface,
 	capacityReportClient capacityreportclient.Interface,
 	nowFunc func() time.Time,
@@ -91,6 +94,7 @@ func NewCapacityReportController(
 		podLister:            podInformer.Lister(),
 		namespaceLister:      namespaceInformer.Lister(),
 		hcpLister:            hcpInformer.Lister(),
+		hcLister:             hcInformer.Lister(),
 		metricsClient:        metricsClient,
 		capacityReportClient: capacityReportClient,
 		nowFunc:              nowFunc,
@@ -99,6 +103,7 @@ func NewCapacityReportController(
 			podInformer.Informer().HasSynced,
 			namespaceInformer.Informer().HasSynced,
 			hcpInformer.Informer().HasSynced,
+			hcInformer.Informer().HasSynced,
 		},
 	}
 }
@@ -193,21 +198,18 @@ func (c *CapacityReportController) buildCapacityReportUpdate(ctx context.Context
 		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
 			fmt.Errorf("failed to list HostedControlPlanes: %w", err)
 	}
-	hcpNamespaces := collectHCPNamespaces(hcps)
-	hostedControlPlanes := collectHostedControlPlanes(hcps, c.namespaceLister)
 
 	pods, err := c.podLister.List(labels.Everything())
 	if err != nil {
 		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
 			fmt.Errorf("failed to list pods: %w", err)
 	}
-	requested := aggregatePodRequests(pods, hcpNamespaces)
 
 	// List cluster-wide because the Metrics API does not support namespace
 	// filtering, pagination, or field selectors. The metrics-server serves an
 	// in-memory snapshot from kubelet scrapes, not etcd-backed storage, so
 	// Limit/Continue and ResourceVersion in ListOptions are silently ignored.
-	// aggregatePodMetrics filters to HCP namespaces client-side.
+	// collectHCPResources filters to HCP namespaces client-side.
 	// On purpose-built management clusters most pods are in HCP namespaces,
 	// so the overhead is minimal.
 	allMetrics, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
@@ -215,16 +217,11 @@ func (c *CapacityReportController) buildCapacityReportUpdate(ctx context.Context
 		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
 			fmt.Errorf("failed to list pod metrics: %w", err)
 	}
-	usage := aggregatePodMetrics(allMetrics.Items, hcpNamespaces)
-
-	// SWIFT NICs are discrete, non-compressible resources: requested == used.
-	// Pod requests already capture the exact NIC count via aggregatePodRequests.
-	if swiftNIC, exists := requested[controller.SwiftNICResourceName]; exists {
-		usage[controller.SwiftNICResourceName] = swiftNIC
-	}
+	resources := collectHCPResources(pods, allMetrics.Items, collectHCPNamespaces(hcps))
+	hostedControlPlanes := c.collectHostedControlPlanes(hcps, resources)
 
 	condition := buildReportCurrentCondition(existingStatus.Conditions, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", now)
-	return buildReport(nodeCapacity, usage, requested, hostedControlPlanes, condition, now), nil
+	return buildReport(nodeCapacity, hostedControlPlanes.Resources.Usage, hostedControlPlanes.Resources.Requested, hostedControlPlanes, condition, now), nil
 }
 
 func retainStatusWithCondition(existingStatus capacityreportv1alpha1.CapacityReportStatus, status metav1.ConditionStatus, reason, message string, now time.Time) *applyconfigv1alpha1.CapacityReportApplyConfiguration {
@@ -239,11 +236,13 @@ func retainStatusWithCondition(existingStatus capacityreportv1alpha1.CapacityRep
 	statusConfig := applyconfigv1alpha1.CapacityReportStatus().
 		WithConditions(condition).
 		WithNodes(nodeConfigs...).
-		WithUsage(existingStatus.Usage).
-		WithRequested(existingStatus.Requested).
-		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlanes().
-			WithReadyResourceIDs(existingStatus.HostedControlPlanes.ReadyResourceIDs...).
-			WithNotReadyResourceIDs(existingStatus.HostedControlPlanes.NotReadyResourceIDs...))
+		WithHostedControlPlanes(hostedControlPlanesApplyConfiguration(existingStatus.HostedControlPlanes))
+	if existingStatus.Usage != nil {
+		statusConfig.WithUsage(existingStatus.Usage)
+	}
+	if existingStatus.Requested != nil {
+		statusConfig.WithRequested(existingStatus.Requested)
+	}
 
 	if existingStatus.LastReportedAt != nil {
 		statusConfig = statusConfig.WithLastReportedAt(*existingStatus.LastReportedAt)
@@ -294,12 +293,50 @@ func buildReport(
 		WithNodes(nodeConfigs...).
 		WithUsage(usage).
 		WithRequested(requested).
-		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlanes().
-			WithReadyResourceIDs(hostedControlPlanes.ReadyResourceIDs...).
-			WithNotReadyResourceIDs(hostedControlPlanes.NotReadyResourceIDs...))
+		WithHostedControlPlanes(hostedControlPlanesApplyConfiguration(hostedControlPlanes))
 
 	return applyconfigv1alpha1.CapacityReport(capacityReportResourceName).
 		WithStatus(statusConfig)
+}
+
+func hostedControlPlanesApplyConfiguration(population capacityreportv1alpha1.HostedControlPlanes) *applyconfigv1alpha1.HostedControlPlanesApplyConfiguration {
+	config := applyconfigv1alpha1.HostedControlPlanes().
+		WithReadyResourceIDs(population.ReadyResourceIDs...).
+		WithNotReadyResourceIDs(population.NotReadyResourceIDs...)
+	if population.Resources != nil {
+		config.WithResources(resourceTotalsApplyConfiguration(*population.Resources))
+	}
+	if population.ReadyResources != nil {
+		config.WithReadyResources(resourceTotalsApplyConfiguration(*population.ReadyResources))
+	}
+	for _, bucket := range population.ByClusterSizingConfiguration {
+		sizedConfig := applyconfigv1alpha1.HostedControlPlanesBySize().
+			WithSize(bucket.Size).
+			WithReadyResources(resourceTotalsApplyConfiguration(bucket.ReadyResources)).
+			WithReadyCount(bucket.ReadyCount)
+		config.WithByClusterSizingConfiguration(sizedConfig)
+	}
+	return config
+}
+
+func resourceTotalsApplyConfiguration(totals capacityreportv1alpha1.HostedControlPlaneResourceTotals) *applyconfigv1alpha1.HostedControlPlaneResourceTotalsApplyConfiguration {
+	return applyconfigv1alpha1.HostedControlPlaneResourceTotals().WithUsage(totals.Usage).WithRequested(totals.Requested)
+}
+
+func (c *CapacityReportController) observedSize(hcp *hypershiftv1beta1.HostedControlPlane) string {
+	namespace, name, found := strings.Cut(hcp.Annotations["hypershift.openshift.io/cluster"], "/")
+	if !found || len(namespace) == 0 || len(name) == 0 || strings.Contains(name, "/") {
+		return ""
+	}
+	hc, err := c.hcLister.HostedClusters(namespace).Get(name)
+	if err != nil {
+		return ""
+	}
+	size := hc.Labels[hypershiftv1beta1.HostedClusterSizeLabel]
+	if len(size) == 0 || size != strings.ToLower(size) || size == "default" || len(validation.IsValidLabelValue(size)) > 0 {
+		return ""
+	}
+	return size
 }
 
 // aggregateNodesBySKU groups worker nodes by VM SKU and reports ready/notReady
@@ -365,37 +402,68 @@ func newZeroFloorResourceList() corev1.ResourceList {
 	}
 }
 
-// aggregatePodRequests sums resource requests across containers of
-// non-terminal pods in HostedControlPlane namespaces.
-func aggregatePodRequests(pods []*corev1.Pod, hcpNamespaces sets.Set[string]) corev1.ResourceList {
-	total := newZeroFloorResourceList()
+// collectHCPResources measures each namespace once, independently of its size
+// attribution and readiness. Pod request semantics match the overall report.
+func collectHCPResources(pods []*corev1.Pod, metrics []metricsv1beta1.PodMetrics, namespaces sets.Set[string]) map[string]capacityreportv1alpha1.HostedControlPlaneResourceTotals {
+	resources := make(map[string]capacityreportv1alpha1.HostedControlPlaneResourceTotals, len(namespaces))
+	for namespace := range namespaces {
+		resources[namespace] = newResourceTotals()
+	}
 	for _, pod := range pods {
-		if !hcpNamespaces.Has(pod.Namespace) {
-			continue
-		}
-		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
+		totals, found := resources[pod.Namespace]
+		if !found || (pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending) {
 			continue
 		}
 		for _, container := range pod.Spec.Containers {
-			addResourceList(total, container.Resources.Requests)
+			addResourceList(totals.Requested, container.Resources.Requests)
 		}
 	}
-	return total
-}
-
-// aggregatePodMetrics sums actual resource usage from PodMetrics for pods in
-// HostedControlPlane namespaces.
-func aggregatePodMetrics(metrics []metricsv1beta1.PodMetrics, hcpNamespaces sets.Set[string]) corev1.ResourceList {
-	total := newZeroFloorResourceList()
-	for _, podMetric := range metrics {
-		if !hcpNamespaces.Has(podMetric.Namespace) {
+	for _, metric := range metrics {
+		totals, found := resources[metric.Namespace]
+		if !found {
 			continue
 		}
-		for _, container := range podMetric.Containers {
-			addResourceList(total, container.Usage)
+		for _, container := range metric.Containers {
+			addResourceList(totals.Usage, container.Usage)
 		}
 	}
-	return total
+	for _, totals := range resources {
+		// SWIFT NICs are discrete, non-compressible resources: requested == used.
+		totals.Usage[controller.SwiftNICResourceName] = totals.Requested[controller.SwiftNICResourceName].DeepCopy()
+	}
+	return resources
+}
+
+func newResourceTotals() capacityreportv1alpha1.HostedControlPlaneResourceTotals {
+	return capacityreportv1alpha1.HostedControlPlaneResourceTotals{Usage: newZeroFloorResourceList(), Requested: newZeroFloorResourceList()}
+}
+
+func sumHCPResources(hcps []*hypershiftv1beta1.HostedControlPlane, resources map[string]capacityreportv1alpha1.HostedControlPlaneResourceTotals) (capacityreportv1alpha1.HostedControlPlaneResourceTotals, capacityreportv1alpha1.HostedControlPlaneResourceTotals) {
+	total := newResourceTotals()
+	namespaces := sets.New[string]()
+	for _, hcp := range hcps {
+		totals := resources[hcp.Namespace]
+		if !namespaces.Has(hcp.Namespace) {
+			addResourceList(total.Usage, totals.Usage)
+			addResourceList(total.Requested, totals.Requested)
+			namespaces.Insert(hcp.Namespace)
+		}
+	}
+	return total, sumReadyHCPResources(hcps, resources)
+}
+
+func sumReadyHCPResources(hcps []*hypershiftv1beta1.HostedControlPlane, resources map[string]capacityreportv1alpha1.HostedControlPlaneResourceTotals) capacityreportv1alpha1.HostedControlPlaneResourceTotals {
+	ready := newResourceTotals()
+	readyNamespaces := sets.New[string]()
+	for _, hcp := range hcps {
+		if isHCPAvailable(hcp) && !readyNamespaces.Has(hcp.Namespace) {
+			totals := resources[hcp.Namespace]
+			addResourceList(ready.Usage, totals.Usage)
+			addResourceList(ready.Requested, totals.Requested)
+			readyNamespaces.Insert(hcp.Namespace)
+		}
+	}
+	return ready
 }
 
 // collectHCPNamespaces returns the set of namespaces where HostedControlPlane
@@ -408,10 +476,27 @@ func collectHCPNamespaces(hcps []*hypershiftv1beta1.HostedControlPlane) sets.Set
 	return namespaces
 }
 
-func collectHostedControlPlanes(hcps []*hypershiftv1beta1.HostedControlPlane, namespaceLister corelisters.NamespaceLister) capacityreportv1alpha1.HostedControlPlanes {
+func countReadyResourceIDs(hcps []*hypershiftv1beta1.HostedControlPlane, namespaceLister corelisters.NamespaceLister) int32 {
+	readyResourceIDs := sets.New[string]()
+	for _, hcp := range hcps {
+		if !isHCPAvailable(hcp) {
+			continue
+		}
+		namespace, err := namespaceLister.Get(hcp.Namespace)
+		if err != nil {
+			continue
+		}
+		if resourceID := namespace.Annotations[controllerutils.HcpClusterAzureResourceIdAnnotation]; len(resourceID) > 0 {
+			readyResourceIDs.Insert(resourceID)
+		}
+	}
+	return int32(readyResourceIDs.Len())
+}
+
+func (c *CapacityReportController) collectHostedControlPlanes(hcps []*hypershiftv1beta1.HostedControlPlane, resources map[string]capacityreportv1alpha1.HostedControlPlaneResourceTotals) capacityreportv1alpha1.HostedControlPlanes {
 	var readyResourceIDs, notReadyResourceIDs []string
 	for _, hcp := range hcps {
-		namespace, err := namespaceLister.Get(hcp.Namespace)
+		namespace, err := c.namespaceLister.Get(hcp.Namespace)
 		if err != nil {
 			continue
 		}
@@ -429,9 +514,31 @@ func collectHostedControlPlanes(hcps []*hypershiftv1beta1.HostedControlPlane, na
 	readyResourceIDs = slices.Compact(readyResourceIDs)
 	slices.Sort(notReadyResourceIDs)
 	notReadyResourceIDs = slices.Compact(notReadyResourceIDs)
+	totals, readyTotals := sumHCPResources(hcps, resources)
+	var buckets []capacityreportv1alpha1.HostedControlPlanesBySize
+	byClusterSizingConfiguration := map[string][]*hypershiftv1beta1.HostedControlPlane{}
+	for _, hcp := range hcps {
+		if size := c.observedSize(hcp); len(size) > 0 {
+			byClusterSizingConfiguration[size] = append(byClusterSizingConfiguration[size], hcp)
+		}
+	}
+	for size, sizedHCPs := range byClusterSizingConfiguration {
+		sizedReadyTotals := sumReadyHCPResources(sizedHCPs, resources)
+		buckets = append(buckets, capacityreportv1alpha1.HostedControlPlanesBySize{
+			Size: size, ReadyResources: sizedReadyTotals,
+			ReadyCount: countReadyResourceIDs(sizedHCPs, c.namespaceLister),
+		})
+	}
+	slices.SortFunc(buckets, func(a, b capacityreportv1alpha1.HostedControlPlanesBySize) int {
+		return strings.Compare(a.Size, b.Size)
+	})
+
 	return capacityreportv1alpha1.HostedControlPlanes{
-		ReadyResourceIDs:    readyResourceIDs,
-		NotReadyResourceIDs: notReadyResourceIDs,
+		ReadyResourceIDs:             readyResourceIDs,
+		NotReadyResourceIDs:          notReadyResourceIDs,
+		Resources:                    &totals,
+		ReadyResources:               &readyTotals,
+		ByClusterSizingConfiguration: buckets,
 	}
 }
 

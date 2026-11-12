@@ -215,3 +215,67 @@ func TestFrontendRunReturnsServerErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestFrontendInstancesRunIndependently(t *testing.T) {
+	type instance struct {
+		frontend *Frontend
+		cancel   context.CancelFunc
+		done     chan error
+		stopped  chan struct{}
+	}
+	instances := make([]instance, 2)
+	for index := range instances {
+		f := NewTestFrontend(t)
+		var err error
+		f.listener, err = net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		f.metricsListener, err = net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(t.Context())
+		current := instance{frontend: f, cancel: cancel, done: make(chan error, 1), stopped: make(chan struct{})}
+		instances[index] = current
+		t.Cleanup(func() {
+			cancel()
+			_ = f.listener.Close()
+			_ = f.metricsListener.Close()
+			select {
+			case <-current.stopped:
+			case <-time.After(5 * time.Second):
+				t.Error("frontend did not stop")
+			}
+		})
+		go func() {
+			defer close(current.stopped)
+			current.done <- f.Run(ctx)
+		}()
+	}
+	client := &http.Client{Timeout: time.Second}
+	for _, current := range instances {
+		require.Eventually(t, func() bool {
+			response, err := client.Get("http://" + current.frontend.listener.Addr().String() + "/healthz")
+			if err != nil {
+				return false
+			}
+			defer response.Body.Close()
+			return response.StatusCode == http.StatusOK
+		}, 5*time.Second, 10*time.Millisecond, "both frontends must serve independently")
+	}
+	instances[0].cancel()
+	select {
+	case err := <-instances[0].done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("first frontend did not stop")
+	}
+	response, err := client.Get("http://" + instances[1].frontend.listener.Addr().String() + "/healthz")
+	require.NoError(t, err, "stopping one frontend must not stop its peer")
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	instances[1].cancel()
+	select {
+	case err := <-instances[1].done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("second frontend did not stop")
+	}
+}

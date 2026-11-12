@@ -49,7 +49,7 @@ func NewSubscriptionWatchingController(
 	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer SubscriptionSyncer,
-) Controller {
+) WatchingController {
 	controller := &subscriptionWatchingController{
 		name:   name,
 		syncer: syncer,
@@ -59,6 +59,8 @@ func NewSubscriptionWatchingController(
 	subscriptionInformer, subscriptionLister := informers.Subscriptions()
 	controller.subscriptionLister = subscriptionLister
 
+	// Resync only the key resource so each key is resynced once per interval,
+	// not once for every input. Use 0 (no resync) for all other watches.
 	err := subscriptionController.QueueForInformers(resyncDuration, subscriptionInformer)
 	if err != nil {
 		panic(err) // coding error

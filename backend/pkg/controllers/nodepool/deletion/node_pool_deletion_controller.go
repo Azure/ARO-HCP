@@ -35,8 +35,7 @@ import (
 
 // nodePoolDeletionController issues a Cosmos nodepool delete
 // for the Node Pools that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
-// their ClusterServiceID has been cleared, all nodepool-scoped Maestro readonly bundles
-// have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
+// their ClusterServiceID has been cleared, and all nodepool-scoped kube-applier
 // *Desire documents have been deleted.
 type nodePoolDeletionController struct {
 	nodePoolLister                corelisters.NodePoolLister
@@ -67,7 +66,7 @@ func NewNodePoolDeletionController(
 		kubeApplierDBClients:          kubeApplierDBClients,
 	}
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
@@ -75,6 +74,14 @@ func NewNodePoolDeletionController(
 		time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -83,13 +90,6 @@ func NewNodePoolDeletionController(
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
 func (c *nodePoolDeletionController) NeedsWork(nodePool *coreapi.NodePool) bool {
-	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
-		return false
-	}
-
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil
@@ -110,13 +110,6 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedNodePool) {
-		return nil
-	}
-
-	// We do a quick check to see if the ServiceProviderNodePool has any Maestro readonly bundles.
-	// If it does, we return early as we need to wait for the bundles to be deleted.
-	cachedSPNP, spnpCacheErr := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if spnpCacheErr == nil && len(cachedSPNP.Status.MaestroReadonlyBundles) > 0 {
 		return nil
 	}
 
@@ -143,15 +136,6 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
-	// We do not proceed until we know that all the maestro readonly bundles have been eliminated
-	preconditionMet, err = c.deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx, key)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
-	}
-	if !preconditionMet {
-		return nil
-	}
-
 	// We do not proceed until we know that the cosmos child resources have been eliminated
 	preconditionMet, err = c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
@@ -169,24 +153,6 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	logger.Info("node pool deleted from Cosmos")
 
 	return nil
-}
-
-// deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared checks if the ServiceProviderNodePool has any Maestro readonly bundles.
-// If it does, it returns false, otherwise it returns true.
-func (c *nodePoolDeletionController) deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx context.Context, key controllerutils.HCPNodePoolKey) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	spnp, spnpErr := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
-	if spnpErr != nil && !cosmosstorageutils.IsNotFoundError(spnpErr) {
-		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", spnpErr))
-	}
-	if spnp != nil && len(spnp.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
-		return false, nil
-	}
-	return true, nil
 }
 
 // deletePreconditionCosmosChildResourcesDeleted checks if the cosmos child resources have been deleted.
@@ -238,7 +204,10 @@ func (c *nodePoolDeletionController) deletePreconditionAllApplyDesiresGone(ctx c
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if err != nil {
+		return false, err
+	}
 	if kubeApplierDBClient == nil {
 		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
 		return false, nil

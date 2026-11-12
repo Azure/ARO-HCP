@@ -79,6 +79,8 @@ func NewClusterIdentitySyncController(
 		60*time.Minute, // Check every 60 minutes
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 
 	return controller
 }

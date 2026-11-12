@@ -29,11 +29,32 @@ import (
 )
 
 const (
+	DNSClaimRelistDuration                    = 2 * time.Minute
 	StampRelistDuration                       = 2 * time.Minute
 	ManagementClusterRelistDuration           = 2 * time.Minute
 	ManagementClusterSchedulingRelistDuration = 2 * time.Minute
 	ControlPlaneVersionRolloutRelistDuration  = 2 * time.Minute
+	HCPResourceRequirementsRelistDuration     = 2 * time.Minute
 )
+
+func NewDNSClaimInformer(lister cosmosstorageutils.GlobalLister[fleetapi.DNSClaim], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.DNSClaim, *fleetapi.DNSClaim, cosmosstorageutils.GenericDocument[fleetapi.DNSClaim]](
+		[]azcorearm.ResourceType{fleetapi.DNSClaimResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		DNSClaimRelistDuration,
+		"fleet",
+	)
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "DNSClaims"},
+		&fleetapi.DNSClaim{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      time.Hour,
+			ObjectDescription: "DNSClaim",
+		},
+	)
+}
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
 // with the default relist duration.
@@ -147,6 +168,34 @@ func NewControlPlaneVersionRolloutInformerWithRelistDuration(lister cosmosstorag
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
 			ObjectDescription: "ControlPlaneVersionRollout",
+		},
+	)
+}
+
+// NewHCPResourceRequirementsInformer creates an unstarted SharedIndexInformer
+// for HCP resource requirements with the default relist duration.
+func NewHCPResourceRequirementsInformer(lister cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewHCPResourceRequirementsInformerWithRelistDuration(lister, cosmosClient, HCPResourceRequirementsRelistDuration)
+}
+
+// NewHCPResourceRequirementsInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for HCP resource requirements with a configurable relist duration.
+func NewHCPResourceRequirementsInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleetapi.HCPResourceRequirements], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		[]azcorearm.ResourceType{fleetapi.HCPResourceRequirementsResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"fleet",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch(), InformerName: "HCPResourceRequirements"},
+		&fleetapi.HCPResourceRequirements{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "HCPResourceRequirements",
 		},
 	)
 }

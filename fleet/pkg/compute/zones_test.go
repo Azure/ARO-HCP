@@ -136,3 +136,42 @@ func TestResolveZones(t *testing.T) {
 		})
 	}
 }
+
+func TestResolvePlanningZones(t *testing.T) {
+	tests := []struct {
+		name                    string
+		regionAvailabilityZones int
+		want                    []string
+		wantErr                 string
+	}{
+		{
+			name:                    "every zone of a three-zone region",
+			regionAvailabilityZones: 3,
+			want:                    []string{"1", "2", "3"},
+		},
+		{
+			name:                    "every zone of a four-zone region",
+			regionAvailabilityZones: 4,
+			want:                    []string{"1", "2", "3", "4"},
+		},
+		{
+			name:                    "region with fewer zones than required is rejected",
+			regionAvailabilityZones: 2,
+			wantErr:                 "region has 2 availability zones, fewer than the 3 required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolvePlanningZones(tt.regionAvailabilityZones)
+			if len(tt.wantErr) > 0 {
+				require.Error(t, err, "expected an error")
+				assert.Contains(t, err.Error(), tt.wantErr, "error message mismatch")
+				assert.Nil(t, got, "no zones expected on error")
+				return
+			}
+			require.NoError(t, err, "unexpected error")
+			assert.Equal(t, tt.want, got, "resolved zones mismatch")
+		})
+	}
+}

@@ -225,7 +225,7 @@ func newUpdateConfigAction(pool compute.Pool, etag string) updateConfigAction {
 	}
 }
 
-// PoolState is the observed state of a single AKS worker pool, projected from
+// PoolState is the observed state of a single managed AKS pool, projected from
 // the AKS agent pool API response. It carries both the spec fields (for
 // comparison with desired state) and operational fields (for action selection).
 type PoolState struct {

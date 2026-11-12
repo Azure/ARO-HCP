@@ -17,6 +17,7 @@ package controllerutils
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -37,10 +38,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// ServiceProviderDefaultIngressWildcardServingCertName is the Kubernetes Secret and
+// SecretProviderClass name used for the default ingress wildcard serving certificate
+// referenced by HostedCluster.Spec.OperatorConfiguration.IngressOperator.DefaultCertificate.
+const ServiceProviderDefaultIngressWildcardServingCertName = "service-provider-default-ingress-wildcard-serving-cert"
+
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
 	SyncOnce(ctx context.Context, keyObj any) error
 	Run(ctx context.Context, threadiness int)
+}
+
+// WatchingController exposes resource-event filtering on the underlying generic
+// watching controller. With no interests registered, all events are accepted.
+type WatchingController interface {
+	Controller
+	AddInterestingResource(resourceType azcorearm.ResourceType, resourceName string)
+	// QueueForChildInformers maps direct child events (including deletion) to
+	// this controller's owner key, respecting its resource-interest filter.
+	QueueForChildInformers(resyncDuration time.Duration, notifiers ...Notifier) error
+	QueueForDescendantInformers(time.Duration, int, ...Notifier) error
 }
 
 // OperationKey is for driving workqueues keyed for operations
@@ -259,10 +276,86 @@ func (k SystemAdminCredentialRevocationKey) InitialController(controllerName str
 // controllerMutationFunc is called when trying to write a controller. It gives a spot for computation of a value.
 // It should only perform short calls, not long lookups.  It must not fail. Think of it as a way to write information
 // that you have already precomputed.
-type controllerMutationFunc func(controller *coreapi.Controller)
+type controllerMutationFunc func(ctx context.Context, controller *coreapi.Controller)
+
+const (
+	// timestampRegexFragment is the embeddable (non-anchored) date-time pattern shared by the
+	// AADSTS and Cluster Service timestamp regexes below. It's deliberately looser than strict
+	// ISO 8601 (it accepts a plain space instead of "T" as the date/time separator, since that's
+	// the form AADSTS actually emits). Matches e.g. "2026-11-02 15:49:40Z",
+	// "2026-11-02T15:49:40.123+00:00", and "2026-11-02T15:49:40.1234567Z" (arbitrary
+	// fractional-second precision).
+	timestampRegexFragment = `\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?`
+)
+
+var (
+	// Matches the inline "Timestamp: <date> <time>" text that Azure AD STS (AADSTS, the Azure AD
+	// Security Token Service) embeds in error_description, e.g. "Timestamp: 2026-11-02
+	// 15:49:40Z" or "...T15:49:40.123+00:00". Stops at the end of the timestamp value so trailing
+	// text (closing quote, comma, extra sentence) is untouched.
+	aadstsInlineTimestampRegex = regexp.MustCompile(`(?i)Timestamp:\s*` + timestampRegexFragment)
+	// Matches the inline "Trace ID: <value>" text in error_description. The value is any run of
+	// alphanumerics and hyphens, which covers GUIDs and similar ID shapes while still stopping
+	// at punctuation (closing quote, comma, sentence-ending period) that isn't part of the ID.
+	aadstsInlineTraceIDRegex = regexp.MustCompile(`(?i)Trace ID:\s*[0-9a-zA-Z-]+`)
+	// Same as aadstsInlineTraceIDRegex, but for the inline "Correlation ID: <value>" text.
+	aadstsInlineCorrelationIDRegex = regexp.MustCompile(`(?i)Correlation ID:\s*[0-9a-zA-Z-]+`)
+	// Matches the tenant expiration error pattern "The tenant 'X' is not available due to expiration".
+	// The reason we do this is because we have observed that the same API call for the same tenant returning this error
+	// sometimes returns the tenant GUID and sometimes the tenant display name. This redacts the tenant
+	// identifier to prevent the same error for the same tenant from producing different error messages.
+	aadstsTenantExpirationRegex = regexp.MustCompile(`(?i)The tenant '[^']*' is not available due to expiration`)
+	// Matches the raw JSON field "timestamp": "<value>" in the AADSTS response body.
+	aadstsJSONTimestampRegex = regexp.MustCompile(`"timestamp"\s*:\s*"[^"]*"`)
+	// Matches the raw JSON field "trace_id": "<value>" in the AADSTS response body.
+	aadstsJSONTraceIDRegex = regexp.MustCompile(`"trace_id"\s*:\s*"[^"]*"`)
+	// Matches the raw JSON field "correlation_id": "<value>" in the AADSTS response body.
+	aadstsJSONCorrelationIDRegex = regexp.MustCompile(`"correlation_id"\s*:\s*"[^"]*"`)
+	// Matches Azure Resource Manager (ARM) throttling messages like "Retry after 3 seconds."
+	// Only the number is redacted; the unit is captured and kept as-is in the replacement,
+	// since it's unverified whether ARM ever reports the wait in a different unit (minutes,
+	// ms, etc.) and the output shouldn't claim a unit that wasn't actually there.
+	armRetryAfterRegex = regexp.MustCompile(`(?i)Retry after \d+(?:\.\d+)?\s*([a-z]+)`)
+	// Matches the ARM SubscriptionRequestsThrottled message body's "try again after '<n>'
+	// seconds" text, e.g. "Please try again after '10' seconds after additional tokens are
+	// available." Only the quoted number is redacted; the unit is captured and kept as-is in
+	// the replacement for the same reason as armRetryAfterRegex above.
+	armTryAgainAfterRegex = regexp.MustCompile(`(?i)try again after '\d+(?:\.\d+)?' ([a-z]+)`)
+	// Matches the OCM Cluster Service (CS) client's "at '<timestamp>'" text, e.g.
+	// "at '2026-10-22T16:59:33Z'", as seen in PostCluster/client.go error wrapping.
+	csTimestampRegex = regexp.MustCompile(`(?i)at '` + timestampRegexFragment + `'`)
+	// Matches the Cluster Service client's "operation identifier is '<uuid>'" text.
+	csOperationIDRegex = regexp.MustCompile(`(?i)operation identifier is '[^']*'`)
+)
+
+// RedactDynamicSyncErrorMessageFields strips values that change on every retry but don't reflect a
+// different underlying failure (Azure AD Security Token Service (AADSTS) timestamp/trace
+// ID/correlation ID, Azure Resource Manager (ARM) throttling retry-after durations, OCM
+// Cluster Service timestamp/operation identifier) from an error message, both inline text and
+// raw JSON fields. This keeps an otherwise identical failure from producing a different
+// persisted message on every retry. Left unredacted, repeatedly writing a changing message to a
+// Cosmos document (e.g. a controller's Degraded condition, or a field like
+// ServiceProviderCluster's per-identity RetrievalError) can itself trigger other controllers
+// watching that document to sync, fail again for the same underlying cause but with a new
+// message, and write again, repeating the cycle in a write amplification feedback loop that
+// never settles.
+func RedactDynamicSyncErrorMessageFields(message string) string {
+	message = aadstsInlineTimestampRegex.ReplaceAllString(message, "Timestamp: <removed>")
+	message = aadstsInlineTraceIDRegex.ReplaceAllString(message, "Trace ID: <removed>")
+	message = aadstsInlineCorrelationIDRegex.ReplaceAllString(message, "Correlation ID: <removed>")
+	message = aadstsTenantExpirationRegex.ReplaceAllString(message, "The tenant '<removed>' is not available due to expiration")
+	message = aadstsJSONTimestampRegex.ReplaceAllString(message, `"timestamp": "<removed>"`)
+	message = aadstsJSONTraceIDRegex.ReplaceAllString(message, `"trace_id": "<removed>"`)
+	message = aadstsJSONCorrelationIDRegex.ReplaceAllString(message, `"correlation_id": "<removed>"`)
+	message = armRetryAfterRegex.ReplaceAllString(message, "Retry after <removed> $1")
+	message = armTryAgainAfterRegex.ReplaceAllString(message, "try again after '<removed>' $1")
+	message = csTimestampRegex.ReplaceAllString(message, "at '<removed>'")
+	message = csOperationIDRegex.ReplaceAllString(message, "operation identifier is '<removed>'")
+	return message
+}
 
 func ReportSyncError(syncErr error) controllerMutationFunc {
-	return func(controller *coreapi.Controller) {
+	return func(ctx context.Context, controller *coreapi.Controller) {
 		if syncErr == nil {
 			meta.SetStatusCondition(&controller.Status.Conditions, metav1.Condition{
 				Type:    "Degraded",
@@ -273,11 +366,18 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 			return
 		}
 
+		// We log the error before redacting the dynamic fields so we can see the original error message.
+		logger := utils.LoggerFromContext(ctx)
+		logger.Error(syncErr, "had an error while syncing")
+
+		syncErrorMessage := syncErr.Error()
+		syncErrorMessage = RedactDynamicSyncErrorMessageFields(syncErrorMessage)
+
 		meta.SetStatusCondition(&controller.Status.Conditions, metav1.Condition{
 			Type:    "Degraded",
 			Status:  metav1.ConditionTrue,
 			Reason:  "Failed",
-			Message: fmt.Sprintf("Had an error while syncing: %s", syncErr.Error()),
+			Message: fmt.Sprintf("Had an error while syncing: %s", syncErrorMessage),
 		})
 	}
 }
@@ -414,7 +514,7 @@ func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.Reso
 
 	desiredController := existingController.DeepCopy()
 	for _, mutationFn := range mutationFns {
-		mutationFn(desiredController)
+		mutationFn(ctx, desiredController)
 	}
 
 	if equality.Semantic.DeepEqual(existingController, desiredController) {

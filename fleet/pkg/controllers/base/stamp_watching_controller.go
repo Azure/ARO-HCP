@@ -83,12 +83,15 @@ func (c StampWatchingControllerConfig) withDefaults() StampWatchingControllerCon
 }
 
 // NewStampWatchingController creates a controller and delegates
-// reconciliation to the syncer. Call QueueForInformers to register informers.
+// reconciliation to the syncer. Call QueueForInformers with zero resync to
+// register additional inputs.
 func NewStampWatchingController(
 	name string,
+	stampInformer controllerutils.Notifier,
+	resyncDuration time.Duration,
 	syncer StampSyncer,
 	cfg StampWatchingControllerConfig,
-) Controller {
+) WatchingController {
 	cfg = cfg.withDefaults()
 
 	var cooldown controllerutils.CooldownChecker
@@ -101,7 +104,13 @@ func NewStampWatchingController(
 	}
 
 	adapter := &genericStampSyncer{syncer: syncer, cooldown: cooldown}
-	return controllerutils.NewGenericWatchingController(name, fleetapi.StampResourceType, adapter, ReconcileTotal)
+	controller := controllerutils.NewGenericWatchingController(name, fleetapi.StampResourceType, adapter, ReconcileTotal)
+	// Resync only stamps so each key is resynced once per interval, not once
+	// for every input. All other watches must use 0 (no resync).
+	if err := controller.QueueForInformers(resyncDuration, stampInformer); err != nil {
+		panic(err) // coding error
+	}
+	return controller
 }
 
 // genericStampSyncer adapts a StampSyncer into a controllerutils.GenericSyncer[StampKey].

@@ -15,6 +15,9 @@
 package capacityreporting
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,14 +26,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	kubeinformers "k8s.io/client-go/informers"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metricsfake "k8s.io/metrics/pkg/client/clientset/versioned/fake"
 
 	"github.com/Azure/ARO-Tools/testutil"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
 
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
@@ -333,7 +341,12 @@ func TestAggregatePodRequests(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := aggregatePodRequests(tt.pods, hcpNamespaces)
+			resources := collectHCPResources(tt.pods, nil, hcpNamespaces)
+			totals, _ := sumHCPResources([]*hypershiftv1beta1.HostedControlPlane{
+				newHostedControlPlane("ocm-cluster-1", "one", true),
+				newHostedControlPlane("ocm-cluster-2", "two", true),
+			}, resources)
+			got := totals.Requested
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected resource list (-want +got):\n%s", diff)
 			}
@@ -402,7 +415,12 @@ func TestAggregatePodMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := aggregatePodMetrics(tt.metrics, hcpNamespaces)
+			resources := collectHCPResources(nil, tt.metrics, hcpNamespaces)
+			totals, _ := sumHCPResources([]*hypershiftv1beta1.HostedControlPlane{
+				newHostedControlPlane("ocm-cluster-1", "one", true),
+				newHostedControlPlane("ocm-cluster-2", "two", true),
+			}, resources)
+			got := totals.Usage
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected resource list (-want +got):\n%s", diff)
 			}
@@ -527,153 +545,14 @@ func TestCollectHostedControlPlanes(t *testing.T) {
 				}
 			}
 			nsLister := corelisters.NewNamespaceLister(indexer)
-			got := collectHostedControlPlanes(tt.hcps, nsLister)
+			c := &CapacityReportController{namespaceLister: nsLister}
+			got := c.collectHostedControlPlanes(tt.hcps, nil)
+			totals, readyTotals := newResourceTotals(), newResourceTotals()
+			tt.want.Resources = &totals
+			tt.want.ReadyResources = &readyTotals
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected result (-want +got):\n%s", diff)
 			}
-		})
-	}
-}
-
-func TestBuildReport(t *testing.T) {
-	t.Parallel()
-	fixedTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	condition := buildReportCurrentCondition(nil, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", fixedTime)
-
-	tests := []struct {
-		name                string
-		nodes               []capacityreportv1alpha1.NodeSKUCapacity
-		usage               corev1.ResourceList
-		requested           corev1.ResourceList
-		hostedControlPlanes capacityreportv1alpha1.HostedControlPlanes
-	}{
-		{
-			name: "full_report",
-			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
-				{
-					SKU:   "Standard_D32s_v3",
-					Ready: 2,
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceMemory:           resource.MustParse("256Gi"),
-						controller.SwiftNICResourceName: resource.MustParse("16"),
-					},
-				},
-			},
-			usage: corev1.ResourceList{
-				corev1.ResourceMemory:           resource.MustParse("4Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("6"),
-			},
-			requested: corev1.ResourceList{
-				corev1.ResourceMemory:           resource.MustParse("8Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("6"),
-			},
-			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
-				ReadyResourceIDs: []string{
-					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
-					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
-				},
-				NotReadyResourceIDs: []string{
-					"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
-				},
-			},
-		},
-		{
-			name: "no_ready_hcps",
-			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
-				{
-					SKU:   "Standard_D32s_v3",
-					Ready: 1,
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceMemory: resource.MustParse("128Gi"),
-					},
-				},
-			},
-			usage: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("2Gi"),
-			},
-			requested: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("4Gi"),
-			},
-			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
-				NotReadyResourceIDs: []string{
-					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
-					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
-				},
-			},
-		},
-		{
-			name: "swift_nic_in_usage_and_requested",
-			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
-				{
-					SKU:   "Standard_D32s_v3",
-					Ready: 1,
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceMemory:           resource.MustParse("128Gi"),
-						controller.SwiftNICResourceName: resource.MustParse("8"),
-					},
-				},
-			},
-			usage: corev1.ResourceList{
-				corev1.ResourceMemory:           resource.MustParse("2Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("3"),
-			},
-			requested: corev1.ResourceList{
-				corev1.ResourceMemory:           resource.MustParse("4Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("3"),
-			},
-			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
-				ReadyResourceIDs: []string{"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a"},
-			},
-		},
-		{
-			name:                "empty_cluster",
-			nodes:               nil,
-			usage:               corev1.ResourceList{},
-			requested:           corev1.ResourceList{},
-			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{},
-		},
-		{
-			name: "multiple_skus",
-			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
-				{
-					SKU:      "Standard_D32s_v3",
-					Ready:    2,
-					NotReady: 1,
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceMemory: resource.MustParse("256Gi"),
-					},
-				},
-				{
-					SKU:   "Standard_D64s_v3",
-					Ready: 1,
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceMemory: resource.MustParse("512Gi"),
-					},
-				},
-			},
-			usage: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("100Gi"),
-			},
-			requested: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("200Gi"),
-			},
-			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
-				ReadyResourceIDs: []string{
-					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
-					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
-				},
-				NotReadyResourceIDs: []string{
-					"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := buildReport(tt.nodes, tt.usage, tt.requested, tt.hostedControlPlanes, condition, fixedTime)
-			testutil.CompareWithFixture(t, got)
 		})
 	}
 }
@@ -719,6 +598,22 @@ func TestRetainStatusWithCondition(t *testing.T) {
 					corev1.ResourceMemory: resource.MustParse("8Gi"),
 				},
 				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+					Resources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{
+						Usage:     corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("4Gi")},
+						Requested: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("8Gi")},
+					},
+					ReadyResources: &capacityreportv1alpha1.HostedControlPlaneResourceTotals{
+						Usage:     corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("3Gi")},
+						Requested: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("6Gi")},
+					},
+					ByClusterSizingConfiguration: []capacityreportv1alpha1.HostedControlPlanesBySize{{
+						Size: "small",
+						ReadyResources: capacityreportv1alpha1.HostedControlPlaneResourceTotals{
+							Usage:     corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("3Gi")},
+							Requested: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("6Gi")},
+						},
+						ReadyCount: 1,
+					}},
 					ReadyResourceIDs: []string{
 						"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
 						"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
@@ -759,7 +654,25 @@ func TestRetainStatusWithCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := retainStatusWithCondition(tt.existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, "test error", fixedTime)
+			kube := kubeinformers.NewSharedInformerFactory(nil, 0)
+			hs := hypershiftinformers.NewSharedInformerFactory(nil, 0)
+			collectionErr := errors.New("test error")
+			metricsClient := metricsfake.NewSimpleClientset()
+			metricsClient.PrependReactor("list", "pods", func(clienttesting.Action) (bool, metav1runtime.Object, error) {
+				return true, nil, collectionErr
+			})
+			c := &CapacityReportController{
+				nodeLister:      kube.Core().V1().Nodes().Lister(),
+				podLister:       kube.Core().V1().Pods().Lister(),
+				namespaceLister: kube.Core().V1().Namespaces().Lister(),
+				hcpLister:       hs.Hypershift().V1beta1().HostedControlPlanes().Lister(),
+				hcLister:        hs.Hypershift().V1beta1().HostedClusters().Lister(),
+				metricsClient:   metricsClient,
+			}
+			got, err := c.buildCapacityReportUpdate(t.Context(), tt.existingStatus, fixedTime)
+			if !errors.Is(err, collectionErr) {
+				t.Fatalf("expected metrics collection failure, got %v", err)
+			}
 			testutil.CompareWithFixture(t, got)
 		})
 	}
@@ -908,5 +821,176 @@ func newHostedControlPlane(namespace, name string, available bool) *hypershiftv1
 				{Type: string(hypershiftv1beta1.HostedControlPlaneAvailable), Status: status},
 			},
 		},
+	}
+}
+
+func TestCapacityReportCollection(t *testing.T) {
+	t.Parallel()
+	legacyResourceIDs := []string{
+		"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+		"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+		"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
+	}
+	tests := []struct {
+		name            string
+		sizes           []string
+		ready           []bool
+		wantReadyCPU    string
+		wantSizes       []string
+		wantReadyCounts []int32
+		duplicateIDs    bool
+		associations    []string
+		missingHC       bool
+		resourceIDs     []string
+		requests        []corev1.ResourceList
+		usage           []corev1.ResourceList
+		reportedAt      time.Time
+	}{
+		{
+			name:        "full_report",
+			sizes:       []string{"", "", ""},
+			ready:       []bool{true, true, false},
+			resourceIDs: legacyResourceIDs,
+			requests: []corev1.ResourceList{
+				{
+					corev1.ResourceMemory:           resource.MustParse("8Gi"),
+					controller.SwiftNICResourceName: resource.MustParse("6"),
+				}, {}, {},
+			},
+			usage: []corev1.ResourceList{
+				{
+					corev1.ResourceMemory:           resource.MustParse("4Gi"),
+					controller.SwiftNICResourceName: resource.MustParse("6"),
+				}, {}, {},
+			},
+			reportedAt:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantReadyCPU: "0",
+		},
+		{
+			name:        "multiple_skus",
+			sizes:       []string{"", "", ""},
+			ready:       []bool{true, true, false},
+			resourceIDs: legacyResourceIDs,
+			requests: []corev1.ResourceList{
+				{corev1.ResourceMemory: resource.MustParse("200Gi")}, {}, {},
+			},
+			usage: []corev1.ResourceList{
+				{corev1.ResourceMemory: resource.MustParse("100Gi")}, {}, {},
+			},
+			reportedAt:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantReadyCPU: "0",
+		},
+		{name: "mixed_sizes_and_readiness", sizes: []string{"small", "small", "small", "medium", "", "medium"}, ready: []bool{true, true, false, true, true, true}, duplicateIDs: true, wantReadyCPU: "5", wantSizes: []string{"medium", "small"}, wantReadyCounts: []int32{2, 1}},
+		{name: "no_ready_population", sizes: []string{"small"}, ready: []bool{false}, wantReadyCPU: "0", wantSizes: []string{"small"}, wantReadyCounts: []int32{0}},
+		{name: "unattributed_ready_population", sizes: []string{""}, ready: []bool{true}, wantReadyCPU: "1"},
+		{name: "empty_cluster", wantReadyCPU: "0"},
+		{name: "canonical_labels_only", sizes: []string{"default", "DEFAULT", "Small", " small", "small/large", "e2e_minimal"}, ready: []bool{true, true, true, true, true, true}, wantReadyCPU: "6", wantSizes: []string{"e2e_minimal"}, wantReadyCounts: []int32{1}},
+		{name: "unusable_associations", sizes: []string{"small", "small", "small", "small", "small"}, ready: []bool{true, true, true, true, true}, associations: []string{"", "cluster-1", "/cluster-2", "clusters/", "clusters/cluster-4/extra"}, wantReadyCPU: "5"},
+		{name: "missing_hostedcluster", sizes: []string{"small"}, ready: []bool{true}, missingHC: true, wantReadyCPU: "1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			kube := kubeinformers.NewSharedInformerFactory(nil, 0)
+			hs := hypershiftinformers.NewSharedInformerFactory(nil, 0)
+			var metrics []metricsv1beta1.PodMetrics
+			for i, size := range tt.sizes {
+				name := fmt.Sprintf("cluster-%d", i)
+				namespace := "hcp-" + name
+				hcp := newHostedControlPlane(namespace, name, tt.ready[i])
+				hcp.Annotations = map[string]string{"hypershift.openshift.io/cluster": "clusters/" + name}
+				if tt.associations != nil {
+					hcp.Annotations["hypershift.openshift.io/cluster"] = tt.associations[i]
+				}
+				// A mirrored HCP label must not override the associated HC observation.
+				hcp.Labels = map[string]string{hypershiftv1beta1.HostedClusterSizeLabel: "ignored"}
+				identityName := name
+				if tt.duplicateIDs && i == 1 {
+					identityName = "cluster-0"
+				}
+				hc := &hypershiftv1beta1.HostedCluster{ObjectMeta: metav1.ObjectMeta{
+					Name: name, Namespace: "clusters",
+					Labels: map[string]string{hypershiftv1beta1.HostedClusterSizeLabel: size},
+				}}
+				if !tt.missingHC {
+					if err := hs.Hypershift().V1beta1().HostedClusters().Informer().GetIndexer().Add(hc); err != nil {
+						t.Fatal(err)
+					}
+				}
+				resourceID := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/" + identityName
+				if tt.resourceIDs != nil {
+					resourceID = tt.resourceIDs[i]
+				}
+				requests := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2"), controller.SwiftNICResourceName: resource.MustParse("1")}
+				if tt.requests != nil {
+					requests = tt.requests[i]
+				}
+				usage := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
+				if tt.usage != nil {
+					usage = tt.usage[i]
+				}
+				for _, entry := range []struct {
+					indexer cache.Indexer
+					object  interface{}
+				}{
+					{hs.Hypershift().V1beta1().HostedControlPlanes().Informer().GetIndexer(), hcp},
+					{kube.Core().V1().Namespaces().Informer().GetIndexer(), newAnnotatedNamespace(namespace, resourceID)},
+					{kube.Core().V1().Pods().Informer().GetIndexer(), newPod(namespace, "pod", corev1.PodRunning, requests)},
+				} {
+					if err := entry.indexer.Add(entry.object); err != nil {
+						t.Fatal(err)
+					}
+				}
+				metric := podMetrics(namespace, "pod", usage)
+				metrics = append(metrics, metric)
+			}
+			metricsClient := metricsfake.NewSimpleClientset()
+			metricsClient.PrependReactor("list", "pods", func(clienttesting.Action) (bool, metav1runtime.Object, error) {
+				return true, &metricsv1beta1.PodMetricsList{Items: metrics}, nil
+			})
+			c := &CapacityReportController{
+				nodeLister:      kube.Core().V1().Nodes().Lister(),
+				podLister:       kube.Core().V1().Pods().Lister(),
+				namespaceLister: kube.Core().V1().Namespaces().Lister(),
+				hcpLister:       hs.Hypershift().V1beta1().HostedControlPlanes().Lister(),
+				hcLister:        hs.Hypershift().V1beta1().HostedClusters().Lister(),
+				metricsClient:   metricsClient,
+			}
+			reportedAt := tt.reportedAt
+			if reportedAt.IsZero() {
+				reportedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			}
+			report, err := c.buildCapacityReportUpdate(t.Context(), capacityreportv1alpha1.CapacityReportStatus{}, reportedAt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var observed capacityreportv1alpha1.CapacityReport
+			if err := json.Unmarshal(data, &observed); err != nil {
+				t.Fatal(err)
+			}
+			if observed.Status.HostedControlPlanes.ReadyResources == nil {
+				t.Fatal("successful collection omitted readyResources")
+			}
+			if got := observed.Status.HostedControlPlanes.ReadyResources.Usage.Cpu(); got.Cmp(resource.MustParse(tt.wantReadyCPU)) != 0 {
+				t.Fatalf("ready CPU = %s, want %s", got, tt.wantReadyCPU)
+			}
+			var sizes []string
+			var readyCounts []int32
+			for _, bucket := range observed.Status.HostedControlPlanes.ByClusterSizingConfiguration {
+				sizes = append(sizes, bucket.Size)
+				readyCounts = append(readyCounts, bucket.ReadyCount)
+			}
+			if diff := cmp.Diff(tt.wantSizes, sizes); len(diff) > 0 {
+				t.Fatalf("size buckets (-want +got): %s", diff)
+			}
+			if diff := cmp.Diff(tt.wantReadyCounts, readyCounts); len(diff) > 0 {
+				t.Fatalf("ready counts (-want +got): %s", diff)
+			}
+			testutil.CompareWithFixture(t, report)
+		})
 	}
 }

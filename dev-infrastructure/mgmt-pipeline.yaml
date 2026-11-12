@@ -11,8 +11,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 # Pre-build the Go binary invoked by the cluster-create Shell step below. The EV2
 # Shell runner image has no Go toolchain, so the binary is built here and shipped
-# as part of the step's workingDir, same pattern as scripts/grafana-group-roles in
-# global-pipeline-stg.yaml.
+# as part of the step's workingDir, same pattern as scripts/grafana-group-roles.
 buildStep:
   command: bash
   args:
@@ -119,28 +118,27 @@ resourceGroups:
     parameters: configurations/swift-vnet-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: deploymentMsiId
+    - name: swiftVnetIdentityResourceId
       input:
         resourceGroup: global
         step: output
-        name: globalMSIId
+        name: swiftVnetMSIId
     dependsOn:
     - resourceGroup: management
       step: subscription-output
-  # Create/tag the Swift VNet. The tag stampcreatorserviceinfo=true must be written by the
-  # Swift-registered globalMSI, so this step launches a container group assigned globalMSI and
-  # runs the create/tag AS globalMSI from inside it (scripts/swift-vnet.sh). Create, wait, log
-  # and cleanup all happen in this single Shell step, so there is no cross-step async race. Runs
-  # ahead of infra since infra now also creates the node/pod subnets that live in this VNet.
+  # Create/tag the Swift VNet as the identity selected by swift-vnet-permissions.
+  # The same identity launches the container group and performs the VNet write inside it.
+  # Create, wait, log and cleanup all happen in this single Shell step ahead of infra,
+  # since infra creates the node/pod subnets that live in this VNet.
   - name: swift-vnet
     action: Shell
     command: ./swift-vnet.sh
     workingDir: ./scripts
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+        resourceGroup: management
+        step: swift-vnet-permissions
+        name: swiftVnetMSIId
     variables:
     - name: VNET_NAME
       value: aks-net
@@ -155,9 +153,9 @@ resourceGroups:
         name: subscriptionId
     - name: DEPLOYMENT_MSI_ID
       input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+        resourceGroup: management
+        step: swift-vnet-permissions
+        name: swiftVnetMSIId
     dependsOn:
     - resourceGroup: management
       step: swift-vnet-permissions
@@ -167,6 +165,9 @@ resourceGroups:
       - "Timed out"
       - "dns readiness (login.microsoftonline.com): giving up"
       - "az login (globalMSI): giving up"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: infra
@@ -387,7 +388,7 @@ resourceGroups:
       durationBetweenRetries: 1m
   - name: cluster-create
     action: Shell
-    command: ./aks-cluster-create
+    command: ./aks-cluster-create mgmt-cluster
     workingDir: ./scripts/aks-cluster-create
     shellIdentity:
       input:
@@ -406,8 +407,6 @@ resourceGroups:
       configRef: mgmt.aks.name
     - name: REGION
       configRef: region
-    - name: REGION_AVAILABILITY_ZONE_COUNT
-      configRef: azureRegionAvailabilityZoneCount
     - name: SYSTEM_POOL_NAME
       configRef: mgmt.aks.systemAgentPool.name
     - name: SYSTEM_POOL_VM_SIZE
@@ -490,6 +489,10 @@ resourceGroups:
       errorContainsAny:
       - "InternalServerError"
       - "ServiceUnavailable"
+      - "waiting for deployment aks-cluster-create: context deadline exceeded"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
@@ -570,6 +573,7 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      - "ConcurrentFederatedIdentityCredentialsWritesForSingleManagedIdentity"
       # Retry transient RBAC propagation failures in post-cluster wiring.
       - "ForbiddenByRbac"
       maximumRetryCount: 3
@@ -646,6 +650,13 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
+    automatedRetry:
+      errorContainsAny:
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -780,28 +791,18 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: management
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -822,6 +823,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: image-registry-policy
@@ -854,7 +858,29 @@ resourceGroups:
       - "client connection lost"
       - "unexpected error when reading response body"
       # ACI can fail before Helm runs with no execution log; retry its waiting-to-run signature.
-      - '"DetailStatus": "Waiting to run"'
+      - "Waiting to run"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: storageclass-namespace
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./wait-default-sc-namespace.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass
@@ -872,9 +898,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
-      step: upgrade-aks-cluster
-    - resourceGroup: management
-      step: image-registry-policy
+      step: storageclass-namespace
     identityFrom:
       resourceGroup: global
       step: output
@@ -886,6 +910,16 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # On fresh mgmt clusters the unannotate-default-sc post-install hook Job
+      # fails before its container starts: a kube-root-ca.crt not-registered race
+      # in the just-created default-sc namespace, or a transient ImagePullBackOff.
+      # Both clear on a retry once the namespace cert is published / registry
+      # recovers; the Job's before-hook-creation delete policy lets it recreate.
+      - "failed post-install"
+      - "Job Failed"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
@@ -924,7 +958,7 @@ resourceGroups:
       # provisioning failure distinct from an app-level script error. Matches
       # only the "still waiting to run" detail status, not any Failed shell run.
       # See AROSLSRE-1945.
-      - '"DetailStatus": "Waiting to run"'
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
@@ -956,6 +990,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: service-lifecycle
@@ -964,7 +1001,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -974,6 +1011,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
+    # ama-metrics-settings-configmap previously belonged to the arohcp-monitor
+    # (prometheus) release; wait for that upgrade to release ownership before
+    # service-lifecycle recreates it, or Helm ownership validation fails.
+    - resourceGroup: management
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
@@ -985,12 +1027,15 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
-    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    parameters: configurations/arobit-mgmt-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:
@@ -1038,6 +1083,9 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -1069,5 +1117,8 @@ resourceGroups:
       # Transient AKS API server connection loss (no HTTP status, 5xx patterns miss). AROSLSRE-2130.
       - "client connection lost"
       - "unexpected error when reading response body"
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
       maximumRetryCount: 3
       durationBetweenRetries: 1m

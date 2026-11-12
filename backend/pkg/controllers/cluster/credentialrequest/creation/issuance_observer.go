@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -63,7 +64,7 @@ func NewIssuanceObserverController(
 		readDesireLister:  readDesireLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRequestWatchingController(
 		SystemAdminCredentialIssuanceObserverControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -71,6 +72,10 @@ func NewIssuanceObserverController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType, kubeapplierapi.SystemAdminCredentialCSRDesireName)
+
+	return controller
 }
 
 func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {

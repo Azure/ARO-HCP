@@ -35,13 +35,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // clusterDeletionController issues a Cosmos cluster delete
 // for the Clusters that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
-// their ClusterServiceID has been cleared, all cluster-scoped Maestro readonly bundles
-// have been deleted from the ServiceProviderCluster, and all child NodePool and
+// their ClusterServiceID has been cleared, and all child NodePool and
 // ExternalAuth Cosmos documents have been deleted.
 type clusterDeletionController struct {
 	clusterLister                corelisters.ClusterLister
@@ -62,6 +62,7 @@ func NewClusterDeletionController(
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -74,14 +75,32 @@ func NewClusterDeletionController(
 		passiveClock:                 clock,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		ClusterDeletionControllerControllerName,
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ExternalAuthResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRequestResourceType, "*")
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
+	nodePoolInformer, _ := informers.NodePools()
+	externalAuthInformer, _ := informers.ExternalAuths()
+	requestInformer, _ := informers.SystemAdminCredentialRequests()
+	revocationInformer, _ := informers.SystemAdminCredentialRevocations()
+	if err := controller.QueueForChildInformers(0, nodePoolInformer, externalAuthInformer, requestInformer, revocationInformer); err != nil {
+		panic(err)
+	}
+
+	return controller
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -90,10 +109,6 @@ func NewClusterDeletionController(
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
 func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
-	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
-		return false
-	}
-
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID == nil
@@ -101,10 +116,9 @@ func (c *clusterDeletionController) NeedsWork(cluster *coreapi.Cluster) bool {
 
 // SyncOnce deletes a Cluster document from Cosmos after verifying that all
 // deletion preconditions are satisfied:
-//  1. All cluster-scoped Maestro readonly bundles are cleared.
-//  2. All node pool documents are deleted.
-//  3. All external auth documents are deleted.
-//  4. All other Cosmos child resources are deleted.
+//  1. All node pool documents are deleted.
+//  2. All external auth documents are deleted.
+//  3. All other Cosmos child resources are deleted.
 //
 // Before removing the cluster document, the corresponding billing document is
 // marked as deleted (idempotent). Returns nil without acting when NeedsWork is
@@ -123,11 +137,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Quick cache check for Maestro readonly bundles
-	cachedSPC, spcCacheErr := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if spcCacheErr == nil && len(cachedSPC.Status.MaestroReadonlyBundles) > 0 {
-		return nil
-	}
+	cachedSPC, _ := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 
 	// Confirm against the live document.
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
@@ -142,20 +152,18 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Precondition: all cluster-scoped ApplyDesires for this cluster must be gone.
-	// Node-pool-scoped desires are handled by the node pool deletion pipeline.
-	preconditionMet, err := c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
+	preconditionMet, err := c.deletePreconditionTLSCertificatesCleared(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
+		return utils.TrackError(err)
 	}
 	if !preconditionMet {
 		return nil
 	}
-
-	// Precondition: all cluster-scoped Maestro readonly bundles must be cleared
-	preconditionMet, err = c.deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx, key)
+	// Precondition: all cluster-scoped ApplyDesires for this cluster must be gone.
+	// Node-pool-scoped desires are handled by the node pool deletion pipeline.
+	preconditionMet, err = c.deletePreconditionAllApplyDesiresGone(ctx, key, cachedSPC)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
 	}
 	if !preconditionMet {
 		return nil
@@ -228,19 +236,16 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	return nil
 }
 
-// deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared checks if the
-// ServiceProviderCluster has any Maestro readonly bundles.
-func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	spcCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	spc, spcErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-	if spcErr != nil && !cosmosstorageutils.IsNotFoundError(spcErr) {
-		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", spcErr))
+func (c *clusterDeletionController) deletePreconditionTLSCertificatesCleared(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return true, nil
 	}
-	if spc != nil && len(spc.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"remainingBundles", len(spc.Status.MaestroReadonlyBundles))
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster for TLS certificate deletion gate: %w", err))
+	}
+	if spc.Status.AzureResources.KubeAPIServerCertificate != nil || spc.Status.AzureResources.IngressCertificate != nil {
+		utils.LoggerFromContext(ctx).Info("waiting for TLS certificate references to be cleared before deleting the cluster")
 		return false, nil
 	}
 	return true, nil
@@ -311,7 +316,10 @@ func (c *clusterDeletionController) deletePreconditionAllApplyDesiresGone(ctx co
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
-	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	kubeApplierDBClient, err := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if err != nil {
+		return false, err
+	}
 	if kubeApplierDBClient == nil {
 		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
 		return false, nil

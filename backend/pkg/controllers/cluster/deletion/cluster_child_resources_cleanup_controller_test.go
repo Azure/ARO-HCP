@@ -16,6 +16,7 @@ package deletion
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -27,17 +28,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -146,7 +153,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
 	) {
 		t.Helper()
-		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NoError(t, err)
 		require.NotNil(t, client)
 
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -171,7 +179,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		resourceIDString string,
 	) {
 		t.Helper()
-		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+		require.NoError(t, err)
 		require.NotNil(t, client)
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
@@ -206,13 +215,28 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		existingCluster    *coreapi.Cluster
 		childResources     []any
 		kubeApplierDesires []any
+		clientError        error
 		wantErr            bool
 		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients,
 		)
 	}{
 		{
+			name:               "retains service-provider records and desires on client resolution error",
+			existingCluster:    newTestCluster(t, readyToDeleteClusterOptsFunc),
+			childResources:     []any{newTestSPCWithManagementCluster(managementClusterResourceID)},
+			kubeApplierDesires: []any{newTestClusterScopedReadDesire("retained-read"), newTestClusterScopedApplyDesire("retained-apply")},
+			clientError:        fmt.Errorf("injected kube-applier initialization failure"),
+			wantErr:            true,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, clients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				_, err := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assertClusterScopedKubeApplierResourceExists(t, ctx, clients, newTestClusterScopedReadDesire("retained-read").ResourceID.String())
+				assertClusterScopedKubeApplierResourceExists(t, ctx, clients, newTestClusterScopedApplyDesire("retained-apply").ResourceID.String())
+			},
+		},
+		{
 			name:            "when no DeletionTimestamp is set performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, nil),
+			existingCluster: newTestCluster(t, nil),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -222,7 +246,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -236,7 +260,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.Cluster) {
+			existingCluster: newTestCluster(t, func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -249,11 +273,11 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when all conditions met and there are no children performs a no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 		},
 		{
 			name:            "when there is a child resource it deletes it",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("test-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -263,10 +287,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "deletion of cluster controllers is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterController("test-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -284,10 +308,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when there are controller and non-controller children it deletes only non-controller children",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("test-mcc"), newTestClusterController("test-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -310,9 +334,9 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			name: "when the cluster is not found performs a no-op",
 		},
 		{
-			name:            "when there is a child ServiceProviderCluster without Maestro bundles it deletes it",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
-			childResources:  []any{newTestSPC(t, nil)},
+			name:            "when there is a child ServiceProviderCluster it deletes it",
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestSPC(t)},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -321,7 +345,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when SPC has kube-applier desires it deletes desires then deletes SPC",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -336,7 +360,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when cluster has cluster and nodepool scoped kube-applier resources it deletes only cluster scoped ones",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -358,7 +382,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "when SPC has kube-applier desires but no kube-applier client it deletes SPC best-effort",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(unregisteredManagementClusterResourceID),
 			},
@@ -367,46 +391,17 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPC to be deleted")
 
-				require.Nil(t, kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID))
-			},
-		},
-		{
-			name:            "when there is a child ServiceProviderCluster with Maestro bundles it does not delete it",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{newTestSPC(t, coreapi.MaestroBundleReferenceList{
-				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-			})},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
-			},
-		},
-		{
-			name:            "when there are children including SPC with Maestro bundles it deletes all except SPC",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
-			childResources: []any{
-				newTestClusterScopedManagementClusterContent("gate-mcc"),
-				newTestSPC(t, coreapi.MaestroBundleReferenceList{
-					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-				}),
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
-				_, err := mccCRUD.Get(ctx, "gate-mcc")
-				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected MCC to be deleted")
-
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
+				missingClient, missingErr := kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID)
+				require.NoError(t, missingErr)
+				require.Nil(t, missingClient)
 			},
 		},
 		{
 			name:            "orphaned nodepool-subtree resource is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestNodePoolController(t, "orphaned-np-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -422,10 +417,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "orphaned externalauth-subtree resource is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestExternalAuthController(t, "orphaned-ea-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -441,10 +436,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "orphaned credential-request-subtree resource is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestCredentialRequestController(t, "orphaned-cred-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -460,10 +455,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "orphaned credential-revocation-subtree resource is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestCredentialRevocationController(t, "orphaned-rev-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -479,14 +474,14 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "deletable MCC is deleted while orphaned nodepool-subtree resource is skipped",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("test-mcc"), newTestNodePoolController(t, "orphaned-np-controller")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
 				_, err := mccCRUD.Get(ctx, "test-mcc")
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected MCC to be deleted")
 
-				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				cluster := newTestCluster(t, nil)
 				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
 				require.NoError(t, err)
 				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -502,7 +497,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "blocks when nodepools still exist",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestNodePool(t), newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -512,7 +507,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "blocks when external auths still exist",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestExternalAuth(t), newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -522,7 +517,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "blocks when credential requests still exist",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestCredentialRequest(t, "cred-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -532,7 +527,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "blocks when credential revocations still exist",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestCredentialRevocation(t, "revoke-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
@@ -541,22 +536,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:            "UsesNewClusterDeletionApproach false -- no-op even when all cleanup conditions met and children exist",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, readyToDeleteClusterOptsFunc),
-			childResources:  []any{newTestClusterScopedManagementClusterContent("untouched-mcc"), newTestSPC(t, nil)},
-			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
-				_, err := mccCRUD.Get(ctx, "untouched-mcc")
-				require.NoError(t, err, "expected child resource to still exist")
-
-				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
-				require.NoError(t, err, "expected SPC to still exist")
-			},
-		},
-		{
 			name:            "backup *Desires are skipped by the general sweep",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -565,7 +546,8 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				newTestClusterScopedReadDesire(backup.BackupScheduleDesireNamePrefix + "hourly"),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
-				client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+				client, err := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+				require.NoError(t, err)
 				require.NotNil(t, client)
 
 				applyDesireCRUD, err := client.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -587,7 +569,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:            "non-backup ApplyDesires are still swept normally",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			existingCluster: newTestCluster(t, readyToDeleteClusterOptsFunc),
 			childResources: []any{
 				newTestSPCWithManagementCluster(managementClusterResourceID),
 			},
@@ -633,16 +615,82 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}
 
+			if tc.clientError != nil {
+				credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+				require.NoError(t, err)
+				lister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID},
+					Status:         fleetapi.ManagementClusterStatus{KubeApplierCosmosContainerName: "container"},
+				}}}
+				syncer.kubeApplierDBClients = kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+					return nil, tc.clientError
+				}, lister)
+			}
+
 			err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
-				require.Error(t, err)
-				return
+				assert.Error(t, err)
+				if tc.clientError != nil {
+					assert.ErrorIs(t, err, tc.clientError)
+				}
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient, mockKubeApplierDBClients)
 			}
+		})
+	}
+}
+
+func TestChildCleanupGateResolutionErrors(t *testing.T) {
+	mcID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/1/managementClusters/default"))
+	type testCase struct {
+		name               string
+		managementClusters []*fleetapi.ManagementCluster
+		resolutionError    error
+		wantAllowed        bool
+	}
+	testCases := []testCase{
+		{
+			name:        "confirmed management-cluster absence",
+			wantAllowed: true,
+		},
+		{
+			name: "client-resolution failure",
+			managementClusters: []*fleetapi.ManagementCluster{{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mcID},
+				Status:         fleetapi.ManagementClusterStatus{KubeApplierCosmosContainerName: "container"},
+			}},
+			resolutionError: fmt.Errorf("budget resolution failed"),
+			wantAllowed:     false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := t.Context()
+			clusterID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+			spc := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(clusterID.String() + "/serviceProviderClusters/default")), PartitionKey: "sub"},
+				Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mcID},
+			}
+			resources := []any{spc}
+
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+			lister := &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: testCase.managementClusters}
+			credential, err := azcosmos.NewKeyCredential("ZmFrZQ==")
+			require.NoError(t, err)
+			clients := kubeappliercosmosstorage.NewKubeApplierDBClients("https://cosmos.test", "test", cosmosclient.Options{KeyCredential: &credential}, func(string) (*cosmosratelimit.TokenBucket, error) {
+				return nil, testCase.resolutionError
+			}, lister)
+
+			syncer := &clusterChildResourcesCleanupController{resourcesDBClient: db, kubeApplierDBClients: clients}
+			allowed, err := syncer.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, spc.ResourceID)
+
+			require.ErrorIs(t, err, testCase.resolutionError)
+			require.Equal(t, testCase.wantAllowed, allowed)
 		})
 	}
 }
@@ -727,6 +775,111 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 			resourceID := metadataapi.Must(azcorearm.ParseResourceID(tc.resourceID))
 			got := hasSkippedResourceTypePrefix(resourceID, skipSubtreeTypes)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestExtraDeleteGateShouldDeleteServiceProviderClusterOIDCFederation(t *testing.T) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000000"
+		resourceGroupName = "test-rg"
+		clusterName       = "test-cluster"
+	)
+
+	serviceProviderClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/" + coreapi.ServiceProviderClusterResourceTypeName +
+			"/" + coreapi.ServiceProviderClusterResourceName,
+	))
+	identityA := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-a"))
+	identityB := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/identity-b"))
+	federatedIdentityCredentialA := metadataapi.Must(azcorearm.ParseResourceID(
+		identityA.String() + "/federatedIdentityCredentials/fic-a"))
+	federatedIdentityCredentialB := metadataapi.Must(azcorearm.ParseResourceID(
+		identityB.String() + "/federatedIdentityCredentials/fic-b"))
+
+	keyA := strings.ToLower(identityA.String())
+	keyB := strings.ToLower(identityB.String())
+
+	testCases := []struct {
+		name               string
+		federation         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus
+		expectShouldDelete bool
+	}{
+		{
+			name: "azure resources remaining blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "pending azure resources remaining blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					PendingAzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialA},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "remaining resources on one identity blocks deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyB, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources: []*azcorearm.ResourceID{federatedIdentityCredentialB},
+				},
+			},
+			expectShouldDelete: false,
+		},
+		{
+			name: "empty resource slices allow deletion",
+			federation: map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{
+				{IdentityResourceID: keyA, OperatorName: "azure-disk-csi-driver-operator"}: {
+					AzureResources:        []*azcorearm.ResourceID{},
+					PendingAzureResources: []*azcorearm.ResourceID{},
+				},
+			},
+			expectShouldDelete: true,
+		},
+		{
+			name:               "deconfigured identities with no remaining resources allow deletion",
+			federation:         map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus{},
+			expectShouldDelete: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
+					ResourceID:   serviceProviderClusterResourceID,
+					PartitionKey: strings.ToLower(serviceProviderClusterResourceID.SubscriptionID),
+				},
+			}
+			serviceProviderCluster.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = tc.federation
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{serviceProviderCluster})
+			require.NoError(t, err)
+
+			controller := &clusterChildResourcesCleanupController{
+				resourcesDBClient: mockResourcesDB,
+			}
+
+			shouldDelete, err := controller.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, serviceProviderClusterResourceID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectShouldDelete, shouldDelete)
 		})
 	}
 }

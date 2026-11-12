@@ -63,11 +63,22 @@ type AgentConfig struct {
 	// ModelDeployment is the model deployment name (byok mode).
 	ModelDeployment string
 
+	// MaxPromptTokens overrides the BYOK input budget, including system
+	// instructions, history, tools, and tool results. Zero keeps the runtime
+	// default. This is not the combined input/output window or a server limit
+	// increase. Callers must choose a budget supported by their deployment.
+	MaxPromptTokens int
+
 	// AzureCredential is used to acquire Entra tokens for BYOK sessions.
 	AzureCredential azcore.TokenCredential
 
 	// Model overrides the default model for Copilot sessions.
 	Model string
+
+	// ReasoningEffort sets the reasoning effort for every session created by
+	// the client (one of CopilotReasoningEfforts). Empty keeps the model's
+	// default. It only has an effect on models that support reasoning effort.
+	ReasoningEffort string
 
 	// MaxRounds is the maximum number of tool-call rounds per session.
 	MaxRounds int
@@ -97,7 +108,25 @@ type CopilotClient struct {
 // The underlying CLI process is started lazily on first session creation
 // (AutoStart defaults to true).
 func NewCopilotClient(cfg *AgentConfig) (*CopilotClient, error) {
-	clientOpts := &copilot.ClientOptions{}
+	if err := ValidateCopilotReasoningEffort(cfg.ReasoningEffort); err != nil {
+		return nil, err
+	}
+	if cfg.MaxPromptTokens < 0 {
+		return nil, fmt.Errorf("MaxPromptTokens must not be negative")
+	}
+	if cfg.MaxPromptTokens != 0 && cfg.AuthMode != CopilotAuthModeBYOK {
+		return nil, fmt.Errorf("MaxPromptTokens requires copilot auth mode %q", CopilotAuthModeBYOK)
+	}
+
+	// hcpctl uses the installed CLI rather than bundling the SDK runtime.
+	// Preserve the SDK's runtime override and fall back to copilot on PATH.
+	cliPath := os.Getenv("COPILOT_CLI_PATH")
+	if cliPath == "" {
+		cliPath = "copilot"
+	}
+	clientOpts := &copilot.ClientOptions{
+		Connection: copilot.StdioConnection{Path: cliPath},
+	}
 
 	if cfg.Verbosity >= 5 {
 		clientOpts.LogLevel = "debug"
@@ -165,10 +194,10 @@ type Session struct {
 	seenUsageKeys   map[string]struct{}
 }
 
-// CreateSession creates a new Copilot session for an analysis run.
-func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+func (c *CopilotClient) buildSessionConfig(ctx context.Context, cfg SessionConfig) (*copilot.SessionConfig, error) {
 	sessionCfg := &copilot.SessionConfig{
 		Model:               cfg.Model,
+		ReasoningEffort:     c.cfg.ReasoningEffort,
 		SystemMessage:       cfg.SystemMessage,
 		Tools:               cfg.Tools,
 		WorkingDirectory:    cfg.WorkingDirectory,
@@ -191,14 +220,27 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		if err != nil {
 			return nil, fmt.Errorf("acquiring Entra token for BYOK copilot session: %w", err)
 		}
+		// Reasoning with function tools requires Responses on newer models.
 		sessionCfg.Provider = &copilot.ProviderConfig{
-			Type:        "azure",
-			BaseURL:     c.cfg.ModelEndpoint,
-			BearerToken: token.Token,
+			Type:            "azure",
+			WireAPI:         "responses",
+			BaseURL:         c.cfg.ModelEndpoint,
+			BearerToken:     token.Token,
+			MaxPromptTokens: c.cfg.MaxPromptTokens,
 		}
 		if sessionCfg.Model == "" {
 			sessionCfg.Model = c.cfg.ModelDeployment
 		}
+	}
+
+	return sessionCfg, nil
+}
+
+// CreateSession creates a new Copilot session for an analysis run.
+func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, cfg SessionConfig) (*Session, error) {
+	sessionCfg, err := c.buildSessionConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	session, err := c.inner.CreateSession(ctx, sessionCfg)
@@ -207,7 +249,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 	}
 
 	logger = logger.WithValues("sessionID", session.SessionID)
-	logger.Info("Created Copilot session.")
+	logger.Info("Created Copilot session.", "reasoningEffort", sessionCfg.ReasoningEffort)
 	usageProvider := "github-copilot"
 	usageDimensions := map[string]string{"backend": "github"}
 	if c.cfg.AuthMode == CopilotAuthModeBYOK {
@@ -723,7 +765,11 @@ func (s *Session) traceEvents() {
 		case *copilot.SessionTruncationData:
 			s.logger.V(5).Info("Copilot event: SessionTruncation")
 		case *copilot.SessionUsageInfoData:
-			s.logger.V(5).Info("Copilot event: SessionUsageInfo")
+			s.logger.V(5).Info("Copilot event: SessionUsageInfo",
+				"currentTokens", d.CurrentTokens,
+				"tokenLimit", d.TokenLimit,
+				"messagesLength", d.MessagesLength,
+			)
 		case *copilot.AssistantUsageData:
 			s.logger.V(5).Info("Copilot event: AssistantUsage",
 				"model", d.Model,

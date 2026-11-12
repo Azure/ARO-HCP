@@ -23,11 +23,11 @@ GOHOSTARM    ?= $(shell $(GO) env GOHOSTARM)
 #	@echo "Running addlicense"
 #	@$(ADDLICENSE) <flags/args..>
 #
-ADDLICENSE := $(GOBIN)/addlicense-v1.1.1
+ADDLICENSE := $(GOBIN)/addlicense-v1.2.0
 $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
+	@echo "(re)installing $(GOBIN)/addlicense-v1.2.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.2.0 "github.com/google/addlicense"
 
 APPLYCONFIGURATION_GEN := $(GOBIN)/applyconfiguration-gen-v0.34.3
 $(APPLYCONFIGURATION_GEN): $(BINGO_DIR)/applyconfiguration-gen.mod
@@ -53,17 +53,17 @@ $(DEEPCOPY_GEN): $(BINGO_DIR)/deepcopy-gen.mod
 	@echo "(re)installing $(GOBIN)/deepcopy-gen-v0.34.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=deepcopy-gen.mod -o=$(GOBIN)/deepcopy-gen-v0.34.3 "k8s.io/code-generator/cmd/deepcopy-gen"
 
-GOIMPORTS := $(GOBIN)/goimports-v0.26.0
+GOIMPORTS := $(GOBIN)/goimports-v0.52.0
 $(GOIMPORTS): $(BINGO_DIR)/goimports.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/goimports-v0.26.0"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.26.0 "golang.org/x/tools/cmd/goimports"
+	@echo "(re)installing $(GOBIN)/goimports-v0.52.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.52.0 "golang.org/x/tools/cmd/goimports"
 
-GOJQ := $(GOBIN)/gojq-v0.12.17
+GOJQ := $(GOBIN)/gojq-v0.12.20
 $(GOJQ): $(BINGO_DIR)/gojq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/gojq-v0.12.17"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=gojq.mod -o=$(GOBIN)/gojq-v0.12.17 "github.com/itchyny/gojq/cmd/gojq"
+	@echo "(re)installing $(GOBIN)/gojq-v0.12.20"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=gojq.mod -o=$(GOBIN)/gojq-v0.12.20 "github.com/itchyny/gojq/cmd/gojq"
 
 GOLANGCI_LINT := $(GOBIN)/golangci-lint-v2.5.0
 $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
@@ -71,11 +71,11 @@ $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@echo "(re)installing $(GOBIN)/golangci-lint-v2.5.0"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v2.5.0 "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 
-HELM := $(GOBIN)/helm-v3.16.3
+HELM := $(GOBIN)/helm-v3.22.1
 $(HELM): $(BINGO_DIR)/helm.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/helm-v3.16.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.16.3 "helm.sh/helm/v3/cmd/helm"
+	@echo "(re)installing $(GOBIN)/helm-v3.22.1"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.22.1 "helm.sh/helm/v3/cmd/helm"
 
 INFORMER_GEN := $(GOBIN)/informer-gen-v0.34.3
 $(INFORMER_GEN): $(BINGO_DIR)/informer-gen.mod
@@ -101,15 +101,15 @@ $(ORAS): $(BINGO_DIR)/oras.mod
 	@echo "(re)installing $(GOBIN)/oras-v1.2.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=oras.mod -o=$(GOBIN)/oras-v1.2.3 "oras.land/oras/cmd/oras"
 
-YAMLFMT := $(GOBIN)/yamlfmt-v0.16.0
+YAMLFMT := $(GOBIN)/yamlfmt-v0.21.0
 $(YAMLFMT): $(BINGO_DIR)/yamlfmt.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yamlfmt-v0.16.0"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.16.0 "github.com/google/yamlfmt/cmd/yamlfmt"
+	@echo "(re)installing $(GOBIN)/yamlfmt-v0.21.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.21.0 "github.com/google/yamlfmt/cmd/yamlfmt"
 
-YQ := $(GOBIN)/yq-v4.44.5
+YQ := $(GOBIN)/yq-v4.54.2
 $(YQ): $(BINGO_DIR)/yq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yq-v4.44.5"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.44.5 "github.com/mikefarah/yq/v4"
+	@echo "(re)installing $(GOBIN)/yq-v4.54.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.54.2 "github.com/mikefarah/yq/v4"
 

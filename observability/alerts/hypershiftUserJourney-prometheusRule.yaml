@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hypershift-user-journey-hcp-alerts
+  namespace: prometheus
+spec:
+  # ========================================
+  # HyperShift User Journey SLO Alerts - HCP workspace (ARO-27787)
+  # ========================================
+  # Only rules whose inputs live in the HCP Azure Monitor workspace belong here.
+  # prometheus.yaml remote-write routes any series whose namespace or
+  # hostedcontrolplane label matches ocm-<env>* to the HCP workspace, so the
+  # control-plane-operator (runs in the per-HCP namespace) is here. HyperShift
+  # Operator alerts live in hypershiftOperatorUserJourney-prometheusRule.yaml
+  # (services workspace) because the operator runs in the "hypershift"
+  # namespace. Cross-workspace PromQL joins are not possible.
+  #
+  # Journey availability from hypershift_kube_apiserver_available is deferred
+  # until that metric is scraped in production and its overlap with
+  # HCPKASAvailableBurn is settled; other CPO signals are dashboard-only.
+  #
+  # SLO targets are proposed defaults from the ARO-27787 spike, pending
+  # confirmation by the SLO owners; promtool tests prove the maths, not the
+  # targets.
+  #
+  # Aggregation: every alert is scoped per management cluster + HCP namespace
+  # (cluster, namespace), i.e. one alert per hosted control plane, so a single
+  # unhealthy HCP is never averaged away by healthy neighbours on the same MC.
+  groups:
+  # control-plane-operator (CPO) health, one CPO per hosted control plane.
+  # Fires when the CPO has no available pods; backend operation alerts cannot
+  # catch this while the customer is not making changes. spec=0 (scaled down,
+  # hibernating or deleting) does not fire. max by dedupes KSM and HA replicas.
+  - name: hypershift-cpo-monitor-rules
+    labels:
+      component: slo
+    rules:
+    - alert: hypershiftCPODown
+      expr: |
+        max by (cluster, namespace) (kube_deployment_spec_replicas{namespace=~"ocm-.*", deployment="control-plane-operator"}) > 0
+        and on (cluster, namespace)
+        max by (cluster, namespace) (kube_deployment_status_replicas_available{namespace=~"ocm-.*", deployment="control-plane-operator"}) == 0
+      for: 10m
+      labels:
+        severity: "3"
+        slo: control-plane-operator-availability
+        service: control-plane-operator
+      annotations:
+        summary: "{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods"
+        description: |
+          control-plane-operator has had no available pods for 10 minutes.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-hypershift
+        correlationId: "hypershiftCPODown/{{ $labels.cluster }}/{{ $labels.namespace }}"

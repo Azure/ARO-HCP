@@ -124,6 +124,9 @@ func NewRoleAssignmentsController(
 		5*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 
 	return controller
 }

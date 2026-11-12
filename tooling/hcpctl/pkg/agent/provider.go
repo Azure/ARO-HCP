@@ -24,8 +24,8 @@ import (
 
 // LLMProvider creates and manages LLM sessions for a specific backend.
 // Implementations handle provider-specific authentication, client lifecycle,
-// and session creation. The two built-in implementations are CopilotClient
-// (GitHub Copilot SDK) and ClaudeProvider (Anthropic API).
+// and session creation. Implementations are CopilotClient (GitHub Copilot SDK),
+// ClaudeProvider (Anthropic API), and ClaudeCodeProvider (Claude Code CLI).
 type LLMProvider interface {
 	// CreateProviderSession creates a new LLM session configured for
 	// analysis. The provider translates the provider-neutral

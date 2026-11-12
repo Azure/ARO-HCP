@@ -4,12 +4,35 @@ param bots array
 @description('Service management reference ID for the applications')
 param serviceManagementReference string = ''
 
+@description('Comma-separated Entra object IDs added as owners of every bot application and service principal, so any OWNERS-group member can run the privileged pipeline. The list is authoritative: owners not in it are removed (replace).')
+param ownerIds string = ''
+
 // Microsoft Graph app ID (constant across all tenants)
 var msGraphAppId = '00000003-0000-0000-c000-000000000000'
 // Application.ReadWrite.OwnedBy (Role / application permission)
 var applicationReadWriteOwnedByRoleId = '18a4783c-866b-4cc7-a460-3d5e5662c884'
 // User.Read (Scope / delegated permission)
 var userReadScopeId = 'e1fe6dd8-ba31-4d61-89e7-88639da4683d'
+// Directory.Read.All (Role / application permission)
+var directoryReadAllRoleId = '7ab1d382-f21e-4acd-a863-ba3e13f7da61'
+
+var baseGraphAccess = [
+  {
+    id: applicationReadWriteOwnedByRoleId
+    type: 'Role'
+  }
+  {
+    id: userReadScopeId
+    type: 'Scope'
+  }
+]
+
+var directoryReadAccess = [
+  {
+    id: directoryReadAllRoleId
+    type: 'Role'
+  }
+]
 
 module botApp '../modules/entra/app.bicep' = [
   for bot in bots: {
@@ -19,19 +42,12 @@ module botApp '../modules/entra/app.bicep' = [
       uniqueName: toLower(replace(bot.applicationName, ' ', '-'))
       manageSp: true
       serviceManagementReference: serviceManagementReference
+      ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       requiredResourceAccess: [
         {
           resourceAppId: msGraphAppId
-          resourceAccess: [
-            {
-              id: applicationReadWriteOwnedByRoleId
-              type: 'Role'
-            }
-            {
-              id: userReadScopeId
-              type: 'Scope'
-            }
-          ]
+          resourceAccess: concat(baseGraphAccess, bot.?grantDirectoryRead == true ? directoryReadAccess : [])
         }
       ]
     }

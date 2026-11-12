@@ -15,6 +15,7 @@
 package kubeappliercosmosstoragetesting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -84,6 +85,19 @@ func (m *MockKubeApplierDBClient) StoreDocument(cosmosID string, data json.RawMe
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
 	m.changeFeed.Record(data)
+}
+
+func (m *MockKubeApplierDBClient) MutateDocument(cosmosID string, mutate func(json.RawMessage) (json.RawMessage, error)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cosmosID = strings.ToLower(cosmosID)
+	data, err := mutate(bytes.Clone(m.documents[cosmosID]))
+	if err != nil || data == nil {
+		return err
+	}
+	m.documents[cosmosID] = bytes.Clone(data)
+	m.changeFeed.Record(data)
+	return nil
 }
 
 func (m *MockKubeApplierDBClient) DeleteDocument(cosmosID string) {
@@ -505,15 +519,15 @@ func (c *MockKubeApplierDBClients) Register(managementClusterResourceID *azcorea
 	c.clients[strings.ToLower(managementClusterResourceID.String())] = client
 }
 
-func (c *MockKubeApplierDBClients) For(_ context.Context, managementClusterResourceID *azcorearm.ResourceID) kubeappliercosmosstorage.KubeApplierDBClient {
+func (c *MockKubeApplierDBClients) For(_ context.Context, managementClusterResourceID *azcorearm.ResourceID) (kubeappliercosmosstorage.KubeApplierDBClient, error) {
 	if managementClusterResourceID == nil {
-		return nil
+		return nil, nil
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	client, ok := c.clients[strings.ToLower(managementClusterResourceID.String())]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return client
+	return client, nil
 }

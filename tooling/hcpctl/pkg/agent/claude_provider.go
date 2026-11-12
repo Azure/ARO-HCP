@@ -72,6 +72,11 @@ type ClaudeConfig struct {
 
 	// VertexRegion is the GCP region (e.g. "us-east5"). Required when Backend is "vertex".
 	VertexRegion string
+
+	// ReasoningEffort is sent as output_config.effort on every Messages API
+	// request (one of ClaudeReasoningEfforts). Empty omits it, keeping the
+	// model default. Only models that support effort accept a non-empty value.
+	ReasoningEffort string
 }
 
 // ClaudeProvider implements LLMProvider using the Anthropic Messages API.
@@ -86,6 +91,10 @@ type ClaudeProvider struct {
 // and model settings. When the Vertex AI backend is selected, ctx is used to
 // initialise Google Application Default Credentials.
 func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider, error) {
+	if err := ValidateClaudeReasoningEffort(cfg.ReasoningEffort); err != nil {
+		return nil, err
+	}
+
 	var opts []option.RequestOption
 
 	switch cfg.Backend {
@@ -142,7 +151,7 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 
 	sessionID := fmt.Sprintf("claude-%d", time.Now().UnixNano())
 	logger = logger.WithValues("sessionID", sessionID)
-	logger.Info("Created Claude session.", "model", model)
+	logger.Info("Created Claude session.", "model", model, "reasoningEffort", p.cfg.ReasoningEffort)
 	backend := p.cfg.Backend
 	if backend == "" {
 		backend = ClaudeBackendAPI
@@ -159,6 +168,7 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 	return &ClaudeSession{
 		client:          p.client,
 		model:           model,
+		reasoningEffort: p.cfg.ReasoningEffort,
 		systemPrompt:    fullSystemPrompt,
 		tools:           tools,
 		toolHandlers:    buildToolHandlerMap(cfg.Tools),
@@ -180,11 +190,12 @@ func (p *ClaudeProvider) Stop() error {
 // It maintains the conversation history and handles the tool-use loop
 // internally within SendAndWait.
 type ClaudeSession struct {
-	client       anthropic.Client
-	model        string
-	systemPrompt string
-	tools        []anthropic.ToolUnionParam
-	toolHandlers map[string]func(ctx context.Context, params json.RawMessage) (string, error)
+	client          anthropic.Client
+	model           string
+	reasoningEffort string
+	systemPrompt    string
+	tools           []anthropic.ToolUnionParam
+	toolHandlers    map[string]func(ctx context.Context, params json.RawMessage) (string, error)
 	// messages is the active API context sent to the model on each turn.
 	// ResetHistory clears this to bound context growth between phases.
 	messages []anthropic.MessageParam
@@ -247,6 +258,9 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 		}
 		if len(s.tools) > 0 {
 			params.Tools = s.tools
+		}
+		if s.reasoningEffort != "" {
+			params.OutputConfig.Effort = anthropic.OutputConfigEffort(s.reasoningEffort)
 		}
 
 		s.logger.V(3).Info("Calling Anthropic Messages API.", "messageCount", len(s.messages))

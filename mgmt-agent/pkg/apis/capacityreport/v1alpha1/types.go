@@ -73,15 +73,14 @@ type CapacityReportStatus struct {
 	Nodes []NodeSKUCapacity `json:"nodes,omitempty"`
 
 	// +optional
-	// usage reports actual resource consumption across HCP workloads in ocm-*
-	// namespaces, sourced from metrics-server PodMetrics.
+	// usage reports consumption across HCP namespaces from PodMetrics, except
+	// aro.openshift.io/swift-nic usage, which equals its requested allocation.
 	Usage corev1.ResourceList `json:"usage,omitempty"`
 
 	// +optional
-	// requested reports the sum of resource requests across regular (non-init)
-	// containers of non-terminal pods (phase is not Succeeded or Failed) in ocm-*
-	// namespaces. This approximates steady-state reservation and may differ from
-	// actual usage.
+	// requested sums regular-container requests for Pending and Running pods in
+	// HCP namespaces, excluding init containers and pod overhead. This approximates
+	// steady-state reservation and may differ from actual usage.
 	Requested corev1.ResourceList `json:"requested,omitempty"`
 
 	// hostedControlPlanes reports the state of HostedControlPlane resources on
@@ -104,7 +103,12 @@ type NodeSKUCapacity struct {
 }
 
 // HostedControlPlanes reports the state of HostedControlPlane resources on a
-// management cluster.
+// management cluster. Resource totals measure HCP workloads; overall identity lists
+// and per-size ready counts deduplicate ARM resource IDs by exact, case-sensitive
+// string equality, rather than counting measured HCP objects. Legacy reports may
+// omit resources, readyResources and byClusterSizingConfiguration. Failed collections preserve the
+// existing payload, including absent fields.
+// +structType=atomic
 type HostedControlPlanes struct {
 	// +optional
 	// +listType=set
@@ -116,6 +120,66 @@ type HostedControlPlanes struct {
 	// notReadyResourceIDs lists the ARM resource IDs of HostedControlPlanes whose
 	// Available condition is not True or missing.
 	NotReadyResourceIDs []string `json:"notReadyResourceIDs,omitempty"`
+
+	// +optional
+	// resources reports usage and requests for all HCPs, including those without
+	// usable size attribution. Nil means not reported, not zero. Successful
+	// collections by new collectors always include this object, even with no HCPs,
+	// and dual-write the same totals to the legacy status.usage and status.requested.
+	Resources *HostedControlPlaneResourceTotals `json:"resources,omitempty"`
+
+	// +optional
+	// readyResources reports usage and requests for all ready HCPs, including
+	// those without usable size attribution. Nil means not reported, not zero.
+	// Successful collections by new collectors always include this object, even
+	// with no ready HCPs.
+	ReadyResources *HostedControlPlaneResourceTotals `json:"readyResources,omitempty"`
+
+	// +optional
+	// +listType=map
+	// +listMapKey=size
+	// byClusterSizingConfiguration groups HCPs by the associated HostedCluster's observed
+	// hypershift.openshift.io/hosted-cluster-size label. The HCP's
+	// hypershift.openshift.io/cluster annotation identifies that HC as namespace/name.
+	// Missing associations or noncanonical/reserved labels contribute only to overall
+	// accounting, so named buckets are not exhaustive. If no HCP has usable attribution,
+	// this list is omitted or empty; that alone does not indicate a legacy report.
+	ByClusterSizingConfiguration []HostedControlPlanesBySize `json:"byClusterSizingConfiguration,omitempty"`
+}
+
+// HostedControlPlaneResourceTotals reports resource usage and requests for an HCP
+// population. Successful collections include CPU, memory and aro.openshift.io/swift-nic
+// in both maps, with zero values when the measured population is empty.
+type HostedControlPlaneResourceTotals struct {
+	// +kubebuilder:validation:MaxProperties=16
+	// usage reports consumption from PodMetrics, except aro.openshift.io/swift-nic
+	// usage, which equals its requested allocation.
+	Usage corev1.ResourceList `json:"usage"`
+	// +kubebuilder:validation:MaxProperties=16
+	// requested sums regular-container requests for Pending and Running pods,
+	// excluding init containers and pod overhead.
+	Requested corev1.ResourceList `json:"requested"`
+}
+
+// HostedControlPlanesBySize reports HCPs with the same observed HostedCluster size.
+// Resource totals measure the bucket's ready HCP workloads; readyCount counts distinct
+// ready ARM resource IDs, not measured HCP objects.
+type HostedControlPlanesBySize struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9_.]*[a-z0-9])?$`
+	// +kubebuilder:validation:XValidation:rule="self != 'default'",message="default is reserved for overall accounting"
+	// size is the canonical lowercase observed label value, excluding default.
+	Size string `json:"size"`
+	// readyResources reports usage and requests for ready HCPs in this size
+	// bucket. This object is required even when no HCP in the bucket is ready;
+	// an empty ready population is reported with zero resource totals.
+	ReadyResources HostedControlPlaneResourceTotals `json:"readyResources"`
+	// +kubebuilder:validation:Minimum=0
+	// readyCount counts distinct ARM resource IDs of HCPs in this size bucket
+	// whose Available condition is True, using exact, case-sensitive string
+	// equality. It is zero when no HCP in the bucket is ready.
+	ReadyCount int32 `json:"readyCount"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -74,6 +74,7 @@ func newTestManagementCluster() *fleetapi.ManagementCluster {
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: testStampIdentifier},
 		Status: fleetapi.ManagementClusterStatus{
+			PublicDNSZoneResourceID:        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/dns/providers/Microsoft.Network/dnsZones/example.com")),
 			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID))),
 		},
 	}
@@ -151,6 +152,34 @@ func setDenyAssignmentsCreated(spc *coreapi.ServiceProviderCluster) {
 	spc.Status.AzureResources.DenyAssignments.EarliestRecheckTime = &recheckTime
 }
 
+// setDataPlaneOIDCFederationCreated seeds spc so every data-plane operator
+// identity in newTestCluster()'s DataPlaneOperators map reports OIDC
+// federation as fully ensured: identity resolved and matching, at least one
+// FIC confirmed in AzureResources, and nothing left pending.
+func setDataPlaneOIDCFederationCreated(spc *coreapi.ServiceProviderCluster) {
+	dataPlaneOperators := newTestCluster().CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
+	federation := make(map[coreapi.DataplaneOIDCFederationAssignmentKey]*coreapi.DataplaneOIDCFederationAssignmentStatus, len(dataPlaneOperators))
+	for operatorName, resourceID := range dataPlaneOperators {
+		identityResourceIDStr := strings.ToLower(resourceID.String())
+		target := coreapi.DataplaneOIDCFederationIdentityInstance{
+			ClientID:    identityResourceIDStr + "-client",
+			PrincipalID: identityResourceIDStr + "-principal",
+			TenantID:    identityResourceIDStr + "-tenant",
+		}
+		federation[coreapi.DataplaneOIDCFederationAssignmentKey{
+			IdentityResourceID: identityResourceIDStr,
+			OperatorName:       operatorName,
+		}] = &coreapi.DataplaneOIDCFederationAssignmentStatus{
+			TargetIdentity:  target,
+			EnsuredIdentity: &target,
+			AzureResources: []*azcorearm.ResourceID{
+				metadataapi.Must(azcorearm.ParseResourceID(resourceID.String() + "/federatedIdentityCredentials/00000000-0000-0000-0000-000000000001")),
+			},
+		}
+	}
+	spc.Status.ManagedIdentitiesWithDataPlaneWorkloadsOIDCFederation = federation
+}
+
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
@@ -168,17 +197,19 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name: "successful sync records cluster service ID on cluster",
+			name: "successful sync dispatches using persisted DNS names",
 			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setDataPlaneOIDCFederationCreated(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -193,6 +224,8 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 						require.NoError(t, buildErr)
 						assert.Equal(t, pendingClusterServiceID.ID(), built.ID(), "PostCluster should use the final segment of PendingClusterServiceID")
 						assert.Equal(t, testProvisionShardID, built.ProvisionShardID(), "PostCluster should pin the provision shard from the placed management cluster")
+						assert.Equal(t, "abcde.example.com", built.DNS().BaseDomain())
+						assert.Equal(t, "testcluster", built.DomainPrefix())
 						csCluster, err := arohcpv1alpha1.NewCluster().
 							ID(pendingClusterServiceID.ID()).
 							HREF(testClusterServiceIDStr).
@@ -206,8 +239,8 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
-				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "successful create persists ID in the same reconcile")
+				assert.Equal(t, "abcde.example.com", cluster.ServiceProviderProperties.DNS.BaseDomain)
 			},
 		},
 		{
@@ -293,12 +326,39 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name: "data-plane OIDC federation still pending waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// Deny assignments are already created so the (independent) deny-assignment gate
+				// passes; this case isolates the OIDC federation gate. OIDC federation is left
+				// unseeded, so no operator has an ensured entry yet.
+				setDenyAssignmentsCreated(spc)
+			}),
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				// No CS calls are expected: gomock fails the test if the controller dispatches.
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while data-plane OIDC federation is pending")
+			},
+		},
+		{
 			name: "deny assignments disabled (no real FPA) dispatches without waiting on them",
 			listCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			dbCluster: newTestCluster(func(c *coreapi.Cluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+				c.ServiceProviderProperties.DNS = coreapi.ServiceProviderDNSProfile{BaseDomain: "abcde.example.com"}
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// Desired version is resolved, and NO deny assignments are tracked because the
@@ -307,6 +367,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// Placement is resolved so the (independent) placement gate does not block; this
 				// case isolates the deny-assignment behaviour.
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+				setDataPlaneOIDCFederationCreated(spc)
 			}),
 			managementClusters:      []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			denyAssignmentsDisabled: true,
@@ -331,8 +392,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "creation should proceed when deny assignments are disabled")
-				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "successful create persists ID in the same reconcile")
 			},
 		},
 		{
@@ -402,6 +462,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 				setDenyAssignmentsCreated(spc)
+				setDataPlaneOIDCFederationCreated(spc)
 			}),
 			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -410,6 +471,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				// passes the csClustersMatchingClusterByAzureInfo filter.
 				csCluster, err := arohcpv1alpha1.NewCluster().
 					HREF(testClusterServiceIDStr).
+					DomainPrefix("testcluster").
 					Azure(arohcpv1alpha1.NewAzure().
 						SubscriptionID(strings.ToLower(testSubscriptionID)).
 						ResourceGroupName(strings.ToLower(testResourceGroupName)).
@@ -513,7 +575,7 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 	defaultMRG := "arohcp-mycluster-uuid"
 
 	searchString := func(sub, rg, name, tenant, mrg string) string {
-		return (&clusterClusterServiceCreateSyncer{}).clustersServiceClusterByAzureInfoSearchString(
+		return fmt.Sprintf("azure.subscription_id = '%s' and azure.resource_group_name = '%s' and azure.resource_name = '%s' and azure.tenant_id = '%s' and azure.managed_resource_group_name = '%s'",
 			strings.ToLower(sub), strings.ToLower(rg), strings.ToLower(name), tenant, mrg,
 		)
 	}
@@ -709,8 +771,7 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 			ctrl := gomock.NewController(t)
 			mockCS, want := tt.setupMockCS(t, ctrl, wantSearch)
 
-			s := &clusterClusterServiceCreateSyncer{clustersServiceClient: mockCS}
-			got, err := s.findAROHCPClusterByAzureInfo(ctx, sub, rg, resName, tenant, mrg)
+			got, err := ocm.FindClusterByAzureInfo(ctx, mockCS, sub, rg, resName, tenant, mrg)
 
 			if tt.wantErr {
 				require.Error(t, err)

@@ -31,12 +31,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const ManagementClusterLifecycleControllerName = "ManagementClusterLifecycleController"
+
 type lifecycleSyncer struct {
 	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
 func NewManagementClusterLifecycleController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) fleetcontrollers.Controller {
@@ -45,12 +48,15 @@ func NewManagementClusterLifecycleController(
 	}
 
 	controller := fleetcontrollers.NewStampWatchingController(
-		"ManagementClusterLifecycleController",
+		ManagementClusterLifecycleControllerName,
+		stampInformer,
+		fleetcontrollers.DefaultInformerResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 
@@ -68,18 +74,16 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 	}
 
 	updated := managementCluster.DeepCopy()
+	// Remove this temporary cleanup once rollout reaches all environments and the legacy condition is gone.
+	apimeta.RemoveStatusCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered))
 
 	clustersServiceRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
-	maestroRegistrationCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered))
 	sharedIngressAvailableCondition := apimeta.FindStatusCondition(updated.Status.Conditions, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
 
-	if clustersServiceRegistrationCondition == nil || maestroRegistrationCondition == nil || sharedIngressAvailableCondition == nil {
+	if clustersServiceRegistrationCondition == nil || sharedIngressAvailableCondition == nil {
 		var missing []string
 		if clustersServiceRegistrationCondition == nil {
 			missing = append(missing, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
-		}
-		if maestroRegistrationCondition == nil {
-			missing = append(missing, string(fleetapi.ManagementClusterConditionMaestroRegistered))
 		}
 		if sharedIngressAvailableCondition == nil {
 			missing = append(missing, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))
@@ -88,10 +92,7 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 		logger.Info("Skipping Ready aggregation: preserving current Ready value until all registration conditions are present",
 			"missingConditions", missing,
 		)
-		return nil
-	}
-
-	if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && maestroRegistrationCondition.Status == metav1.ConditionTrue && sharedIngressAvailableCondition.Status == metav1.ConditionTrue {
+	} else if clustersServiceRegistrationCondition.Status == metav1.ConditionTrue && sharedIngressAvailableCondition.Status == metav1.ConditionTrue {
 		apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 			Type:    string(fleetapi.ManagementClusterConditionReady),
 			Status:  metav1.ConditionTrue,
@@ -102,9 +103,6 @@ func (s *lifecycleSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.Sta
 		var notReady []string
 		if clustersServiceRegistrationCondition.Status != metav1.ConditionTrue {
 			notReady = append(notReady, string(fleetapi.ManagementClusterConditionClustersServiceRegistered))
-		}
-		if maestroRegistrationCondition.Status != metav1.ConditionTrue {
-			notReady = append(notReady, string(fleetapi.ManagementClusterConditionMaestroRegistered))
 		}
 		if sharedIngressAvailableCondition.Status != metav1.ConditionTrue {
 			notReady = append(notReady, string(fleetapi.ManagementClusterConditionSharedIngressAvailable))

@@ -1,5 +1,9 @@
 using '../templates/mgmt-cluster.bicep'
 
+param useLeasedInfrastructureIdentities = {{ .infrastructureIdentities.useLeased }}
+param managementIdentityResourceGroups = '{{ .infrastructureIdentities.managementResourceGroups }}'
+param stampIdentifier = '{{ .mgmt.stampIdentifier }}'
+
 // AKS
 param aksClusterName = '{{ .mgmt.aks.name }}'
 param nodeSubnetId = '__nodeSubnetId__'
@@ -58,6 +62,7 @@ param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
+param hcpBackupsStorageAccountContainerName = '{{ .mgmt.hcpBackups.storageAccountContainerName }}'
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

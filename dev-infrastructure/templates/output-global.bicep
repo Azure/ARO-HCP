@@ -1,3 +1,5 @@
+import * as res from '../modules/resource.bicep'
+
 @description('The name of the OCP ACR')
 param ocpAcrName string
 
@@ -18,6 +20,8 @@ param azureFrontDoorProfileName string
 
 @description('The global MSI name')
 param globalMSIName string
+@description('Optional Swift VNet identity resource ID; empty selects the global deployment identity')
+param swiftVnetIdentityResourceId string = ''
 
 @description('The name of the global KV')
 param globalKVName string
@@ -85,9 +89,16 @@ output azureFrontDoorResourceId string = empty(azureFrontDoorProfileName) ? '' :
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
-
 output globalMSIId string = globalMSI.id
 
+var swiftVnetIdentityRef = res.msiRefFromId(swiftVnetIdentityResourceId)
+
+resource swiftVnetIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(swiftVnetIdentityResourceId)) {
+  scope: resourceGroup(swiftVnetIdentityRef.resourceGroup.subscriptionId, swiftVnetIdentityRef.resourceGroup.name)
+  name: swiftVnetIdentityRef.name
+}
+
+output swiftVnetMSIId string = empty(swiftVnetIdentityResourceId) ? globalMSI.id : swiftVnetIdentity.id
 //
 //   G L O B A L   KV
 //

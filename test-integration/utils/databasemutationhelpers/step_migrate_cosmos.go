@@ -24,7 +24,7 @@ import (
 )
 
 // migrateCosmosStep invokes the backend cosmos-migration logic once across
-// every subscription currently in the test's Resources container. Replaces
+// every subscription in the test's Resources container and Fleet rollouts. Replaces
 // the frontend's startup migration (which was removed when the migration
 // moved into the long-running backend controller); the integration test
 // still needs a one-shot trigger so it can assert on post-migration state.
@@ -47,4 +47,5 @@ func (l *migrateCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput
 	// MockKubeApplierDBClients is enough: its For() returns nil and the
 	// migration code already treats that as "skip kube-applier desires."
 	cosmosmigration.MigrateAllSubscriptionsOrDie(ctx, stepInput.ResourcesDBClient, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients())
+	cosmosmigration.MigrateAllRolloutVersionsOrDie(ctx, stepInput.FleetDBClient)
 }

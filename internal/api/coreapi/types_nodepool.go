@@ -17,6 +17,7 @@ package coreapi
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -125,9 +126,6 @@ type NodePoolServiceProviderProperties struct {
 	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// Written by: Frontend DELETE NodePool
-	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
-
 	// CreateOperationCompletionDeadline is the time by which the node pool creation operation must complete.
 	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
 	// The default value is 60 minutes after the creation request is received.
@@ -136,6 +134,24 @@ type NodePoolServiceProviderProperties struct {
 	// The operation node pool create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// UpdateOperationCompletionDeadline is the time by which the current node pool update must complete.
+	// Admission resets it on each update to 90 minutes from the request, unless overridden
+	// by the experimental max-update-duration tag (requires ExperimentalReleaseFeatures).
+	// The update operation controller fails pending operations after this deadline,
+	// including the current pending reasons in the returned error.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	UpdateOperationCompletionDeadline *metav1.Time `json:"updateOperationCompletionDeadline,omitempty"`
+
+	// DeleteOperationCompletionTimeout is the experimental deletion budget projected
+	// from the node pool's max-deletion-duration tag. Nil selects the default budget.
+	// Written by: Frontend PUT/PATCH NodePool (via admission)
+	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
+	// DeleteOperationCompletionDeadline is reset from each accepted deletion attempt,
+	// using DeleteOperationCompletionTimeout or the default 50-minute budget.
+	// Retries preserve deletion timestamps; a nil deadline leaves an existing operation unbounded.
+	// Written by: Frontend DELETE NodePool, Frontend DELETE Cluster/Subscription (cascade)
+	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
@@ -173,12 +189,14 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                *int32                             `json:"sizeGiB,omitempty"`
 	DiskStorageAccountType metadataapi.DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	EncryptionSetID        *azcorearm.ResourceID              `json:"encryptionSetId,omitempty"`
-	DiskType               metadataapi.OsDiskType             `json:"diskType,omitempty"`
+	// EncryptionSetID is the resource ID of the DiskEncryptionSet to use to encrypt the OS disk. It is optional.
+	EncryptionSetID *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
+	DiskType        metadataapi.OsDiskType `json:"diskType,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
+// Min must be >= 1. Cluster Service rejects min_replica < 1.
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`

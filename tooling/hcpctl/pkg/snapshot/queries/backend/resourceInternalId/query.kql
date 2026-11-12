@@ -1,10 +1,11 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
-{{- if and .ServiceClusterName .ManagementClusterName }}
-| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- if .ManagementClusterPlacementResolved }}
+| where cluster in ('{{ .ServiceClusterName }}'{{ range .ManagementClusterNames }}, '{{ . }}'{{ end }})
 {{- end }}
 | where subscriptionID == '{{ .SubscriptionID }}'
 | where resourceGroup =~ '{{ .ResourceGroup }}'
 | where resourceID =~ '{{ .ResourceID }}'
 | extend internalId=tostring(content.properties.serviceProviderProperties.clusterServiceID)
+| where internalId != ''
 | distinct internalId

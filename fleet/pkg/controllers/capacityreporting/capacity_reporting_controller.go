@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -72,6 +73,7 @@ type capacityReportingSyncer struct {
 func NewCapacityReportingController(
 	readDesireNotifier controllerutils.Notifier,
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
@@ -83,11 +85,17 @@ func NewCapacityReportingController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		CapacityReportingControllerName,
+		stampInformer,
+		capacityReportingResyncPeriod,
 		syncer,
 		cfg,
 	)
+	controller.AddInterestingResource(fleetapi.StampResourceType, "*")
+	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.ManagementClusterScopedReadDesireResourceType, ReadDesireName)
 
-	if err := controller.QueueForInformers(capacityReportingResyncPeriod, readDesireNotifier, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, readDesireNotifier, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 
@@ -95,19 +103,18 @@ func NewCapacityReportingController(
 }
 
 func (s *capacityReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	report, err := GetCapacityReport(ctx, s.readDesireLister, key.StampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		logger.V(1).Info("capacity ReadDesire not found, waiting for ensure controller")
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return err
 	}
 	if report == nil {
-		logger.V(1).Info("capacity report not mirrored yet, will retry on next change")
 		return nil
+	}
+	if _, err := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName); err != nil {
+		return utils.TrackError(err)
 	}
 
 	capacity := ComputeObservedResources(report)
@@ -124,6 +131,9 @@ func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) me
 			Reason:  "ReportNotCurrent",
 			Message: "CapacityReport CR's ReportCurrent condition is not True",
 		}
+	}
+	if report.Status.HostedControlPlanes.Resources == nil {
+		return metav1.Condition{Type: fleetapi.ConditionTypeCapacityDataCurrent, Status: metav1.ConditionUnknown, Reason: "MissingResourceTotals", Message: "CapacityReport is missing HostedControlPlanes.Resources"}
 	}
 	return metav1.Condition{
 		Type:   fleetapi.ConditionTypeCapacityDataCurrent,
@@ -142,15 +152,20 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.ObservedResources = observed
-	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
-	// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
-	updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
-	updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
-	// Observation-based cleanup: drop pending reservations that are now observed
-	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
-	// the observed data, so the transient reservation is no longer needed.
-	updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+	if condition.Status == metav1.ConditionTrue {
+		updated.Status.ObservedResources = observed
+		// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR,
+		// translating the raw ARM ID strings into parsed *azcorearm.ResourceID.
+		updated.Status.ReadyResourceIDs = parseResourceIDs(ctx, readyResourceIDs)
+		updated.Status.NotReadyResourceIDs = parseResourceIDs(ctx, notReadyResourceIDs)
+		// Observation-based cleanup: drop pending reservations that are now observed
+		// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
+		// the observed data, so the transient reservation is no longer needed.
+		updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
+	}
+	if !controllerutils.NeedsUpdate(existing, updated) {
+		return nil
+	}
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}
@@ -194,32 +209,40 @@ func dropObservedPendingAssignments(pending []*azcorearm.ResourceID, readyResour
 // unparseable entries are logged and skipped rather than aborting the mirror,
 // so a single malformed ID never blocks capacity reporting. It returns nil when
 // no entries parse, so the omitempty-tagged status fields stay absent rather
-// than serializing an empty array.
+// than serializing an empty array. Membership is a set: canonicalize casing,
+// deduplicate and sort to avoid writes caused only by report iteration order.
 func parseResourceIDs(ctx context.Context, ids []string) []*azcorearm.ResourceID {
 	if len(ids) == 0 {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)
 	parsed := make([]*azcorearm.ResourceID, 0, len(ids))
+	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
-		if id == "" {
+		if len(id) == 0 {
 			continue
 		}
-		resourceID, err := azcorearm.ParseResourceID(id)
+		canonical := strings.ToLower(id)
+		if seen[canonical] {
+			continue
+		}
+		resourceID, err := azcorearm.ParseResourceID(canonical)
 		if err != nil {
 			logger.Error(err, "skipping unparseable HCP resource ID from CapacityReport", "resourceID", id)
 			continue
 		}
 		parsed = append(parsed, resourceID)
+		seen[canonical] = true
 	}
 	if len(parsed) == 0 {
 		return nil
 	}
+	slices.SortFunc(parsed, func(a, b *azcorearm.ResourceID) int { return strings.Compare(a.String(), b.String()) })
 	return parsed
 }
 
-// GetCapacityReport reads and unmarshals the CapacityReport from the
-// ReadDesire lister.
+// GetCapacityReport decodes mirrored content without gating on ReadDesire conditions.
+// Absent content returns (nil, nil); read and decode errors are returned to callers.
 func GetCapacityReport(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, stampIdentifier string) (*capacityreportv1alpha1.CapacityReport, error) {
 	readDesire, err := readDesireLister.GetForManagementCluster(ctx, stampIdentifier, ReadDesireName)
 	if err != nil {

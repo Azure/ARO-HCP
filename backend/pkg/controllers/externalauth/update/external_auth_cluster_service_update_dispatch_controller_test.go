@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,12 +133,26 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			existingExternalAuth:                newExternalAuthWithConfigDiff(),
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				var requestCtx context.Context
+				t.Cleanup(func() {
+					require.NotNil(t, requestCtx)
+					require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+				})
 				mock.EXPECT().
 					GetExternalAuth(gomock.Any(), externalAuthCSID).
-					Return(mustBuildCSExternalAuthFromRP(t, newTestExternalAuth()), nil)
+					DoAndReturn(func(ctx context.Context, _ metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+						requestCtx = ctx
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.InDelta(t, controllerutils.CSWriteTimeout.Seconds(), time.Until(deadline).Seconds(), 1)
+						return mustBuildCSExternalAuthFromRP(t, newTestExternalAuth()), nil
+					})
 				mock.EXPECT().
 					UpdateExternalAuth(gomock.Any(), externalAuthCSID, gomock.Any()).
-					Return(nil, nil)
+					DoAndReturn(func(ctx context.Context, _ metadataapi.InternalID, _ *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
+						require.True(t, ctx == requestCtx, "read and mutation must share the operation deadline")
+						return nil, nil
+					})
 			},
 		},
 		{

@@ -15,9 +15,11 @@
 package frontend
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -34,12 +36,17 @@ import (
 
 // The definitions in this file are meant for unit tests.
 
-func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(t.Context(), audit.CreateConn(false), nil)
-	require.NoError(t, err)
-	return c
+type noopAuditClient struct{}
+
+func (noopAuditClient) Send(context.Context, msgs.Msg) error {
+	return nil
 }
 
+func newNoopAuditClient(t *testing.T) audit.Client {
+	return noopAuditClient{}
+}
+
+// NewTestFrontend constructs a frontend with isolated test storage and metrics.
 func NewTestFrontend(t *testing.T) *Frontend {
 	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
@@ -55,7 +62,6 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		nil,
 		newNoopAuditClient(t),
 		coreapitesting.TestLocation,
-		true,
 		azure.NewClusterScopedIdentitiesConfig(azure.RoleDefinitionConfigSetNameDev),
 	)
 	return f

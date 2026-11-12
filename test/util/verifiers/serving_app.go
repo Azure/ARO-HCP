@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -33,6 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -66,6 +70,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	url := "https://" + app.RouteHost
 
 	if err := framework.WaitForDNSResolution(ctx, app.RouteHost, framework.DNSResolutionTimeout); err != nil {
+		logRouterDefaultState(ctx, adminRESTConfig)
 		return fmt.Errorf("DNS for route host %s did not resolve: %w", app.RouteHost, err)
 	}
 
@@ -93,6 +98,72 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	}
 
 	return nil
+}
+
+func logRouterDefaultState(ctx context.Context, adminRESTConfig *rest.Config) {
+	if err := ctx.Err(); err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] skipping router-default diagnostics: caller context already done: %v\n", err)
+		return
+	}
+	if adminRESTConfig == nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] skipping router-default diagnostics: admin REST config is nil\n")
+		return
+	}
+	diagnosticCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	config := rest.CopyConfig(adminRESTConfig)
+	config.Timeout = 10 * time.Second
+
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] failed to create guest Kubernetes client: %v\n", err)
+		return
+	}
+	service, err := kubeClient.CoreV1().Services("openshift-ingress").Get(diagnosticCtx, "router-default", metav1.GetOptions{})
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] failed to get openshift-ingress/router-default Service: %v\n", err)
+	} else {
+		annotations := map[string]string{}
+		for key, value := range service.Annotations {
+			if strings.Contains(key, "load-balancer") || strings.Contains(key, "loadbalancer") || strings.HasPrefix(key, "service.beta.kubernetes.io/azure-") {
+				annotations[key] = value
+			}
+		}
+		ginkgo.GinkgoWriter.Printf("[route DNS] openshift-ingress/router-default Service: type=%s loadBalancer.ingress=%+v externalIPs=%v loadBalancerAnnotations=%v\n",
+			service.Spec.Type, service.Status.LoadBalancer.Ingress, service.Spec.ExternalIPs, annotations,
+		)
+	}
+
+	events, err := kubeClient.CoreV1().Events("openshift-ingress").List(diagnosticCtx, metav1.ListOptions{FieldSelector: "involvedObject.name=router-default"})
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] failed to list openshift-ingress events for router-default: %v\n", err)
+	} else {
+		ginkgo.GinkgoWriter.Printf("[route DNS] openshift-ingress events for router-default: count=%d\n", len(events.Items))
+		for _, event := range events.Items {
+			ginkgo.GinkgoWriter.Printf("[route DNS] router-default event: kind=%s type=%s reason=%s source=%s reportingController=%s count=%d lastTimestamp=%s message=%s\n",
+				event.InvolvedObject.Kind, event.Type, event.Reason, event.Source.Component, event.ReportingController, event.Count, event.LastTimestamp, event.Message,
+			)
+		}
+	}
+
+	configClient, err := configclient.NewForConfig(config)
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] skipping ingress ClusterOperator diagnostics: failed to create guest config client: %v\n", err)
+		return
+	}
+	operator, err := configClient.ConfigV1().ClusterOperators().Get(diagnosticCtx, "ingress", metav1.GetOptions{})
+	if err != nil {
+		ginkgo.GinkgoWriter.Printf("[route DNS] failed to get ingress ClusterOperator: %v\n", err)
+		return
+	}
+	for _, condition := range operator.Status.Conditions {
+		switch condition.Type {
+		case configv1.OperatorAvailable, configv1.OperatorDegraded, configv1.OperatorProgressing:
+			ginkgo.GinkgoWriter.Printf("[route DNS] ingress ClusterOperator: condition=%s status=%s reason=%s message=%s\n",
+				condition.Type, condition.Status, condition.Reason, condition.Message,
+			)
+		}
+	}
 }
 
 var routeReachabilityPollInterval = 10 * time.Second

@@ -46,6 +46,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestNodePoolCreateStatusHandlesClearedClusterServiceID(t *testing.T) {
+	t.Parallel()
+	fixture := operationtesting.NewNodePoolTestFixture()
+	nodePool := fixture.NewNodePool()
+	// Deletion can clear the ID after SynchronizeOperation validates its snapshot.
+	nodePool.ServiceProviderProperties.ClusterServiceID = nil
+	check := &nodePoolCreateClusterServiceCheck{
+		nodePoolLister: &corelistertesting.SliceNodePoolLister{NodePools: []*coreapi.NodePool{nodePool}},
+		// A cleared ID must prevent any further Cluster Service calls.
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(gomock.NewController(t)),
+	}
+	state, err := check.CalculateOperationStatus(t.Context(), fixture.NewOperation(cosmosstorageutils.OperationRequestCreate), struct{}{})
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, coreapi.ProvisioningStateProvisioning, state.ProvisioningState)
+	assert.Contains(t, state.Message, "node pool cluster service id is not set")
+}
+
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
 		return fixture.NewNodePool()
@@ -248,13 +266,13 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "ClusterServiceID nil skips reconciliation",
+			name:              "ClusterServiceID nil remains provisioning",
 			nodePool:          nodePoolWithoutCSID,
 			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -415,6 +433,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}
+			controller.statusCalculators, err = controller.newStatusCalculators()
+			require.NoError(t, err)
 
 			err = controller.SynchronizeOperation(ctx, fixture.OperationKey())
 			if tt.expectError {

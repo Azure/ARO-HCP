@@ -128,12 +128,12 @@ func TestStepsWellFormed(t *testing.T) {
 
 // TestFleetRegistrationGatesOnManagementInfraSiblings guards against a specific footgun:
 // fleet/registration/pipeline.yaml intentionally waits (via externalDependsOn) on every other
-// service deployed alongside it under Microsoft.Azure.ARO.HCP.Management.Infra, so that fleet
+// active service deployed alongside it under Microsoft.Azure.ARO.HCP.Management.Infra, so that fleet
 // never registers a management cluster with CosmosDB before that cluster is truly ready. There is
 // no wildcard "wait for the whole resource group" dependency in the pipeline schema, so that list
 // is maintained by hand and topology.yaml is the only source of truth for what belongs in it. If a
 // new sibling is added under Management.Infra without updating fleet/registration/pipeline.yaml,
-// this test catches the drift instead of registration silently racing an unready cluster. a
+// this test catches the drift instead of registration silently racing an unready cluster.
 func TestFleetRegistrationGatesOnManagementInfraSiblings(t *testing.T) {
 	const (
 		globalGroup            = "Microsoft.Azure.ARO.HCP.Global"

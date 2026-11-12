@@ -47,9 +47,10 @@ alerts:
       ratio of > 50% sustained over 10 minutes, indicating most queue activity is
       failed retries rather than fresh work.
     endsAt: "2026-04-13T05:49:12.9148687Z"
-    expression: ( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
-      ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
-      ) ) ) > 0.5
+    expression: ( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp",
+      name!~"clustervalidation.*|nodepoolvalidation.*"}[10m]) ) ) / sum by (name,
+      cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp",
+      name!~"clustervalidation.*|nodepoolvalidation.*"}[10m]) ) ) ) > 0.5
     labels:
       alertname: BackendControllerRetryHotLoop
       cluster: test-svc

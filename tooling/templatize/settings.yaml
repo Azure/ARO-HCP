@@ -10,15 +10,6 @@ environments:
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
-- name: cspr
-  description: |
-    clusters-service PR check environment.
-    Used for testing Cluster Service PRs from Jenkins.
-  defaults:
-    region: westus3
-    cloud: dev
-    ev2Cloud: public
-    cxStamp: 1
 - name: pers
   description: |
     Used for personal development and testing.
@@ -40,6 +31,16 @@ environments:
 - name: ci01
   description: |
     CI infra shard1 - PR end-to-end tests.
+  defaults:
+    region: centralus
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
+    regionShortOverride: "j${BUILD_ID: -7}"
+- name: ci02
+  description: |
+    CI infra for upgrade/in-place tests.
+    Sized for 6 concurrent HCPs.
   defaults:
     region: centralus
     cloud: dev

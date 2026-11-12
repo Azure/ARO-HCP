@@ -194,7 +194,7 @@ func TestSelectByCapacity_Contention(t *testing.T) {
 				candidates[0].eligibility = ineligible
 			}
 			for range 2 {
-				chosen, condition := selectByCapacity(candidates, tc.demand)
+				chosen, _, condition := selectByCapacity(candidates, tc.demand)
 				require.NotNil(t, chosen)
 				assert.Equal(t, mcForStamp(tc.want, true, true).ResourceID.String(), chosen.String())
 				assert.Equal(t, metav1.ConditionTrue, condition.Status)
@@ -281,7 +281,7 @@ func TestEvaluateManagementClusters_ContentionSelection(t *testing.T) {
 						assert.Equal(t, want, evaluation.pendingAssignments)
 					}
 				}
-				chosen, condition := selectByCapacity(evaluations, 0)
+				chosen, _, condition := selectByCapacity(evaluations, 0)
 				require.NotNil(t, chosen)
 				assert.Equal(t, mcForStamp(tc.want, true, true).ResourceID, chosen)
 				assert.Equal(t, metav1.ConditionTrue, condition.Status)

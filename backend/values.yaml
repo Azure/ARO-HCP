@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   scope: "repository:{{ .backend.image.repository }}:pull"
@@ -8,9 +9,12 @@ configMap:
   backendMiClientId: "__backendMsiClientId__"
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
-  kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
 backupCadenceProfile: "{{ .backend.backupCadenceProfile }}"
 backupScheduleState: "{{ .backend.backupScheduleState }}"
+orphanedMRGCleanupTargetSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupTargetSubscriptionAFECFlags }}"
+orphanedMRGCleanupExcludedSubscriptionAFECFlags: "{{ .backend.orphanedMRGCleanupExcludedSubscriptionAFECFlags }}"
+# Shared rollout mode for all environments; change here when promoting to delete mode.
+orphanedMRGCleanupRunningMode: "dry-run"
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
@@ -79,7 +83,7 @@ azure:
   ocpAcrResourceId: "__ocpAcrResourceId__"
   ocpAcrHostname: "__ocpAcrHostname__"
   oidcIssuerBlobServiceUrl: "__regionalOidcStorageAccountBlobEndpoint__"
-  oidcIssuerBaseUrl: "__regionalOidcStorageAccountWebEndpoint__"
+  oidcIssuerBaseUrl: "__oidcIssuerBaseUrl__"
   tlsCertificatesConfig:
     issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
     certificatesGenerationSource: "AzureKeyVault"

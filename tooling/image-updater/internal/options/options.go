@@ -63,9 +63,9 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to image-updater configuration file")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show what would be updated without making changes")
 	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
-	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,hypershift'). If not specified, all components will be updated")
+	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'hypershift,secretSyncController'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.Groups, "groups", "", "Update only components in specified groups (comma-separated, e.g., 'hypershift-stack,velero'). Can be combined with --components (union)")
-	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'maestro,hypershift'). Applied after --components/--groups filtering")
+	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'hypershift,secretSyncController'). Applied after --components/--groups filtering")
 	cmd.Flags().StringVar(&opts.OutputFile, "output-file", "", "Write update results to specified file instead of stdout")
 	cmd.Flags().StringVar(&opts.OutputFormat, "output-format", "table", "Output format: table, markdown, or json (default: table)")
 	cmd.Flags().BoolVarP(&opts.UpdateTags, "tags", "t", false, "Update image tags/digests (mutually exclusive with --repositories)")
@@ -181,9 +181,6 @@ func (v *ValidatedUpdateOptions) Complete(_ context.Context) (*updater.Updater, 
 	// Key format: "registry:useAuth" (e.g., "quay.io:true", "quay.io:false")
 	registryClients := make(map[string]clients.RegistryClient)
 	for _, imageConfig := range v.Config.Images {
-		if imageConfig.Source.GitHubLatestRelease != "" {
-			continue
-		}
 		registry, _, err := imageConfig.Source.ParseImageReference()
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse image reference: %w", err)
@@ -230,8 +227,8 @@ func validateConfig(cfg *config.Config) error {
 	}
 
 	for name, img := range cfg.Images {
-		if img.Source.Image == "" && img.Source.GitHubLatestRelease == "" {
-			return fmt.Errorf("image %s: source image or githubLatestRelease is required", name)
+		if img.Source.Image == "" {
+			return fmt.Errorf("image %s: source image is required", name)
 		}
 
 		if len(img.Targets) == 0 {

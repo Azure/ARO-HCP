@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -95,9 +96,12 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// Private KAS requires OpenShift >= 4.22 (HyperShift gained private API server support in 4.22).
 	errs = append(errs, validatePrivateKASRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
-	// Nightly installs must resolve to a full version; this needs both the customer
-	// version profile and the service-provider exact pin, so it lives at cluster level.
-	errs = append(errs, validateNightlyChannelRequiresFullVersion(ctx, op, newCluster, oldCluster)...)
+	// The control-plane exact-version pin (an internal-only field derived from an ARM
+	// tag) must be consistent with the customer's version profile, and is mandatory for
+	// nightly. This needs both halves, so it lives at cluster level.
+	errs = append(errs, validateControlPlaneExactVersionPin(ctx, op, newCluster, oldCluster)...)
+
+	errs = append(errs, validateManagedHSMRequiresMinimumVersion(ctx, op, newCluster, oldCluster)...)
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
@@ -112,7 +116,7 @@ func validateClusterVNetIntegrationSubnetID(_ context.Context, op operation.Oper
 	subnetPath := field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId")
 	subnet := newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID
 	disableSwift := false
-	if op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); experimentalFeaturesEnabled {
 		for key, value := range newCluster.Tags {
 			if !strings.EqualFold(key, metadataapi.TagClusterDisableSwift) {
 				continue
@@ -183,52 +187,92 @@ func validatePrivateKASRequiresMinimumVersion(_ context.Context, _ operation.Ope
 	return nil
 }
 
-// validateNightlyChannelRequiresFullVersion enforces that a cluster in the
-// "nightly" channel group resolves to a full "<major>.<minor>.<patch>" version.
-// Nightly builds are published to the CI releasestream API rather than the
-// Cincinnati graph the control plane desired version controller resolves
-// against, so the controller cannot derive a nightly build from a bare
-// "<major>.<minor>" and would leave the cluster wedged in provisioning.
+// exactVersionTagDetail is the guidance attached to a patch-bearing version.id
+// for subscriptions with the experimental AFEC, where an exact build *is*
+// available — through the control-plane-exact-version tag rather than version.id.
+var exactVersionTagDetail = fmt.Sprintf(
+	"must be specified as MAJOR.MINOR; pin an exact build with the %q resource tag",
+	metadataapi.TagClusterControlPlaneExactVersion)
+
+// validateControlPlaneExactVersionPin enforces the two cross-cutting rules for
+// the control-plane-exact-version ARM tag, which admission translates into
+// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion:
 //
-// Admission mutation runs before validation: for a full version.id (or an
-// exact-version tag) it moves the exact version onto
-// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion and
-// reduces version.id to its "<major>.<minor>" release line. This validator
-// therefore maps that internal exact pin back to the external version.id it
-// represents and validates the mapped value, so a nightly install is accepted
-// only when the effective version.id is a full version.
-func validateNightlyChannelRequiresFullVersion(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
-	// Nightly is only selectable with the experimental feature; without it the
-	// channelGroup enum already rejects the request, so skip here to avoid a
-	// duplicate error.
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
-		return nil
-	}
-	if newCluster.CustomerProperties.Version.ChannelGroup != metadataapi.ChannelGroupNightly {
-		return nil
-	}
-
-	// Map the internal exact pin back to the external version.id it represents:
-	// when a full version was supplied, mutation moved it to
-	// ControlPlaneExactVersion and reduced version.id to its release line.
-	effectiveVersionID := newCluster.CustomerProperties.Version.ID
-	if exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
-		effectiveVersionID = exact.String()
-	}
-	if len(effectiveVersionID) == 0 {
-		// A missing version.id is reported by the required-value check.
+//  1. For the "nightly" channel group the pin is required. Nightly builds are
+//     published to the CI releasestream API, not the Cincinnati graph that the
+//     control plane version rollout controllers resolve against, so they cannot
+//     derive a build from a bare "<major>.<minor>" and the cluster is left
+//     wedged in provisioning with no desired version ever assigned.
+//  2. The pin must be a build of the release line the customer asked for in
+//     version.id. The backend's cluster update operation controller compares
+//     version.id's major.minor against the resolved desired version and fails
+//     the operation when they differ, so a mismatch is rejected up front with an
+//     actionable message rather than timing out partway through the update.
+//
+// Errors are reported against the tag, not version.id: the tag is the only way
+// to express an exact version and the only thing the customer can change.
+func validateControlPlaneExactVersionPin(_ context.Context, op operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	// The pin and the nightly channel group are both gated on the experimental
+	// AFEC; without it the channelGroup enum already rejects nightly and
+	// ExperimentalFeatures is zeroed, so there is nothing to check.
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		return nil
 	}
 
-	// Strict semver parsing accepts a full "<major>.<minor>.<patch>" (optionally
-	// with a pre-release such as the nightly build suffix) while rejecting a bare
-	// "<major>.<minor>".
-	if _, err := semver.Parse(effectiveVersionID); err != nil {
-		return field.ErrorList{field.Invalid(
-			field.NewPath("customerProperties", "version", "id"), effectiveVersionID,
-			"must be specified as MAJOR.MINOR.PATCH (optionally with a pre-release, e.g. a nightly build suffix) when channelGroup is \"nightly\"",
+	tagPath := field.NewPath("tags").Key(metadataapi.TagClusterControlPlaneExactVersion)
+	exact := newCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+
+	if newCluster.CustomerProperties.Version.ChannelGroup == metadataapi.ChannelGroupNightly && exact == nil {
+		return field.ErrorList{field.Required(tagPath,
+			"nightly builds are not published to the update graph, so the exact build must be pinned with this tag "+
+				"when channelGroup is \"nightly\" (e.g. \"4.21.0-0.nightly-2026-08-05-123456\")")}
+	}
+
+	if exact == nil {
+		return nil
+	}
+
+	// A missing or malformed version.id is reported by the required-value and
+	// syntax checks in validateVersionProfile; don't pile on here.
+	requested, err := semver.ParseTolerant(newCluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return nil
+	}
+	if requested.Major != exact.Major || requested.Minor != exact.Minor {
+		return field.ErrorList{field.Invalid(tagPath, exact.String(),
+			fmt.Sprintf("must pin a build of the %d.%d release line requested by version.id, got %d.%d",
+				requested.Major, requested.Minor, exact.Major, exact.Minor))}
+	}
+
+	return nil
+}
+
+var minManagedHSMOpenShiftVersion = semver.Version{Major: 4, Minor: 22}
+
+func validateManagedHSMRequiresMinimumVersion(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.Cluster) field.ErrorList {
+	cm := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil || cm.Kms == nil || cm.Kms.KeyVaultType != coreapi.KmsKeyVaultTypeManagedHSM {
+		return nil
+	}
+
+	versionID := newCluster.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minManagedHSMOpenShiftVersion) {
+		return field.ErrorList{field.Forbidden(
+			field.NewPath("customerProperties", "etcd", "dataEncryption", "customerManaged", "kms", "keyVaultType"),
+			fmt.Sprintf("Managed HSM KMS requires OpenShift version %d.%d or later", minManagedHSMOpenShiftVersion.Major, minManagedHSMOpenShiftVersion.Minor),
 		)}
 	}
+
 	return nil
 }
 
@@ -415,7 +459,7 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 
 	//ImageDigestMirrors  []ImageDigestMirror `json:"imageDigestMirrors,omitempty"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("imageDigestMirrors"), newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors), 240)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("imageDigestMirrors"),
 		newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors),
 		nil, nil,
@@ -460,8 +504,13 @@ func ToClusterServiceProviderPropertiesClusterUID(oldObj *coreapi.ClusterService
 	return &oldObj.ClusterUID
 }
 
+// Validates service-provider cluster properties and rejects single-replica availability on create.
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.ClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
+
+	if op.Type == operation.Create && newObj.ExperimentalFeatures.ControlPlaneAvailability == coreapi.SingleReplicaControlPlane {
+		errs = append(errs, field.Forbidden(fldPath.Child("experimentalFeatures", "singleReplica"), "single-replica control planes cannot be enabled"))
+	}
 
 	// ProvisioningState       coreapi.ProvisioningState       `json:"provisioningState,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterServiceProviderPropertiesProvisioningState))...)
@@ -488,7 +537,7 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// At the moment of introducing this field not all existing clusters have this field migrated yet, so we guard
 	// the requirement of setting it only when it's already been set beforehand.
 	if oldObj == nil || oldObj.ManagedIdentitiesDataPlaneIdentityURL != "" {
-		if !op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption) {
+		if identityURLOptional, _ := op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption); !identityURLOptional {
 			errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 		}
 	}
@@ -521,28 +570,29 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		// Only the major.minor version can be specified for the control plane version
+		// so we only need to check if it meets the minimum required major.minor version
+		errs = append(errs, VersionMustBeAtLeastMajorMinor(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
 
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 		errs = append(errs, OpenshiftVersionAtMostOneMinorSkewWithField(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 	}
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
 		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-		// only allow OpenShift v5 and above for subscriptions that have the experimental feature registered for now
-		// remove this together with the matching check in the control plane desired version controller when we are ready
-		if v, err := semver.ParseTolerant(newObj.ID); err == nil && v.Major >= 5 {
-			errs = append(errs, field.Invalid(fldPath.Child("id"), newObj.ID, "OpenShift v5 and above is not supported"))
-		}
 	} else {
-		// For our CI clusters, let us install anything: allow full semver format (X.Y.Z-prerelease)
-		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+		// Even for CI clusters version.id carries only the release line: the published
+		// API documents id as "the desired X.Y version of the cluster control plane",
+		// and an exact build is not round-trippable through version.id (a GET would
+		// return only X.Y). An exact build is pinned with the control-plane-exact-version
+		// resource tag instead, which does round-trip.
+		errs = append(errs, OpenshiftVersionWithoutMicroDetail(ctx, op, fldPath.Child("id"), &newObj.ID, nil, exactVersionTagDetail)...)
 	}
 
 	// ChannelGroup string `json:"channelGroup,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
 
-	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
+	if experimentalFeaturesEnabled, _ := op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures); !experimentalFeaturesEnabled {
 		// Without feature flag: "candidate" and "nightly" aren't allowed.
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, metadataapi.AllowedChannelGroups, nil)...)
 	} else {
@@ -678,21 +728,21 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 500)...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 1)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
 			newOr(IPv4, CIDRv4),
 		)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
 			validate.RequiredValue,
 		)...)
 	errs = append(errs,
-		validate.EachSliceVal(
+		validate.EachValSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
 			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
 			nil, nil,
@@ -1056,8 +1106,11 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileVisibility = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
-	toKmsEncryptionProfileActiveKey  = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility   = func(oldObj *coreapi.KmsEncryptionProfile) *metadataapi.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey    = func(oldObj *coreapi.KmsEncryptionProfile) *coreapi.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultType = func(oldObj *coreapi.KmsEncryptionProfile) *string { return &oldObj.KeyVaultType }
+
+	validKmsKeyVaultTypes = sets.New(coreapi.KmsKeyVaultTypeKeyVault, coreapi.KmsKeyVaultTypeManagedHSM)
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.KmsEncryptionProfile) field.ErrorList {
@@ -1074,6 +1127,10 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+
+	//KeyVaultType string `json:"keyVaultType,omitempty"`
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultType"), &newObj.KeyVaultType, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultType), validKmsKeyVaultTypes, nil)...)
 
 	return errs
 }
@@ -1104,7 +1161,7 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
 	}
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
-	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
+	errs = append(errs, AzureKeyVaultKeyVersion(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 
 	return errs
 }
@@ -1149,7 +1206,7 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	//Mirrors []string `json:"mirrors,omitempty"`
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 255)...)
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("mirrors"),
 		newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors),
 		nil, nil,
@@ -1159,7 +1216,7 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 	// This is OpenShift's regex for a mirrored image registry. Their pattern
 	// is more permissive than what we allow (e.g. casing of letters) but acts
 	// as a final check to make sure OpenShift will accept it.
-	errs = append(errs, validate.EachSliceVal(
+	errs = append(errs, validate.EachValSliceVal(
 		ctx, op, fldPath.Child("mirrors"),
 		newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors),
 		nil, nil,

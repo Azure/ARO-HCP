@@ -111,6 +111,11 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
+    # Recreate the Job on every (re-)run so a pipeline retry of the storageclass
+    # step doesn't fail with "job already exists"; clean up on success. Fresh
+    # mgmt clusters hit a kube-root-ca.crt / image-pull race on the first
+    # attempt (see mgmt-pipeline.yaml storageclass automatedRetry).
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   activeDeadlineSeconds: 1800
   backoffLimit: 3

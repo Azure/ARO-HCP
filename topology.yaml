@@ -4,12 +4,6 @@ entrypoints:
     name: Global
     scopeDoc: high-level-architecture.md
     incremental: "true"
-# TRANSIENT - new root entrypoint for the parallel STG-global "V2" stack. Kept
-# separate from HCP.Global so EV2 never co-deploys the two. Removed at decommission.
-- identifier: 'Microsoft.Azure.ARO.HCP.Global.StgGlobal'
-  metadata:
-    name: Global STG V2
-    scopeDoc: high-level-architecture.md
 - identifier: 'Microsoft.Azure.ARO.HCP.Region'
   metadata:
     name: Region
@@ -59,15 +53,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
           pipelinePath: secret-sync-controller/pipeline.yaml
           purpose: Deploy the Secret Sync Controller.
-        - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-          pipelinePath: acm/pipeline.yaml
-          purpose: Deploy Advanced Cluster Management and Multi-Cluster Engine.
         - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
           pipelinePath: hypershiftoperator/pipeline.yaml
           purpose: Deploy the HyperShift operator.
-        - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
-          pipelinePath: maestro/agent/pipeline.yaml
-          purpose: Deploy the Maestro Agent and register it with the MQTT stream.
         - serviceGroup: Microsoft.Azure.ARO.HCP.KubeApplier
           pipelinePath: kube-applier/pipeline.yaml
           purpose: Deploy the Kube Applier.
@@ -96,17 +84,6 @@ services:
     purpose: Deploy geography-level shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
-# TRANSIENT - STG-global "V2" parallel global stack under the new
-# HCP.Global.StgGlobal entrypoint (NOT under HCP.Global). Deploys global +
-# geography into the dedicated hcp-stg-global subscription during coexistence.
-# Removed at decommission.
-- serviceGroup: Microsoft.Azure.ARO.HCP.Global.StgGlobal
-  children:
-  - serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
-    pipelinePath: dev-infrastructure/geography-pipeline-stg.yaml
-    purpose: Deploy geography-level shared infrastructure (STG V2).
-  pipelinePath: dev-infrastructure/global-pipeline-stg.yaml
-  purpose: Deploy global shared infrastructure (STG V2).
 # Cleanup pipelines
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
   stamped: true

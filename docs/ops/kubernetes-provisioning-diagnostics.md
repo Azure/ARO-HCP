@@ -40,7 +40,7 @@ During burst cluster creation (15+ clusters), provisioning times can breach the 
 
 **What to look for:**
 - High restart rates (>0.1/sec) indicating crash loops
-- Restarts in critical namespaces (hypershift, OCM, maestro)
+- Restarts in critical namespaces (hypershift, OCM, kube-applier)
 - Specific pods repeatedly restarting during provisioning windows
 
 ### 3. Node Resource Pressure
@@ -69,11 +69,13 @@ During burst cluster creation (15+ clusters), provisioning times can breach the 
 
 ## Example Queries
 
+`<mgmt-cluster>` is the management cluster under test, as selected by the dashboard's **Cluster** variable. Shared environments use `<env>-<region>-mgmt-<stamp>` (e.g. `dev-westus3-mgmt-1`); performance environments embed your region short, e.g. `perf-usw3p<user>-mgmt-1`.
+
 ### Show Failed Pods During Provisioning Burst
 
 ```promql
 # Failed pods by namespace
-sum(kube_pod_status_phase{cluster="cspr-westus3-mgmt-1", phase="Failed"}) by (namespace)
+sum(kube_pod_status_phase{cluster="<mgmt-cluster>", phase="Failed"}) by (namespace)
 ```
 
 **Use case:** Set time range to the provisioning burst window (e.g., "April 23, 08:38-09:04") to see which namespaces had pod failures.
@@ -82,7 +84,7 @@ sum(kube_pod_status_phase{cluster="cspr-westus3-mgmt-1", phase="Failed"}) by (na
 
 ```promql
 # Top 5 namespaces by restart rate over last hour
-topk(5, sum(rate(kube_pod_container_status_restarts_total{cluster="cspr-westus3-mgmt-1"}[1h])) by (namespace))
+topk(5, sum(rate(kube_pod_container_status_restarts_total{cluster="<mgmt-cluster>"}[1h])) by (namespace))
 ```
 
 **Use case:** Identify namespaces with stability issues during or after burst provisioning.
@@ -91,13 +93,13 @@ topk(5, sum(rate(kube_pod_container_status_restarts_total{cluster="cspr-westus3-
 
 ```promql
 # Memory pressure by node
-sum(kube_node_status_condition{cluster="cspr-westus3-mgmt-1", condition="MemoryPressure", status="true"}) by (node)
+sum(kube_node_status_condition{cluster="<mgmt-cluster>", condition="MemoryPressure", status="true"}) by (node)
 
 # Disk pressure by node
-sum(kube_node_status_condition{cluster="cspr-westus3-mgmt-1", condition="DiskPressure", status="true"}) by (node)
+sum(kube_node_status_condition{cluster="<mgmt-cluster>", condition="DiskPressure", status="true"}) by (node)
 
 # PID pressure by node
-sum(kube_node_status_condition{cluster="cspr-westus3-mgmt-1", condition="PIDPressure", status="true"}) by (node)
+sum(kube_node_status_condition{cluster="<mgmt-cluster>", condition="PIDPressure", status="true"}) by (node)
 ```
 
 **Use case:** Check if management cluster nodes are resource-saturated during slow provisioning.
@@ -106,7 +108,7 @@ sum(kube_node_status_condition{cluster="cspr-westus3-mgmt-1", condition="PIDPres
 
 ```promql
 # Count of unschedulable pods
-sum(kube_pod_status_unschedulable{cluster="cspr-westus3-mgmt-1"}) by (namespace, pod)
+sum(kube_pod_status_unschedulable{cluster="<mgmt-cluster>"}) by (namespace, pod)
 ```
 
 **Use case:** Zero unschedulable pods = healthy. Any value > 0 indicates the cluster cannot schedule new pods.
@@ -115,7 +117,7 @@ sum(kube_pod_status_unschedulable{cluster="cspr-westus3-mgmt-1"}) by (namespace,
 
 ```promql
 # Pods per node by namespace
-count(kube_pod_info{cluster="cspr-westus3-mgmt-1"}) by (node, namespace)
+count(kube_pod_info{cluster="<mgmt-cluster>"}) by (node, namespace)
 ```
 
 **Use case:** Check if certain nodes are overloaded during burst creation.
@@ -131,7 +133,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 
 3. **Check each section:**
    - **Pod Health:** Were there failed/pending pods in `ocm-*` or `hypershift` namespaces?
-   - **Restarts:** Were critical pods (maestro-agent, hypershift-operator) restarting?
+   - **Restarts:** Were critical pods (kube-applier, hypershift-operator) restarting?
    - **Node Pressure:** Were management cluster nodes under memory/disk/PID pressure?
    - **Scheduling:** Were pods unschedulable due to resource constraints?
 
@@ -171,7 +173,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 **Common Causes:**
 - Memory limits too low on HCP components (OOMKilled)
 - Liveness probe configured too aggressively
-- External dependency issues (maestro MQTT, postgres)
+- External dependency issues (Cosmos DB, PostgreSQL)
 
 ### Scenario 3: Failed Pods Block Provisioning
 
@@ -195,7 +197,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 
 > **Note**: In non-dev environments, Grafana may require **MSFT Corp VPN** connectivity. See [Grafana VPN Access](../sops/grafana-vpn-access.md) for troubleshooting.
 
-1. Log into Grafana for your target environment (dev/cspr/int/stg/prod)
+1. Log into Grafana for your target environment (dev/int/stg/prod)
 2. Navigate to **Dashboards** → **Performance & Scale** folder
 3. Select **HCP Kubernetes Provisioning Diagnostics**
 
@@ -206,18 +208,17 @@ https://<grafana-url>/d/hcp-k8s-provisioning-diagnostics
 
 ### Variables
 - **Datasource** - Select the Prometheus datasource for your environment
-- **Cluster** - Select the management cluster (e.g., `cspr-westus3-mgmt-1`)
+- **Cluster** - Select the management cluster (e.g., `dev-westus3-mgmt-1`, or `perf-usw3p<user>-mgmt-1` for a performance environment)
 - **Namespace** - Filter to specific namespaces or use "All"
   - Common namespaces to monitor:
     - `ocm-*` - Open Cluster Management (HCP orchestration)
     - `hypershift` - HCP control plane operator
-    - `maestro` - Event distribution
+    - `kube-applier` - Kubernetes resource reconciliation
     - `clusters-*` - Per-HCP cluster namespaces
 
 ## Related Dashboards
 
 - **Cluster Service SLO** - API-level provisioning metrics and SLO tracking
-- **Maestro Server** - Event delivery metrics (MQTT, postgres, gRPC)
 - **AKS Performance** - Management cluster infrastructure metrics
 
 ## Metrics Reference

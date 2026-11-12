@@ -15,7 +15,6 @@
 package operations
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,30 +24,13 @@ import (
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const clusterValidationFailureTimeout = 10 * time.Minute
 
-func (c *operationClusterCreate) clusterValidation(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
-	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if cosmosstorageutils.IsNotFoundError(err) {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "ServiceProviderCluster not cached yet"), nil
-	}
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
-	}
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now()), nil
-}
-
-func (c *operationClusterUpdate) clusterValidation(operation *coreapi.Operation, serviceProviderCluster *coreapi.ServiceProviderCluster) *operationbase.OperationState {
-	return clusterValidationOperationState(serviceProviderCluster, operation.StartTime, c.clock.Now())
-}
-
 // clusterValidationOperationState waits for validations to pass, allowing each
-// failed validation and the operation itself at least ten minutes before failing.
-// Unknown conditions remain pending and do not imply an invalid resource.
+// non-passing validation (failed or unknown) and the operation itself at least ten
+// minutes before failing with InvalidResource.
 func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProviderCluster, operationStartTime, now time.Time) *operationbase.OperationState {
 	state := operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, "")
 	operationOldEnough := !operationStartTime.IsZero() && now.Sub(operationStartTime) >= clusterValidationFailureTimeout
@@ -65,18 +47,17 @@ func clusterValidationOperationState(serviceProviderCluster *coreapi.ServiceProv
 			message += ": " + validation.Message
 		}
 		messages = append(messages, message)
-		if validation.Status == metav1.ConditionFalse {
-			state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
-			if operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout {
-				state.ProvisioningState = coreapi.ProvisioningStateFailed
-			}
+		state.WithCloudErrorCode(coreapi.CloudErrorCodeInvalidResource)
+		validationOldEnough := operationOldEnough && !validation.LastTransitionTime.IsZero() && now.Sub(validation.LastTransitionTime.Time) >= clusterValidationFailureTimeout
+		if validationOldEnough {
+			state.ProvisioningState = coreapi.ProvisioningStateFailed
 		}
 	}
 	slices.Sort(messages)
 	state.Message = strings.Join(messages, "; ")
 	if state.ProvisioningState == coreapi.ProvisioningStateFailed {
-		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidResource, state.Message, &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeInvalidResource,
+		return operationbase.NewFailedOperationState(state.CloudErrorCode, state.Message, &coreapi.CloudErrorBody{
+			Code:    state.CloudErrorCode,
 			Message: state.Message,
 		})
 	}

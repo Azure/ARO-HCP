@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -42,6 +43,7 @@ var _ = Describe("Customer", func() {
 		// This test creates its own dedicated identities (useMsiPool=false) so it can
 		// safely delete them, and never leases from the shared identity container pool.
 		labels.MIContainers(0),
+		labels.StartPriority(30),
 		func(ctx context.Context) {
 			const customerClusterName = "missing-mi-hcp-cluster"
 			tc := framework.NewTestContext()
@@ -126,12 +128,22 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", customerClusterName)
 
+			By("verifying the cluster is Succeeded and its managed resource group exists before deletion")
+			cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q before deletion", customerClusterName)
+			Expect(cluster.Properties).NotTo(BeNil(), "cluster %q properties were nil before deletion", customerClusterName)
+			Expect(cluster.Properties.ProvisioningState).NotTo(BeNil(), "cluster %q provisioning state was nil before deletion", customerClusterName)
+			Expect(*cluster.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "expected cluster %q to be Succeeded before deleting its identities", customerClusterName)
+			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
+			_, err = rgClient.Get(ctx, managedResourceGroupName, nil)
+			Expect(err).NotTo(HaveOccurred(), "expected managed resource group %q to exist before cluster deletion", managedResourceGroupName)
+
 			By("deleting all of the cluster's managed identities behind the scenes")
 			err = tc.DeleteUserAssignedIdentities(ctx, *resourceGroup.Name, identities.ToSlice())
 			Expect(err).NotTo(HaveOccurred(), "failed to delete managed identities for cluster %q", customerClusterName)
 
 			By("deleting the HCP cluster")
-			err = framework.DeleteHCPCluster20240610(
+			err = tc.DeleteHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
@@ -146,9 +158,9 @@ var _ = Describe("Customer", func() {
 			var respErr *azcore.ResponseError
 			Expect(errors.As(err, &respErr)).To(BeTrue(), "expected azcore.ResponseError when getting deleted cluster %q, got %v", customerClusterName, err)
 			Expect(respErr.StatusCode).To(Equal(http.StatusNotFound), "expected HTTP 404 when getting deleted cluster %q", customerClusterName)
+			Expect(respErr.ErrorCode).To(Equal("ResourceNotFound"), "expected ResourceNotFound when getting deleted cluster %q", customerClusterName)
 
 			By("verifying the managed resource group is deleted (404)")
-			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			// Delta-only logging: Eventually discards intermediate errors, so without this
 			// a long wait produces no output at all. Only log when the observation changes.
 			lastObserved := ""
@@ -177,5 +189,9 @@ var _ = Describe("Customer", func() {
 				}
 				return fmt.Errorf("unexpected error getting managed resource group %q: %w", managedResourceGroupName, err)
 			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "expected managed resource group %q to be deleted", managedResourceGroupName)
+
+			By("verifying cluster deletion preserved the customer resource group")
+			_, err = rgClient.Get(ctx, *resourceGroup.Name, nil)
+			Expect(err).NotTo(HaveOccurred(), "expected customer resource group %q to survive after cluster %q and managed resource group %q were deleted", *resourceGroup.Name, customerClusterName, managedResourceGroupName)
 		})
 })

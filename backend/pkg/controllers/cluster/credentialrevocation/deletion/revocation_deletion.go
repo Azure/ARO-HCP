@@ -22,6 +22,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -61,7 +63,7 @@ func NewRevocationDeletionController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
+	controller := controllerutils.NewSystemAdminCredentialRevocationWatchingController(
 		SystemAdminCredentialRevocationDeletionControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -69,6 +71,13 @@ func NewRevocationDeletionController(
 		1*time.Minute,
 		syncer,
 	)
+	// Cleanup must include every remaining child, including legacy desire names.
+	controller.AddInterestingResource(coreapi.SystemAdminCredentialRevocationResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {
@@ -101,7 +110,10 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 		return utils.TrackError(fmt.Errorf("ServiceProviderCluster for cluster %q has no ManagementClusterResourceID", key.HCPClusterName))
 	}
 
-	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	kubeApplierClient, err := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		logger.Info("waiting for kube-applier client for management cluster before tearing down revocation desires",
 			"managementCluster", mcResourceID.String())

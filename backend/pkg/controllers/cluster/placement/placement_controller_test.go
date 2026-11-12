@@ -492,7 +492,7 @@ func TestSelectByCapacity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			requiredSwiftNICs := ptr.Deref(tc.requiredSwiftNICs, swiftNICsPerHCP)
-			chosen, condition := selectByCapacity(tc.candidates, requiredSwiftNICs)
+			chosen, _, condition := selectByCapacity(tc.candidates, requiredSwiftNICs)
 			assert.Equal(t, coreapi.CapacityAvailableConditionType, condition.Type)
 			if tc.expectBlocked {
 				assert.Nil(t, chosen)
@@ -540,9 +540,9 @@ func TestPlacementSyncer_SyncOnce_FreshSelection(t *testing.T) {
 	sched1 := schedulingDoc("1", 6, 3, 0, 0)
 	sched2 := schedulingDoc("2", 6, 0, 0, 0)
 	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
-	_, err = fleetDB.Stamps().ManagementClusters("1").Scheduling().Create(ctx, sched1, nil)
+	sched1, err = fleetDB.Stamps().ManagementClusters("1").Scheduling().Create(ctx, sched1, nil)
 	require.NoError(t, err)
-	_, err = fleetDB.Stamps().ManagementClusters("2").Scheduling().Create(ctx, sched2, nil)
+	sched2, err = fleetDB.Stamps().ManagementClusters("2").Scheduling().Create(ctx, sched2, nil)
 	require.NoError(t, err)
 
 	clusterLister := &corelistertesting.SliceClusterLister{}
@@ -639,7 +639,7 @@ func TestPlacementSyncer_SyncOnce_NetworkingModeDemand(t *testing.T) {
 			scheduling := schedulingDoc("1", tc.capacity, 0, 0, 0)
 			fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
 			schedulingCRUD := fleetDB.Stamps().ManagementClusters("1").Scheduling()
-			_, err = schedulingCRUD.Create(ctx, scheduling, nil)
+			scheduling, err = schedulingCRUD.Create(ctx, scheduling, nil)
 			require.NoError(t, err)
 			syncer := &placementSyncer{
 				serviceProviderClusterLister:      &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc}},
@@ -891,15 +891,41 @@ func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *t
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{PendingAssignedClusters: []*azcorearm.ResourceID{alreadyReserved}},
 	}
-	_, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Create(ctx, doc, nil)
+	created, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Create(ctx, doc, nil)
 	require.NoError(t, err)
 
 	syncer := &placementSyncer{fleetDBClient: fleetDB}
-	require.NoError(t, syncer.reservePendingAssignment(ctx, mcResourceID, clusterResourceID))
+	require.NoError(t, syncer.reservePendingAssignment(ctx, created, mcResourceID, clusterResourceID))
 
 	updated, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	assert.Len(t, updated.Status.PendingAssignedClusters, 1, "a case-differing duplicate must not be appended")
+}
+
+func TestPlacementSyncer_reservePendingAssignment_StaleSnapshotRejected(t *testing.T) {
+	ctx := context.Background()
+	const stamp = "1"
+	mcResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(stamp))
+	clusterA := clusterResourceIDWithName("probe-a")
+	clusterB := clusterResourceIDWithName("probe-b")
+
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	schedulingCRUD := fleetDB.Stamps().ManagementClusters(stamp).Scheduling()
+	snapshot, err := schedulingCRUD.Create(ctx, schedulingDoc(stamp, 3, 0, 0, 0), nil)
+	require.NoError(t, err)
+
+	syncer := &placementSyncer{fleetDBClient: fleetDB}
+	require.NoError(t, syncer.reservePendingAssignment(ctx, snapshot, mcResourceID, clusterA))
+
+	// A reserved against this snapshot; B must not overbook using its stale ETag.
+	err = syncer.reservePendingAssignment(ctx, snapshot, mcResourceID, clusterB)
+	require.Error(t, err)
+	assert.True(t, cosmosstorageutils.IsPreconditionFailedError(err))
+
+	reserved, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	require.Len(t, reserved.Status.PendingAssignedClusters, 1, "B's write must not have applied")
+	assert.Equal(t, strings.ToLower(clusterA.String()), strings.ToLower(reserved.Status.PendingAssignedClusters[0].String()))
 }
 
 func TestSchedulingObservationsDetermineCapacityAvailability(t *testing.T) {
@@ -975,7 +1001,7 @@ func TestSchedulingObservationsDetermineCapacityAvailability(t *testing.T) {
 			candidates, err := syncer.evaluateManagementClusters(context.Background())
 			require.NoError(t, err)
 			for _, demand := range []int64{0, singleReplicaSwiftNICsPerHCP, swiftNICsPerHCP} {
-				chosen, condition := selectByCapacity(candidates, demand)
+				chosen, _, condition := selectByCapacity(candidates, demand)
 				assert.Nil(t, chosen, "demand %d must not bypass eligibility", demand)
 				assert.Equal(t, tc.wantStatus, condition.Status)
 			}
@@ -1007,6 +1033,10 @@ func TestPlacementSyncer_FailedEvaluationPreservesCapacityShortfall(t *testing.T
 			spcCRUD := db.ServiceProviderClusters(testClusterSubscriptionID, testClusterResourceGroup, testClusterName)
 			created, err := spcCRUD.Create(ctx, existing, nil)
 			require.NoError(t, err)
+			// Valid cache metadata for a scheduling document absent from storage.
+			cachedScheduling := schedulingDoc("1", 6, 0, 0, 0)
+			cachedScheduling.CosmosETag = "stale-etag"
+			cachedScheduling.InstanceVersion = 1
 			syncer := &placementSyncer{
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*coreapi.ServiceProviderCluster{created},
@@ -1016,7 +1046,7 @@ func TestPlacementSyncer_FailedEvaluationPreservesCapacityShortfall(t *testing.T
 					ManagementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)},
 				},
 				managementClusterSchedulingLister: &fleetlistertesting.SliceManagementClusterSchedulingLister{
-					Schedulings: []*fleetapi.ManagementClusterScheduling{schedulingDoc("1", 6, 0, 0, 0)},
+					Schedulings: []*fleetapi.ManagementClusterScheduling{cachedScheduling},
 				},
 				cosmosClient: db,
 				// The cache has capacity but the scheduling document is absent from

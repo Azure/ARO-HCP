@@ -117,15 +117,17 @@ type SlotAssets struct {
 }
 
 type Pool struct {
-	Name          string            `yaml:"name,omitempty"`
-	DeployEnv     string            `yaml:"-"`
-	Subscriptions PoolSubscriptions `yaml:"subscriptions,omitempty"`
-	SlotAssets    SlotAssets        `yaml:"slot_assets,omitempty"`
-	Region        string            `yaml:"region,omitempty"`
-	Regions       []string          `yaml:"regions,omitempty"`
-	RegionMode    RegionMode        `yaml:"region_mode,omitempty"`
-	ResourceType  string            `yaml:"resource_type"`
-	SlotCount     int               `yaml:"slot_count"`
+	Name                               string             `yaml:"name,omitempty"`
+	DeployEnv                          string             `yaml:"-"`
+	Subscriptions                      PoolSubscriptions  `yaml:"subscriptions,omitempty"`
+	SlotAssets                         SlotAssets         `yaml:"slot_assets,omitempty"`
+	Region                             string             `yaml:"region,omitempty"`
+	Regions                            []string           `yaml:"regions,omitempty"`
+	RegionMode                         RegionMode         `yaml:"region_mode,omitempty"`
+	ResourceType                       string             `yaml:"resource_type"`
+	SlotCount                          int                `yaml:"slot_count"`
+	IdentityContainerProvisioningCount int                `yaml:"identity_container_provisioning_count,omitempty"`
+	VMFamilyPolicy                     PoolVMFamilyPolicy `yaml:"vm_family_policy,omitempty"`
 }
 
 const (
@@ -149,19 +151,21 @@ type ResolvedAssets struct {
 }
 
 type ExpandedSlot struct {
-	AssetRequirements       []AssetRequirement    `yaml:"requirements,omitempty" json:"Requirements"`
-	Environment             string                `yaml:"environment"`
-	PoolName                string                `yaml:"pool_name,omitempty"`
-	DeployEnvironment       string                `yaml:"deploy_environment,omitempty"`
-	SubscriptionName        string                `yaml:"subscription_name"`
-	Region                  string                `yaml:"region"`
-	ResourceType            string                `yaml:"resource_type"`
-	ResourceName            string                `yaml:"resource_name"`
-	SlotIndex               int                   `yaml:"slot_index"`
-	IdentityContainerPrefix string                `yaml:"identity_container_prefix"`
-	IdentityContainerCount  int                   `yaml:"identity_container_count"`
-	Subscriptions           ResolvedSubscriptions `yaml:"subscriptions,omitempty"`
-	Assets                  ResolvedAssets        `yaml:"assets,omitempty"`
+	AssetRequirements                  []AssetRequirement    `yaml:"requirements,omitempty" json:"Requirements"`
+	Environment                        string                `yaml:"environment"`
+	PoolName                           string                `yaml:"pool_name,omitempty"`
+	DeployEnvironment                  string                `yaml:"deploy_environment,omitempty"`
+	SubscriptionName                   string                `yaml:"subscription_name"`
+	Region                             string                `yaml:"region"`
+	ResourceType                       string                `yaml:"resource_type"`
+	ResourceName                       string                `yaml:"resource_name"`
+	SlotIndex                          int                   `yaml:"slot_index"`
+	IdentityContainerPrefix            string                `yaml:"identity_container_prefix"`
+	IdentityContainerCount             int                   `yaml:"identity_container_count"`
+	IdentityContainerProvisioningCount int                   `yaml:"identity_container_provisioning_count,omitempty"`
+	Subscriptions                      ResolvedSubscriptions `yaml:"subscriptions,omitempty"`
+	Assets                             ResolvedAssets        `yaml:"assets,omitempty"`
+	VMFamilyPolicy                     PoolVMFamilyPolicy    `yaml:"vm_family_policy,omitempty"`
 }
 
 func LoadCatalog(path string) (*Catalog, error) {
@@ -346,6 +350,10 @@ func validatePool(environmentName string, pool *Pool) error {
 		return fmt.Errorf("environment %q has empty deployment_environment.infrastructure_subscription for pool %q", environmentName, pool.Name)
 	}
 
+	if err := pool.VMFamilyPolicy.Validate(); err != nil {
+		return fmt.Errorf("environment %q pool %q vm_family_policy: %w", environmentName, pool.Name, err)
+	}
+
 	if pool.SlotAssets.InfrastructureIdentities == nil {
 		pool.Subscriptions.Infrastructure = ""
 	}
@@ -506,6 +514,7 @@ func (c *Catalog) RegionsForEnvironment(environment string) ([]string, error) {
 	return append([]string(nil), environmentConfig.Pools[0].Regions...), nil
 }
 
+// ExpandSlotsForPool derives each slot's runtime assets and physical identity provisioning count.
 func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 	slots := make([]ExpandedSlot, 0, pool.SlotCount)
 	for i := 0; i < pool.SlotCount; i++ {
@@ -519,6 +528,7 @@ func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 			ResourceType:      pool.ResourceType,
 			ResourceName:      fmt.Sprintf("%s-%0*d", pool.ResourceType, defaultSlotIndexWidth, i),
 			SlotIndex:         i,
+			VMFamilyPolicy:    pool.VMFamilyPolicy,
 		}
 		slot.Subscriptions = ResolvedSubscriptions{
 			E2E:            ResolvedSubscription{Name: pool.Subscriptions.E2E},
@@ -527,6 +537,7 @@ func ExpandSlotsForPool(environment string, pool Pool) []ExpandedSlot {
 		if asset := pool.SlotAssets.E2EIdentities; asset != nil {
 			slot.IdentityContainerPrefix = fmt.Sprintf("%s-%0*d", asset.ResourceGroupPrefix, defaultSlotIndexWidth, i)
 			slot.IdentityContainerCount = asset.ResourceGroupCount
+			slot.IdentityContainerProvisioningCount = pool.IdentityContainerProvisioningCount
 			slot.Assets = ResolvedAssets{
 				E2EIdentities: &ResolvedE2EIdentitiesAsset{
 					Allocation:         AllocationDedicated,

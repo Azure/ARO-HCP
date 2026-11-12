@@ -24,10 +24,9 @@ import (
 )
 
 const (
-	// ConditionTypeCapacityDataCurrent indicates whether the capacity data
-	// in the scheduling document is up to date. Set by
-	// CapacityReportingController after evaluating the CapacityReport CR's
-	// state.
+	// ConditionTypeCapacityDataCurrent means the last evaluated report had
+	// ReportCurrent=True and available HostedControlPlanes.Resources.
+	// It does not guarantee freshness.
 	ConditionTypeCapacityDataCurrent = "CapacityDataCurrent"
 
 	// ConditionTypeScalingDataCurrent indicates whether the scaling data
@@ -120,16 +119,12 @@ type ObservedResources struct {
 	// +optional
 	Capacity corev1.ResourceList `json:"capacity,omitempty"`
 
-	// Usage is the CapacityReport CR's reported resource usage across HCP
-	// workloads. Only scheduling-relevant resources are propagated:
-	// cpu, memory, aro.openshift.io/swift-nic.
+	// Usage is scheduling-resource usage across all HCP workloads.
 	//
 	// +optional
 	Usage corev1.ResourceList `json:"usage,omitempty"`
 
-	// Requests is the sum of resource requests across HCP workloads,
-	// mirrored from the CapacityReport CR. Only scheduling-relevant
-	// resources are propagated: cpu, memory, aro.openshift.io/swift-nic.
+	// Requests is scheduling-resource requests across all HCP workloads.
 	//
 	// +optional
 	Requests corev1.ResourceList `json:"requests,omitempty"`
@@ -138,7 +133,11 @@ type ObservedResources struct {
 // ScaleCeiling holds projected capacity limits derived from AKS agent pool
 // configuration and SKU data.
 type ScaleCeiling struct {
-	// LastReportedAt is the time the scaling data was last computed.
+	// LastReportedAt is the computation time of the last published scaling
+	// result. Unchanged capacity and condition state retain this timestamp;
+	// it is not a heartbeat or the time of every successful poll. It advances
+	// when capacity/condition state changes or an absent timestamp is initialized.
+	// Written by: ScaleCeilingReportingController.
 	//
 	// +optional
 	LastReportedAt *metav1.Time `json:"lastReportedAt,omitempty"`

@@ -26,6 +26,7 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
 | `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
+| `/test e2e-parallel-ocp-nightly` | DEV | No | Must be triggered manually. Runs tests using the latest nightly OCP build |
 | `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
 | `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
 | `/test integration-e2e-parallel-ocp-stable` | INT | No | Must be triggered manually |
@@ -61,11 +62,11 @@ The DEV `e2e-parallel` job is different. Because it provisions the DEV RP footpr
 
 ## Running Only Specific Tests
 
-When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/main.go`.
+When validating a single test or a small subset of tests, you can temporarily filter which tests run by modifying `test/cmd/aro-hcp-tests/cli.go`.
 
 ### Example: Filter by Test Name
 
-In [`test/cmd/aro-hcp-tests/main.go`](../../test/cmd/aro-hcp-tests/main.go), uncomment and modify the `MustFilter` line to match only the tests you want:
+In [`test/cmd/aro-hcp-tests/cli.go`](../../test/cmd/aro-hcp-tests/cli.go), uncomment and modify the `MustFilter` line to match only the tests you want:
 
 ```go
 // Specs can be globally filtered...
@@ -83,7 +84,7 @@ This uses [CEL expressions](https://github.com/google/cel-spec) to filter test s
    git checkout -b test/validate-my-test
    ```
 
-2. Edit `test/cmd/aro-hcp-tests/main.go` and add a filter:
+2. Edit `test/cmd/aro-hcp-tests/cli.go` and add a filter:
 
    ```go
    specs = specs.MustFilter([]string{`name.contains("MyTestName")`})
@@ -130,6 +131,44 @@ Tests are organized into suites with label-based filtering. The available labels
 | `Integration-Only` | Tests that only run in integration |
 | `PreLaunchSetup:None` | Tests that require no pre-existing infrastructure |
 | `ARO-HCP-RP-API-Compatible` | Tests compatible with both ARM and ARO HCP RP APIs |
+
+## DEV Frontend Ingress Utilities
+
+The test binary provides separate public IPv4 discovery and frontend ingress commands:
+
+```bash
+CI_RP_ALLOWED_SOURCE=$(./test/aro-hcp-tests infra discover-public-ip)
+export CI_RP_ALLOWED_SOURCE
+
+AZURE_TOKEN_CREDENTIALS=dev ./test/aro-hcp-tests infra frontend-grant-ingress \
+  --subscription-id "$INFRA_SUBSCRIPTION_ID" \
+  --resource-group "$SVC_RESOURCEGROUP" \
+  --source-ip "$CI_RP_ALLOWED_SOURCE"
+```
+
+Discovery queries HTTPS echo services over IPv4, falling back when a request fails
+or its response is invalid. Requests are bounded; redirects are not followed.
+Success prints only an IPv4 address and a newline. Failure exits nonzero without
+printing an address.
+
+The grant command requires an explicit subscription, resource group, and single
+IPv4 address. It does not discover an address. It creates or updates only
+`allow-istio-ingress` on `svc-cluster-node-nsg`: inbound TCP/443 from the supplied
+source, priority 1000. After the update completes, it prints JSON containing
+`resourceGroup`; failures produce no success JSON. Authentication requires an
+explicit `AZURE_TOKEN_CREDENTIALS` selector: use `dev` for local `az login`,
+`prod` for the CI credential chain, or a specific credential such as
+`EnvironmentCredential` for service-principal environment credentials.
+
+`make frontend-grant-ingress` composes these commands, discovers only when
+`CI_RP_ALLOWED_SOURCE` is unset or empty, and refreshes the default test binary. It uses
+`INFRA_SUBSCRIPTION_ID` when supplied, otherwise the current Azure CLI subscription.
+
+For in-place upgrades, discover once in the upgrade pod and reuse that value for
+both the bootstrap grant and the configuration override. The offline
+`infra build-config-override` command validates `CI_RP_ALLOWED_SOURCE` and includes
+it in `svc.aks.additionalIngressRules`; an unset or empty source adds no rule.
+Configuration generation never performs discovery.
 
 ## Periodic Tests
 

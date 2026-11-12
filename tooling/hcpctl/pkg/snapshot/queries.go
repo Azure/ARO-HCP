@@ -118,11 +118,17 @@ type queryData struct {
 	MonitoringEventsDatabase string
 	ResourceGroup            string
 
-	// ServiceClusterName and ManagementClusterName are AKS cluster names
-	// used to filter queries for PR jobs. When both are non-empty, queries
-	// include a "| where cluster in (...)" filter.
-	ServiceClusterName    string
-	ManagementClusterName string
+	// ServiceClusterName is the AKS cluster that emitted service-side logs.
+	// ManagementClusterNames are the actual hosting management clusters
+	// resolved from placement. When placement resolution has completed, queries
+	// are scoped to the service cluster and any resolved management clusters.
+	// ManagementClusterName remains as a single-cluster fallback for callers
+	// that have not migrated to the slice.
+	ServiceClusterName                 string
+	ManagementClusterName              string
+	ManagementClusterNames             []string
+	ManagementClusterPlacementResolved bool
+	ManagementClusterTargets           []managementClusterTarget
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
@@ -371,32 +377,6 @@ var allQueries = []querySpec{
 		},
 	},
 	{
-		component:    "clustersService",
-		queryName:    "maestroBundleAssociations",
-		templatePath: "queries/clustersService/maestroBundleAssociations/query.kql",
-		database:     "service",
-		category:     categoryResourceDiscovery,
-		ready: func(d queryData) bool {
-			return d.ClusterID != ""
-		},
-		prerequisites: "ClusterID",
-		// Maestro readonly bundles are being phased out in favor of ReadDesires,
-		// so empty results are acceptable. Query stays informational for older snapshots.
-	},
-	{
-		component:    "backend",
-		queryName:    "maestroBundleAssociations",
-		templatePath: "queries/backend/maestroBundleAssociations/query.kql",
-		database:     "service",
-		category:     categoryResourceDiscovery,
-		ready: func(d queryData) bool {
-			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != ""
-		},
-		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType",
-		// Maestro readonly bundles are being phased out in favor of ReadDesires,
-		// so empty results are acceptable. Query stays informational for older snapshots.
-	},
-	{
 		component:    "hypershift",
 		queryName:    "hostedClusterMetadata",
 		templatePath: "queries/hypershift/hostedClusterMetadata/query.kql",
@@ -597,54 +577,6 @@ var allQueries = []querySpec{
 		prerequisites: "ResourceID, ResourceType is cluster",
 		requiredWhen:  isClusterType,
 	},
-	{
-		component:    "maestro",
-		queryName:    "serverLogs",
-		templatePath: "queries/maestro/serverLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-	{
-		component:    "maestro",
-		queryName:    "agentLogs",
-		templatePath: "queries/maestro/agentLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-	{
-		component:    "maestro",
-		queryName:    "mgmtAuditLogs",
-		templatePath: "queries/maestro/mgmtAuditLogs/query.kql",
-		database:     "service",
-		category:     categoryLogs,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-	},
-	{
-		component:    "maestro",
-		queryName:    "transitions",
-		templatePath: "queries/maestro/transitions/query.kql",
-		database:     "service",
-		category:     categoryState,
-		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
-		},
-		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
-		requiredWhen:  isClusterOrNodePool,
-	},
-
 	// --- kube-applier: desire reconciliation logs ---
 	{
 		component:    "kubeApplier",
@@ -671,7 +603,8 @@ var allQueries = []querySpec{
 			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ClusterID, ResourceType is cluster",
-		requiredWhen:  isClusterType,
+		// The ManagedCluster CR is being phased out, so empty results are acceptable.
+		// Query stays informational for clusters that still have one.
 	},
 	{
 		component:    "acm",
@@ -719,13 +652,6 @@ var allQueries = []querySpec{
 		category:     categoryEvents,
 	},
 	{
-		component:    "maestro",
-		queryName:    "events",
-		templatePath: "queries/maestro/events/query.kql",
-		database:     "service",
-		category:     categoryEvents,
-	},
-	{
 		component:    "hypershift",
 		queryName:    "events",
 		templatePath: "queries/hypershift/events/query.kql",
@@ -749,6 +675,17 @@ var allQueries = []querySpec{
 	},
 	{
 		component:    "hypershift",
+		queryName:    "ignitionServerEvents",
+		templatePath: "queries/hypershift/ignitionServerEvents/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
@@ -766,6 +703,17 @@ var allQueries = []querySpec{
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return d.HostedClusterNamespace != "" && (strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters") || strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"))
+		},
+		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "ignitionServerLogs",
+		templatePath: "queries/hypershift/ignitionServerLogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedClusterNamespace != "" && isClusterOrNodePool(d)
 		},
 		prerequisites: "HostedClusterNamespace, ResourceType is cluster or nodepool",
 	},
@@ -826,17 +774,21 @@ var allQueries = []querySpec{
 	},
 }
 
-// contextQueries are broader queries not tied to a specific correlation ID.
-// They discover all frontend requests in the resource group during the time window.
-// These are written directly to the top-level output directory.
-var contextQueries = []querySpec{
-	{
-		component:    "frontend",
-		queryName:    "frontendRequests",
-		templatePath: "queries/frontend/frontendRequests/query.kql",
-		database:     "service",
-		category:     categoryContext,
-	},
+// frontendRequestQuery discovers all frontend requests in the resource group
+// during the time window. It runs before management-cluster placement is known,
+// so its template filters only on the service cluster.
+var frontendRequestQuery = querySpec{
+	component:    "frontend",
+	queryName:    "frontendRequests",
+	templatePath: "queries/frontend/frontendRequests/query.kql",
+	database:     "service",
+	category:     categoryContext,
+}
+
+// scopedContextQueries are broader queries not tied to a specific correlation
+// ID. They run after management-cluster placement has been resolved so their
+// cluster filters can include the actual hosting stamp.
+var scopedContextQueries = []querySpec{
 	{
 		component:    "alerts",
 		queryName:    "uncategorized",
@@ -871,13 +823,30 @@ func kqlDatetime(t time.Time) string {
 
 // templateFuncMap provides template functions available to KQL templates.
 var templateFuncMap = template.FuncMap{
-	"kqlDatetime": kqlDatetime,
-	"toLower":     strings.ToLower,
+	"kqlDatetime":                 kqlDatetime,
+	"kqlManagementClusterTargets": kqlManagementClusterTargets,
+	"toLower":                     strings.ToLower,
+}
+
+func kqlManagementClusterTargets(targets []managementClusterTarget) string {
+	rows := make([]string, 0, len(targets))
+	for _, target := range targets {
+		rows = append(rows, fmt.Sprintf("%s, %s", kqlStringLiteral(target.ClusterResourceID), kqlStringLiteral(target.SubscriptionID)))
+	}
+	return strings.Join(rows, ",\n")
+}
+
+func kqlStringLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // renderQuery reads and renders an embedded KQL template with the given data.
 // Shared partial templates from queries/_partials/ are automatically available.
 func renderQuery(templatePath string, data queryData) (string, error) {
+	if len(data.ManagementClusterNames) == 0 && data.ManagementClusterName != "" {
+		data.ManagementClusterNames = []string{data.ManagementClusterName}
+	}
+
 	tmplBytes, err := queriesFS.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read embedded query %s: %w", templatePath, err)
@@ -886,7 +855,6 @@ func renderQuery(templatePath string, data queryData) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse query template %s: %w", templatePath, err)
 	}
-	// Parse shared partial templates so queries can use {{ template "bundleMap" . }} etc.
 	partials, err := fs.Glob(queriesFS, "queries/partials/*.kql")
 	if err != nil {
 		return "", fmt.Errorf("failed to glob partial templates: %w", err)

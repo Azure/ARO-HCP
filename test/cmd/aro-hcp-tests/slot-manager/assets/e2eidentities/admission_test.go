@@ -15,20 +15,16 @@
 package e2eidentities
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"testing/synctest"
-
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/assets/azureutil"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -55,96 +51,24 @@ func TestLeaseCredentialUsesSelectedProfileWithoutAzureLogin(t *testing.T) {
 			Subscriptions: slots.ResolvedSubscriptions{E2E: slots.ResolvedSubscription{ID: "customer-subscription"}},
 		}},
 	}
-	credential, subscription, err := leaseCredential(request)
+	credential, err := azureutil.ClusterProfileCredential(profile)
 	if err != nil {
 		t.Fatalf("mounted profile must supply credentials without Azure CLI or environment credentials: %v", err)
 	}
-	if _, ok := credential.(*azidentity.ClientSecretCredential); !ok || subscription != "customer-subscription" {
-		t.Fatalf("expected explicit selected-profile credential and E2E subscription, got %T, %q", credential, subscription)
+	if _, ok := credential.(*azidentity.ClientSecretCredential); !ok {
+		t.Fatalf("expected explicit selected-profile credential, got %T", credential)
+	}
+	gotCredential, subscription, err := leaseCredential(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := gotCredential.(*azidentity.ClientSecretCredential); !ok || subscription != "customer-subscription" {
+		t.Fatalf("expected explicit selected-profile credential and E2E subscription, got %T, %q", gotCredential, subscription)
 	}
 	if err := os.Remove(filepath.Join(profile, "client-secret")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := leaseCredential(request); !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "client-secret") {
+	if _, err := azureutil.ClusterProfileCredential(profile); !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "client-secret") {
 		t.Fatalf("missing mounted credential must fail explicitly, got %v", err)
-	}
-}
-
-func TestRunSerialPanicFailsClosed(t *testing.T) {
-	previous := utilruntime.ReallyCrash
-	utilruntime.ReallyCrash = false
-	defer func() { utilruntime.ReallyCrash = previous }()
-
-	err := runSerial(t.Context(), []func(context.Context) error{
-		func(context.Context) error { panic("inventory unavailable") },
-	})
-	if err == nil || !strings.Contains(err.Error(), "panicked: inventory unavailable") {
-		t.Fatalf("panic must become admission error, got %v", err)
-	}
-}
-
-func TestRunOperationPreservesCrashPolicy(t *testing.T) {
-	previous := utilruntime.ReallyCrash
-	utilruntime.ReallyCrash = true
-	defer func() { utilruntime.ReallyCrash = previous }()
-	defer func() {
-		if value := recover(); value == nil {
-			t.Error("ReallyCrash=true must propagate the panic")
-		}
-	}()
-	_ = runOperation(context.Background(), func(context.Context) error { panic("crash policy") })
-}
-
-func TestRunSerialCancellation(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		var active atomic.Int32
-		var started atomic.Int32
-		operations := make([]func(context.Context) error, 100)
-		for i := range operations {
-			operations[i] = func(ctx context.Context) error {
-				started.Add(1)
-				active.Add(1)
-				defer active.Add(-1)
-				<-ctx.Done()
-				return ctx.Err()
-			}
-		}
-		done := make(chan error, 1)
-		go func() { done <- runSerial(ctx, operations) }()
-		synctest.Wait()
-		if active.Load() != 1 {
-			t.Fatalf("expected one blocked operation, got %d", active.Load())
-		}
-		cancel()
-		if err := <-done; !errors.Is(err, context.Canceled) || active.Load() != 0 {
-			t.Fatalf("cancellation failed: err=%v active=%d", err, active.Load())
-		}
-		if started.Load() != 1 {
-			t.Fatalf("started more operations after cancellation: %d", started.Load())
-		}
-	})
-}
-
-func TestRunSerialRunsEveryOperationAndJoinsErrors(t *testing.T) {
-	t.Parallel()
-
-	calls := 0
-	expectedErr := errors.New("operation failed")
-	var operations []func(context.Context) error
-	for _, err := range []error{nil, expectedErr, nil} {
-		operations = append(operations, func(context.Context) error {
-			calls++
-			return err
-		})
-	}
-	err := runSerial(context.Background(), operations)
-	if !errors.Is(err, expectedErr) {
-		t.Fatalf("expected joined error to preserve operation failure, got %v", err)
-	}
-	if calls != len(operations) {
-		t.Fatalf("expected all operations to run, got %d of %d", calls, len(operations))
 	}
 }

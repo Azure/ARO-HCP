@@ -13,12 +13,18 @@ param cosmosDbName string
 @description('The name of the resource group for regional infrastructure')
 param regionalResourceGroup string
 
+param useLeasedInfrastructureIdentities bool = false
+param infrastructureIdentityResourceGroup string = ''
+var identityScope = resourceGroup(useLeasedInfrastructureIdentities
+  ? infrastructureIdentityResourceGroup
+  : resourceGroup().name)
+
 //
 //   A D M I N   A P I   L O O K U P
 //
 
 resource adminApiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: adminApiMsiName
 }
 
@@ -26,7 +32,7 @@ output tenantId string = tenant().tenantId
 output adminApiMsiClientId string = adminApiIdentity.properties.clientId
 
 resource imagePullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup()
+  scope: identityScope
   name: imagePullerMsiName
 }
 
@@ -52,3 +58,9 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
 }
 
 output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint
+
+//
+//   S U B S C R I P T I O N   L O O K U P
+//
+
+output subscriptionId string = subscription().subscriptionId

@@ -5,7 +5,7 @@
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Invalid value: \"invalid\": not a valid PEM",
+        "message": "Invalid value: \"\": not a valid PEM",
         "target": "properties.issuer.ca"
       }
       {

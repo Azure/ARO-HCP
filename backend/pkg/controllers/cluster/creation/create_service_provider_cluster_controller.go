@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -57,7 +58,7 @@ func NewCreateServiceProviderClusterController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	controller := controllerutils.NewClusterWatchingController(
 		CreateServiceProviderClusterControllerName,
 		resourcesDBClient,
 		backendInformers,
@@ -65,6 +66,10 @@ func NewCreateServiceProviderClusterController(
 		1*time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+
+	return controller
 }
 
 // SyncOnce creates a ServiceProviderCluster for the given HCPCluster when one

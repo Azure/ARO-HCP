@@ -16,10 +16,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -39,6 +38,7 @@ import (
 )
 
 type operationNodePoolCreate struct {
+	statusCalculators      operationbase.OperationStatusCalculators[struct{}]
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	activeOperationsLister corelisters.ActiveOperationLister
@@ -86,6 +86,9 @@ func NewOperationNodePoolCreateController(
 		notificationClient:     notificationClient,
 	}
 
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
+
 	controller := controllerutils.NewGenericOperationController(
 		OperationNodePoolCreateControllerName,
 		syncer,
@@ -95,6 +98,17 @@ func NewOperationNodePoolCreateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of create-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationNodePoolCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[struct{}], error) {
+	return operationbase.NewOperationStatusCalculators[struct{}](
+		&nodePoolCreateClusterServiceCheck{nodePoolLister: c.nodePoolLister, clusterServiceClient: c.clusterServiceClient},
+		&nodePoolCreateHypershiftCheck{nodePoolLister: c.nodePoolLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -145,7 +159,8 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, nodePool)
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, struct{}{})
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "node pool creation did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -155,23 +170,6 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		persistErr = &coreapi.CloudErrorBody{
 			Code:    operationalState.CloudErrorCode,
 			Message: operationalState.Message,
-		}
-	}
-
-	if !operationalState.ProvisioningState.IsTerminal() &&
-		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
-		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
-		message := operationbase.DeadlineExceededMessage(
-			"node pool creation did not complete before the deadline",
-			operationalState.Message,
-		)
-		logger.Info("create operation deadline exceeded, marking as failed",
-			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
-			"message", message)
-		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
-		persistErr = &coreapi.CloudErrorBody{
-			Code:    coreapi.CloudErrorCodeDeadlineExceeded,
-			Message: message,
 		}
 	}
 
@@ -189,60 +187,5 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 }
 
 func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.NodePool) bool {
-	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil && nodePool.ServiceProviderProperties.ClusterServiceID != nil
-}
-
-func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	var errs []error
-	var operationStates []*operationbase.OperationState
-
-	if state, err := c.nodePoolServiceCreateOperationState(ctx, operation, nodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, state.WithSource("clusterServiceNodePoolStatus"))
-	}
-	if state, err := c.hypershiftNodePoolOperationState(ctx, nodePool); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, state.WithSource("hypershiftNodePool"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
-	logger.Info("determined node pool create operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked node pool create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
-}
-
-func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.NodePool) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := operationbase.ConvertNodePoolStatus(operation, csNodePoolStatus)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", newOperationError)
-	state := operationbase.NewOperationState(newOperationStatus, operationbase.NodePoolServiceOperationMessage(csNodePoolStatus, newOperationError))
-	if newOperationError != nil {
-		state.WithCloudErrorCode(newOperationError.Code)
-	}
-	return state, nil
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }

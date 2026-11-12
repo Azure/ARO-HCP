@@ -1,0 +1,37 @@
+let targets = datatable(clusterResourceID:string, targetSubscriptionID:string)
+[
+{{ kqlManagementClusterTargets .ManagementClusterTargets }}
+]
+| extend joinKey = 1;
+let desires = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+| where cluster == '{{ .ServiceClusterName }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| extend resourceID = tolower(resourceID), ts = tolong(content._ts), joinKey = 1
+| join kind=inner targets on joinKey
+| where tolower(subscriptionID) == targetSubscriptionID
+| where resourceID startswith strcat(clusterResourceID, '/')
+| summarize arg_max(timestamp, *) by cluster, resourceID, ts, clusterResourceID
+| summarize arg_max(ts, *) by cluster, resourceID, clusterResourceID
+| where tolower(tostring(content.properties.spec.targetItem.group)) == 'hypershift.openshift.io'
+| where tolower(tostring(content.properties.spec.targetItem.resource)) == 'hostedclusters'
+| extend managementCluster = tolower(tostring(content.properties.spec.managementCluster))
+| where isnotempty(managementCluster)
+| project clusterResourceID, managementCluster;
+let fleet = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+| where timestamp <= {{ kqlDatetime .FullEndTime }}
+| where cluster == '{{ .ServiceClusterName }}'
+| where resourceType =~ 'microsoft.redhatopenshift/stamps/managementclusters'
+| extend managementCluster = tolower(resourceID), ts = tolong(content._ts)
+| join kind=leftsemi desires on managementCluster
+| summarize arg_max(timestamp, *) by cluster, managementCluster, ts
+| summarize arg_max(ts, *) by cluster, managementCluster
+| where isempty(content.deletionTimestamp)
+| extend managementClusterName = tolower(tostring(split(tostring(content.properties.status.aksResourceID), '/')[-1]))
+| where isnotempty(managementClusterName)
+| project managementCluster, managementClusterName;
+desires
+| join kind=inner fleet on managementCluster
+| distinct clusterResourceID, managementClusterName
+| project clusterResourceID, managementCluster = managementClusterName

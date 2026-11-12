@@ -16,19 +16,20 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -46,6 +47,7 @@ type operationExternalAuthUpdate struct {
 	readDesireLister       kubeapplierlisters.ReadDesireLister
 	activeOperationsLister corelisters.ActiveOperationLister
 	notificationClient     *http.Client
+	statusCalculators      operationbase.OperationStatusCalculators[*externalAuthUpdateOperationStatusInput]
 }
 
 const OperationExternalAuthUpdateControllerName = "OperationExternalAuthUpdate"
@@ -86,6 +88,8 @@ func NewOperationExternalAuthUpdateController(
 		notificationClient:     notificationClient,
 	}
 
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
+
 	controller := controllerutils.NewGenericOperationController(
 		OperationExternalAuthUpdateControllerName,
 		syncer,
@@ -95,6 +99,17 @@ func NewOperationExternalAuthUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationExternalAuthUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[*externalAuthUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*externalAuthUpdateOperationStatusInput](
+		&externalAuthUpdateClusterServiceSpecCheck{externalAuthLister: c.externalAuthLister},
+		&externalAuthUpdateHypershiftHostedClusterCheck{externalAuthLister: c.externalAuthLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -111,8 +126,7 @@ func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operati
 }
 
 func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.ExternalAuth) bool {
-	return ea.ServiceProviderProperties.DeletionTimestamp == nil &&
-		ea.ServiceProviderProperties.ClusterServiceID != nil
+	return ea.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
@@ -148,7 +162,11 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, existingExternalAuth)
+	input := &externalAuthUpdateOperationStatusInput{
+		ClusterServiceExternalAuthOnceGetter: newClusterServiceExternalAuthOnceGetter(c.clusterServiceClient),
+	}
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingExternalAuth.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "External auth update did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -173,45 +191,6 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID
-	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuthCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get external auth from cluster service: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	if operationState, csErr := c.clusterServiceExternalAuthSpecOperationState(existingExternalAuth, csExternalAuth); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceExternalAuthSpec"))
-	}
-
-	if operationState, hsErr := c.hypershiftHostedClusterExternalAuthOperationState(ctx, existingExternalAuth); hsErr != nil {
-		errs = append(errs, utils.TrackError(hsErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftHostedClusterExternalAuth"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
-	logger.Info("determined external auth update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked external auth update operation status", "picked", picked)
-	return picked, nil
+type externalAuthUpdateOperationStatusInput struct {
+	ClusterServiceExternalAuthOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error)
 }

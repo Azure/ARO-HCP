@@ -17,6 +17,7 @@ package cosmosstorageutils
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -122,6 +123,12 @@ func (c *layeredResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID stri
 	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ResourceCRUD.Delete(ctx, resourceID) })
 }
 
+func (c *layeredResourceCRUD[T, PT]) DeleteWithETag(ctx context.Context, resourceID string, expectedETag azcore.ETag) error {
+	return c.layer.Do(ctx, func(ctx context.Context) error {
+		return c.ResourceCRUD.DeleteWithETag(ctx, resourceID, expectedETag)
+	})
+}
+
 func (c *layeredResourceCRUD[T, PT]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
 	iterator, err := layeredResult(ctx, c.layer, func(ctx context.Context) (DBClientIterator[T], error) {
 		return c.ResourceCRUD.List(ctx, options)
@@ -158,6 +165,12 @@ func (c *layeredValidatingResourceCRUD[T, PT]) Replace(ctx context.Context, newO
 
 func (c *layeredValidatingResourceCRUD[T, PT]) Delete(ctx context.Context, resourceID string) error {
 	return c.layer.Do(ctx, func(ctx context.Context) error { return c.ValidatingResourceCRUD.Delete(ctx, resourceID) })
+}
+
+func (c *layeredValidatingResourceCRUD[T, PT]) DeleteWithETag(ctx context.Context, resourceID string, expectedETag azcore.ETag) error {
+	return c.layer.Do(ctx, func(ctx context.Context) error {
+		return c.ValidatingResourceCRUD.DeleteWithETag(ctx, resourceID, expectedETag)
+	})
 }
 
 func (c *layeredValidatingResourceCRUD[T, PT]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {

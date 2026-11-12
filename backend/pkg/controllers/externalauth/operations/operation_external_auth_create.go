@@ -16,19 +16,20 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -44,6 +45,7 @@ type operationExternalAuthCreate struct {
 	externalAuthLister     corelisters.ExternalAuthLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
+	statusCalculators      operationbase.OperationStatusCalculators[*externalAuthOperationCreateStatusInput]
 }
 
 const OperationExternalAuthCreateControllerName = "OperationExternalAuthCreate"
@@ -82,6 +84,9 @@ func NewOperationExternalAuthCreateController(
 		notificationClient:     notificationClient,
 	}
 
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
+
 	controller := controllerutils.NewGenericOperationController(
 		OperationExternalAuthCreateControllerName,
 		syncer,
@@ -91,6 +96,16 @@ func NewOperationExternalAuthCreateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of create-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationExternalAuthCreate) newStatusCalculators() (operationbase.OperationStatusCalculators[*externalAuthOperationCreateStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[*externalAuthOperationCreateStatusInput](
+		&externalAuthCreateClusterServiceCreateCheck{externalAuthLister: c.externalAuthLister},
+	)
 }
 
 func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -139,7 +154,11 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, externalAuth)
+	input := &externalAuthOperationCreateStatusInput{
+		ClusterServiceExternalAuthOnceGetter: newClusterServiceExternalAuthOnceGetter(c.clusterServiceClient),
+	}
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, externalAuth.ServiceProviderProperties.CreateOperationCompletionDeadline, c.clock.Now(), "External auth creation did not complete within the allowed time.")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -166,47 +185,36 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 }
 
 func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.ExternalAuth) bool {
-	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil && externalAuth.ServiceProviderProperties.ClusterServiceID != nil
+	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
-func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	var errs []error
-	var operationStates []*operationbase.OperationState
-
-	if state, err := c.externalAuthClusterServiceCreateOperationState(ctx, externalAuth); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, state.WithSource("externalAuthClusterServiceCreate"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
-	logger.Info("determined external auth create operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked external auth create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
-	return picked, nil
+type externalAuthOperationCreateStatusInput struct {
+	// ClusterServiceExternalAuthOnceGetter returns a function that will retrieve the cluster service external auth resource from cluster service if it
+	// has not been attempted before.
+	// It will return the response from Clusters Service which is the Cluster Service external auth or an error.
+	// If the Cluster Service external auth was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+	// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+	ClusterServiceExternalAuthOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error)
 }
 
-func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.ExternalAuth) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-	_, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
+// newClusterServiceExternalAuthOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+// has not been attempted before.
+// It will return the response from Clusters Service which is the Cluster Service cluster or an error.
+// If the Cluster Service external auth was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+func newClusterServiceExternalAuthOnceGetter(clusterServiceClient ocm.ClusterServiceClientSpec) func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+	var csResource *arohcpv1alpha1.ExternalAuth
+	var err error
+	retrievedOnce := false
+	return func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+		if retrievedOnce {
+			return csResource, err
+		}
 
-	logger.Info("new status via cluster-service", "newStatus", coreapi.ProvisioningStateSucceeded)
-	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		defer cancel()
+		csResource, err = clusterServiceClient.GetExternalAuth(csCtx, *clusterServiceID)
+		retrievedOnce = true
+		return csResource, err
+	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -43,32 +45,20 @@ type identityPool struct {
 // Without a filter, pools with unmanaged E2E identity provisioning are skipped
 // (slot_assets.e2e_identities.provisioning).
 func resolveIdentityPools(ctx context.Context, environment string, catalogPools []slots.Pool, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
-	filterSet := make(map[string]struct{}, len(subscriptionFilter))
+	filter := sets.New[string]()
 	for _, name := range subscriptionFilter {
-		// Ignore empty/whitespace-only entries so that a wrapper passing an
-		// empty --subscription value (e.g. an unset env var) does not produce
-		// a non-empty filter that silently skips every pool.
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
-		filterSet[name] = struct{}{}
+		filter.Insert(name)
 	}
-
 	resolvedIDs := map[string]string{}
 	pools := make([]identityPool, 0, len(catalogPools))
 	for _, pool := range catalogPools {
-		if pool.SlotAssets.E2EIdentities == nil {
+		if !includePool(pool, filter) {
 			continue
 		}
-		if len(filterSet) > 0 {
-			if _, match := filterSet[pool.Subscriptions.E2E]; !match {
-				continue
-			}
-		} else if pool.IsUnmanaged() {
-			continue
-		}
-
 		subscriptionName := pool.Subscriptions.E2E
 		subscriptionID, found := resolvedIDs[subscriptionName]
 		if !found {
@@ -79,7 +69,6 @@ func resolveIdentityPools(ctx context.Context, environment string, catalogPools 
 			subscriptionID = resolvedSubscriptionID
 			resolvedIDs[subscriptionName] = subscriptionID
 		}
-
 		pools = append(pools, identityPool{
 			Environment:             environment,
 			Region:                  pool.Region,
@@ -90,6 +79,18 @@ func resolveIdentityPools(ctx context.Context, environment string, catalogPools 
 			Slots:                   slots.ExpandSlotsForPool(environment, pool),
 		})
 	}
-
 	return pools, nil
+}
+
+func includePool(pool slots.Pool, filter sets.Set[string]) bool {
+	switch {
+	case pool.SlotAssets.E2EIdentities == nil:
+		return false
+	case filter.Len() > 0:
+		return filter.Has(pool.Subscriptions.E2E)
+	case pool.IsUnmanaged():
+		return false
+	default:
+		return true
+	}
 }

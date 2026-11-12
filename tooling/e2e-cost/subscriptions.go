@@ -80,7 +80,7 @@ func ResolveSubscriptionNames(ctx context.Context, client *http.Client, credenti
 }
 
 var (
-	subscriptionInfraGroup = regexp.MustCompile(`(?i)^hcp-underlay-ci0[01]-j[0-9]{7}(-(svc|mgmt-[0-9]+)(-aks1)?)?$`)
+	subscriptionInfraGroup = regexp.MustCompile(`(?i)^hcp-underlay-ci0[0-2]-j[0-9]{7}(-(svc|mgmt-[0-9]+)(-aks1)?)?$`)
 	// The framework uses Kubernetes' consonant/digit alphabet for its random
 	// 12-character suffix. Managed names can insert a version/role and random6.
 	subscriptionTestGroup = regexp.MustCompile(`(?i)^.+-[bcdfghjklmnpqrstvwxz2456789]{12}((-[a-z0-9]+)*-[bcdfghjklmnpqrstvwxz2456789]{6})?(-[0-9]+)*(-{1,2}managed(-[0-9]+)?)?$`)
@@ -98,7 +98,7 @@ func DefaultExcludedGroup(name string) string {
 	}
 	switch {
 	case subscriptionInfraGroup.MatchString(name):
-		return "Inferred CI infrastructure naming (ci00/ci01 and j plus seven digits)"
+		return "Inferred CI infrastructure naming (ci00/ci01/ci02 and j plus seven digits)"
 	case subscriptionTestGroup.MatchString(name):
 		return "Inferred E2E random12 naming, including managed variants"
 	case subscriptionHashedGroup.MatchString(name):

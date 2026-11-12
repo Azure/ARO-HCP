@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -139,26 +140,42 @@ func TestAcquireLeaseRejectsUnexpectedStatus(t *testing.T) {
 }
 
 func TestAcquireLeaseClassifiesRetryableServerResponsesAsTemporarilyUnavailable(t *testing.T) {
-	t.Parallel()
+	// Do not run in parallel: AcquireLease uses http.DefaultTransport.
+	synctest.Test(t, func(t *testing.T) {
+		originalTransport := http.DefaultTransport
+		t.Cleanup(func() { http.DefaultTransport = originalTransport })
 
-	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`Failed to acquire lease "aro-hcp-dev-westus3-slot": resources not found`))
-	}))
-	defer server.Close()
+		// Return the response synchronously before fake time exhausts the budget.
+		// A real HTTP server can miss the 50 ms deadline before receiving a request.
+		attempts := 0
+		http.DefaultTransport = leaseProxyRoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			attempts++
+			response := httptest.NewRecorder()
+			response.WriteHeader(http.StatusInternalServerError)
+			_, _ = response.WriteString(`Failed to acquire lease "aro-hcp-dev-westus3-slot": resources not found`)
+			return response.Result(), nil
+		})
 
-	_, err := AcquireLease(context.Background(), server.URL, "aro-hcp-dev-westus3-slot", 50*time.Millisecond)
-	if err == nil {
-		t.Fatal("expected lease acquire to fail when the pool does not yield an immediate lease")
-	}
-	if !errors.Is(err, ErrLeasePoolUnavailableNow) {
-		t.Fatalf("expected temporary-unavailability classification, got %v", err)
-	}
-	if attempts != 1 {
-		t.Fatalf("expected exactly 1 immediate probe attempt, got %d", attempts)
-	}
+		_, err := AcquireLease(t.Context(), "http://lease-proxy", "aro-hcp-dev-westus3-slot", 50*time.Millisecond)
+		if err == nil {
+			t.Fatal("expected lease acquire to fail when the pool does not yield an immediate lease")
+		}
+		if !errors.Is(err, ErrLeasePoolUnavailableNow) {
+			t.Fatalf("expected temporary-unavailability classification, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "retryable status 500 Internal Server Error") {
+			t.Fatalf("expected the retryable server response to cause unavailability, got %v", err)
+		}
+		if attempts != 1 {
+			t.Fatalf("expected exactly 1 immediate probe attempt, got %d", attempts)
+		}
+	})
+}
+
+type leaseProxyRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f leaseProxyRoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 func TestAcquireLeaseClassifiesTimeoutBudgetExhaustionAsTemporarilyUnavailable(t *testing.T) {

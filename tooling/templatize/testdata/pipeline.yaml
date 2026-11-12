@@ -13,8 +13,8 @@ resourceGroups:
     shellIdentity:
       configRef: globalMSIId
     variables:
-    - name: MAESTRO_IMAGE
-      configRef: maestro_image
+    - name: BACKEND_IMAGE
+      configRef: backend_image
   {{- if .enableOptionalStep }}
   - name: optionalStep
     action: Shell

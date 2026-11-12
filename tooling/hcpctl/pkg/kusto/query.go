@@ -17,6 +17,7 @@ package kusto
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -147,6 +148,13 @@ type TemplateData struct {
 	OperationIds       string
 	FilterClusterName  string
 	HCPNamespacePrefix string
+
+	// Summarize returns per-source diagnostics instead of orchestration log rows.
+	Summarize bool
+	// Discovery bounds stay fixed when output is split into time windows.
+	DiscoveryTimestampMin string
+	DiscoveryTimestampMax string
+
 	// Namespace is the Kubernetes namespace to scope a query to (e.g. an
 	// oc-adm-inspect resource/event/log query). Single quotes are escaped for safe
 	// embedding inside a single-quoted KQL string literal; the template supplies
@@ -243,6 +251,8 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 	for _, option := range append(defaults, options...) {
 		option(&templateData)
 	}
+	templateData.DiscoveryTimestampMin = templateData.TimestampMin
+	templateData.DiscoveryTimestampMax = templateData.TimestampMax
 	return templateData
 }
 
@@ -383,6 +393,11 @@ func (f *QueryFactory) BuildTimeWindows(def QueryDefinition, data TemplateData, 
 			break
 		}
 		start = windowEnd.Add(tick)
+	}
+	if data.OrderBy == OrderByDesc.String() {
+		for _, sequence := range sequences {
+			slices.Reverse(sequence.Windows)
+		}
 	}
 	return queries, nil
 }

@@ -1,0 +1,54 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  conditions:
+  - lastTransitionTime: "2026-01-01T00:00:00Z"
+    message: ""
+    observedGeneration: 0
+    reason: DataCollected
+    status: "True"
+    type: ReportCurrent
+  hostedControlPlanes:
+    byClusterSizingConfiguration:
+    - readyCount: 0
+      readyResources:
+        requested:
+          aro.openshift.io/swift-nic: "0"
+          cpu: "0"
+          memory: "0"
+        usage:
+          aro.openshift.io/swift-nic: "0"
+          cpu: "0"
+          memory: "0"
+      size: small
+    notReadyResourceIDs:
+    - /subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-0
+    readyResources:
+      requested:
+        aro.openshift.io/swift-nic: "0"
+        cpu: "0"
+        memory: "0"
+      usage:
+        aro.openshift.io/swift-nic: "0"
+        cpu: "0"
+        memory: "0"
+    resources:
+      requested:
+        aro.openshift.io/swift-nic: "1"
+        cpu: "2"
+        memory: "0"
+      usage:
+        aro.openshift.io/swift-nic: "1"
+        cpu: "1"
+        memory: "0"
+  lastReportedAt: "2026-01-01T00:00:00Z"
+  requested:
+    aro.openshift.io/swift-nic: "1"
+    cpu: "2"
+    memory: "0"
+  usage:
+    aro.openshift.io/swift-nic: "1"
+    cpu: "1"
+    memory: "0"

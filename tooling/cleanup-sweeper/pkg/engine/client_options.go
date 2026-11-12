@@ -19,6 +19,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
@@ -34,11 +35,14 @@ var defaultARMRetryOptions = policy.RetryOptions{
 func DefaultARMClientOptions() *azcorearm.ClientOptions {
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentResourceCleaner)
 	clientOpts.Retry = defaultARMRetryOptions
+	clientOpts.PerCallPolicies = []policy.Policy{runtime.NewRequestIDPolicy()}
+	clientOpts.PerRetryPolicies = []policy.Policy{deleteAuditPolicy{}}
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
 }
 
+// Uses explicit ARM options when supplied, otherwise the audited defaults.
 func normalizeARMClientOptions(opts *azcorearm.ClientOptions) *azcorearm.ClientOptions {
 	if opts != nil {
 		return opts

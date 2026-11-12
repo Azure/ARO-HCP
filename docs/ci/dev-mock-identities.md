@@ -1,6 +1,6 @@
 # DEV Mock Identities
 
-DEV (and the CSPR PR-check and MSIT INT environments) cannot use the real Azure
+DEV (and the MSIT INT environment) cannot use the real Azure
 control planes that the product relies on in production:
 
 - there is no Microsoft **First Party Application (FPA)** that the Resource Provider

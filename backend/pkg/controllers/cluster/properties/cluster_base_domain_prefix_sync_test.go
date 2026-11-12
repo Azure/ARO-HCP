@@ -17,6 +17,7 @@ package properties
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,12 +88,19 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			var requestCtx context.Context
 			if tc.expectCSGetCluster {
 				csCluster, err := arohcpv1alpha1.NewCluster().DomainPrefix(tc.csDomainPrefix).Build()
 				require.NoError(t, err)
 				mockCSClient.EXPECT().
 					GetCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
-					Return(csCluster, nil)
+					DoAndReturn(func(ctx context.Context, _ metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+						requestCtx = ctx
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.InDelta(t, controllerutils.CSReadTimeout.Seconds(), time.Until(deadline).Seconds(), 1)
+						return csCluster, nil
+					})
 			}
 
 			syncer := &clusterBaseDomainPrefixSyncer{
@@ -108,6 +116,9 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			}
 			err = syncer.SyncOnce(ctx, key)
 			require.NoError(t, err)
+			if requestCtx != nil {
+				require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+			}
 
 			updatedCluster, err := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, tc.existingCluster.Name)
 			require.NoError(t, err)

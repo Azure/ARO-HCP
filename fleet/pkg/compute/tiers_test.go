@@ -45,30 +45,31 @@ func TestLookupProfile(t *testing.T) {
 
 func TestValidProfileNames(t *testing.T) {
 	names := ValidProfileNames()
-	assert.Equal(t, []string{ProfileCI, ProfileDevelopment, ProfileProduction}, names, "expected sorted, deduplicated profile names")
+	assert.Equal(t, []string{ProfileCI, ProfileDevelopment, ProfileIntegration, ProfileProduction}, names, "expected sorted, deduplicated profile names")
 }
 
 func TestTierFamilies(t *testing.T) {
 	tiers := []TierConfig{
-		{FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}},
-		{FamilyPriority: []VMFamily{"standardEDSv5Family", "standardDDSv6Family"}},
+		{FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}},
+		{FamilyPriority: []VMFamily{"standardEDSv5Family", "StandardDdsv6Family"}},
 	}
 
 	got := TierFamilies(tiers)
-	want := sets.New[VMFamily]("standardEDSv6Family", "standardEDSv5Family", "standardDDSv6Family")
+	want := sets.New[VMFamily]("StandardEdsv6Family", "standardEDSv5Family", "StandardDdsv6Family")
 	assert.True(t, got.Equal(want), "got %v, want %v", got, want)
 }
 
 func TestValidateProfile(t *testing.T) {
 	tests := []struct {
-		name    string
-		profile Profile
-		wantErr bool
+		name        string
+		profile     Profile
+		mutateClass func(*PoolClass)
+		wantErr     bool
 	}{
 		{
-			name: "all tiers meet minimum cores",
+			name: "standard classes meet minimum cores",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1}, {Name: "b", Cores: minCoresPerTier + 4, PoolMode: PoolModePerZone, PoolCount: 1}},
+				Tiers: []TierConfig{{Name: "sys", Class: SystemPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}, {Name: "wrk", Class: WorkerPools, Cores: minCoresPerTier + 4, PoolMode: PoolModePerZone, PoolCount: 1}},
 			},
 		},
 		{
@@ -80,108 +81,138 @@ func TestValidateProfile(t *testing.T) {
 		{
 			name: "empty tier name",
 			profile: Profile{
-				Tiers: []TierConfig{{Cores: minCoresPerTier}},
+				Tiers: []TierConfig{{Class: InfraPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "tier name too long",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "toolong", Cores: minCoresPerTier}},
+				Tiers: []TierConfig{{Name: "toolong", Class: InfraPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "tier name with leading digit",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "1abc", Cores: minCoresPerTier}},
+				Tiers: []TierConfig{{Name: "1abc", Class: InfraPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "duplicate tier name",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "wrk", Cores: minCoresPerTier}, {Name: "wrk", Cores: minCoresPerTier}},
+				Tiers: []TierConfig{{Name: "wrk", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}, {Name: "wrk", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "tier below minimum cores",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier - 1}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier - 1, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "unique families are valid",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv5Family"}}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "standardEDSv5Family"}}},
 			},
 		},
 		{
 			name: "duplicate family within a tier",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"standardEDSv6Family", "standardEDSv6Family"}}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, FamilyPriority: []VMFamily{"StandardEdsv6Family", "StandardEdsv6Family"}}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "initialMinNodes exceeds maxNodes",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, MaxNodes: 2, InitialMinNodes: 5}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1, MaxNodes: 2, InitialMinNodes: 5}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "initialMinNodes within maxNodes",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, MaxNodes: 5, InitialMinNodes: 2}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, MaxNodes: 5, InitialMinNodes: 2}},
 			},
 		},
 		{
 			name: "PerZone without PoolCount",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "PerZone with PoolCount",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 2}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 2}},
 			},
 		},
 		{
 			name: "Regional with PoolCount other than one",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 2}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 2}},
 			},
 			wantErr: true,
 		},
 		{
 			name: "Regional with PoolCount one",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}},
 			},
 		},
 		{
 			name: "unknown pool mode",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: "Nonsense", PoolCount: 1}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: "Nonsense", PoolCount: 1}},
 			},
 			wantErr: true,
 		},
 		{
-			name: "role label set in Labels",
+			name: "role label set in class Labels",
 			profile: Profile{
-				Tiers: []TierConfig{{Name: "a", Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1, Labels: map[string]string{RoleLabel: "worker"}}},
+				Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModePerZone, PoolCount: 1}},
+			},
+			mutateClass: func(class *PoolClass) {
+				class.Labels = map[string]string{RoleLabel: string(PoolRoleInfra)}
 			},
 			wantErr: true,
+		},
+		{
+			name:        "empty role",
+			profile:     Profile{Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}}},
+			mutateClass: func(class *PoolClass) { class.Role = "" },
+			wantErr:     true,
+		},
+		{
+			name:        "unknown AKS mode",
+			profile:     Profile{Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}}},
+			mutateClass: func(class *PoolClass) { class.AgentPoolMode = "invalid" },
+			wantErr:     true,
+		},
+		{
+			name:        "attachment without Swift",
+			profile:     Profile{Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}}},
+			mutateClass: func(class *PoolClass) { class.EnableSwift = false },
+			wantErr:     true,
+		},
+		{
+			name:        "missing AKS mode",
+			profile:     Profile{Tiers: []TierConfig{{Name: "a", Class: WorkerPools, Cores: minCoresPerTier, PoolMode: PoolModeRegional, PoolCount: 1}}},
+			mutateClass: func(class *PoolClass) { class.AgentPoolMode = "" },
+			wantErr:     true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.mutateClass != nil {
+				tt.mutateClass(&tt.profile.Tiers[0].Class)
+			}
 			err := ValidateProfile(tt.profile)
 			if tt.wantErr {
 				assert.Error(t, err)

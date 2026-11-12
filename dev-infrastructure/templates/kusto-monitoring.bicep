@@ -16,9 +16,12 @@ param kustoRegion string
 @description('Region of the monitoring deployment')
 param regionLocation string
 
+// The eastus2euap rollout hosts its Kusto cluster in eastus2.
+var isKustoOwnerRegion = kustoRegion == regionLocation || (regionLocation == 'eastus2euap' && kustoRegion == 'eastus2')
+
 var ehActionGroups = actionGroupAlertEH != '' ? [actionGroupAlertEH] : []
 
-module kustoAlerts '../modules/metrics/kusto-alerts.bicep' = if (kustoClusterId != '' && kustoRegion == regionLocation) {
+module kustoAlerts '../modules/metrics/kusto-alerts.bicep' = if (kustoClusterId != '' && isKustoOwnerRegion) {
   name: 'kustoAlerts'
   params: {
     kustoClusterId: kustoClusterId

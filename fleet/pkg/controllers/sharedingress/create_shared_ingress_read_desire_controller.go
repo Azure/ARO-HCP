@@ -48,6 +48,7 @@ type ensureReadDesireSyncer struct {
 
 func NewEnsureSharedIngressReadDesireController(
 	managementClusterInformer cache.SharedIndexInformer,
+	stampInformer cache.SharedIndexInformer,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
@@ -59,11 +60,14 @@ func NewEnsureSharedIngressReadDesireController(
 
 	controller := fleetcontrollers.NewStampWatchingController(
 		EnsureSharedIngressReadDesireControllerName,
+		stampInformer,
+		ensureResyncPeriod,
 		syncer,
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(ensureResyncPeriod, managementClusterInformer); err != nil {
+	// Stamp keys already resync once; other inputs only enqueue on changes.
+	if err := controller.QueueForInformers(0, managementClusterInformer); err != nil {
 		panic(err) // coding error
 	}
 
@@ -75,7 +79,10 @@ func (s *ensureReadDesireSyncer) SyncOnce(ctx context.Context, key fleetcontroll
 
 	managementClusterResourceID := metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID(key.StampIdentifier))
 
-	kubeApplierClient := s.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	kubeApplierClient, err := s.kubeApplierDBClients.For(ctx, managementClusterResourceID)
+	if err != nil {
+		return err
+	}
 	if kubeApplierClient == nil {
 		logger.V(1).Info("kube-applier Cosmos client not available for management cluster")
 		return nil

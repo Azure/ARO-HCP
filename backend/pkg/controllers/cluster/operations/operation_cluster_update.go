@@ -16,14 +16,10 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
-
-	"github.com/blang/semver/v4"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
@@ -45,6 +41,7 @@ import (
 )
 
 type operationClusterUpdate struct {
+	statusCalculators               operationbase.OperationStatusCalculators[clusterUpdateOperationStatusInput]
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
@@ -85,6 +82,8 @@ func NewOperationClusterUpdateController(
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
 
+	desiredVersionMismatchFirstSeen := lru.New(100000)
+
 	syncer := &operationClusterUpdate{
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
@@ -94,8 +93,11 @@ func NewOperationClusterUpdateController(
 		readDesireLister:                readDesireLister,
 		activeOperationsLister:          activeOperationsLister,
 		notificationClient:              notificationClient,
-		desiredVersionMismatchFirstSeen: lru.New(100000),
+		desiredVersionMismatchFirstSeen: desiredVersionMismatchFirstSeen,
 	}
+
+	// The registry is fixed in code; invalid source registrations are startup errors.
+	syncer.statusCalculators = metadataapi.Must(syncer.newStatusCalculators())
 
 	controller := controllerutils.NewGenericOperationController(
 		OperationClusterUpdateControllerName,
@@ -106,6 +108,21 @@ func NewOperationClusterUpdateController(
 	)
 
 	return controller
+}
+
+// newStatusCalculators builds the fixed registry of update-operation status
+// sources from the syncer's dependencies. Production and tests share this single
+// construction so the two cannot drift: a source added here is exercised by both
+// the controller and every test that builds a registry.
+func (c *operationClusterUpdate) newStatusCalculators() (operationbase.OperationStatusCalculators[clusterUpdateOperationStatusInput], error) {
+	return operationbase.NewOperationStatusCalculators[clusterUpdateOperationStatusInput](
+		&clusterUpdateValidationCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock},
+		&clusterUpdateDesiredVersionCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, clock: c.clock, desiredVersionMismatchFirstSeen: c.desiredVersionMismatchFirstSeen},
+		&clusterUpdateClusterServiceStatusCheck{clusterLister: c.clusterLister, clusterServiceClient: c.clusterServiceClient},
+		&clusterUpdateClusterServiceSpecCheck{clusterLister: c.clusterLister},
+		&clusterUpdateHostedClusterCheck{clusterLister: c.clusterLister, serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
+		&clusterUpdateAutoscalerCheck{serviceProviderClusterLister: c.serviceProviderClusterLister, readDesireLister: c.readDesireLister},
+	)
 }
 
 func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
@@ -122,8 +139,7 @@ func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *c
 }
 
 func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.Cluster) bool {
-	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
-		cluster.ServiceProviderProperties.ClusterServiceID != nil
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }
 
 func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
@@ -159,7 +175,12 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation, existingCluster)
+	input := clusterUpdateOperationStatusInput{
+		ClusterServiceOnceGetter: newClusterServiceClusterOnceGetter(c.clusterServiceClient),
+	}
+
+	operationalState, observationErr := c.statusCalculators.CalculateOperationStatus(ctx, operation, input)
+	operationalState, err = operationbase.ApplyOperationDeadline(operationalState, observationErr, existingCluster.ServiceProviderProperties.UpdateOperationCompletionDeadline, c.clock.Now(), "cluster update did not complete before the deadline")
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -184,131 +205,38 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
+// clusterUpdateOperationStatusInput shares one Cluster Service and provider-state
+// observation across all update checks in a reconciliation.
+type clusterUpdateOperationStatusInput struct {
+	// ServiceProviderCluster is the service provider cluster resource from cache. It can be nil if it was not found in the cache
+	// or it failed to be retrieved from the cache.
+	ServiceProviderCluster *coreapi.ServiceProviderCluster
 
-	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
-	existingCSCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
-	}
-
-	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
-	}
-
-	errs := []error{}
-	operationStates := []*operationbase.OperationState{}
-
-	operationStates = append(operationStates, c.clusterValidation(operation, existingServiceProviderCluster).WithSource("clusterValidation"))
-	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("controlPlaneDesiredVersionResolution"))
-	}
-	if operationState, csErr := c.clusterServiceClusterStatusOperationState(ctx, operation, existingCSCluster.Status(), *clusterCSID); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceClusterStatus"))
-	}
-	if operationState, csErr := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); csErr != nil {
-		errs = append(errs, utils.TrackError(csErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("clusterServiceClusterSpec"))
-	}
-
-	if operationState, hsErr := c.hypershiftHostedClusterOperationState(ctx, existingCluster, existingServiceProviderCluster); hsErr != nil {
-		errs = append(errs, utils.TrackError(hsErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftHostedCluster"))
-	}
-	if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
-		errs = append(errs, utils.TrackError(autoscalerErr))
-	} else {
-		operationStates = append(operationStates, operationState.WithSource("hypershiftControlPlaneClusterAutoscaler"))
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
-	if len(operationStates) == 0 {
-		return nil, errors.New("no operation states")
-	}
-	slices.SortStableFunc(operationStates, operationbase.CompareOperationState)
-	if operationStates[0] == nil {
-		return nil, errors.New("nil operation state")
-	}
-	logger.Info("determined cluster update operation status", "operationStates", operationStates)
-	picked, err := operationbase.PickWorstOperationState(operationStates)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("picked cluster update operation status", "picked", picked)
-	return picked, nil
+	// ClusterServiceOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+	// has not been attempted before.
+	// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an error.
+	// The function assumes that clusterServiceID is not nil.
+	ClusterServiceOnceGetter func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error)
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(_ context.Context, operation *coreapi.Operation, existingCluster *coreapi.Cluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
-	customerDesiredVersion, err := semver.ParseTolerant(existingCluster.CustomerProperties.Version.ID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
+// newClusterServiceClusterOnceGetter returns a function that will retrieve the cluster service cluster resource from cluster service if it
+// has not been attempted before.
+// It will return the response from Clusters Service which is the Cluster Service cluster or an error.
+// If the Cluster Service cluster was not found when retrieving it from Cluster Service, it will return nil and an ocmerrors.Error with Status 404.
+// The function assumes that clusterServiceID is not nil. This is intentional so this is a transparent lazy cache and callers should ensure that clusterServiceID is not nil before calling this function.
+func newClusterServiceClusterOnceGetter(clusterServiceClient ocm.ClusterServiceClientSpec) func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+	var csResource *arohcpv1alpha1.Cluster
+	var err error
+	retrievedOnce := false
+	return func(ctx context.Context, clusterServiceID *metadataapi.InternalID) (*arohcpv1alpha1.Cluster, error) {
+		if retrievedOnce {
+			return csResource, err
+		}
 
-	// Forced assignment takes precedence over initial, minor, and normal rollout
-	// assignment. Report an incompatible override directly instead of waiting
-	// for a resolution that the normal controllers intentionally will not make.
-	forced := spc.Spec.PinnedVersion.ExactVersion
-	if forced == nil {
-		forced = existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+		defer cancel()
+		csResource, err = clusterServiceClient.GetCluster(csCtx, *clusterServiceID)
+		retrievedOnce = true
+		return csResource, err
 	}
-	if forced != nil && (customerDesiredVersion.Major != forced.Major || customerDesiredVersion.Minor != forced.Minor) {
-		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInvalidRequestContent,
-			fmt.Sprintf("requested cluster version %s conflicts with forced control plane version %s", existingCluster.CustomerProperties.Version.ID, forced), nil), nil
-	}
-
-	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
-	if resultingDesiredVersion != nil &&
-		customerDesiredVersion.Major == resultingDesiredVersion.Major &&
-		customerDesiredVersion.Minor == resultingDesiredVersion.Minor {
-		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-	}
-
-	// Initial and minor rollout assignment resolve the version on the SPC.
-	// The removed ControlPlaneDesiredVersion controller no longer produces
-	// IntentFailed; reading or creating its status document cannot report
-	// progress. Bound the wait for the current assignment controllers instead.
-	pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
-	firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
-	if !ok {
-		c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
-		return pending, nil
-	}
-	if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
-		return pending, nil
-	}
-	msg := fmt.Sprintf(
-		"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
-		existingCluster.CustomerProperties.Version.ID,
-	)
-	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-	return operationbase.NewFailedOperationState(coreapi.CloudErrorCodeInternalServerError, msg, nil), nil
-}
-
-func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (*operationbase.OperationState, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, existingCSClusterStatus, clusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-	state := operationbase.NewOperationState(newOperationStatus, "")
-	if opError != nil {
-		state.Message = opError.Message
-		state.WithCloudErrorCode(opError.Code)
-	}
-
-	return state, nil
 }

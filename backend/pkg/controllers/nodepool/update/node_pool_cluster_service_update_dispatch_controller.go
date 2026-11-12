@@ -76,7 +76,7 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 		nodePoolLister,
 	)
 
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolClusterServiceUpdateDispatchControllerName,
 		resourcesDBClient,
 		informers,
@@ -84,6 +84,9 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 		time.Minute,
 		syncer,
 	)
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+
+	return controller
 }
 
 func NewNodePoolClusterServiceUpdateDispatchSyncer(
@@ -150,7 +153,10 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 	}
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID
-	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePoolCSID)
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSWriteTimeout)
+	defer cancel()
+
+	csNodePool, err := c.clusterServiceClient.GetNodePool(csCtx, *nodePoolCSID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool from Cluster Service: %w", err))
 	}
@@ -193,7 +199,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(fmt.Errorf("failed to build CS node pool builder: %w", err))
 	}
 
-	_, err = c.clusterServiceClient.UpdateNodePool(ctx, *nodePoolCSID, csNodePoolBuilder)
+	_, err = c.clusterServiceClient.UpdateNodePool(csCtx, *nodePoolCSID, csNodePoolBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		// XXX Matching an error message is brittle, but Clusters Service

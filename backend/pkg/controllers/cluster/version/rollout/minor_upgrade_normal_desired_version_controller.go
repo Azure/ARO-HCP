@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -63,6 +64,17 @@ func NewMinorUpgradeNormalClusterDesiredVersionController(clock utilsclock.Passi
 	}
 	controller := controllerutils.NewClusterWatchingController(
 		MinorUpgradeNormalClusterDesiredVersionControllerName, resourcesDBClient, informers, nil, time.Minute, syncer)
+	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
+	controller.AddInterestingResource(fleetapi.ControlPlaneVersionRolloutResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.ServiceProviderNodePoolResourceType, coreapi.ServiceProviderNodePoolResourceName)
+	nodePoolInformer, _ := informers.NodePools()
+	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
+	if err := controller.QueueForDescendantInformers(0, 2, nodePoolInformer, serviceProviderNodePoolInformer); err != nil {
+		panic(err)
+	}
+
 	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
 		syncer.enqueueAfter = enqueuer
 	} else {

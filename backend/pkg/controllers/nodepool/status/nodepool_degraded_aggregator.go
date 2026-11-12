@@ -26,6 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -97,7 +99,7 @@ func NewNodePoolDegradedAggregatorController(
 		applyDesireLister: applyDesireLister,
 		readDesireLister:  readDesireLister,
 	}
-	return controllerutils.NewNodePoolWatchingController(
+	controller := controllerutils.NewNodePoolWatchingController(
 		NodePoolDegradedAggregatorControllerName,
 		resourcesDBClient,
 		informers,
@@ -105,6 +107,17 @@ func NewNodePoolDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
+	// Aggregate all conditions; controller and desire names are not a fixed set.
+	controller.AddInterestingResource(coreapi.NodePoolResourceType, "*")
+	controller.AddInterestingResource(coreapi.NodePoolControllerResourceType, "*")
+	controllerInformer, _ := informers.Controllers()
+	if err := controller.QueueForChildInformers(0, controllerInformer); err != nil {
+		panic(err)
+	}
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedApplyDesireResourceType, "*")
+	controller.AddInterestingResource(kubeapplierapi.NodePoolScopedReadDesireResourceType, "*")
+
+	return controller
 }
 
 func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {

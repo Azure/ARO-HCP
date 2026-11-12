@@ -38,7 +38,135 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 - `hcpctl hcp list` - List available HCP clusters
 - `hcpctl hcp breakglass <cluster-service-id|azure-resource-id>` - Emergency access to HCP cluster
 
+### CI Failure Patterns (`ci failure-patterns`)
+
+Extract CI failure patterns from Kusto and save the inputs for later analysis:
+
+```bash
+hcpctl ci failure-patterns \
+  --kusto hcp-dev-us-2 --region eastus2 \
+  --since 24h --save-input failures.json > report.json
+```
+
+Live queries use your Azure credentials. The database defaults to `ServiceLogs`; the time window selects jobs by completion time, with an inclusive start and exclusive end. Use `--since 168h` for seven days, or `--from` and `--to` with RFC3339 timestamps for a fixed window.
+
+- `--environment`: select `dev`, `int`, `stg`, `prod`, or `unknown`; defaults to all environments in the selected database.
+- `--source`: select `e2e`, `observability`, `rp-provision`, or `rp-upgrade`; defaults to all sources.
+- `--job-filter`: case-sensitive job-name substring, defaulting to `e2e-parallel`. Use `--job-filter ""` for all jobs.
+- `--timeout`: collection deadline, including active authentication-metadata requests, defaulting to two minutes. SDK-internal waits behind another metadata initialization may outlast an individual caller's deadline.
+
+Collection uses deadline-bound, strongly consistent reads with the result cache disabled. Each query must end with a successful terminal dataset-completion frame and fit within a 64 MiB decompressed response; missing completion, late errors, cancellation, malformed trailing data, and invalid typed fields are errors, not partial bundles. Query filters and selected build IDs use serialized dynamic parameters, preserving Unicode (including non-BMP characters) without interpolating data into KQL.
+
+Go consumers can reuse `kusto.CompleteQuery` with an SDK client. SDK management/schema reads must additionally install `kusto.CompleteTransport` in the SDK HTTP client. This narrow integrity adapter bounds response bytes, checks whole-response JSON and terminal query status, and leaves frame decoding, typed values, and server errors to SDK v1.2.3. Authentication metadata and ingestion traffic are unchanged. Bare SDK `Query` is not a completeness guarantee.
+
+Replay saved inputs offline to inspect evidence or compare extraction changes:
+
+```bash
+hcpctl ci failure-patterns --input failures.json > replay-report.json
+```
+
+`--save-input` saves a private replay bundle and refuses to overwrite an existing file. Replay retains the saved selection and exact input occurrences.
+
+The JSON report uses schema version **1** and records the extractor version. It contains:
+
+- `summary`: input, finding, pattern-group, distinct affected-run, and per-source input counts.
+- `patterns`: groups by exact environment, source, and finding key, ranked by affected runs and inputs. Each group includes outcome counts, rule IDs, quality reasons, and zero-based `result_indexes` for evidence drilldown.
+- `results`: every original input occurrence with its complete ordered findings and evidence locations. Identical repeated occurrences remain separate.
+
+One input can contribute to several patterns, so pattern counts overlap. Inspect the referenced results when evaluating grouping or evidence selection; findings describe symptoms rather than confirmed root causes.
+
+**Saved inputs and reports contain raw evidence and may contain secrets. Store them securely and review them before sharing.**
+
+The extractor used here is shared with the [`ci-failure-patterns` controller](../tenant-quota/README.md#derived-ci-failure-patterns) of the tenant-quota collector, which stores the same findings for all failed CI results in Kusto. This CLI does not read or write those stored results: it collects raw facts, extracts locally, and saved bundles remain the frozen evidence source for replay and review.
+
 ## Example Usage
+
+### Snapshot Analysis with Claude Code
+
+`hcpctl snapshot analyze` supports `--provider claude-code` in addition to the
+existing `copilot` (default) and in-process `claude` providers. Install the Claude
+Code CLI on `PATH`. With the default `--claude-backend api`, authenticate the CLI,
+set `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, or supply
+`--anthropic-api-key-file`.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --provider claude-code \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --clusters-service /path/to/clusters-service
+```
+
+Both Claude providers support `--claude-backend vertex` with Google Application
+Default Credentials (ADC). Set `--vertex-project` and `--vertex-region`, or their
+environment fallbacks `GOOGLE_VERTEX_PROJECT_ID` and `GOOGLE_VERTEX_REGION`.
+The Claude Code provider translates these into the CLI's documented environment
+variables: `CLAUDE_CODE_USE_VERTEX=1`, `ANTHROPIC_VERTEX_PROJECT_ID`, and
+`CLOUD_ML_REGION`. It does not read the Anthropic API key file for Vertex or pass
+Google key material. See the [Claude Code Vertex setup guide](https://code.claude.com/docs/en/google-vertex-ai)
+for ADC setup and model availability.
+
+Backend selection overrides inherited CLI backend switches: `api` forces
+`CLAUDE_CODE_USE_VERTEX=0` and `CLAUDE_CODE_USE_BEDROCK=0`, while `vertex` forces
+Vertex on and Bedrock off. The SDK overlays these values onto the parent
+environment, preserving the ambient API key when no key file is supplied.
+Claude Code documents `0` as the off value for these switches in its
+[environment variable reference](https://code.claude.com/docs/en/env-vars#variables).
+
+Use `--model` to override `claude-sonnet-4-5-20250929`; the CLI SDK requires an
+explicit model. `--anthropic-model` applies only to the in-process `claude`
+provider. The existing `kusto_query` handler is available to
+Claude Code as the in-process MCP tool `mcp__hcpctl__kusto_query`.
+
+System prompts larger than 100 KiB keep the small identity/tone instructions in
+the CLI system prompt and send the complete domain instructions and reference
+material at the start of the first stdin query. If identity/tone themselves are
+too large, all instructions move to that first query under a small system
+directive. Nothing is truncated, and subsequent queries do not resend this
+content. This avoids Linux's per-argument `execve` size limit (`E2BIG`).
+
+This provider runs unattended with permission checks bypassed in the analysis
+workspace. It disables MCP discovery and SDK skills, passes empty settings
+sources, and requests exclusion of CLAUDE.md memory. This is **best-effort
+configuration isolation, not a sandbox**: managed instructions and explicit file
+reads (including CLAUDE.md or AGENTS.md) may still be possible. Run it only with
+trusted inputs and the filesystem permissions you intend it to have.
+
+The CLI's session persistence is disabled; hcpctl saves `conversation.json` and
+`usage.json` in the analysis output directory. Usage is based on cumulative result
+snapshots, with per-model tokens/cost where available; API request counts, cache
+TTLs, and service tiers are not available at the in-process provider's granularity.
+
+### Snapshot Analysis Reasoning Effort
+
+`--effort` (named after the equivalent Claude Code and Copilot CLI flag) sets
+the model's reasoning effort for every provider. When omitted, the model/backend default applies. Accepted values depend on the
+provider and are validated before the analysis starts:
+
+| Provider | Values | Forwarded as |
+| --- | --- | --- |
+| `copilot` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Copilot SDK `SessionConfig.ReasoningEffort` |
+| `claude-code` | `low`, `medium`, `high`, `xhigh`, `max` | Claude Code CLI `--effort` |
+| `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Messages API `output_config.effort` |
+
+Whether a level has an effect depends on the model; choose a model that
+supports reasoning effort. The Copilot runtime accepts any level without
+checking model support.
+
+```bash
+hcpctl snapshot analyze /path/to/snapshot --model gpt-6-luna --effort high \
+  --aro-hcp /path/to/ARO-HCP --hypershift /path/to/hypershift \
+  --clusters-service /path/to/clusters-service
+```
+
+Go callers set the same option on the provider configuration
+(`agent.AgentConfig`, `agent.ClaudeCodeConfig`, or `agent.ClaudeConfig`); invalid
+values are rejected by the provider constructors:
+
+```go
+client, err := agent.NewCopilotClient(&agent.AgentConfig{
+	Model:           "gpt-6-luna",
+	ReasoningEffort: agent.ReasoningEffortHigh,
+})
+```
 
 ### List Service Clusters
 
@@ -137,6 +265,41 @@ What is gathered?
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
 ```
+
+The base backend, frontend, kube-applier, and fleet log queries always use the ARM subscription and resource group scope. They do not filter on Clusters Service IDs, including when `--cluster-id` or `--cluster-name` is specified. The `--cluster-id` flag takes a Clusters Service ID, not an ARM resource ID.
+
+The `detailedInfraOrchestrationLogs` custom query includes Hypershift
+and ACM agent logs, identified by a `source` field. Must-gather executes this
+query in five-minute output windows to reduce the risk of exceeding Kusto's
+result-size limit, while discovering cluster IDs over the
+entire requested interval. The windows feed the same JSONL file and do not
+truncate the requested interval. An unusually large individual window can still
+exceed the service limit; such failures remain errors, not successful partial
+collections. Other detailed service queries retain their full-range aggregations.
+
+For query diagnostics, library callers can render the same orchestration template
+with `TemplateData.Summarize = true`:
+
+```go
+data := kusto.NewTemplateDataFromOptions(options)
+data.Summarize = true
+definition, err := factory.GetCustomQueryDefinition("detailedServiceLogs")
+// Handle err, then build the children and select detailedInfraOrchestrationLogs.
+queries, err := factory.Build(*definition, data)
+```
+
+Only the orchestration child's final output changes: it returns `rows`,
+`estimatedBytes`, `firstSeen`, and `lastSeen` grouped by `source`, using exactly
+the same discovery and filters as log collection. An empty arm has no summary
+row, so consumers must compare against both expected source names
+(`hypershift`, `acm-agent`). Byte estimates are not exact wire sizes.
+This is a library rendering option, not a CLI flag. The E2E presence verifier
+sets `GathererOptions.SummarizeOrchestrationLogs` to execute one full-range
+summary instead of downloading the orchestration payloads. It requires a positive
+`rows` count for every arm; an absent or zero-count arm fails validation. Other
+source checks are unchanged. Normal must-gather and the separate CLI smoke test
+still collect full logs in windows: a successful summary alone does not prove
+that the full logs can be collected.
 
 To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:
 

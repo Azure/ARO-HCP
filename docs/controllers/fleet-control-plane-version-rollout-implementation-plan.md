@@ -5,9 +5,10 @@ This plan maps the fleet rollout design originally authored on the
 identifies what already exists, what is net-new, and the concrete controllers,
 types, config, wiring, and tests required.
 
-> Status: the seven controllers, Cosmos storage, informers, and backend wiring
-> are implemented. They run unconditionally. Production policy is hardcoded;
-> risk filtering, environment configuration, and the Admin API pin setter remain follow-ups.
+> Status: the nine rollout controllers, Cosmos storage, informers, structured-profile
+> migration, backend wiring, and Admin API pin setter (PR #7162) are implemented. The rollout controllers
+> run unconditionally. Production policy is hardcoded; risk filtering and
+> environment configuration remain follow-ups.
 
 ## 1. Background: the pipeline before this change
 
@@ -73,12 +74,19 @@ type ControlPlaneVersionRollout struct {
 }
 
 type ControlPlaneVersionRolloutSpec struct {
+    // Canonical major.minor ID and channel group matching the resource name.
+    Version coreapi.VersionProfile `json:"version"`
     // BestExactVersion uses recency and the channel offset, subject to the SRE
     // minimum-version floor. Conditional-update risk filtering is a follow-up.
     BestExactVersion *semver.Version `json:"bestExactVersion,omitempty"`
 }
 
 type ControlPlaneVersionRolloutStatus struct {
+    // Unique referencing parent clusters, including deleting clusters.
+    // Nil means no inventory count has been observed and published.
+    // Zero means the last successfully published inventory found no references.
+    // Collection errors leave all prior status unchanged for queue retry.
+    ReferencingClusterCount *int64 `json:"referencingClusterCount,omitempty"`
     Conditions []metav1.Condition `json:"conditions,omitempty"`
     LastAssignmentTime *metav1.Time `json:"lastAssignmentTime,omitempty"`
     // keys are exact-version strings (semver.String()).
@@ -96,6 +104,16 @@ Wiring checklist (templated on `Stamp`, see the research notes):
 constants), `partition.go` (resource-id builders), `ProviderNamespacePartitionKeyDeriver`, `make deepcopy`, `fleetcosmosstorage` CRUD +
 `fleetcosmosstoragetesting` mock, validation, `fleetinformers` +
 `fleetlisters`.
+
+`Spec.Version` is populated on creation: `stable-4.21` has `ID: "4.21"` and
+`ChannelGroup: "stable"`. Create/update validation requires agreement with the
+name. Selection/assignment consumers parse channel names; retirement uses the
+profile as its target identity.
+
+Shared Cosmos conversion fills absent/zero legacy profiles from valid names
+before Get/List results reach callers or informer caches, without a storage write.
+Partial or mismatched profiles are left for validation to reject. Ordinary rollout
+replacements persist the normalized profile alongside their existing changes.
 
 ### 3.2 `ServiceProviderCluster.Spec.PinnedVersion`
 
@@ -115,11 +133,10 @@ type ServiceProviderClusterPinnedVersion struct {
 ```
 
 An unset pin is a value with nil `ExactVersion` and serializes as `{}`. This is
-intentional. Consuming and clearing pins is implemented; the Admin API setter is
-not yet available and remains a follow-up.
-
-Update the `// Written by:` field annotations (see CLAUDE.md cosmos-data-flow
-rule) and run `make deepcopy`.
+intentional. Consuming and clearing pins is implemented; the Admin API setter
+is implemented via the single-cluster `POST /controlplaneversionpin` and regional
+`POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin` endpoints (see
+`admin/server/handlers/hcp/controlplaneversionpin.go` and `fleetcontrolplaneversionpin.go`).
 
 ## 4. Rollout policy
 
@@ -142,18 +159,41 @@ type RolloutConfig struct {
 Production defaults are `CanaryPercentage=6`, `RollingPercentage=12`, one hour
 of readiness, and a two-hour upgrade timeout unless overridden for a minor.
 `GetZStreamOffset` selects one version behind for stable and zero for other graph
-channels. Nightly versions come from the experimental exact-version override;
-they neither seed rollouts nor query Cincinnati.
+channels. Nightly assignments come from the experimental exact-version override.
+Independent Cincinnati discovery seeds rollouts for allowed groups including
+`nightly`.
+
+The backend lifecycle floor, `coreapi.MinimumBackendVersion`, is hardcoded to `4.20`,
+comparing major/minor only. It bounds prospective Cincinnati seeding and permits
+retirement below the floor when the status collector reports zero referencing
+clusters. It is independent of admission version policy and the per-channel
+exact-version `MinimumVersions` policy governing best-version selection.
+Raising the lifecycle floor requires operationally draining
+the retired minor and its references, including coordinating new cluster requests
+and pins; retirement consumes cached status observations.
 
 ## 5. Controllers
 
-All seven run in the `backend` binary. Four are per-cluster (use
-`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); three are
-per-`ControlPlaneVersionRollout` (use a new fleet watching controller keyed by
-the rollout channel name, or `genericWatchingController[T]` on the rollout
-resource type + interval resync).
+All nine rollout controllers run in the `backend` binary. Four are per-cluster (use
+`controllerutils.NewClusterWatchingController` + `HCPClusterKey`); five are
+per-`ControlPlaneVersionRollout`, using the existing generic fleet watching
+controller keyed by channel name with informer resync. Cincinnati seeding also
+uses an external-discovery periodic path. Profile migration runs in a separate
+controller.
 
-Every controller follows the house pattern: a syncer struct holding listers +
+The rollout syncer interface requires `SyncOnce`. Its watching wrapper forwards
+an optional `CooldownChecker`, allowing profile migration to retain its 5m queue
+cooldown. The five rollout syncers rely on events and resync; progressive assignment
+enforces its persisted 60s batch cooldown inside `SyncOnce` so it also covers
+changed events and process restarts.
+
+The [cluster registry](../../backend/pkg/controllers/cluster/registration.go) assigns
+one worker each for `ControlPlaneVersionCincinnatiSeeding` and
+`ControlPlaneVersionRolloutRetirement`. The backend registry totals 117 launches
+(116 with `HasRealFPA=false`); the per-cluster seeder uses 20 workers.
+Both lifecycle controllers use registration-tracked cache sync under backend leader election.
+
+Existing selection/assignment controllers follow the house pattern: a syncer struct holding listers +
 DB clients (interfaces), a `New…Controller` constructor, and a `SyncOnce`
 implementing the read → `DeepCopy` → mutate → `equality.Semantic.DeepEqual`
 skip → `Replace` (treating `IsPreconditionFailedError` as a benign no-op) loop.
@@ -181,11 +221,29 @@ controller** — the plan reuses the existing path. Input
   do not depend on the canary state. It never downgrades or changes the minor.
 
 ### 5.3 Control Plane Version Status Collector (per-rollout)
-- Fires when any SPC `active_versions`/`desired_version` changes or `BestExactVersion` changes. Cluster deletion marks also enqueue recomputation.
-- Excludes clusters whose backing cluster is missing or marked for deletion.
-  Input-change notifications use immediate enqueue, which does not increment
-  retry metrics; timed rechecks keep using delayed enqueue.
-- **Output**: `rollout.Status.{ClusterCountByDesiredExactVersion, MismatchedClusterCountByDesiredExactVersion, FailedClusterCountByDesiredExactVersion, ClusterCountByAchievedExactVersion, SuccessfulClusterCountByAchievedExactVersion}`.
+- Watches rollouts and maps Cluster/SPC add, old-and-new update, and
+  delete/tombstone events to dependent channel keys through `collectRolloutReferences`.
+  All handlers use 5m resync, including unchanged input updates. Known dependencies
+  enqueue even when some references are unresolved; resync retries the mapping.
+  Input notifications use immediate enqueue without incrementing retry metrics.
+- **Reference output**: `rollout.Status.ReferencingClusterCount` counts the union of
+  unique parent clusters referencing `Spec.Version` through requested versions,
+  experimental exact overrides, all Cluster active versions, SPC desired and all
+  active versions, and `PinnedVersion.ExactVersion`, using the parent's channel
+  group. Deleting clusters remain references. Pin release uses the pinned minor's
+  rollout; `UntilExactVersion` is its release threshold.
+- The collector fetches the Cluster and SPC slices once per reconcile and uses
+  those same slices for reference collection and progress membership. Successful
+  collection publishes the reference count and progress maps together using
+  optimistic concurrency. Nil means no inventory count has been observed and
+  published; zero means the last successfully published inventory found no references.
+  Missing parent identity/channel information, malformed references, lister errors,
+  or progress-membership errors return immediately with all prior rollout status
+  unchanged, including the reference count and progress maps, for workqueue retry.
+- **Progress output**: `rollout.Status.{ClusterCountByDesiredExactVersion, MismatchedClusterCountByDesiredExactVersion, FailedClusterCountByDesiredExactVersion, ClusterCountByAchievedExactVersion, SuccessfulClusterCountByAchievedExactVersion}`.
+- Progress membership uses the parent's channel group and desired minor, falling
+  back to the oldest completed active minor. Missing or deleting backing clusters
+  are excluded from these maps.
 - **Sync** (pure fn `computeRolloutStatusCounts` over the list of SPCs in the channel's minor):
   - *Desired*: count by `Spec…DesiredVersion`.
   - *Achieved*: count the oldest completed active-version entry. Partial-only
@@ -222,9 +280,10 @@ controller** — the plan reuses the existing path. Input
 
 ### 5.6 Rollout Seeding (per-cluster)
 
-Creates a rollout for the customer's requested channel and, when pinned, the
-pinned minor's channel. Existing rollout contents are preserved. Nightly and
-deleting clusters are skipped.
+Creates a rollout with `Spec.Version` populated for the customer's requested
+channel and, when pinned, the pinned minor's channel. Best version and status
+start unset. Existing rollout contents are preserved. Nightly and deleting
+clusters are skipped.
 
 ### 5.7 Initial Normal Desired Version (per-cluster)
 
@@ -242,12 +301,87 @@ including pools still being deleted. Pins and experimental exact overrides are
 owned exclusively by forced assignment. Both initial and minor assignment retry missing rollout/best data
 after ten seconds and bypass progressive z-stream gates.
 
+### 5.9 Rollout Version Migration (per-rollout)
+
+The separate backend `CosmosRolloutVersionMigration` controller uses
+`NewControlPlaneVersionRolloutWatchingController`, five workers and a 5m
+resync/cooldown. It has no subscription dependency; the subscription-scoped
+`CosmosMigration` remains unchanged. It live-reads and replaces each rollout,
+including already-structured documents, to persist the normalized profile.
+ETag conflicts/precondition failures re-read and retry within three attempts per
+reconcile, preserving selection and status; not-found is a no-op. Only a
+successful replacement marks that key complete in memory for the process.
+
+An older writer can subsequently drop the unknown field. Read compatibility
+still works, but migration does not rewrite a completed key again in that
+process; an ordinary replacement or process restart can persist it again.
+
+### 5.10 Cincinnati Seeding (per-rollout)
+
+`ControlPlaneVersionCincinnatiSeeding` uses the generic rollout watcher with 5m
+resync. Shared add/update/delete handlers route events through resource-interest
+filtering and depth-limited key resolution. The delete handler unwraps
+`cache.DeletedFinalStateUnknown`, ignores unusable metadata/resource IDs, and
+enqueues accepted removals immediately as changed events for repair. Its `Run`
+waits for the tracked rollout cache, then runs external discovery with
+`wait.JitterUntilWithContext` (5-minute period, 0.1 jitter, sliding=true): immediately,
+then 5-5.5 minutes after each pass completes. Discovery enqueues channel keys;
+the generic worker reconciles. Cancellation stops the discovery loop, discovery
+failures wait for the next pass, and worker errors follow normal queue retry.
+
+The constructor receives `cincinnati.VersionProfileSource`, whose
+`VersionProfiles(context.Context)` method supplies discovery profiles. The root
+command constructs `cincinnati.NewGraphDataClient()` and injects it through the
+required `BackendOptions.VersionProfileSource`, `ControllerContext`, and the
+registration adapter. This application-boundary dependency lets tests supply
+deterministic discovery while production uses the archive client.
+
+The graph-data archive client has a one-minute deadline and validates bounded
+in-memory input before returning profiles. Unsupported upstream channel groups
+are skipped; allowed experimental groups, including nightly, are accepted.
+Discovered profiles at/above `coreapi.MinimumBackendVersion` are normalized,
+deduplicated and enqueued. `SyncOnce` rechecks the floor before the cached rollout
+lister's `Get`, creating the target only if absent with `Spec.Version` populated and
+best/status unset. It preserves existing documents and treats create conflicts as
+successful reconciliation. Discovery proactively seeds channels for future clusters.
+
+### 5.11 Rollout Retirement (per-rollout)
+
+`ControlPlaneVersionRolloutRetirement` uses the generic target-rollout watcher
+with 5m resync. Startup waits for the tracked rollout cache.
+
+Each reconcile reads the cached target's `Spec.Version` and
+`Status.ReferencingClusterCount`. A populated profile below
+`coreapi.MinimumBackendVersion` and an explicit zero count permit conditional
+soft deletion from Fleet storage via `DeleteWithETag`, passing the cached rollout's
+`CosmosETag` used to evaluate eligibility. Nil or nonzero counts retain the target;
+an empty profile waits for another notification. An already-absent or already
+soft-deleted target completes reconciliation successfully.
+Supported zero-member rollouts and their state are retained. Reference inventory
+and dependency watches belong to the status collector (§5.3).
+
+Fleet rollouts use the standard typed `ValidatingResourceCRUD`. Both shared typed
+CRUD interfaces (`ResourceCRUD` and `ValidatingResourceCRUD`) embed
+`ConditionalDeleter`, exposing `DeleteWithETag` to callers. Validating wrappers
+forward the resource name and expected ETag; layered wrappers run the operation
+through their configured CRUD layer. Shared mock CRUD performs the ETag check,
+soft-delete write, and change-feed recording under the store mutex, giving core,
+Fleet, and kube-applier stores the same atomic conditional-delete behavior.
+
+Storage compares the supplied ETag with the live document's ETag before setting
+soft-delete fields, then uses that same supplied ETag as `IfMatchEtag` on the
+`ReplaceItem` write. A mismatch at either step yields a precondition failure;
+retirement treats it as a benign no-op and reevaluates on a later rollout watch
+event or resync. This protects newer persisted rollout state, including an updated
+reference count, from deletion based on an older cached version. It is not a
+transactional check of Cluster/SPC references: retirement consumes asynchronously
+published status, and collection errors preserve the last successfully published
+status (§5.3). Operational coordination of new references is still required when
+raising the lifecycle floor.
+
 ## 6. Ownership and cutover
 
-This implementation deliberately replaces `ControlPlaneDesiredVersion`; all
-seven rollout controllers run unconditionally. The earlier feature-flag proposal
-was removed during review. Restoring it would reintroduce the removed owner and
-is not part of this change.
+All nine rollout controllers run unconditionally.
 
 `OperationClusterUpdate` observes the desired version resolved on the SPC by the
 current assignment controllers. It reports incompatible forced overrides directly,
@@ -267,6 +401,12 @@ bounds unresolved version waits, and no longer reads or creates a legacy
   is made deterministic in tests via an injectable selector (interface, not a
   closure).
 - No `FRONTEND_SIMULATION_TESTING`; unit tests use fakes only.
+- Backend launch tests inject a `VersionProfileSource`. The metrics launch test
+  uses an empty source to exercise startup and metric collection while keeping
+  discovery free of external DNS/HTTP requests and prospective rollout creation.
+- Shared watcher tests cover direct deletes and tombstones, resource-interest
+  filtering, and parent-depth limits. CRUD tests cover conditional-delete forwarding
+  through validating/layered wrappers and mock-store ETag behavior.
 
 ## 8. Persisted transition times
 
@@ -286,22 +426,47 @@ Implemented:
 
 - Fleet API, validation of supported channel groups and major/minor names,
   Cosmos CRUD, partition-scoped listing, informers, listers, and mocks.
-- Seven controllers, backend registration under leader election, and unit tests.
+- Nine rollout controllers, including Cincinnati seeding and retirement,
+  backend registration under leader election, and unit tests.
+- Unique-parent reference counts published by the status collector and consumed
+  by rollout retirement, with nil representing a count not yet observed and
+  published. Collection errors preserve all prior rollout status for queue retry.
+- Conditional rollout retirement using the cached eligibility ETag for the live
+  ETag comparison and soft-delete replacement; precondition failures wait for
+  watch/resync reevaluation without deleting newer persisted rollout state.
+- Structured rollout version profiles, shared read compatibility, and the separate
+  `CosmosRolloutVersionMigration` controller for persisted backfill.
 - Shared Cincinnati selection with the existing per-channel offset policy.
 - Persisted transition ages and assignment cooldown reservations.
 - Forced-version precedence, pinned-channel seeding, and completed-only progress.
 - Cosmos field ownership and data-flow documentation.
+- Admin API `POST /controlplaneversionpin` setter/clearer. Setting a pin in the
+  cluster's release line can hold or advance the latest observed version.
+  Rollback below that version requires the immediately previous distinct
+  `Completed` entry in
+  `ServiceProviderCluster.Status.ControlPlaneVersionHistory`, mirrored from
+  `HostedCluster.Status.ControlPlaneVersion.History`.
+  Without mirrored history, the pin is accepted because its direction cannot
+  be classified from observation. Partial attempts are not rollback targets.
+  The control-plane history field
+  is present in 4.22 and was backported to
+  [release-4.20](https://github.com/openshift/hypershift/pull/9055) and
+  [release-4.21](https://github.com/openshift/hypershift/pull/9054); older
+  deployed operator builds may lack it. Guest version history is not a
+  substitute for rollback validation. The handler checks available observed
+  history rather than enforcing a minimum hosted-cluster version.
+
+- Regional Admin API `POST /admin/v1/versionrollouts/{channel}/controlplaneversionpin`
+  sets/clears existing per-cluster pins using rollout channel membership. All pin
+  changes are validated before writes; identical pins are no-ops. Independent
+  ETag writes return counts and per-cluster failures on partial success. This
+  endpoint creates no persistent policy for future clusters.
 
 Follow-ups:
 
 - Filter platform/control-plane risks from Cincinnati conditional updates. The
   current graph helper selects by recency, so selected versions are not
   guaranteed to be free of conditional-update risks.
-- Validate rollback targets against previously installed versions in the admin
-  API. This protection is deferred; SRE pins remain immediate and bypass
-  progressive rollout gates.
-- Admin API contract for setting and releasing SRE pins. The consumer exists,
-  but this change does not provide an operational pin-setting endpoint.
 - Environment-specific configuration for rollout policy and per-channel minimum
   versions. Production values currently come from `NewDefaultRolloutConfig`.
   Experimental exact-version installs intentionally remain allowed below the

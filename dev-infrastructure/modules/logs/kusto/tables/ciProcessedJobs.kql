@@ -1,0 +1,17 @@
+// CI runs whose artifacts have been processed by the tenant-quota collector.
+// Deploy this schema and mapping before the collector. Readers use distinct
+// buildId values to exclude processed runs from ciDiscoveredJobs.
+.create-merge table ciProcessedJobs (
+    buildId: string
+)
+with (
+    docstring = "Processed CI build IDs, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciProcessedJobs ingestion json mapping "ciProcessedJobsMapping"
+```
+[
+  {"column":"buildId","path":"$['buildId']","datatype":"string"}
+]
+```
