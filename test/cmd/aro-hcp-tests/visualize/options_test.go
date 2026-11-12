@@ -197,10 +197,15 @@ const labels = ['alpha', 'beta'];
 const offsets = [{value:0},{value:50000}];
 const durations = [{value:7000},{value:12000}];
 const state = {yAxis:[{data:labels}],series:[{data:offsets},{data:durations}],dataZoom:[{start:0,end:100},{start:0,end:100}]};
+const fakeContent = {style:{maxHeight:'900px'}, querySelectorAll:()=>[]};
+const fakeTooltip = {
+  style:{top:'400px'}, textContent:'Total duration: 1s', querySelectorAll:()=>[fakeContent],
+  getBoundingClientRect:()=>({top:parseFloat(fakeTooltip.style.top), bottom:parseFloat(fakeTooltip.style.top)+parseFloat(fakeContent.style.maxHeight)})
+};
 const chart = {
   updates: [],
   height: 600,
-  dom: {style:{height:'60vh'},getBoundingClientRect:()=>({top:435}), contains: target => Boolean(target && target.inside)},
+  dom: {style:{height:'60vh'},getBoundingClientRect:()=>({top:0,bottom:600,height:600}), contains: target => Boolean(target && target.inside), querySelectorAll: () => [fakeTooltip]},
   getOption: () => state,
   getZr: () => ({on: (event, handler) => listeners['zr:' + event] = handler}),
   getModel: () => ({getComponent: () => ({coordinateSystem: {getRect: () => ({x:0, y:0, width:100, height:100})}})}),
@@ -224,7 +229,7 @@ const chart = {
 		listeners['chart:datazoom']({batch:[action]});
 	}
 };
-require('node:vm').runInNewContext(` + string(sorting) + `, {mockChart:chart, document, window, Math, Number, echarts:{graphic:{clipRectByRect:shape=>shape}}});
+require('node:vm').runInNewContext(` + string(sorting) + `, {mockChart:chart, document, window, Math, Number, getComputedStyle: () => ({position:'absolute'}), echarts:{graphic:{clipRectByRect:shape=>shape}}});
 containerTop = 435;
 windowListeners.load();
 assert.equal(chart.updates[chart.updates.length - 1].tooltip.triggerOn, 'click', 'the timeline detail must be pinned by a click, not by hover');
@@ -234,6 +239,10 @@ const hideTips = () => (chart.actions || []).filter(action => action.type === 'h
 listeners['zr:click']({offsetX:50, offsetY:25});
 assert.equal(state.tooltip.alwaysShowContent, true, 'an in-plot click pins the detail');
 assert.deepEqual(showTips(), [[50,25]], 'the clicked position is the pinned one');
+listeners['document:toggle']({});
+assert.deepEqual(showTips(), [[50,25]], 'expanding a stage must not re-render the pinned detail');
+assert.equal(fakeContent.style.maxHeight, '568px', 'a chart resize refreshes the panel height budget');
+assert.equal(fakeTooltip.style.top, '32px', 'a tall pinned panel shifts up to stay inside the chart');
 listeners['zr:click']({offsetX:50, offsetY:75});
 assert.deepEqual(showTips(), [[50,25],[50,75]], 'another row replaces the pinned detail');
 assert.equal(state.tooltip.alwaysShowContent, true, 'the replacement stays pinned');
@@ -247,6 +256,9 @@ assert.equal(state.tooltip.alwaysShowContent, true, 'an in-plot click pins again
 listeners['zr:click']({offsetX:150, offsetY:150});
 assert.equal(state.tooltip.alwaysShowContent, false, 'an in-chart click outside the plot dismisses the pin');
 assert.equal(hideTips(), 2);
+const pinnedShowTips = showTips().length;
+listeners['document:toggle']({});
+assert.equal(showTips().length, pinnedShowTips, 'a section toggle after dismissal does not re-show the detail');
 const sortedLabels = () => state.yAxis[0].data;
 assert.deepEqual(JSON.parse(JSON.stringify(sortedLabels())), ['beta','alpha']);
 assert.ok(chart.height >= 640);
@@ -507,6 +519,10 @@ require('node:vm').runInNewContext(` + string(encodedScript) + `, {
 	window:{innerHeight:1000,scrollY:0,addEventListener:()=>{}}
 });
 const content = state.tooltip.formatter([{seriesId:'timing-tests',dataIndex:0}]);
+assert.equal(content.style.maxHeight, (chart.height - 32) + 'px', 'the detail uses the chart height, not a fixed cap');
+assert.equal(content.style.scrollbarWidth, 'thin', 'overflow must show a visible scrollbar');
+assert.match(String(content.style.scrollbarColor), /transparent/);
+assert.equal(content.children[content.children.length - 1].textContent, 'scroll for more', 'the scroll cue must be the last child so it stays sticky while scrolling');
 const descendants = node => [node, ...node.children.flatMap(descendants)];
 const nodes = descendants(content);
 assert.ok(content.textContent.includes('<img src=x onerror=alert(1)> & "quoted"'));
@@ -594,14 +610,16 @@ func TestTimingChartSortingScriptAutoHeightIframe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"same-origin", "cross-origin"} {
+	for _, scenario := range []string{"same-origin", "cross-origin", "narrow-host"} {
 		t.Run(scenario, func(t *testing.T) {
 			encodedScenario, err := json.Marshal(scenario)
 			if err != nil {
 				t.Fatal(err)
 			}
 			script := `const assert = require('node:assert/strict');
-const sameOrigin = ` + string(encodedScenario) + ` === 'same-origin';
+const scenario = ` + string(encodedScenario) + `;
+const sameOrigin = scenario !== 'cross-origin';
+const narrow = scenario === 'narrow-host';
 const groups = ` + string(encodedGroups) + `;
 const listeners = {};
 const childListeners = {};
@@ -632,7 +650,7 @@ const chart = {
 		(listeners['chart:datazoom'] || []).forEach(handler=>handler({batch:[action]}));
 	}
 };
-const host = {innerHeight:1000, addEventListener:addListener(hostListeners)};
+const host = {innerHeight:1000, innerWidth:narrow ? 390 : 1200, addEventListener:addListener(hostListeners)};
 const inaccessibleHost = {
 	get innerHeight() {throw Error('cross-origin top.innerHeight');},
 	addEventListener:()=>{throw Error('cross-origin top.addEventListener');}
@@ -665,6 +683,7 @@ const assertStableOverview = expected => {
 };
 const initialOverviewHeight = chart.height;
 assert.ok(initialOverviewHeight >= 640);
+if (narrow) assert.equal(initialOverviewHeight, 1000, 'narrow viewports use the full viewport height');
 assertStableOverview(initialOverviewHeight);
 if (sameOrigin) {
 	host.innerHeight = 1200;
