@@ -27,21 +27,12 @@ spec:
   # first check what the affected updates changed from the Backend logs, then
   # triage the matching journey.
   #
-  # Coverage boundaries — this file deliberately contains ONLY error alerts:
-  #   - Stuck (non-terminal) update operations:
-  #     BackendAsyncOperationClusterUpdateStuck in
-  #     backend/alerts/backend-async-operations-prometheusRule.yaml, on the same
-  #     operation metrics. It fires only on phase=~"accepted|updating" and so is
-  #     disjoint from the terminal-"failed" condition alerted on here. Updates
-  #     that exceed their completion deadline (90 minutes by default) are failed
-  #     by the Backend and therefore counted here.
-  #   - Controller saturation (queue depth, retry hot loop):
-  #     BackendControllerQueueDepthHigh in backend/alerts/backend-prometheusRule.yaml
-  #     and BackendControllerRetryHotLoop in
-  #     backend/alerts/backend-retryhotloop-prometheusRule.yaml. Both are
-  #     unfiltered across controllers in namespace "aro-hcp" and therefore
-  #     already cover OperationClusterUpdate at the same thresholds.
-  #   Duplicating either here would double-page on a single condition.
+  # Scope — this file contains only error (terminal "failed") alerts. Updates
+  # that exceed their completion deadline (90 minutes by default) are failed by
+  # the Backend and therefore counted here. Stuck (non-terminal) update
+  # operations and OperationClusterUpdate controller saturation are not
+  # alerted on by this SLO; the backend alerts that watch those conditions
+  # deploy to the dev lane only, so they are not SRE coverage.
   #
   # Windowed burn-rate alerting, following the cluster deletion SLO.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
