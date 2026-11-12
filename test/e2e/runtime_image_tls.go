@@ -48,6 +48,11 @@ const (
 	// LRO. The observed baseline is minutes; this leaves headroom for a slow
 	// control plane without hiding a real failure.
 	runtimeImageTLSAdminConfigTimeout = 10 * time.Minute
+	// runtimeImageTLSClusterVersionTimeout bounds the wait for
+	// ClusterVersion.status.desired to report the installed version, which
+	// the node pool version is derived from. Same magnitude as the admin
+	// credential LRO: both wait on the freshly installed control plane.
+	runtimeImageTLSClusterVersionTimeout = 10 * time.Minute
 	// runtimeImageTLSNodeReadyTimeout bounds the wait for the single-node node
 	// pool to become ready and schedulable so the check pod can be placed.
 	runtimeImageTLSNodeReadyTimeout = 15 * time.Minute
@@ -204,7 +209,7 @@ var _ = Describe("ARO-HCP", func() {
 				}
 				nodePoolVersion = clusterVersion.Status.Desired.Version
 				return nil
-			}).WithContext(ctx).WithTimeout(runtimeImageTLSAdminConfigTimeout).WithPolling(5*time.Second).Should(Succeed(),
+			}).WithContext(ctx).WithTimeout(runtimeImageTLSClusterVersionTimeout).WithPolling(5*time.Second).Should(Succeed(),
 				"failed to retrieve ClusterVersion desired version")
 
 			By("creating a one-node node pool for the check pod")
