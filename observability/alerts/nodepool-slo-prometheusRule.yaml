@@ -166,64 +166,64 @@ spec:
   # ========================================
   # Node Pool SLO Alerts: Windowed Errors (burn-rate, volume-aware)
   # ========================================
-  # Read the windowed recording rules
-  # (errors:backend_nodepool_operation:{failed,total,error_rate}_{1h,6h,3d}), so
-  # each tier evaluates a real event window instead of the trailing 7-day gauge
-  # ratio. Stateless, no new metric, no backend change. Severities mirror the
-  # existing node pool tiers (non-paging "info" per approver request) and are
-  # owner-tunable; volume floors mirror cluster-provision and should be tuned to
-  # real node pool traffic. The records carry operation_type, so each tier fires
-  # per verb (create, update, delete) and gets its own IcM via correlationId.
+  # Read the unified backend operation records
+  # (errors:backend_resource_operation:{failed,total,error_rate}_{1h,6h,3d})
+  # filtered to node pools. The records carry operation_type, so each tier
+  # fires per verb (create, update, delete) and gets its own IcM via
+  # correlationId.
+  #
+  # Node pool operations are long running, so no tier uses a window shorter
+  # than 1h. Fast burn relies on a 1h window plus a failure-count floor
+  # instead of a short confirmation window; medium burn and the degradation
+  # precursor use 6h confirmed by 1h; slow burn uses 3d. Severities are
+  # non-paging per approver request and owner-tunable.
   - name: arohcp_nodepool_slo_windowed_error_alerts
     labels:
       component: slo
     rules:
     # Fast Burn. 14.4x burn: >72% failures over 1h, >=3 failures.
-    - alert: userJourneyNodePoolErrors1h5m
+    - alert: userJourneyNodePoolErrors1h
       expr: |
-        errors:backend_nodepool_operation:failed_1h >= 3
+        errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 3
         and
-        errors:backend_nodepool_operation:error_rate_1h > 0.72
-        and
-        errors:backend_nodepool_operation:error_rate_5m > 0.72
+        errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.72
       for: 5m
       labels:
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
-        short_window: 5m
       annotations:
-        correlationId: "userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        correlationId: "userJourneyNodePoolErrors1h/{{ $labels.cluster }}/{{ $labels.operation_type }}"
         summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # Medium Burn. 6x burn: >30% failures over 6h, >=5 completions.
-    - alert: userJourneyNodePoolErrors6h30m
+    # Medium Burn. 6x burn: >30% failures over 6h confirmed over 1h, >=5 completions.
+    - alert: userJourneyNodePoolErrors6h1h
       expr: |
-        errors:backend_nodepool_operation:total_6h >= 5
+        errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 5
         and
-        errors:backend_nodepool_operation:error_rate_6h > 0.30
+        errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.30
         and
-        errors:backend_nodepool_operation:error_rate_30m > 0.30
+        errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.30
       for: 30m
       labels:
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       annotations:
-        correlationId: "userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}"
+        correlationId: "userJourneyNodePoolErrors6h1h/{{ $labels.cluster }}/{{ $labels.operation_type }}"
         summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Slow Burn / Budget. 1x burn: >5% failures over 3d, >=10 completions, >=2 failures.
     - alert: userJourneyNodePoolErrors3d
       expr: |
-        errors:backend_nodepool_operation:total_3d >= 10
+        errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 10
         and
-        errors:backend_nodepool_operation:failed_3d >= 2
+        errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 2
         and
-        errors:backend_nodepool_operation:error_rate_3d > 0.05
+        errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.05
       for: 6h
       labels:
         severity: "4"
@@ -234,22 +234,22 @@ spec:
         summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)"
         description: "More than 5% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # Early Warning / Degradation. Precursor: >15% failures over 6h before the burn-rate alerts fire.
+    # Early Warning / Degradation. Precursor: >15% failures over 6h confirmed over 1h.
     - alert: userJourneyNodePoolErrorsDegradation
       expr: |
-        errors:backend_nodepool_operation:total_6h >= 5
+        errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 5
         and
-        errors:backend_nodepool_operation:failed_6h >= 2
+        errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 2
         and
-        errors:backend_nodepool_operation:error_rate_6h > 0.15
+        errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.15
         and
-        errors:backend_nodepool_operation:error_rate_30m > 0.15
+        errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.15
       for: 30m
       labels:
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       annotations:
         correlationId: "userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}/{{ $labels.operation_type }}"
         summary: "{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h"

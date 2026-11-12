@@ -666,24 +666,23 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'userJourneyNodePoolErrors1h5m'
+        alert: 'userJourneyNodePoolErrors1h'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '1h'
           severity: '4'
-          short_window: '5m'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          correlationId: 'userJourneyNodePoolErrors1h/{{ $labels.cluster }}/{{ $labels.operation_type }}'
           description: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           info: 'More than 72% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
           title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operations failing fast (>72% of recent operations)'
         }
-        expression: 'errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72'
+        expression: 'errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -697,24 +696,24 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'userJourneyNodePoolErrors6h30m'
+        alert: 'userJourneyNodePoolErrors6h1h'
         enabled: true
         labels: {
           component: 'slo'
           long_window: '6h'
           severity: '4'
-          short_window: '30m'
+          short_window: '1h'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}/{{ $labels.operation_type }}'
+          correlationId: 'userJourneyNodePoolErrors6h1h/{{ $labels.cluster }}/{{ $labels.operation_type }}'
           description: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           info: 'More than 30% of completed node pool {{ $labels.operation_type }} operations on {{ $labels.cluster }} failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
           title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error rate elevated (>30% over 6h)'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3'
+        expression: 'errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -744,7 +743,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
           title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation error budget burning (>5% over 3d)'
         }
-        expression: 'errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05'
+        expression: 'errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -764,7 +763,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           component: 'slo'
           long_window: '6h'
           severity: '4'
-          short_window: '30m'
+          short_window: '1h'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -775,7 +774,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           summary: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
           title: '{{ $labels.cluster }}: Node Pool {{ $labels.operation_type }} operation failure rate exceeds 15% over 6h'
         }
-        expression: 'errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15'
+        expression: 'errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

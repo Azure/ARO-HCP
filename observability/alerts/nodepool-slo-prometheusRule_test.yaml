@@ -1,6 +1,6 @@
 rule_files:
 - nodepool-slo-prometheusRule.yaml
-- nodepool-slo-recordingRule.yaml
+- backend-operation-slo-recordingRule.yaml
 evaluation_interval: 1m
 tests:
 # ========================================
@@ -394,26 +394,26 @@ tests:
     values: "_x85 5100+60x115"
   alert_rule_test:
   - eval_time: 95m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolErrors1h5m
+        alertname: userJourneyNodePoolErrors1h
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
-        short_window: 5m
       exp_annotations:
-        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/update"
+        correlationId: "userJourneyNodePoolErrors1h/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed node pool update operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # Per-verb split: failed creates and succeeded updates complete in pairs at 86, 88, 90 and 92m,
 # each keeping its own fixed completion time. Pooled, the 1h ratio would be 4/8 = 0.5 (< 0.72)
 # and nothing fires. Per operation_type the create series is 4/4 = 1.0, failed_1h reaches 3 at
-# 90m and the 5m window stays non-empty until 97m, so only the create alert fires by 96m. By 170m
+# 90m so only the create alert fires by 96m. By 170m
 # the failures are older than 1h and it resolves; the 6h and 3d completion floors are unmet.
 - interval: 1m
   input_series:
@@ -451,30 +451,30 @@ tests:
     values: "_x92 5520x108"
   alert_rule_test:
   - eval_time: 96m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolErrors1h5m
+        alertname: userJourneyNodePoolErrors1h
         cluster: mgmt-1
         operation_type: create
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
-        short_window: 5m
       exp_annotations:
-        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/create"
+        correlationId: "userJourneyNodePoolErrors1h/mgmt-1/create"
         summary: "mgmt-1: Node Pool create operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed node pool create operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 170m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
   - eval_time: 170m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
   - eval_time: 170m
     alertname: userJourneyNodePoolErrors3d
-# Simultaneous burst: 4 failed creates all complete at 85m with fixed completion times. They leave
-# the 5m short window at 90m, before for: 5m is satisfied, so the fast-burn alert never fires.
+# Simultaneous burst: 4 failed creates all complete at 85m with fixed completion times. There is
+# no short window, so the alert is pending at 89m and fires at 95m once for: 5m is satisfied.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", subscription_id="sub-1", resource_id="/npb1", phase="failed"}'
@@ -495,9 +495,24 @@ tests:
     values: "_x85 5100x115"
   alert_rule_test:
   - eval_time: 89m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
   - eval_time: 95m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyNodePoolErrors1h
+        cluster: mgmt-1
+        operation_type: create
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
+        component: slo
+        severity: "4"
+        slo: nodepool-errors
+        long_window: 1h
+      exp_annotations:
+        correlationId: "userJourneyNodePoolErrors1h/mgmt-1/create"
+        summary: "mgmt-1: Node Pool create operations failing fast (>72% of recent operations)"
+        description: "More than 72% of completed node pool create operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # Volume guard: a single recent failed node pool op (ratio 100% but one failure)
 # must NOT fire, because failed_1h < 3 and the 6h/3d completion floors are unmet.
 - interval: 1m
@@ -508,9 +523,9 @@ tests:
     values: "_x85 5100x115"
   alert_rule_test:
   - eval_time: 95m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
   - eval_time: 95m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
   - eval_time: 95m
     alertname: userJourneyNodePoolErrors3d
 # Medium burn (6h) positive: 3 failed + 2 succeeded node pool ops reach terminal ~2h
@@ -541,43 +556,44 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w6s2", phase="succeeded"}'
     values: "_x40 2400+60x101"
   promql_expr_test:
-  - expr: errors:backend_nodepool_operation:failed_6h
+  - expr: errors:backend_resource_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:failed_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 3
-  - expr: errors:backend_nodepool_operation:total_6h
+  - expr: errors:backend_resource_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:total_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 5
-  - expr: errors:backend_nodepool_operation:error_rate_6h
+  - expr: errors:backend_resource_operation:error_rate_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:error_rate_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 0.6
   alert_rule_test:
   - eval_time: 60m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
   - eval_time: 140m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolErrors6h30m
+        alertname: userJourneyNodePoolErrors6h1h
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       exp_annotations:
-        correlationId: "userJourneyNodePoolErrors6h30m/mgmt-1/update"
+        correlationId: "userJourneyNodePoolErrors6h1h/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 140m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
 # Slow burn (3d) positive: 2 failed + 8 succeeded node pool ops complete inside the 3d
 # window (ltt at t=0). total_3d = 10 (>= 10) and error_rate_3d = 0.2 (> 0.05 but
 # < 0.30). The alert holds for 6h, so it is still pending at 300m and firing by
@@ -626,20 +642,20 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/w3s8", phase="succeeded"}'
     values: "0x366"
   promql_expr_test:
-  - expr: errors:backend_nodepool_operation:failed_3d
+  - expr: errors:backend_resource_operation:failed_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 2
-  - expr: errors:backend_nodepool_operation:total_3d
+  - expr: errors:backend_resource_operation:total_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:total_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 10
-  - expr: errors:backend_nodepool_operation:error_rate_3d
+  - expr: errors:backend_resource_operation:error_rate_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:error_rate_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 0.2
   alert_rule_test:
   - eval_time: 300m
@@ -651,6 +667,7 @@ tests:
         alertname: userJourneyNodePoolErrors3d
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
@@ -661,9 +678,9 @@ tests:
         description: "More than 5% of completed node pool update operations on mgmt-1 failed over the last 3 days (at least 10 completions and 2 failures), a 1x burn that exhausts the 95% SLO error budget over the window."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   - eval_time: 365m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
   - eval_time: 365m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
 # Slow burn (3d) negative: 1 failed + 9 succeeded terminals inside the 3d window
 # (ltt at t=0). total_3d = 10 (>= 10) and error_rate_3d = 0.1 (> 0.05), but
 # failed_3d = 1 (< 2), so the added failed-count floor keeps a single failure
@@ -711,20 +728,20 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/npns9", phase="succeeded"}'
     values: "0x366"
   promql_expr_test:
-  - expr: errors:backend_nodepool_operation:failed_3d
+  - expr: errors:backend_resource_operation:failed_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 1
-  - expr: errors:backend_nodepool_operation:total_3d
+  - expr: errors:backend_resource_operation:total_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:total_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 10
-  - expr: errors:backend_nodepool_operation:error_rate_3d
+  - expr: errors:backend_resource_operation:error_rate_3d
     eval_time: 365m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_3d{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:error_rate_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 0.1
   alert_rule_test:
   - eval_time: 365m
@@ -734,7 +751,7 @@ tests:
 # (>= 5), failed_6h = 2 (meets the 2-failure floor) and error_rate_6h = 0.25, which is
 # above the 15% degradation threshold but below the 30% medium-burn threshold, so only
 # the degradation tier fires. The alert holds for 30m, so it is still pending at 60m and
-# firing by 140m, while the 6h30m tier stays silent because the rate never crosses 30%.
+# firing by 140m, while the 6h1h tier stays silent because the rate never crosses 30%.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgf1", phase="failed"}'
@@ -770,26 +787,26 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdgs6", phase="succeeded"}'
     values: "_x40 2400+60x101"
   promql_expr_test:
-  - expr: errors:backend_nodepool_operation:failed_6h
+  - expr: errors:backend_resource_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:failed_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 2
-  - expr: errors:backend_nodepool_operation:total_6h
+  - expr: errors:backend_resource_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:total_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 8
-  - expr: errors:backend_nodepool_operation:error_rate_6h
+  - expr: errors:backend_resource_operation:error_rate_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:error_rate_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:error_rate_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 0.25
   alert_rule_test:
   - eval_time: 60m
     alertname: userJourneyNodePoolErrorsDegradation
   - eval_time: 140m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
   - eval_time: 140m
     alertname: userJourneyNodePoolErrorsDegradation
     exp_alerts:
@@ -797,11 +814,12 @@ tests:
         alertname: userJourneyNodePoolErrorsDegradation
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       exp_annotations:
         correlationId: "userJourneyNodePoolErrorsDegradation/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operation failure rate exceeds 15% over 6h"
@@ -834,15 +852,15 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/wdns4", phase="succeeded"}'
     values: "_x40 2400x101"
   promql_expr_test:
-  - expr: errors:backend_nodepool_operation:failed_6h
+  - expr: errors:backend_resource_operation:failed_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:failed_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:failed_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 1
-  - expr: errors:backend_nodepool_operation:total_6h
+  - expr: errors:backend_resource_operation:total_6h
     eval_time: 140m
     exp_samples:
-    - labels: 'errors:backend_nodepool_operation:total_6h{cluster="mgmt-1", operation_type="update"}'
+    - labels: 'errors:backend_resource_operation:total_6h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}'
       value: 5
   alert_rule_test:
   - eval_time: 140m
@@ -874,61 +892,61 @@ tests:
   - eval_time: 15m
     alertname: userJourneyNodePoolSaturationQueueDepth
 # ========================================
-# Recovery: Fast burn (1h5m) — failures age out of short window → alert resolves
+# Recovery: Fast burn (1h): failures age out of the 1h window and the alert resolves
 # ========================================
 # 4 failed + 1 succeeded at t=85m. LTT increments for 16 samples (t=85-100m),
-# keeping ops fresh in the 5m window. Then LTT freezes at 6060. By t=106m,
-# time()-ltt=360 > 300 so ops fall out of the 5m short window → alert resolves.
+# then freezes at 6060. By t=162m, time()-ltt > 3600 so ops fall out of the
+# 1h window and the alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv1", phase="failed"}'
-    values: "_x85 1x75"
+    values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv1", phase="failed"}'
-    values: "_x85 5100+60x16 6060x59"
+    values: "_x85 5100+60x16 6060x99"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv2", phase="failed"}'
-    values: "_x85 1x75"
+    values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv2", phase="failed"}'
-    values: "_x85 5100+60x16 6060x59"
+    values: "_x85 5100+60x16 6060x99"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv3", phase="failed"}'
-    values: "_x85 1x75"
+    values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv3", phase="failed"}'
-    values: "_x85 5100+60x16 6060x59"
+    values: "_x85 5100+60x16 6060x99"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv4", phase="failed"}'
-    values: "_x85 1x75"
+    values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv4", phase="failed"}'
-    values: "_x85 5100+60x16 6060x59"
+    values: "_x85 5100+60x16 6060x99"
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcvs1", phase="succeeded"}'
-    values: "_x85 1x75"
+    values: "_x85 1x115"
   - series: 'backend_resource_operation_last_transition_time_seconds{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcvs1", phase="succeeded"}'
-    values: "_x85 5100+60x16 6060x59"
+    values: "_x85 5100+60x16 6060x99"
   alert_rule_test:
   # Alert fires at 95m (burst at 85m, for: 5m satisfied)
   - eval_time: 95m
-    alertname: userJourneyNodePoolErrors1h5m
+    alertname: userJourneyNodePoolErrors1h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolErrors1h5m
+        alertname: userJourneyNodePoolErrors1h
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 1h
-        short_window: 5m
       exp_annotations:
-        correlationId: "userJourneyNodePoolErrors1h5m/mgmt-1/update"
+        correlationId: "userJourneyNodePoolErrors1h/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operations failing fast (>72% of recent operations)"
         description: "More than 72% of completed node pool update operations on mgmt-1 failed over the last hour with at least 3 failures, a 14.4x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-  # At 115m, failures have aged out of the 5m short window → alert resolves
-  - eval_time: 115m
-    alertname: userJourneyNodePoolErrors1h5m
+  # At 170m, failures have aged out of the 1h window, so the alert resolves
+  - eval_time: 170m
+    alertname: userJourneyNodePoolErrors1h
 # ========================================
-# Recovery: Medium burn (6h30m) — failures age out of short window → alert resolves
+# Recovery: Medium burn (6h1h): failures age out of the 1h short window and the alert resolves
 # ========================================
 # 3 failed + 2 succeeded at t=40m. LTT increments for 101 samples (t=40-140m),
-# keeping ops fresh in the 30m window. Then LTT freezes at 8460. By t=172m,
-# time()-ltt=1860 > 1800 so ops fall out of the 30m short window → alert resolves.
+# then freezes at 8460. By t=202m, time()-ltt > 3600 so ops fall out of the
+# 1h short window and the alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcv6f1", phase="failed"}'
@@ -954,31 +972,32 @@ tests:
   alert_rule_test:
   # Alert fires at 140m
   - eval_time: 140m
-    alertname: userJourneyNodePoolErrors6h30m
+    alertname: userJourneyNodePoolErrors6h1h
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolErrors6h30m
+        alertname: userJourneyNodePoolErrors6h1h
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       exp_annotations:
-        correlationId: "userJourneyNodePoolErrors6h30m/mgmt-1/update"
+        correlationId: "userJourneyNodePoolErrors6h1h/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operation error rate elevated (>30% over 6h)"
         description: "More than 30% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), a 6x burn of the 95% SLO budget."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-  # At 180m, failures have aged out of the 30m short window → alert resolves
-  - eval_time: 180m
-    alertname: userJourneyNodePoolErrors6h30m
+  # At 210m, failures have aged out of the 1h short window, so the alert resolves
+  - eval_time: 210m
+    alertname: userJourneyNodePoolErrors6h1h
 # ========================================
-# Recovery: Degradation — failures age out of short window → alert resolves
+# Recovery: Degradation: failures age out of the 1h short window and the alert resolves
 # ========================================
 # 2 failed + 6 succeeded at t=40m. LTT increments for 101 samples (t=40-140m),
-# keeping ops fresh in the 30m window. Then LTT freezes at 8460. By t=172m,
-# time()-ltt=1860 > 1800 so ops fall out of the 30m short window → alert resolves.
+# then freezes at 8460. By t=202m, time()-ltt > 3600 so ops fall out of the
+# 1h short window and the alert resolves.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{cluster="mgmt-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", subscription_id="sub-1", resource_id="/rcvdf1", phase="failed"}'
@@ -1022,18 +1041,19 @@ tests:
         alertname: userJourneyNodePoolErrorsDegradation
         cluster: mgmt-1
         operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters/nodepools
         component: slo
         severity: "4"
         slo: nodepool-errors
         long_window: 6h
-        short_window: 30m
+        short_window: 1h
       exp_annotations:
         correlationId: "userJourneyNodePoolErrorsDegradation/mgmt-1/update"
         summary: "mgmt-1: Node Pool update operation failure rate exceeds 15% over 6h"
         description: "More than 15% of completed node pool update operations on mgmt-1 failed over the last 6 hours (at least 5 completions), an early warning of degradation before the burn-rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-  # At 180m, failures have aged out of the 30m short window → alert resolves
-  - eval_time: 180m
+  # At 210m, failures have aged out of the 1h short window, so the alert resolves
+  - eval_time: 210m
     alertname: userJourneyNodePoolErrorsDegradation
 # ========================================
 # Test: Cross-phase stuck operations
