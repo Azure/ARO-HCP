@@ -723,6 +723,22 @@ resource hypershiftOperatorRecordingRules 'Microsoft.AlertsManagement/prometheus
         expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[5m])))'
       }
       {
+        record: 'hypershift:operator:reconcile:rate30d'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*"}[30d])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_errors:rate30d'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift",pod=~"operator-.*",result="error"}[30d])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_within_10s:rate30d'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{le="10",namespace="hypershift",pod=~"operator-.*"}[30d])))'
+      }
+      {
+        record: 'hypershift:operator:reconcile_duration_count:rate30d'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift",pod=~"operator-.*"}[30d])))'
+      }
+      {
         record: 'hypershift:operator:replicas_unavailable:ratio'
         expression: '1 - clamp_max(max by (cluster, region) (kube_deployment_status_replicas_available{deployment="operator",namespace="hypershift"}) / (max by (cluster, region) (kube_deployment_spec_replicas{deployment="operator",namespace="hypershift"}) > 0), 1)'
       }

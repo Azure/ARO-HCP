@@ -20,8 +20,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/require"
 
@@ -47,11 +50,54 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 		for _, target := range panel.Targets {
 			t.Run(fmt.Sprintf("parse-panel-%d-%s", panel.ID, target.RefID), func(t *testing.T) {
 				p := parser.NewParser(parser.Options{})
-				_, err := p.ParseExpr(target.Expr)
+				expr, err := p.ParseExpr(target.Expr)
 				require.NoError(t, err)
+				parser.Inspect(expr, func(node parser.Node, _ []parser.Node) error {
+					selector, ok := node.(*parser.VectorSelector)
+					if !ok {
+						return nil
+					}
+					if strings.Contains(selector.Name, "backend_") {
+						require.NotContains(t, target.Expr, "$cluster", "completed provisioning must remain regional")
+						return nil
+					}
+					scoped := false
+					for _, matcher := range selector.LabelMatchers {
+						if matcher.Name == "cluster" && matcher.Type == labels.MatchRegexp && matcher.Value == "$cluster" {
+							scoped = true
+						}
+					}
+					require.True(t, scoped, "%s must respect the management cluster selection", selector.Name)
+					return nil
+				})
 			})
 			queries[panel.ID][target.RefID] = target.Expr
 		}
+	}
+
+	var recordingFiles []string
+	for _, source := range []string{
+		"hypershiftUserJourney-recordingRule.yaml",
+		"hypershiftControlPlaneOperator-recordingRule.yaml",
+	} {
+		raw, err := os.ReadFile(filepath.Join("../../observability/recording-rules", source))
+		require.NoError(t, err)
+		var rules monitoringv1.PrometheusRule
+		require.NoError(t, yaml.Unmarshal(raw, &rules))
+		for i := range rules.Spec.Groups {
+			var recordings []monitoringv1.Rule
+			for _, rule := range rules.Spec.Groups[i].Rules {
+				if strings.HasSuffix(rule.Record, ":rate30d") {
+					recordings = append(recordings, rule)
+				}
+			}
+			rules.Spec.Groups[i].Rules = recordings
+		}
+		raw, err = yaml.Marshal(rules.Spec)
+		require.NoError(t, err)
+		path := filepath.Join(t.TempDir(), source)
+		require.NoError(t, os.WriteFile(path, raw, 0600))
+		recordingFiles = append(recordingFiles, path)
 	}
 
 	type inputSeries struct {
@@ -99,11 +145,17 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 	}
 	runQueries := func(t *testing.T, input []inputSeries, expressions []expressionTest) {
 		t.Helper()
+		expressions = append([]expressionTest(nil), expressions...)
+		for i := range expressions {
+			expressions[i].Expr = strings.ReplaceAll(expressions[i].Expr, "$cluster", ".*")
+		}
 		fixture := struct {
-			Interval string     `json:"evaluation_interval"`
-			Tests    []ruleTest `json:"tests"`
+			RuleFiles []string   `json:"rule_files"`
+			Interval  string     `json:"evaluation_interval"`
+			Tests     []ruleTest `json:"tests"`
 		}{
-			Interval: "1m",
+			RuleFiles: recordingFiles,
+			Interval:  "1m",
 			Tests: []ruleTest{{
 				Interval: "1m",
 				Input:    input,
@@ -117,6 +169,61 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 		output, err := exec.Command("promtool", "test", "rules", testFile).CombinedOutput()
 		require.NoError(t, err, "%s", output)
 	}
+	t.Run("management cluster selection scopes both workspaces and KAS context", func(t *testing.T) {
+		var input []inputSeries
+		for _, cluster := range []struct {
+			name         string
+			availability string
+		}{
+			{name: "test-mgmt-1", availability: "1"},
+			{name: "test-mgmt-2", availability: "0.25"},
+		} {
+			for _, operator := range []struct {
+				record     string
+				namespace  string
+				deployment string
+				pod        string
+			}{
+				{record: "hypershift:operator:availability:ratio1m", namespace: "hypershift", deployment: "operator", pod: "operator-a"},
+				{record: "hypershift:cpo:availability:ratio1m", namespace: "ocm-one", deployment: "control-plane-operator", pod: "control-plane-operator-a"},
+			} {
+				input = append(input,
+					inputSeries{Series: fmt.Sprintf(`%s{cluster="%s",namespace="%s"}`, operator.record, cluster.name, operator.namespace), Values: cluster.availability + "x60"},
+					inputSeries{Series: fmt.Sprintf(`up{cluster="%s",namespace="%s",pod="%s"}`, cluster.name, operator.namespace, operator.pod), Values: "1x60"},
+					inputSeries{Series: fmt.Sprintf(`kube_deployment_spec_replicas{cluster="%s",namespace="%s",deployment="%s"}`, cluster.name, operator.namespace, operator.deployment), Values: "1x60"},
+				)
+			}
+			input = append(input, inputSeries{
+				Series: fmt.Sprintf(`hostedClusterAPI_kubeapiserver_available:ratio_avg_30d{cluster="%s",namespace="ocm-one"}`, cluster.name),
+				Values: cluster.availability + "x60",
+			})
+		}
+		for _, selection := range []struct {
+			value        string
+			availability float64
+			kas          float64
+		}{
+			{value: "test-mgmt-1", availability: 100, kas: 100},
+			{value: "test-mgmt-2", availability: 25, kas: 25},
+			{value: "test-mgmt-1|test-mgmt-2", availability: 25, kas: 62.5},
+			{value: ".*", availability: 25, kas: 62.5},
+		} {
+			t.Run(selection.value, func(t *testing.T) {
+				var expressions []expressionTest
+				for _, refID := range []string{"A", "B"} {
+					expressions = append(expressions, expressionTest{
+						Expr: strings.ReplaceAll(queries[34][refID], "$cluster", selection.value), EvalTime: "60m",
+						Expected: []sample{{Labels: "{}", Value: selection.availability}},
+					})
+				}
+				expressions = append(expressions, expressionTest{
+					Expr: strings.ReplaceAll(queries[27]["A"], "$cluster", selection.value), EvalTime: "60m",
+					Expected: []sample{{Labels: "{}", Value: selection.kas}},
+				})
+				runQueries(t, input, expressions)
+			})
+		}
+	})
 	t.Run("all panels remain unknown when telemetry is absent", func(t *testing.T) {
 		var expressions []expressionTest
 		for _, panel := range dashboard.Panels {
@@ -511,6 +618,44 @@ func TestHyperShiftDashboardQueries(t *testing.T) {
 					runQueries(t, input, expressions)
 				})
 			}
+		})
+		t.Run(operator.name+" 30d reconciliation panels retain event weighting across HA replicas and counter resets", func(t *testing.T) {
+			var input []inputSeries
+			for _, workload := range []struct {
+				cluster  string
+				pod      string
+				success  int
+				errors   int
+				fast     int
+				total    int
+				replicas int
+			}{
+				{cluster: "mc1", pod: operator.pod, success: 90, errors: 10, fast: 80, total: 100, replicas: 2},
+				{cluster: "mc2", pod: operator.pod + "-other", errors: 10, total: 10, replicas: 1},
+			} {
+				for replica := range workload.replicas {
+					labels := fmt.Sprintf(`cluster="%s",namespace="%s",pod="%s",prometheus_replica="%d"`,
+						workload.cluster, operator.namespace, workload.pod, replica)
+					for _, metric := range []struct {
+						name      string
+						increment int
+					}{
+						{fmt.Sprintf(`controller_runtime_reconcile_total{%s,result="success"}`, labels), workload.success},
+						{fmt.Sprintf(`controller_runtime_reconcile_total{%s,result="error"}`, labels), workload.errors},
+						{fmt.Sprintf(`controller_runtime_reconcile_time_seconds_bucket{%s,le="10"}`, labels), workload.fast},
+						{fmt.Sprintf(`controller_runtime_reconcile_time_seconds_count{%s}`, labels), workload.total},
+					} {
+						input = append(input, inputSeries{
+							Series: metric.name,
+							Values: fmt.Sprintf("0+%dx29 0+%dx30", metric.increment, metric.increment),
+						})
+					}
+				}
+			}
+			runQueries(t, input, []expressionTest{
+				{Expr: "round(" + queries[16][operator.refID] + ")", EvalTime: "60m", Expected: []sample{{Labels: "{}", Value: 82}}},
+				{Expr: "round(" + queries[17][operator.refID] + ")", EvalTime: "60m", Expected: []sample{{Labels: "{}", Value: 73}}},
+			})
 		})
 		for _, budget := range []struct {
 			name                        string

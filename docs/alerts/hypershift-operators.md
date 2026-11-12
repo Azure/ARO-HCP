@@ -19,6 +19,12 @@ not create tickets.
 The dashboard extensions in ARO-27788 reuse the ARO-27787 dashboard and alerts.
 They do not change the paging policy.
 
+The **Management Cluster** selector filters operator/CPO health, journey
+diagnostics, capacity guides, and KAS context across both selected regional
+datasources. It supports multiple clusters and defaults to **All**. Completed
+provisioning panels remain regional: their backend operation metrics belong to
+the service cluster rather than a management cluster.
+
 Dashboard accounting and the burn-rate alerts proposed in
 [Azure/ARO-HCP#7989](https://github.com/Azure/ARO-HCP/pull/7989) intentionally use
 different recordings:
@@ -88,6 +94,13 @@ document while preserving the accounting distinction above.
   operations are excluded; wait gauges are diagnostic, not completion evidence.
 - Remaining budgets use `100 * (1 - bad_fraction / allowed_bad_fraction)`.
   Negative values indicate overspending and are intentionally retained.
+- Reconciliation success, latency, and budgets read shared `rate30d` recordings,
+  scoped by management cluster for the operator and by cluster/namespace for
+  CPOs. The rules rate raw counters over 30d, deduplicate HA scrapes, and then
+  aggregate; dashboards sum those rates before division to retain fleet event
+  weighting and historical pod contributions. Long counter scans run during
+  rule evaluation, not on dashboard refresh. The records must be deployed before
+  these panels report data; budget panels still require current raw telemetry.
 - Zero wait counts require reporting HostedCluster inventory; zero KAS counts
   require reporting KAS availability. Missing inventory must not manufacture a
   healthy zero.

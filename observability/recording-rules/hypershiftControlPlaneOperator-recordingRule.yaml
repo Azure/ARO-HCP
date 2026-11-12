@@ -31,6 +31,20 @@ spec:
     - record: hypershift:cpo:reconcile_errors:rate5m
       expr: |
         sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[5m])))
+    # Keep one long-window rate per HCP, rather than scanning every CPO counter
+    # on dashboard refresh. Sum rates before division for fleet event weighting.
+    - record: hypershift:cpo:reconcile:rate30d
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30d])))
+    - record: hypershift:cpo:reconcile_errors:rate30d
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", result="error"}[30d])))
+    - record: hypershift:cpo:reconcile_within_10s:rate30d
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace=~"ocm-.*", pod=~"control-plane-operator-.*", le="10"}[30d])))
+    - record: hypershift:cpo:reconcile_duration_count:rate30d
+      expr: |
+        sum by (cluster, namespace) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace=~"ocm-.*", pod=~"control-plane-operator-.*"}[30d])))
     # HCP deployment metrics are routed to the HCP workspace. Summarize raw
     # scrapes so short outages survive the one-minute recording interval.
     # Keep each HCP separate; scaled-to-zero deployments are not eligible.

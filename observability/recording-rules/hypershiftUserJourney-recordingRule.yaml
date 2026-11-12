@@ -25,6 +25,20 @@ spec:
     - record: hypershift:operator:reconcile_errors:rate5m
       expr: |
         sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[5m])))
+    # Precompute long-window rates before dashboard fleet aggregation, not ratios,
+    # so reconciliation volume still weights each operator's contribution.
+    - record: hypershift:operator:reconcile:rate30d
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*"}[30d])))
+    - record: hypershift:operator:reconcile_errors:rate30d
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_total{namespace="hypershift", pod=~"operator-.*", result="error"}[30d])))
+    - record: hypershift:operator:reconcile_within_10s:rate30d
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_bucket{namespace="hypershift", pod=~"operator-.*", le="10"}[30d])))
+    - record: hypershift:operator:reconcile_duration_count:rate30d
+      expr: |
+        sum by (cluster) (max without (prometheus_replica) (rate(controller_runtime_reconcile_time_seconds_count{namespace="hypershift", pod=~"operator-.*"}[30d])))
     # Point-in-time bad fraction for component availability burn-rate alerts.
     # Zero-desired and missing deployment inputs do not contribute observations.
     - record: hypershift:operator:replicas_unavailable:ratio
