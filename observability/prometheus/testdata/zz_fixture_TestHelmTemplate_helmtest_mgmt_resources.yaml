@@ -67786,6 +67786,10 @@ data:
                 namespace:
                 - metadata
                 - namespace
+                schedule:
+                - metadata
+                - labels
+                - velero.io/schedule-name
             type: Info
           help: Backup CR presence indicator, independent of status.phase - one row per
             existing CR
@@ -71277,6 +71281,22 @@ spec:
           sourceLabels:
           - __name__
           - name
+          targetLabel: namespace
+        - action: replace
+          regex: veleroBackup[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*
+          replacement: ${1}
+          separator: ;
+          sourceLabels:
+          - __name__
+          - name
+          targetLabel: namespace
+        - action: replace
+          regex: veleroDeleteBackupRequest[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*
+          replacement: ${1}
+          separator: ;
+          sourceLabels:
+          - __name__
+          - backupName
           targetLabel: namespace
       relabelings:
         - action: replace

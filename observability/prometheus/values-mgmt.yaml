@@ -83,20 +83,38 @@ kube-prometheus-stack:
         - action: replace
           replacement: service
           targetLabel: microsoft_metrics_include_label
-        # Schedule CRs live in namespace velero as
-        # {hostedClusterNamespace}-{cadence}. Promote namespace from the
-        # CR name to ocm-* so remoteWrite routes them to the HCP workspace
-        # (ARO-30331). Same ocm-<env>-<id> shape / __name__ scoping as
-        # #8035 for veleroBackup_* / veleroDeleteBackupRequest_* — if that
-        # PR lands first, append this rule to its metricRelabelings list
-        # instead of adding a second key.
+        # Route the velero.io KSM metrics to the HCP Azure Monitor Workspace for
+        # consistency with the server-side velero_hcp_* metrics and so they can be
+        # correlated on cluster+schedule. Those CRs live in the `velero` namespace,
+        # so without this their namespace label is "velero" and the ocm-* keep rule
+        # in templates/prometheus.yaml would drop them from the HCP workspace. We
+        # overwrite namespace with the ocm-<env>-<id> HostedCluster namespace,
+        # derived from the CR name (backupName for DeleteBackupRequest, whose own
+        # name is not ocm-prefixed). The <env>-<id> shape is Cluster Service's
+        # namespace contract: ocm-<1-10 char env>-<32 char clusterID>, neither part
+        # containing a hyphen. The clusterID is 32 lower-case Base32 characters
+        # (alphabet 0-9a-v, see internal/ocm/csuid.go), so it must be matched with
+        # [a-z0-9]{32}, not [a-f0-9]{32} — hex would drop clusters whose ID contains
+        # g-v. Scoped by __name__ to velero* only: this relabel must
+        # never rewrite the real namespace of other KSM metrics on this scrape
+        # (kube_*, hostedClusterAPI_*, capiMachine_*).
         metricRelabelings:
         - action: replace
           sourceLabels: [__name__, name]
           separator: ;
-          # Cluster Service IDs are lowercase alphanumeric (not hex-only);
-          # e.g. docs/etcd-restore.md uses ...-2sd1pej7kdkk1qvccoiqq534ae1knhh4-...
           regex: 'veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          targetLabel: namespace
+          replacement: '${1}'
+        - action: replace
+          sourceLabels: [__name__, name]
+          separator: ;
+          regex: 'veleroBackup[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          targetLabel: namespace
+          replacement: '${1}'
+        - action: replace
+          sourceLabels: [__name__, backupName]
+          separator: ;
+          regex: 'veleroDeleteBackupRequest[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
           targetLabel: namespace
           replacement: '${1}'
     image:
@@ -208,9 +226,14 @@ kube-prometheus-stack:
               each:
                 type: Info
                 info:
+                  # schedule is carried so veleroBackup_info joins the server-side
+                  # velero_hcp_backup_* metrics (and the namespace-routing relabel
+                  # below) on cluster+schedule. Info metrics only emit the labels
+                  # they declare here, so it must be repeated from the GVK block.
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
+                    schedule: [metadata, labels, "velero.io/schedule-name"]
           - groupVersionKind:
               group: velero.io
               kind: "DeleteBackupRequest"
@@ -236,6 +259,11 @@ kube-prometheus-stack:
               each:
                 type: Info
                 info:
+                  # backupName is the velero Backup this request targets; its value
+                  # is ocm-<env>-<id>-... so it is the source the namespace-routing
+                  # relabel below derives ocm-* from (a DeleteBackupRequest's own
+                  # name is not ocm-prefixed). Info metrics only emit declared
+                  # labels, so it must be repeated from the GVK block.
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
