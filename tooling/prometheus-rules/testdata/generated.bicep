@@ -20,7 +20,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         actions: [for g in actionGroups: {
           actionGroupId: g
           actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.Title': '[InstancesDownV1] #$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
         }]
@@ -44,7 +44,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         actions: [for g in actionGroups: {
           actionGroupId: g
           actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.Title': '[KubePodNotReady] #$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
         }]

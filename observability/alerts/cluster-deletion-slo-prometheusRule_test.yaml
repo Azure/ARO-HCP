@@ -870,7 +870,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation stuck1 stuck in deleting for over 1 hour"
+        summary: "Cluster deletion operation stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for stuck1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"
@@ -904,7 +904,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation stuck2 stuck in deleting for over 1 hour"
+        summary: "Cluster deletion operation stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for stuck2 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"
@@ -944,7 +944,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation flap1 stuck in deleting for over 1 hour"
+        summary: "Cluster deletion operation stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for flap1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"
@@ -967,7 +967,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation flap1 stuck in deleting for over 1 hour"
+        summary: "Cluster deletion operation stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for flap1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"
@@ -1003,7 +1003,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation clears1 stuck in deleting for over 1 hour"
+        summary: "Cluster deletion operation stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for clears1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"
@@ -1053,7 +1053,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "Cluster deletion operation acc1 stuck in accepted for over 1 hour"
+        summary: "Cluster deletion operation stuck in accepted for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for acc1 has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/cluster-deletion-tsg"

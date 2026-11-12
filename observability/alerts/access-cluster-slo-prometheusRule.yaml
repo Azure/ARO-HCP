@@ -49,7 +49,7 @@ spec:
         exclude_internal_subscriptions: "true"
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour"
+        summary: "Credential operation stuck in {{ $labels.phase }} for over 1 hour"
         description: "Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # ========================================

@@ -240,7 +240,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-6"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/6/cluster/stuck stuck in provisioning for over 30 minutes"
+        summary: "Cluster create operation stuck in provisioning for over 30 minutes"
         description: "Cluster create operation for /sub/6/cluster/stuck has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
@@ -304,7 +304,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9a"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/9a/cluster/accepted stuck in accepted for over 30 minutes"
+        summary: "Cluster create operation stuck in accepted for over 30 minutes"
         description: "Cluster create operation for /sub/9a/cluster/accepted has been in accepted phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
@@ -340,7 +340,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/flap stuck in provisioning for over 30 minutes"
+        summary: "Cluster create operation stuck in provisioning for over 30 minutes"
         description: "Cluster create operation for /sub/9/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Raw condition FALSE here (start_time reset → age < 1800s) but the resource is
@@ -359,7 +359,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/9/cluster/flap stuck in provisioning for over 30 minutes"
+        summary: "Cluster create operation stuck in provisioning for over 30 minutes"
         description: "Cluster create operation for /sub/9/cluster/flap has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
 # ========================================
@@ -393,7 +393,7 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
-        summary: "mgmt-1: Cluster create operation for /sub/10/cluster/clears stuck in provisioning for over 30 minutes"
+        summary: "Cluster create operation stuck in provisioning for over 30 minutes"
         description: "Cluster create operation for /sub/10/cluster/clears has been in provisioning phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
   # Alert clears: operation reached terminal state at t=51m, recording rule stopped
