@@ -184,6 +184,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
         - "--exit-on-panic=true"
+        - "--enable-hosted-cluster-data-plane-identity-writer=false"
         - "--log-verbosity=4"
         - "--orphaned-mrg-cleanup-running-mode=dry-run"
         - "--azure-cluster-scoped-identities-role-set-name"

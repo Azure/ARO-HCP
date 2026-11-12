@@ -159,7 +159,8 @@ func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 // the unique lowercased ResourceID set from CustomerProperties.
 // Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 // is honored only when those ResourceIDs still match the ServiceProviderCluster; on
-// mismatch it returns true immediately. When identities match, it returns false while
+// mismatch or a newer resolved ARM identity instance it returns true immediately.
+// When identities match, it returns false while
 // that recheck time is in the future, and true when it is
 // nil or already past. Callers must skip needsWork entirely when the cluster
 // is deleting.
@@ -167,6 +168,23 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) needsWork(servicePr
 	// Only honor Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 	// when the desired identity set still matches the
 	// ServiceProviderCluster. Any mismatch should fall through to return true and query Azure.
+	// Resource IDs survive deletion and recreation of a UAMI. When the newer
+	// ARM resolver detects a different instance, refresh the principal mirror
+	// used by the role and deny assignment controllers without waiting 12 hours.
+	for resourceID := range desiredDataPlaneOperatorsResourceIDStrs {
+		details := serviceProviderCluster.Status.ManagedIdentityDetails[resourceID]
+		if details == nil || details.MetadataFromARMUserAssignedIdentitiesAPI == nil {
+			continue
+		}
+		arm := details.MetadataFromARMUserAssignedIdentitiesAPI
+		if arm.RetrievalError != nil || arm.ClientID == nil || *arm.ClientID == "" || arm.PrincipalID == nil || *arm.PrincipalID == "" {
+			continue
+		}
+		mirrored := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities[resourceID]
+		if mirrored == nil || mirrored.RetrievalError != nil || mirrored.ClientID == nil || *mirrored.ClientID != *arm.ClientID || mirrored.PrincipalID == nil || *mirrored.PrincipalID != *arm.PrincipalID {
+			return true
+		}
+	}
 	if c.desiredDataPlaneOperatorResourceIDsMatchServiceProviderCluster(desiredDataPlaneOperatorsResourceIDStrs, serviceProviderCluster) {
 		earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 		if earliestRecheckTime != nil && c.clock.Now().Before(earliestRecheckTime.Time) {

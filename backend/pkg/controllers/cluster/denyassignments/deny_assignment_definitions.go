@@ -16,6 +16,7 @@ package denyassignments
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -225,4 +226,14 @@ func isKMSEncryptionEnabled(cluster *coreapi.Cluster) bool {
 	return cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil
+}
+
+func DataPlaneOperatorDenyAssignmentTypes(cluster *coreapi.Cluster, operator string) []string {
+	var types []string
+	for _, definition := range denyAssignmentDefinitions(cluster) {
+		if slices.Contains(definition.dataPlaneOperators, operator) {
+			types = append(types, definition.denyAssignmentType)
+		}
+	}
+	return types
 }

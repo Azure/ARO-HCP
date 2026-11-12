@@ -17,15 +17,20 @@ package kubeapplierhelpers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/json"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -59,6 +64,42 @@ func GetCachedHostedClusterForCluster(
 	if err != nil {
 		return nil, false, utils.TrackError(fmt.Errorf("failed to get ReadDesire for HostedCluster: %w", err))
 	}
+	return hostedClusterFromReadDesire(readDesire)
+}
+
+// GetCachedHostedClusterForClusterOnManagementCluster reads the HostedCluster
+// observation from the current management cluster. A union lister's
+// GetForCluster returns the first match across containers, which can be an old
+// observation when the same cluster resource ID exists in another container.
+// Listing cluster-scoped desires selects the matching placement regardless of
+// the union lister's iteration order.
+func GetCachedHostedClusterForClusterOnManagementCluster(
+	ctx context.Context,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
+	subscriptionName, resourceGroupName, clusterName string,
+	managementCluster *azcorearm.ResourceID,
+) (*v1beta1.HostedCluster, bool, error) {
+	if managementCluster == nil {
+		return nil, false, nil
+	}
+	readDesires, err := readDesireLister.ListForCluster(ctx, subscriptionName, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, false, utils.TrackError(fmt.Errorf("failed to list ReadDesires for HostedCluster: %w", err))
+	}
+	wantResourceID := kubeapplierapihelpers.ToClusterScopedReadDesireResourceIDString(
+		subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHostedCluster)
+	for _, readDesire := range readDesires {
+		if readDesire == nil || readDesire.ResourceID == nil ||
+			!strings.EqualFold(readDesire.ResourceID.String(), wantResourceID) ||
+			!controllerutil.ResourceIDsEqual(readDesire.Spec.ManagementCluster, managementCluster) {
+			continue
+		}
+		return hostedClusterFromReadDesire(readDesire)
+	}
+	return nil, false, nil
+}
+
+func hostedClusterFromReadDesire(readDesire *kubeapplierapi.ReadDesire) (*v1beta1.HostedCluster, bool, error) {
 	observed := meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
 		return nil, observed, nil

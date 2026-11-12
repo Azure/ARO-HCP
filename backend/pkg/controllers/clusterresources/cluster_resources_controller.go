@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,6 +96,7 @@ type cachedClusterResources struct {
 
 // clusterResourcesController polls the Cluster Service SDK endpoint for cluster resources information
 type clusterResourcesController struct {
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	nodePoolLister               corelisters.NodePoolLister
@@ -122,6 +125,7 @@ func NewClusterResourcesController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &clusterResourcesController{
+		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		nodePoolLister:               nodePoolLister,
@@ -276,14 +280,13 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD: %w", err))
 	}
 
-	tags := map[string]string{
-		kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
-	}
-
 	resourceMap := resources.Resources()
 	desiredResourceIDs := make(map[string]bool, len(resourceMap))
 	var errs []error
 	for resourceKey, resourceValue := range resourceMap {
+		tags := map[string]string{
+			kubeapplierapi.TagControllerName: ClusterResourcesControllerName,
+		}
 		var unstructuredObj unstructured.Unstructured
 		if err := json.Unmarshal([]byte(resourceValue), &unstructuredObj); err != nil {
 			errs = append(errs, utils.TrackError(fmt.Errorf("failed to unmarshal resource %s: %w", resourceKey, err)))
@@ -385,6 +388,37 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 					errs = append(errs, utils.TrackError(fmt.Errorf("failed to set HostedCluster autoscaling for %s: %w", resourceKey, err)))
 					continue
 				}
+				// Read the identity intent directly so cache lag cannot revive CS values.
+				spc, readErr := c.resourcesDBClient.ServiceProviderClusters(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+				).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				if readErr != nil {
+					errs = append(errs, utils.TrackError(fmt.Errorf("read HostedCluster identity source: %w", readErr)))
+					continue
+				}
+				if spc.InstanceVersion <= 0 {
+					errs = append(errs, fmt.Errorf("ServiceProviderCluster has no source InstanceVersion"))
+					continue
+				}
+				if spc.Status.ManagementClusterResourceID == nil ||
+					!strings.EqualFold(spc.Status.ManagementClusterResourceID.String(), managementCluster.String()) {
+					errs = append(errs, fmt.Errorf("ServiceProviderCluster placement changed while publishing HostedCluster"))
+					continue
+				}
+				if spc.Spec.HostedClusterDataPlaneIdentitiesOwnedByRP {
+					ids := kubeapplierhelpers.DataPlaneClientIDsFromHostedCluster(spc.Spec.DesiredHostedCluster)
+					if !ids.Complete() {
+						errs = append(errs, fmt.Errorf("ServiceProviderCluster owns HostedCluster identities but its desired ClientIDs are incomplete"))
+						continue
+					}
+					if overlayErr := kubeapplierhelpers.OverlayHostedClusterDataPlaneClientIDs(&unstructuredObj, ids); overlayErr != nil {
+						errs = append(errs, overlayErr)
+						continue
+					}
+				}
+				// The source revision is recorded on the desire by the single
+				// HostedCluster publisher below.
+				tags[hostedClusterSourceVersionTag] = strconv.FormatInt(spc.InstanceVersion, 10)
 			}
 
 			desire, err = buildClusterResourceApplyDesire(
@@ -400,7 +434,12 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 
 		desiredResourceIDs[strings.ToLower(desire.ResourceID.String())] = true
 
-		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire); err != nil {
+		if classified.desireName == DesireNameHostedCluster {
+			err = ensureHostedClusterApplyDesire(ctx, crud, desire)
+		} else {
+			err = kubeapplierhelpers.EnsureApplyDesire(ctx, crud, c.applyDesireLister, desire)
+		}
+		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -452,8 +491,11 @@ func (c *clusterResourcesController) processClusterResources(ctx context.Context
 			}
 		}
 	}
-	if err := c.deleteStaleApplyDesires(ctx, key, managementCluster, desiredResourceIDs); err != nil {
-		errs = append(errs, err)
+	// Preserve existing desires if the source is incomplete or malformed.
+	if len(errs) == 0 {
+		if err := c.deleteStaleApplyDesires(ctx, key, managementCluster, desiredResourceIDs); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return errors.Join(errs...)
@@ -862,4 +904,69 @@ func legacyACMBasedIngressCertificateWiringDesireName(desireName string) bool {
 		strings.EqualFold(desireName, DesireNameDefaultIngressConfigMap) ||
 		strings.EqualFold(desireName, DesireNameDefaultIngressWildcardCertSecretSync) ||
 		strings.EqualFold(desireName, DesireNameDefaultIngressWildcardCertSecretProviderClass)
+}
+
+const hostedClusterSourceVersionTag = "hostedClusterSourceInstanceVersion"
+
+// A fresh read and conditional replace prevent an older SPC snapshot from
+// overwriting a newer published identity intent across backend replicas.
+func ensureHostedClusterApplyDesire(
+	ctx context.Context,
+	crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
+	desire *kubeapplierapi.ApplyDesire,
+) error {
+	sourceVersion, err := strconv.ParseInt(desire.Tags[hostedClusterSourceVersionTag], 10, 64)
+	if err != nil || sourceVersion <= 0 {
+		return fmt.Errorf("HostedCluster desire has invalid source InstanceVersion")
+	}
+	for attempt := 0; attempt < 5; attempt++ {
+		existing, err := crud.Get(ctx, desire.ResourceID.Name)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			// Create sets InstanceVersion before the request, even if Cosmos returns a conflict.
+			// Keep the candidate reusable if the next read still reports not found.
+			_, err = crud.Create(ctx, desire.DeepCopy(), nil)
+			if cosmosstorageutils.IsConflictError(err) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("create HostedCluster desire: %w", err)
+			}
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read HostedCluster desire: %w", err)
+		}
+		if existing.Tags[kubeapplierapi.TagControllerName] != ClusterResourcesControllerName {
+			return fmt.Errorf("HostedCluster desire has a different controller owner")
+		}
+		storedVersion := int64(0)
+		if raw := existing.Tags[hostedClusterSourceVersionTag]; raw != "" {
+			storedVersion, err = strconv.ParseInt(raw, 10, 64)
+			if err != nil || storedVersion <= 0 {
+				return fmt.Errorf("stored HostedCluster desire has invalid source InstanceVersion")
+			}
+		}
+		if storedVersion > sourceVersion {
+			return nil // a newer source snapshot already won
+		}
+		specChanged := !reflect.DeepEqual(existing.Spec, desire.Spec)
+		if !specChanged && reflect.DeepEqual(existing.Tags, desire.Tags) {
+			return nil
+		}
+		replacement := existing.DeepCopy()
+		replacement.Spec = desire.Spec
+		replacement.Tags = desire.Tags
+		if specChanged {
+			replacement.Status = kubeapplierapi.ApplyDesireStatus{}
+		}
+		_, err = crud.Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("replace HostedCluster desire: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("HostedCluster desire changed concurrently after five attempts; will retry")
 }
