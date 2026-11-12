@@ -110,7 +110,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"failed\"}) or vector(0)",
+          "expr": "count(max by (cluster, resource_id, operation_type) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"failed\"} == 1)) or vector(0)",
           "instant": true,
           "legendFormat": "Failed Operations",
           "refId": "A"
