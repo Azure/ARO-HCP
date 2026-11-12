@@ -1,0 +1,27 @@
+[
+	{
+		"apiVersion": "v1",
+		"cluster": "mgmt-cluster-01",
+		"environment": "int",
+		"event": "Update",
+		"name": "aks-agentpool1-vmss000001",
+		"namespace": "",
+		"object": {
+			"metadata": {
+				"labels": {
+					"agentpool": "agentpool1",
+					"aro-hcp.azure.com/role": "workload",
+					"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+					"topology.kubernetes.io/zone": "2"
+				}
+			},
+			"spec": {
+				"providerID": "azure:///subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.Compute/virtualMachineScaleSets/aks-agentpool1-vmss/virtualMachines/1"
+			}
+		},
+		"objectKind": "Node",
+		"region": "westus3",
+		"timestamp": "2026-10-20T17:08:51Z",
+		"uid": "9d1c2e3a-1234-4567-890a-abcdef123456"
+	}
+]

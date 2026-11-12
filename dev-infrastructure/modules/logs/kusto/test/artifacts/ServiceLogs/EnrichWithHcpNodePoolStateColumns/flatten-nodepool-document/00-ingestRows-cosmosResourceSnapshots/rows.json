@@ -1,0 +1,87 @@
+[
+	{
+		"cluster": "svc-cluster-01",
+		"cluster_id": "",
+		"content": {
+			"properties": {
+				"cosmosMetadata": {
+					"instanceVersion": 12
+				},
+				"properties": {
+					"autoRepair": true,
+					"autoScaling": {
+						"max": 5,
+						"min": 1
+					},
+					"labels": {
+						"node-role.kubernetes.io/infra": ""
+					},
+					"nodeDrainTimeoutMinutes": 10,
+					"platform": {
+						"availabilityZone": "",
+						"enableEncryptionAtHost": false,
+						"osDisk": {
+							"diskStorageAccountType": "StandardSSD_LRS",
+							"diskType": "Managed",
+							"encryptionSetId": "",
+							"sizeGiB": 64
+						},
+						"subnetId": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-hgzk2y9g-3f9f3/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
+						"vmSize": "Standard_D8s_v5"
+					},
+					"provisioningState": "Succeeded",
+					"replicas": 3,
+					"taints": [
+						{
+							"effect": "NoSchedule",
+							"key": "node-role.kubernetes.io/infra",
+							"value": "reserved"
+						}
+					],
+					"version": {
+						"channelGroup": "stable",
+						"id": "4.22.17"
+					}
+				},
+				"serviceProviderProperties": {
+					"activeOperationId": "op-np-456",
+					"clusterServiceDeletionTimestamp": "2026-10-21T00:05:00.0000000Z",
+					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2tijj9d8trv0bisheii7r2e882mralss/node_pools/nodepool-1",
+					"createOperationCompletionDeadline": "2026-10-20T16:32:29.0000000Z",
+					"deletionTimestamp": "2026-10-21T00:00:00.0000000Z",
+					"usesNewNodePoolDeletionApproach": true
+				},
+				"status": {
+					"activeVersions": [
+						{
+							"version": "4.22.17"
+						}
+					]
+				},
+				"systemData": {
+					"createdAt": "2026-10-20T15:32:29.5214553Z",
+					"createdBy": "00000000-0000-0000-0000-000000000001",
+					"createdByType": "Application",
+					"lastModifiedAt": "2026-10-20T15:32:29.5214553Z",
+					"lastModifiedBy": "00000000-0000-0000-0000-000000000001",
+					"lastModifiedByType": "Application"
+				},
+				"tags": {
+					"env": "prod"
+				},
+				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+			},
+			"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-hgzk2y9g-3f9f3/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ci-op-hgzk2y9g-3f9f3/nodePools/nodepool-1",
+			"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+		},
+		"cosmosContainer": "resources",
+		"environment": "dev",
+		"region": "westus3",
+		"resourceGroup": "ci-op-hgzk2y9g-3f9f3",
+		"resourceID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-hgzk2y9g-3f9f3/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ci-op-hgzk2y9g-3f9f3/nodePools/nodepool-1",
+		"resourceName": "nodepool-1",
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+		"subscriptionID": "64f0619f-ebc2-4156-9d91-c4c781de7e54",
+		"timestamp": "2026-10-20T16:00:00Z"
+	}
+]

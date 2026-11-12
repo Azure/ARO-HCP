@@ -1,0 +1,9 @@
+[
+	{
+		"controlPlaneActiveVersions": [
+			"4.20.1"
+		],
+		"hostedNamespace": "ocm-arohcpint-2tikv12vvsgnpsj8ipfds4ugoscfesf4-h8l0s7l6t0j9u6m",
+		"managementID": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/mgmt-cluster-rg/providers/Microsoft.RedHatOpenShift/stamps/managementclusters/mgmt-cluster-01"
+	}
+]

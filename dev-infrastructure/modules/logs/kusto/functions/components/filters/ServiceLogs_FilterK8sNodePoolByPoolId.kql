@@ -1,0 +1,19 @@
+// @owner: sre-team
+// @domain: Components/Filters
+// @depends: GetClusterIdFromInternalId, GetNodePoolNameFromInternalId
+// @params: T=piped kubernetesResourceSnapshots-shaped rows, p_PoolId=Clusters Service internal node pool ID (.../clusters/{cid}/node_pools/{poolName})
+// @returns: T filtered to the single NodePool object identified by that pool ID
+.create-or-alter function
+with (
+  docstring = 'Filters piped kubernetesResourceSnapshots rows down to the single NodePool object identified by a Clusters Service internal node pool ID: scoped to the right cluster via the api.openshift.com/id label, then disambiguated to the specific pool by its full generated name, which Clusters Service always constructs as "<object.spec.clusterName>-<poolName>", compared exactly, not by suffix, since two sibling pools in the same cluster can otherwise share a "-<poolName>" suffix (e.g. pool1 and other-pool1). If p_PoolId does not resolve to both a cluster ID and a pool name, matches no rows rather than falling back to a less precise comparison. Use with the invoke operator. | Returns: filtered rows with the same schema as the input | Example: kubernetesResourceSnapshots | invoke FilterK8sNodePoolByPoolId("/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1")',
+  folder = 'Components\\Filters'
+)
+FilterK8sNodePoolByPoolId(T: (objectKind: string, name: string, object: dynamic), p_PoolId: string)
+{
+    let clusterId = GetClusterIdFromInternalId(p_PoolId);
+    let poolName = GetNodePoolNameFromInternalId(p_PoolId);
+    T
+    | where objectKind == 'NodePool'
+    | where isnotempty(clusterId) and tostring(object.metadata.labels['api.openshift.com/id']) =~ clusterId
+    | where isnotempty(poolName) and name == strcat(tostring(object.spec.clusterName), '-', poolName)
+}

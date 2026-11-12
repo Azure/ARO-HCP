@@ -1,0 +1,13 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @params: p_InternalId=a Clusters Service internal ID path (e.g. .../clusters/{cid} or .../clusters/{cid}/node_pools/{poolName})
+// @returns: the bare cluster ID (the path segment immediately following "clusters/"), or "" if not found
+.create-or-alter function
+with (
+  docstring = 'Extracts the bare Clusters Service internal cluster ID out of a full internal ID path: the path segment immediately following "clusters/". Both "/api/aro_hcp/v1alpha1/clusters/abc-123" and "/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1" yield "abc-123". This is the only place in this library that parses this path shape; no other function should duplicate this regex. Returns "" if p_InternalId does not contain a "clusters/" segment; callers MUST guard with isnotempty() before using the result in an equality comparison; otherwise an empty result could spuriously match an unrelated object whose own identity field is also empty (e.g. missing a label). | Returns: the bare cluster ID string, or "" if not found | Example: GetClusterIdFromInternalId("/api/aro_hcp/v1alpha1/clusters/abc-123") == "abc-123"',
+  folder = 'Triage\\Resolvers'
+)
+GetClusterIdFromInternalId(p_InternalId: string)
+{
+    extract(@'(?i)/clusters/([^/]+)', 1, p_InternalId)
+}

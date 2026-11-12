@@ -1,0 +1,54 @@
+[
+	{
+		"activeOperationId": "op-np-456",
+		"activeVersions": [
+			{
+				"version": "4.22.17"
+			}
+		],
+		"autoRepair": true,
+		"autoScalingMax": 5,
+		"autoScalingMin": 1,
+		"availabilityZone": "",
+		"channelGroup": "stable",
+		"clusterServiceDeletionTimestamp": "2026-10-21T00:05:00Z",
+		"clusterServiceId": "/api/aro_hcp/v1alpha1/clusters/2tijj9d8trv0bisheii7r2e882mralss/node_pools/nodepool-1",
+		"createDeadline": "2026-10-20T16:32:29Z",
+		"createdAt": "2026-10-20T15:32:29.5214553Z",
+		"createdBy": "00000000-0000-0000-0000-000000000001",
+		"createdByType": "Application",
+		"deletionTimestamp": "2026-10-21T00:00:00Z",
+		"encryptionAtHost": false,
+		"instanceVersion": 12,
+		"labels": {
+			"node-role.kubernetes.io/infra": ""
+		},
+		"lastModifiedAt": "2026-10-20T15:32:29.5214553Z",
+		"lastModifiedBy": "00000000-0000-0000-0000-000000000001",
+		"lastModifiedByType": "Application",
+		"nodeDrainTimeoutMinutes": 10,
+		"osDiskEncryptionSetId": "",
+		"osDiskSizeGiB": 64,
+		"osDiskStorageAccountType": "StandardSSD_LRS",
+		"osDiskType": "Managed",
+		"provisioningState": "Succeeded",
+		"replicas": 3,
+		"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+		"subnetId": "/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourceGroups/ci-op-hgzk2y9g-3f9f3/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
+		"subnetName": "customer-subnet-1",
+		"subnetResourceGroup": "ci-op-hgzk2y9g-3f9f3",
+		"subnetSubscriptionId": "64f0619f-ebc2-4156-9d91-c4c781de7e54",
+		"subnetVnetName": "customer-vnet",
+		"tags": "{\"env\":\"prod\"}",
+		"taints": [
+			{
+				"effect": "NoSchedule",
+				"key": "node-role.kubernetes.io/infra",
+				"value": "reserved"
+			}
+		],
+		"usesNewNodePoolDeletionApproach": true,
+		"version": "4.22.17",
+		"vmSize": "Standard_D8s_v5"
+	}
+]

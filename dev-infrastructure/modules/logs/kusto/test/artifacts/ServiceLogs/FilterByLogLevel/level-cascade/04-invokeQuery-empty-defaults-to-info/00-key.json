@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "clustersServiceLogs | invoke FilterByLogLevel('') | project level | order by level asc"
+}

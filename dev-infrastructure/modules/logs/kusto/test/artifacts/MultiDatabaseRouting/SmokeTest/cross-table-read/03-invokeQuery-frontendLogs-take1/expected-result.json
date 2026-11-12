@@ -1,0 +1,8 @@
+[
+	{
+		"cluster": "svc-01",
+		"container_name": "frontend",
+		"pod_name": "frontend-0",
+		"region": "uksouth"
+	}
+]

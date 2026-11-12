@@ -1,0 +1,4 @@
+{
+	"database": "ServiceLogs",
+	"query": "cosmosResourceSnapshots | invoke EnrichWithServiceProviderClusterPlacementColumns() | project managementID, hostedNamespace, controlPlaneActiveVersions"
+}

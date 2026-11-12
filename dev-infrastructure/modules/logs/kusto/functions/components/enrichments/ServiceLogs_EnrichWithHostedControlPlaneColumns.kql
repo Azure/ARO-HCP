@@ -1,0 +1,27 @@
+// @owner: sre-team
+// @domain: Components/Enrichments
+// @params: T=piped kubernetesResourceSnapshots-shaped rows for a HostedControlPlane object
+// @returns: T plus every field the HostedControlPlane pages display (For ASI: HCP Cluster), flattened out of the object
+.create-or-alter function
+with (
+  docstring = 'For ASI: HCP Cluster. Flattens the fields the HostedControlPlane pages display out of a HostedControlPlane object\'s metadata/status. Use with the invoke operator. | Returns: all of T\'s columns plus the flattened fields; does not flatten apiVersion, since callers already have that column from their own query | Example: kubernetesResourceSnapshots | invoke FilterK8sResourceByIdentity(managementCluster, controlPlaneNamespace, "HostedControlPlane", hostedClusterName) | invoke EnrichWithHostedControlPlaneColumns()',
+  folder = 'Components\\Enrichments'
+)
+EnrichWithHostedControlPlaneColumns(T: (object: dynamic))
+{
+    T
+    | extend
+        generation = toint(object.metadata.generation),
+        resourceVersion = tostring(object.metadata.resourceVersion),
+        created = todatetime(object.metadata.creationTimestamp),
+        ready = tobool(object.status.ready),
+        initialized = tobool(object.status.initialized),
+        nodeCount = toint(object.status.nodeCount),
+        version = tostring(object.status.version),
+        releaseImage = tostring(object.status.releaseImage),
+        endpointHost = tostring(object.status.controlPlaneEndpoint.host),
+        endpointPort = toint(object.status.controlPlaneEndpoint.port),
+        desiredVersion = tostring(object.status.controlPlaneVersion.desired.version),
+        desiredImage = tostring(object.status.controlPlaneVersion.desired.image),
+        observedGeneration = toint(object.status.controlPlaneVersion.observedGeneration)
+}

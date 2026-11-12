@@ -1,0 +1,13 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @params: p_InternalId=a Clusters Service internal node pool ID (.../clusters/{cid}/node_pools/{poolName})
+// @returns: the bare pool name (the path segment immediately following "node_pools/"), or "" if not found
+.create-or-alter function
+with (
+  docstring = 'Extracts the bare node pool name out of a full internal node pool ID path: the path segment immediately following "node_pools/". "/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1" yields "pool1". This is the only place in this library that parses this path shape; no other function should duplicate this regex. Returns "" if p_InternalId does not contain a "node_pools/" segment; callers MUST guard with isnotempty() before using the result, for the same reason as GetClusterIdFromInternalId. | Returns: the bare pool name string, or "" if not found | Example: GetNodePoolNameFromInternalId("/api/aro_hcp/v1alpha1/clusters/abc-123/node_pools/pool1") == "pool1"',
+  folder = 'Triage\\Resolvers'
+)
+GetNodePoolNameFromInternalId(p_InternalId: string)
+{
+    extract(@'(?i)/node_pools/([^/]+)$', 1, p_InternalId)
+}
