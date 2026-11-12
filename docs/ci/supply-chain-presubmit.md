@@ -104,7 +104,7 @@ There is deliberately no comment or annotation that suppresses a finding from in
 
 The report names the path, the rule, and what to do.
 
-- **If it is not yours**, do not open or run it. This configuration executes on clone, which is how a known supply-chain attack worked. Report it to the security team rather than investigating it yourself. The check does not read these files, so it cannot tell you which one is dangerous — that is the reason for the caution, not an argument against it.
+- **If it is not yours**, do not open or run it. Agent and editor configuration can execute when an agent or editor loads the repository, which is how a known supply-chain attack worked. Cloning itself runs nothing. Report it to the security team rather than investigating it yourself. The check does not read these files, so it cannot tell you which one is dangerous — that is the reason for the caution, not an argument against it.
 - **If the file does not belong in the repository**, remove it; agent and editor configuration belongs in your local working copy. Check it is gitignored, and remember that `git add -f` defeats that permanently.
 - **If it genuinely does belong** — a new shared skill, say — it needs an allowlist entry. Confirm the file is needed, confirm it cannot execute anything by itself, have a second person read it in full, and add its exact path to `allowedConfigFiles` in the same PR. Say in the PR description that you are doing so and why.
 - **If an approved file has changed**, its approval no longer applies. Read the diff in full before anything else, then update the pinned hash with `git hash-object <path>` in the same PR if the change is legitimate.
