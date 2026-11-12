@@ -18,7 +18,7 @@ tests:
   alert_rule_test:
   # At 150m (9000s), time() - 0 = 9000 > 7200, and for: 15m is satisfied
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolUpdateStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -31,10 +31,15 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-3"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/3/np/stuck"
-        summary: "mgmt-1: Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
-        description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolUpdateStuckOperation/mgmt-1//sub/3/np/stuck"
+        summary: "mgmt-1: Node Pool update for /sub/3/np/stuck stuck in updating for over 2 hours"
+        description: "Node pool update operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+  # A stuck update only fires the update alert.
+  - eval_time: 150m
+    alertname: userJourneyNodePoolCreateStuckOperation
+  - eval_time: 150m
+    alertname: userJourneyNodePoolDeleteStuckOperation
 # ========================================
 # Test 5: No stuck operation — operation in "updating" for < 2 hours
 # ========================================
@@ -48,7 +53,7 @@ tests:
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolUpdateStuckOperation
 # ========================================
 # Test 7: Queue depth — workqueue depth exceeds threshold
 # ========================================
@@ -93,7 +98,7 @@ tests:
   alert_rule_test:
   # At 150m (9000s), time() - 0 = 9000 > 7200, and for: 15m is satisfied
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolCreateStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -106,9 +111,9 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-c2"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/c2/np/stuck-create"
-        summary: "mgmt-1: Node Pool operation for /sub/c2/np/stuck-create stuck in provisioning for over 2 hours"
-        description: "Node pool operation for /sub/c2/np/stuck-create has been in provisioning phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolCreateStuckOperation/mgmt-1//sub/c2/np/stuck-create"
+        summary: "mgmt-1: Node Pool create for /sub/c2/np/stuck-create stuck in provisioning for over 2 hours"
+        description: "Node pool create operation for /sub/c2/np/stuck-create has been in provisioning phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 11: Stuck create operation — accepted phase for > 2 hours
@@ -123,7 +128,7 @@ tests:
     values: "1+0x155"
   alert_rule_test:
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolCreateStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -136,9 +141,9 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-c3"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/c3/np/stuck-accepted"
-        summary: "mgmt-1: Node Pool operation for /sub/c3/np/stuck-accepted stuck in accepted for over 2 hours"
-        description: "Node pool operation for /sub/c3/np/stuck-accepted has been in accepted phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolCreateStuckOperation/mgmt-1//sub/c3/np/stuck-accepted"
+        summary: "mgmt-1: Node Pool create for /sub/c3/np/stuck-accepted stuck in accepted for over 2 hours"
+        description: "Node pool create operation for /sub/c3/np/stuck-accepted has been in accepted phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 12: Stuck delete operation
@@ -152,7 +157,7 @@ tests:
     values: "1+0x155"
   alert_rule_test:
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -165,9 +170,9 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-7"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/7/np/stuck-del"
-        summary: "mgmt-1: Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
-        description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/7/np/stuck-del"
+        summary: "mgmt-1: Node Pool delete for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
+        description: "Node pool delete operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 13: Stuck delete that flaps (backend retry resets start_time)
@@ -191,7 +196,7 @@ tests:
   alert_rule_test:
   # Raw condition true (age 9000s > 7200s) → firing.
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -204,14 +209,14 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
-        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
-        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/8/np/flap-del"
+        summary: "mgmt-1: Node Pool delete for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool delete operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Raw condition FALSE here (start_time reset → age < 7200s) but the resource is
   # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
   - eval_time: 300m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -224,13 +229,13 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
-        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
-        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/8/np/flap-del"
+        summary: "mgmt-1: Node Pool delete for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool delete operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Raw condition true again after re-crossing 7200s — still one continuous alert.
   - eval_time: 470m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -243,9 +248,9 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/8/np/flap-del"
-        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
-        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/8/np/flap-del"
+        summary: "mgmt-1: Node Pool delete for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool delete operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 14: Stuck delete completes — alert clears after the 6h hold
@@ -263,7 +268,7 @@ tests:
   alert_rule_test:
   # Within the 6h hold after the last stuck sample (t=150m) → still firing.
   - eval_time: 300m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -276,13 +281,13 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/9/np/done-del"
-        summary: "mgmt-1: Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
-        description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/9/np/done-del"
+        summary: "mgmt-1: Node Pool delete for /sub/9/np/done-del stuck in deleting for over 2 hours"
+        description: "Node pool delete operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # 6h after the last stuck sample (150m + 360m = 510m) the hold expires → resolved.
   - eval_time: 520m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolDeleteStuckOperation
 # ========================================
 # Test 15: Stuck operation fires for all subscriptions at YAML level
 # ========================================
@@ -298,10 +303,10 @@ tests:
     values: "1+0x155"
   alert_rule_test:
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolUpdateStuckOperation
     exp_alerts:
     - exp_labels:
-        alertname: userJourneyNodePoolStuckOperation
+        alertname: userJourneyNodePoolUpdateStuckOperation
         resource_id: /sub/e2e/np/stuck
         subscription_id: "00000000-0000-0000-0000-000000000001"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
@@ -312,9 +317,9 @@ tests:
         component: slo
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/e2e/np/stuck"
-        summary: "mgmt-1: Node Pool operation for /sub/e2e/np/stuck stuck in updating for over 2 hours"
-        description: "Node pool operation for /sub/e2e/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolUpdateStuckOperation/mgmt-1//sub/e2e/np/stuck"
+        summary: "mgmt-1: Node Pool update for /sub/e2e/np/stuck stuck in updating for over 2 hours"
+        description: "Node pool update operation for /sub/e2e/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 16: Duplicate stuck series across a volatile label collapse into one alert
@@ -340,7 +345,7 @@ tests:
   alert_rule_test:
   # Two duplicate series in → exactly one alert out (instance dropped; environment/region preserved).
   - eval_time: 150m
-    alertname: userJourneyNodePoolStuckOperation
+    alertname: userJourneyNodePoolUpdateStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -355,9 +360,9 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
-        correlationId: "userJourneyNodePoolStuckOperation/mgmt-1//sub/10/np/dup"
-        summary: "mgmt-1: Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
-        description: "Node pool operation for /sub/10/np/dup has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        correlationId: "userJourneyNodePoolUpdateStuckOperation/mgmt-1//sub/10/np/dup"
+        summary: "mgmt-1: Node Pool update for /sub/10/np/dup stuck in updating for over 2 hours"
+        description: "Node pool update operation for /sub/10/np/dup has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Windowed error alert tests (stateless, last_transition-windowed)
