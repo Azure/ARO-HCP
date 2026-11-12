@@ -1,7 +1,5 @@
 approvers:
-- patriksuba
-- miquelsi
-- mbukatov
+- qe-approvers
 labels:
 - area/test
 - area/docs
