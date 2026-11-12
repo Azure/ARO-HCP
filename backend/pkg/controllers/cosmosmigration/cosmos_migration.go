@@ -72,7 +72,7 @@ const CosmosMigrationControllerName = "CosmosMigration"
 // read per subscription replaces the restart scan.
 //
 // Narrowed guarantee: the gate makes the migration best-effort at-most-once
-// per subscription after the cutoff; it is NOT a coverage guarantee. Two
+// per subscription after the cutoff; it is NOT a coverage guarantee. Three
 // residual classes of legacy-envelope documents can outlive it:
 //
 //   - A frontend registration write at or after the cutoff closes the gate
@@ -80,8 +80,12 @@ const CosmosMigrationControllerName = "CosmosMigration"
 //   - During a mixed-version rollout, a replica still running old code can
 //     write legacy-envelope documents after a new replica already closed
 //     the gate for that subscription.
+//   - The pre-change code rewrote the subscription document first, so any
+//     old-code pass at or after the cutoff — including old replicas during
+//     this rollout — already advanced _ts past the gate even when its
+//     operations/clusters steps failed afterwards.
 //
-// Both residuals stay readable through the read path's partition-key and
+// All three residuals stay readable through the read path's partition-key and
 // instance-version fallbacks (see CosmosGenericToInternal) and are
 // re-serialized by their next organic write. Correctness never depends on
 // the migration completing; it only shrinks the fallback population and the
