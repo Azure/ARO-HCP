@@ -126,63 +126,13 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	condition := metav1.Condition{
-		Type:               coreapi.ControlPlaneUpgradeMonitoringEnabled,
-		Status:             metav1.ConditionTrue,
-		Reason:             "Active",
-		Message:            "Cluster is not deleting or uninstalling.",
-		LastTransitionTime: metav1.NewTime(c.clock.Now()),
-	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		condition.Status = metav1.ConditionFalse
-		condition.Reason = "Deleting"
-		condition.Message = "Cluster deletion has been requested."
-	} else if existingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved {
-		condition.Status = metav1.ConditionFalse
-		condition.Reason = "Uninstalling"
-		condition.Message = "Cluster Service is uninstalling the cluster."
-	} else {
-		if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-			return nil
-		}
-		csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
-		csStatus, csErr := c.clusterServiceClient.GetClusterStatus(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
-		cancel()
-		if csErr != nil {
-			// Preserve the last observation on failure; unknown is not recovery.
-			return utils.TrackError(fmt.Errorf("failed to observe cluster lifecycle before upgrade: %w", csErr))
-		}
-		if csStatus == nil || csStatus.State() == "" {
-			return utils.TrackError(fmt.Errorf("cluster service returned no cluster lifecycle state"))
-		}
-		if csStatus.State() == arohcpv1alpha1.ClusterStateUninstalling {
-			clusterReplacement := existingCluster.DeepCopy()
-			clusterReplacement.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
-			_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
-			if cosmosstorageutils.IsPreconditionFailedError(err) {
-				return nil
-			}
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to retain cluster uninstallation observation: %w", err))
-			}
-			condition.Status = metav1.ConditionFalse
-			condition.Reason = "Uninstalling"
-			condition.Message = "Cluster Service is uninstalling the cluster."
-		}
+		return c.setMonitoringCondition(ctx, key, existingServiceProviderCluster, metav1.ConditionFalse, "Deleting", "Cluster deletion has been requested.")
 	}
-	replacement := existingServiceProviderCluster.DeepCopy()
-	apimeta.SetStatusCondition(&replacement.Status.Conditions, condition)
-	if controllerutil.NeedsUpdate(existingServiceProviderCluster.Status.Conditions, replacement.Status.Conditions) {
-		_, err = c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to update upgrade monitoring lifecycle: %w", err))
-		}
+	if existingCluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil {
+		return c.setMonitoringCondition(ctx, key, existingServiceProviderCluster, metav1.ConditionFalse, "Uninstalling", "Cluster Service deletion has been dispatched.")
 	}
-	if condition.Status == metav1.ConditionFalse {
-		logger.Info("Skipping control plane upgrade for cluster lifecycle", "reason", condition.Reason)
+	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return nil
 	}
 
@@ -209,13 +159,67 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 
 	// Get latest actual version from active versions
 	actualLatestVersion := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
+	if actualLatestVersion == nil {
+		return utils.TrackError(fmt.Errorf("latest active control plane version is missing"))
+	}
 
 	// If desired version matches latest actual version, nothing to do
 	if desiredVersion.EQ(*actualLatestVersion) {
 		return nil
 	}
 
+	// Only dispatch candidates depend on CS. Converged/initializing clusters
+	// neither poll CS nor write an initial Active condition across the fleet.
+	csCtx, cancel := context.WithTimeout(ctx, controllerutils.CSReadTimeout)
+	csStatus, csErr := c.clusterServiceClient.GetClusterStatus(csCtx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	cancel()
+	if csErr != nil {
+		return utils.TrackError(fmt.Errorf("failed to observe cluster lifecycle before upgrade: %w", csErr))
+	}
+	if csStatus == nil || csStatus.State() == "" {
+		return utils.TrackError(fmt.Errorf("cluster service returned no cluster lifecycle state"))
+	}
+	uninstalling := csStatus.State() == arohcpv1alpha1.ClusterStateUninstalling
+	if existingCluster.ServiceProviderProperties.ClusterServiceUninstallingObserved != uninstalling {
+		clusterReplacement := existingCluster.DeepCopy()
+		clusterReplacement.ServiceProviderProperties.ClusterServiceUninstallingObserved = uninstalling
+		_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to retain cluster uninstallation observation: %w", err))
+		}
+	}
+	if uninstalling {
+		return c.setMonitoringCondition(ctx, key, existingServiceProviderCluster, metav1.ConditionFalse, "Uninstalling", "Cluster Service is uninstalling the cluster.")
+	}
+	if err := c.setMonitoringCondition(ctx, key, existingServiceProviderCluster, metav1.ConditionTrue, "Active", "Cluster is not deleting or uninstalling."); err != nil {
+		return err
+	}
 	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+}
+
+func (c *triggerControlPlaneUpgradeSyncer) setMonitoringCondition(ctx context.Context, key controllerutils.HCPClusterKey, existing *coreapi.ServiceProviderCluster, status metav1.ConditionStatus, reason, message string) error {
+	previous := apimeta.FindStatusCondition(existing.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled)
+	// Active is implied until teardown is observed. Only write True to recover
+	// from an existing disabled/unknown observation, not to initialize every SPC.
+	if status == metav1.ConditionTrue && previous == nil {
+		return nil
+	}
+	replacement := existing.DeepCopy()
+	apimeta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
+		Type: coreapi.ControlPlaneUpgradeMonitoringEnabled, Status: status,
+		Reason: reason, Message: message, LastTransitionTime: metav1.NewTime(c.clock.Now()),
+	})
+	if !controllerutil.NeedsUpdate(existing.Status.Conditions, replacement.Status.Conditions) {
+		return nil
+	}
+	_, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to update upgrade monitoring lifecycle: %w", err))
+	}
+	return nil
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.

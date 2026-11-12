@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -29,14 +30,18 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/ptr"
+
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 func TestClusterUpgradeInventorySurvivesCoalescedSPCDeletion(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	parent := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	parent.CosmosMetadata.ResourceID = parent.ID
+	parent.ResourceID = parent.ID
 	parent.ServiceProviderProperties.ClusterServiceUninstallingObserved = true
 	parents := cache.NewStore(resourceIDStoreKeyForObject)
 	require.NoError(t, parents.Add(parent))
@@ -66,10 +71,10 @@ func TestClusterUpgradeInventorySurvivesCoalescedSPCDeletion(t *testing.T) {
 	expected := `# HELP backend_cluster_upgrade_inventory_size Expected primary cluster inventory rows, including invalid cache entries. Absent before initial cache synchronization.
 # TYPE backend_cluster_upgrade_inventory_size gauge
 backend_cluster_upgrade_inventory_size{backend_process="original"} 1
-# HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1; deletion_confirmed records RP deletion or a durable CS uninstallation observation.
+# HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1 when RP or CS deletion or CS uninstallation was observed, otherwise 0.
 # TYPE backend_cluster_upgrade_inventory_info gauge
 `
-	expected += fmt.Sprintf("backend_cluster_upgrade_inventory_info{backend_process=\"original\",deletion_confirmed=\"true\",resource_id=\"%s\",subscription_id=\"%s\"} 1\n",
+	expected += fmt.Sprintf("backend_cluster_upgrade_inventory_info{backend_process=\"original\",resource_id=\"%s\",subscription_id=\"%s\"} 1\n",
 		resourceIDMetricLabel(parent.ID), subscriptionIDMetricLabel(parent.ID))
 	require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected),
 		"backend_cluster_upgrade_inventory_size", "backend_cluster_upgrade_inventory_info"))
@@ -96,7 +101,7 @@ backend_cluster_upgrade_inventory_invalid_objects{backend_process="restarted"} 0
 
 func TestClusterUpgradeInventoryReadsDeletionWithoutMetricsQueue(t *testing.T) {
 	parent := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
-	parent.CosmosMetadata.ResourceID = parent.ID
+	parent.ResourceID = parent.ID
 	parents := cache.NewStore(resourceIDStoreKeyForObject)
 	require.NoError(t, parents.Add(parent))
 	collector := newClusterUpgradeInventoryCollector(parents, func() bool { return true }, "snapshot")
@@ -109,15 +114,67 @@ func TestClusterUpgradeInventoryReadsDeletionWithoutMetricsQueue(t *testing.T) {
 	require.NoError(t, err)
 	for _, family := range metrics {
 		if family.GetName() == "backend_cluster_upgrade_inventory_info" {
+			require.Equal(t, float64(1), family.Metric[0].GetGauge().GetValue())
 			for _, label := range family.Metric[0].Label {
-				if label.GetName() == "deletion_confirmed" {
-					require.Equal(t, "true", label.GetValue())
-					return
+				require.NotEqual(t, "deletion_confirmed", label.GetName())
+			}
+			return
+		}
+	}
+	t.Fatal("missing primary lifecycle observation")
+}
+
+func TestUpgradeMetricsShareEpochAndStableInventoryIdentity(t *testing.T) {
+	parent := newTestCluster(t, "cluster-1", coreapi.ProvisioningStateSucceeded, nil)
+	parents := cache.NewStore(resourceIDStoreKeyForObject)
+	parent.ResourceID = parent.ID
+	require.NoError(t, parents.Add(parent))
+	registry := prometheus.NewRegistry()
+	collector := newClusterUpgradeInventoryCollector(parents, func() bool { return true }, "shared-process")
+	registry.MustRegister(collector)
+	handler := NewClusterVersionMetricsHandler(registry, &kubeapplierlistertesting.SliceReadDesireLister{}, "shared-process")
+	handler.Sync(context.Background(), newTestServiceProviderCluster(t, parent, "4.20.43", []coreapi.ServiceProviderClusterActiveVersion{{
+		Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate,
+	}}))
+
+	var previousLabels string
+	for _, deleting := range []bool{false, true} {
+		if deleting {
+			parent = parent.DeepCopy()
+			parent.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{}
+			require.NoError(t, parents.Update(parent))
+		}
+		families, err := registry.Gather()
+		require.NoError(t, err)
+		for _, family := range families {
+			for _, metric := range family.Metric {
+				processID := ""
+				labels := strings.Builder{}
+				for _, label := range metric.Label {
+					if label.GetName() == "backend_process" {
+						processID = label.GetValue()
+					}
+					fmt.Fprintf(&labels, "%s=%s;", label.GetName(), label.GetValue())
+					require.NotEqual(t, "deletion_confirmed", label.GetName())
+				}
+				if family.GetName() == "backend_cluster_version_info" {
+					require.Empty(t, processID, "legacy version metric labels must remain compatible")
+				} else {
+					require.Equal(t, "shared-process", processID)
+				}
+				if family.GetName() == "backend_cluster_upgrade_inventory_info" {
+					want := float64(0)
+					if deleting {
+						want = 1
+						require.Equal(t, previousLabels, labels.String(), "teardown changes the value, not the series identity")
+					} else {
+						previousLabels = labels.String()
+					}
+					require.Equal(t, want, metric.GetGauge().GetValue())
 				}
 			}
 		}
 	}
-	t.Fatal("missing primary lifecycle observation")
 }
 
 func TestClusterUpgradeInventoryMalformedEntriesDoNotFailScrape(t *testing.T) {
@@ -140,7 +197,8 @@ func TestClusterUpgradeInventoryMalformedEntriesDoNotFailScrape(t *testing.T) {
 			}
 			require.NoError(t, parents.Add(tc.invalid))
 			registry := prometheus.NewRegistry()
-			registry.MustRegister(newClusterUpgradeInventoryCollector(parents, func() bool { return true }, "snapshot"))
+			collector := newClusterUpgradeInventoryCollector(parents, func() bool { return true }, "snapshot")
+			registry.MustRegister(collector)
 			unrelated := prometheus.NewGauge(prometheus.GaugeOpts{
 				Name: "unrelated_test_metric", Help: "Unrelated metrics must remain available.",
 			})
@@ -173,14 +231,17 @@ backend_cluster_upgrade_inventory_size{backend_process="snapshot"} %d
 backend_cluster_upgrade_inventory_invalid_objects{backend_process="snapshot"} %d
 `, expectedSize, invalidCount)
 				if tc.includeValid {
-					expected += fmt.Sprintf(`# HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1; deletion_confirmed records RP deletion or a durable CS uninstallation observation.
+					expected += fmt.Sprintf(`# HELP backend_cluster_upgrade_inventory_info Primary cluster inventory. Value is 1 when RP or CS deletion or CS uninstallation was observed, otherwise 0.
 # TYPE backend_cluster_upgrade_inventory_info gauge
-backend_cluster_upgrade_inventory_info{backend_process="snapshot",deletion_confirmed="false",resource_id="%s",subscription_id="%s"} 1
+backend_cluster_upgrade_inventory_info{backend_process="snapshot",resource_id="%s",subscription_id="%s"} 0
 `, resourceIDMetricLabel(parent.ID), subscriptionIDMetricLabel(parent.ID))
 				}
 				require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected),
 					"backend_cluster_upgrade_inventory_size", "backend_cluster_upgrade_inventory_info",
 					"backend_cluster_upgrade_inventory_invalid_objects"))
+				if invalidPresent {
+					require.False(t, collector.logLimiter.Allow(), "repeated malformed scrapes must not produce another error log within the cooldown")
+				}
 			}
 		})
 	}

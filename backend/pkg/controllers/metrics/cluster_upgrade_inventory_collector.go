@@ -16,9 +16,10 @@ package metrics
 
 import (
 	"fmt"
-	"strconv"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -32,12 +33,14 @@ type clusterUpgradeInventoryCollector struct {
 	size           *prometheus.Desc
 	info           *prometheus.Desc
 	invalidObjects *prometheus.Desc
+	logLimiter     *rate.Limiter
 }
 
 func newClusterUpgradeInventoryCollector(store cache.Store, hasSynced cache.InformerSynced, processID string) *clusterUpgradeInventoryCollector {
 	labels := prometheus.Labels{"backend_process": processID}
 	return &clusterUpgradeInventoryCollector{
 		store: store, hasSynced: hasSynced,
+		logLimiter: rate.NewLimiter(rate.Every(5*time.Minute), 1),
 		size: prometheus.NewDesc(
 			"backend_cluster_upgrade_inventory_size",
 			"Expected primary cluster inventory rows, including invalid cache entries. Absent before initial cache synchronization.",
@@ -45,8 +48,8 @@ func newClusterUpgradeInventoryCollector(store cache.Store, hasSynced cache.Info
 		),
 		info: prometheus.NewDesc(
 			"backend_cluster_upgrade_inventory_info",
-			"Primary cluster inventory. Value is 1; deletion_confirmed records RP deletion or a durable CS uninstallation observation.",
-			[]string{"resource_id", "subscription_id", "deletion_confirmed"}, labels,
+			"Primary cluster inventory. Value is 1 when RP or CS deletion or CS uninstallation was observed, otherwise 0.",
+			[]string{"resource_id", "subscription_id"}, labels,
 		),
 		invalidObjects: prometheus.NewDesc(
 			"backend_cluster_upgrade_inventory_invalid_objects",
@@ -75,21 +78,26 @@ func (c *clusterUpgradeInventoryCollector) Collect(ch chan<- prometheus.Metric) 
 		cluster, ok := obj.(*coreapi.Cluster)
 		if !ok || cluster == nil || cluster.ID == nil {
 			invalidObjects++
-			utils.DefaultLogger().Error(
-				utils.TrackError(fmt.Errorf("invalid primary cluster inventory object %T", obj)),
-				"Unable to export a primary cluster inventory row",
-			)
 			continue
 		}
 		clusters = append(clusters, cluster)
+	}
+	if invalidObjects > 0 && c.logLimiter.Allow() {
+		utils.DefaultLogger().Error(
+			utils.TrackError(fmt.Errorf("%d invalid primary cluster inventory entries", invalidObjects)),
+			"Unable to export all primary cluster inventory rows",
+		)
 	}
 	// Keep invalid entries in the expected size so a valid subset cannot prove absence.
 	ch <- prometheus.MustNewConstMetric(c.size, prometheus.GaugeValue, float64(len(objects)))
 	ch <- prometheus.MustNewConstMetric(c.invalidObjects, prometheus.GaugeValue, float64(invalidObjects))
 	for _, cluster := range clusters {
 		properties := cluster.ServiceProviderProperties
-		excluded := properties.DeletionTimestamp != nil || properties.ClusterServiceUninstallingObserved
-		ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1,
-			resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), strconv.FormatBool(excluded))
+		excluded := float64(0)
+		if properties.DeletionTimestamp != nil || properties.ClusterServiceDeletionTimestamp != nil || properties.ClusterServiceUninstallingObserved {
+			excluded = 1
+		}
+		ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, excluded,
+			resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID))
 	}
 }

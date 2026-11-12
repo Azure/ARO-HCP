@@ -56,7 +56,7 @@ func newTestClusterVersionMetricsHandler(t *testing.T, prometheusRegistry *prome
 	if readDesireLister == nil {
 		readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{}
 	}
-	return NewClusterVersionMetricsHandler(prometheusRegistry, readDesireLister)
+	return NewClusterVersionMetricsHandler(prometheusRegistry, readDesireLister, "test-process")
 }
 
 func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) kubeapplierlisters.ReadDesireLister {
@@ -281,6 +281,14 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 		converged   bool
 	}{
 		{
+			name: "missing newest version cannot panic or report convergence", desired: "4.20.43",
+			active: []coreapi.ServiceProviderClusterActiveVersion{
+				{Version: nil, State: configv1.CompletedUpdate},
+				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
+			},
+			wantTargets: []string{"4.20.43"}, wantEnabled: "1",
+		},
+		{
 			name: "matching current and desired completed", desired: "4.20.43",
 			active: []coreapi.ServiceProviderClusterActiveVersion{
 				{Version: ptr.To(semver.MustParse("4.20.43")), State: configv1.CompletedUpdate},
@@ -342,7 +350,7 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 		},
 		{
 			name:    "unobserved lifecycle is not zero",
-			desired: "4.20.43", wantTargets: []string{"4.20.43"},
+			desired: "4.20.43", wantTargets: []string{"4.20.43"}, wantEnabled: "1",
 		},
 	}
 	for _, tt := range tests {
@@ -362,6 +370,9 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 			handler.Sync(context.Background(), newTestServiceProviderCluster(t, cluster, "4.20.40", nil))
 			handler.Sync(context.Background(), spc)
 			var expected strings.Builder
+			if tt.lifecycle == "" {
+				tt.wantEnabled = "1"
+			}
 			expected.WriteString("# HELP backend_cluster_upgrade_target_info Current observed and requested upgrade targets. Value is 1. Historical superseded versions are excluded.\n# TYPE backend_cluster_upgrade_target_info gauge\n")
 			for _, target := range tt.wantTargets {
 				fmt.Fprintf(&expected, "backend_cluster_upgrade_target_info{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\",version=\"%s\"} 1\n",
@@ -378,9 +389,9 @@ func TestClusterVersionMetricsHandler_UpgradeTargetsAndLifecycle(t *testing.T) {
 			fmt.Fprintf(&expected, "backend_cluster_upgrade_converged{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %d\n",
 				metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), converged)
 			if tt.wantEnabled != "" {
-				expected.WriteString("# HELP backend_cluster_upgrade_monitoring_enabled Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.\n# TYPE backend_cluster_upgrade_monitoring_enabled gauge\n")
-				fmt.Fprintf(&expected, "backend_cluster_upgrade_monitoring_enabled{cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %s\n",
-					resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), tt.wantEnabled)
+				expected.WriteString("# HELP backend_cluster_upgrade_monitoring_enabled Upgrade monitoring lifecycle eligibility. 1 unless teardown was observed, 0 for confirmed deletion or uninstallation. An absent condition implies eligibility, not a fresh CS observation.\n# TYPE backend_cluster_upgrade_monitoring_enabled gauge\n")
+				fmt.Fprintf(&expected, "backend_cluster_upgrade_monitoring_enabled{backend_process=\"%s\",cluster_uuid=\"\",resource_id=\"%s\",subscription_id=\"%s\"} %s\n",
+					metricsHandler.processID, resourceIDMetricLabel(cluster.ID), subscriptionIDMetricLabel(cluster.ID), tt.wantEnabled)
 			}
 			require.NoError(t, testutil.GatherAndCompare(registry, strings.NewReader(expected.String()),
 				"backend_cluster_upgrade_target_info", "backend_cluster_upgrade_target_count", "backend_cluster_upgrade_converged", "backend_cluster_upgrade_monitoring_enabled"))
@@ -441,7 +452,7 @@ func TestClusterVersionMetricsHandler_CollectUsesOneSnapshot(t *testing.T) {
 	for metric := range metrics {
 		observed = append(observed, metric)
 	}
-	require.Len(t, observed, 4)
+	require.Len(t, observed, 5)
 	frozen := prometheus.NewRegistry()
 	frozen.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for _, metric := range observed {

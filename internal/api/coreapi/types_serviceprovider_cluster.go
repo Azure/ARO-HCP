@@ -192,12 +192,15 @@ type ServiceProviderClusterStatus struct {
 	//   well as internal actions such as upgrades or other maintenance operations are in progress are included in thsi condition.
 	// - "Degraded": True when the cluster is in a degraded state
 	// - "ControlPlaneUpgradeMonitoringEnabled": observed by TriggerControlPlaneUpgrade;
-	//   False for deleting/uninstalling clusters, True after observing another CS state.
-	//   Absence means lifecycle eligibility has not been observed.
+	//   False for deleting/uninstalling clusters; True records recovery from that
+	//   observation. Absence implies eligibility without a fleet-wide initialization write.
+	//   This is top-level because teardown eligibility applies to the whole SPC,
+	//   independent of any specific version-history entry or cluster-health condition.
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum. Take into consideration that conditions at other levels can be specified within
 	// ServiceProviderClusterStatus too.
+	// Written by: TriggerControlPlaneUpgrade
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	// ControlPlaneVersion contains the actual control plane version information.
 	// ActiveVersions contains all versions currently active in the control plane.

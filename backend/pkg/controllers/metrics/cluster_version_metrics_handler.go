@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -23,7 +24,6 @@ import (
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -58,10 +58,11 @@ type clusterVersionMetricSnapshot struct {
 func NewClusterVersionMetricsHandler(
 	prometheusRegisterer prometheus.Registerer,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
+	processID string,
 ) Handler[*coreapi.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
 		readDesireLister: readDesireLister,
-		processID:        string(uuid.NewUUID()),
+		processID:        processID,
 		snapshots:        map[string]clusterVersionMetricSnapshot{},
 		clusterVersionInfo: prometheus.NewDesc(
 			"backend_cluster_version_info",
@@ -81,8 +82,8 @@ func NewClusterVersionMetricsHandler(
 			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process"}, nil),
 		monitoringEnabled: prometheus.NewDesc(
 			"backend_cluster_upgrade_monitoring_enabled",
-			"Upgrade monitoring lifecycle eligibility. 1 after an active lifecycle observation, 0 for confirmed deletion or uninstallation. Absent when unknown.",
-			[]string{"resource_id", "subscription_id", "cluster_uuid"}, nil),
+			"Upgrade monitoring lifecycle eligibility. 1 unless teardown was observed, 0 for confirmed deletion or uninstallation. An absent condition implies eligibility, not a fresh CS observation.",
+			[]string{"resource_id", "subscription_id", "cluster_uuid", "backend_process"}, nil),
 	}
 	prometheusRegisterer.MustRegister(metricsHandler)
 	return metricsHandler
@@ -125,10 +126,10 @@ func (metricsHandler *clusterVersionMetricsHandler) Collect(ch chan<- prometheus
 		switch snapshot.lifecycle {
 		case metav1.ConditionTrue:
 			ch <- prometheus.MustNewConstMetric(metricsHandler.monitoringEnabled, prometheus.GaugeValue, 1,
-				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID)
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID)
 		case metav1.ConditionFalse:
 			ch <- prometheus.MustNewConstMetric(metricsHandler.monitoringEnabled, prometheus.GaugeValue, 0,
-				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID)
+				snapshot.resourceID, snapshot.subscriptionID, snapshot.clusterUUID, metricsHandler.processID)
 		}
 	}
 }
@@ -140,17 +141,20 @@ func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, se
 		clusterUUID:    metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent),
 		targets:        map[string]struct{}{},
 		versionStates:  metricsHandler.versionStatesFromServiceProviderCluster(serviceProviderCluster),
+		lifecycle:      metav1.ConditionTrue,
 	}
 	if condition := apimeta.FindStatusCondition(serviceProviderCluster.Status.Conditions, coreapi.ControlPlaneUpgradeMonitoringEnabled); condition != nil {
 		snapshot.lifecycle = condition.Status
 	}
 	active := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	if len(active) > 0 {
+	if len(active) > 0 && active[0].Version != nil {
 		snapshot.targets[active[0].Version.String()] = struct{}{}
+	} else if len(active) > 0 {
+		utils.LoggerFromContext(ctx).Error(utils.TrackError(fmt.Errorf("newest active control plane version is missing")), "Unable to export current upgrade target")
 	}
 	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
 		snapshot.targets[desired.String()] = struct{}{}
-		snapshot.converged = len(active) > 0 && desired.EQ(*active[0].Version) &&
+		snapshot.converged = len(active) > 0 && active[0].Version != nil && desired.EQ(*active[0].Version) &&
 			snapshot.versionStates[active[0].Version.String()] == "completed"
 	}
 
@@ -207,6 +211,9 @@ func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProv
 		activeVersions = activeVersions[:maxReportedActiveVersions]
 	}
 	for _, activeVersion := range activeVersions {
+		if activeVersion.Version == nil {
+			continue
+		}
 		version := activeVersion.Version.String()
 		// ActiveVersions is newest-first; skip duplicates that can appear after a rollback to the same z-stream.
 		if _, ok := versionStates[version]; ok {

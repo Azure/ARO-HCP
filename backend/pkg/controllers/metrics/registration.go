@@ -34,34 +34,38 @@ func instantiateOperationPhaseMetricsController(controllerContext controllerconf
 		OperationPhaseMetricsControllerName, controllerContext.BackendInformers.AllOperations(), NewOperationPhaseMetricsHandler(controllerContext.MetricsRegisterer)), nil
 }
 
-func registerClusterMetricsController() controllerconfig.ControllerRegistration {
+func registerClusterMetricsController(processID string) controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     1,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterMetricsController, false),
+		Workers: 1,
+		Instantiate: controllerconfig.WithCacheSyncs(func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			return instantiateClusterMetricsController(ctx, processID)
+		}, false),
 	}
 }
 
-func instantiateClusterMetricsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+func instantiateClusterMetricsController(controllerContext controllerconfig.ControllerContext, processID string) (controllerconfig.Runnable, error) {
 	clusterInformer, _ := controllerContext.BackendInformers.Clusters()
 	controllerContext.MetricsRegisterer.MustRegister(newClusterUpgradeInventoryCollector(
-		clusterInformer.GetStore(), clusterInformer.HasSynced, string(uuid.NewUUID()),
+		clusterInformer.GetStore(), clusterInformer.HasSynced, processID,
 	))
 	return NewController(
 		ClusterMetricsControllerName, clusterInformer, NewClusterMetricsHandler(controllerContext.MetricsRegisterer)), nil
 }
 
-func registerClusterVersionMetricsController() controllerconfig.ControllerRegistration {
+func registerClusterVersionMetricsController(processID string) controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
-		Workers:     1,
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateClusterVersionMetricsController, true),
+		Workers: 1,
+		Instantiate: controllerconfig.WithCacheSyncs(func(ctx controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+			return instantiateClusterVersionMetricsController(ctx, processID)
+		}, true),
 	}
 }
 
-func instantiateClusterVersionMetricsController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+func instantiateClusterVersionMetricsController(controllerContext controllerconfig.ControllerContext, processID string) (controllerconfig.Runnable, error) {
 	serviceProviderClusterInformer, _ := controllerContext.BackendInformers.ServiceProviderClusters()
 	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
 	return NewController(
-		ClusterVersionMetricsControllerName, serviceProviderClusterInformer, NewClusterVersionMetricsHandler(controllerContext.MetricsRegisterer, unionReadDesireLister)), nil
+		ClusterVersionMetricsControllerName, serviceProviderClusterInformer, NewClusterVersionMetricsHandler(controllerContext.MetricsRegisterer, unionReadDesireLister, processID)), nil
 }
 
 func registerNodePoolMetricsController() controllerconfig.ControllerRegistration {
@@ -104,9 +108,10 @@ func instantiateClusterInfoMetricsController(controllerContext controllerconfig.
 }
 
 func Register(registry map[string]controllerconfig.ControllerRegistration) {
+	processID := string(uuid.NewUUID())
 	registry[strings.ToLower(OperationPhaseMetricsControllerName)] = registerOperationPhaseMetricsController()
-	registry[strings.ToLower(ClusterMetricsControllerName)] = registerClusterMetricsController()
-	registry[strings.ToLower(ClusterVersionMetricsControllerName)] = registerClusterVersionMetricsController()
+	registry[strings.ToLower(ClusterMetricsControllerName)] = registerClusterMetricsController(processID)
+	registry[strings.ToLower(ClusterVersionMetricsControllerName)] = registerClusterVersionMetricsController(processID)
 	registry[strings.ToLower(NodePoolMetricsControllerName)] = registerNodePoolMetricsController()
 	registry[strings.ToLower(ExternalAuthMetricsControllerName)] = registerExternalAuthMetricsController()
 	registry[strings.ToLower(ClusterInfoMetricsControllerName)] = registerClusterInfoMetricsController()

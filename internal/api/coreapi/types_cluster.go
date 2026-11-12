@@ -170,8 +170,9 @@ type ClusterServiceProviderProperties struct {
 	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// ClusterServiceUninstallingObserved retains the terminal CS lifecycle
-	// observation beyond ServiceProviderCluster cleanup. It does not request deletion.
+	// ClusterServiceUninstallingObserved retains the last uninstalling observation
+	// beyond ServiceProviderCluster cleanup. A later dispatch candidate revalidates
+	// CS and can clear it when neither local deletion timestamp is set.
 	// Written by: TriggerControlPlaneUpgrade
 	ClusterServiceUninstallingObserved bool `json:"clusterServiceUninstallingObserved,omitempty"`
 
