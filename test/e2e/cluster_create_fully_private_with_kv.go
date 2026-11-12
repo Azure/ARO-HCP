@@ -45,6 +45,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
 		labels.MIContainers(1),
+		labels.StartPriority(70),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "full-priv-kv"

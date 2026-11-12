@@ -1073,3 +1073,82 @@ func TestExpectFailureSuiteSelection(t *testing.T) {
 		}
 	})
 }
+
+// listSpecs returns every registered spec, as the list command renders them.
+func listSpecs(t *testing.T) []et.ExtensionTestSpec {
+	t.Helper()
+
+	output, err := os.CreateTemp(t.TempDir(), "specs-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer output.Close()
+
+	root, err := setupCli()
+	if err != nil {
+		t.Fatalf("setting up CLI: %v", err)
+	}
+	root.SetArgs([]string{"list", "tests", "--output", "json"})
+	originalStdout := os.Stdout
+	func() {
+		os.Stdout = output
+		defer func() { os.Stdout = originalStdout }()
+		err = root.Execute()
+	}()
+	if err != nil {
+		t.Fatalf("listing tests: %v", err)
+	}
+	if _, err := output.Seek(0, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+	var specs []et.ExtensionTestSpec
+	if err := json.NewDecoder(output).Decode(&specs); err != nil {
+		t.Fatalf("decoding listed tests: %v", err)
+	}
+	return specs
+}
+
+// TestRegisteredSpecsDeclareValidStartPriority keeps a malformed priority label from
+// reaching a suite run, where it would only surface as a startup error in CI.
+func TestRegisteredSpecsDeclareValidStartPriority(t *testing.T) {
+	for _, spec := range listSpecs(t) {
+		if _, err := parseStartPriority(&spec); err != nil {
+			t.Errorf("spec %q: %v", spec.Name, err)
+		}
+	}
+}
+
+// TestStartPriorityDoesNotChangeSuiteMembership pins the rule that priority only
+// reorders the queue: adding it must not move a spec out of, or into, any suite.
+func TestStartPriorityDoesNotChangeSuiteMembership(t *testing.T) {
+	suites := listSuites(t)
+
+	for _, tc := range []struct {
+		suite string
+		base  []string
+	}{
+		{"integration/parallel", []string{labels.RequireNothing[0]}},
+		{"integration/parallel/slow", []string{labels.RequireNothing[0], labels.Slow[0]}},
+		{"stage/parallel", []string{labels.RequireNothing[0]}},
+		{"stage/parallel/all", []string{labels.RequireNothing[0]}},
+		{"prod/parallel", []string{labels.RequireNothing[0]}},
+		{"rp-api-compat-all/parallel", []string{labels.AroRpApiCompatible[0]}},
+		{"upgrade/in-place", []string{labels.UpgradeInPlace[0]}},
+	} {
+		t.Run(tc.suite, func(t *testing.T) {
+			suite, ok := suites[tc.suite]
+			if !ok {
+				t.Fatalf("suite %q is not registered", tc.suite)
+			}
+			base := specWithLabels("base", tc.base...)
+			prioritized := specWithLabels("prioritized", append(append([]string{}, tc.base...), labels.StartPriority(50)[0])...)
+
+			if !selectedBy(t, suite, base) {
+				t.Fatalf("base spec with labels %v should be a member of %q", tc.base, tc.suite)
+			}
+			if !selectedBy(t, suite, prioritized) {
+				t.Fatalf("spec with labels %v and a start priority should stay a member of %q", tc.base, tc.suite)
+			}
+		})
+	}
+}

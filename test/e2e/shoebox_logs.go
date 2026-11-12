@@ -229,6 +229,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.StageAndProdOnly,
 		labels.MIContainers(1),
+		labels.StartPriority(80),
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"

@@ -163,12 +163,12 @@ var _ = Describe("Service Provider", func() {
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
-		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
-		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
-		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.AllowRetry, "4.22"), // owner: @raelga, tracking: AROSLSRE-1319. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
-		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23"),
-		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.0"),
-		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
+		Entry("for 4.20", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
+		Entry("for 4.21", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
+		Entry("for 4.22", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.AllowRetry, "4.22"), // owner: @raelga, tracking: AROSLSRE-1319. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+		Entry("for 4.23", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23"),
+		Entry("for 5.0", labels.StartPriority(50), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.0"),
+		Entry("for 5.1", labels.StartPriority(30), labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
 		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),
 		Entry("for 5.4", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.4"),
