@@ -53,9 +53,9 @@ var allowedConfigFiles = map[string]string{
 	".claude/OWNERS": "1339739f4fe68150e4a8c071fee63ca4d745d81f",
 	".claude/skills/bootstrap-api-version/SKILL.md": "36a339ddf8bb019b0bec79d8ef39cf3c346c02f2",
 	".claude/skills/pr-standards/SKILL.md":          "a2640ea6c4bdb73f264230c2613a546377030b39",
-	".github/agents/agentic-workflows.agent.md":     "7dcd288d083eba95430dca331967a48da7257f3f",
+	".github/agents/agentic-workflows.agent.md":     "3fee8b7060d3c5307731a3e921f57bf406e91e85",
 	".github/instructions/e2e.instructions.md":      "cd16a25d1459cda97bc448652f2212714bd57e90",
-	".github/skills/agentic-workflows/SKILL.md":     "9476edb2bb54d3fbc6e9fd6fb7d340957a9194ec",
+	".github/skills/agentic-workflows/SKILL.md":     "37dd349a7c61221e2ceef008624592efbae9dbb5",
 }
 
 const workspaceConfigExt = ".code-workspace"
