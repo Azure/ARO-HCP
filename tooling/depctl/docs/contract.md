@@ -24,9 +24,9 @@ change and not an implementation detail.
 
 | Constant | Value | Source |
 | --- | --- | --- |
-| owned output identity | `aro-hcp-robot[bot]` | `tool_version_guard.py`, `agentic_pr_maintenance.py` |
-| tool label | `agentic-tool-upgrade` | `tool_version_guard.py`, `agentic_pr_maintenance.py` |
-| tool title prefix | `chore(tools): ` | `tool-version-updates.md`, `tool_version_guard.py` |
+| owned output identity | `aro-hcp-robot[bot]` | `internal/policy/tools.go`, `internal/safeoutput` |
+| tool label | `agentic-tool-upgrade` | `internal/policy/tools.go`, `internal/safeoutput` |
+| tool title prefix | `chore(tools): ` | `internal/policy/tools.go`, `internal/safeoutput` |
 | tool family marker | `<!-- agentic-tool-family: … -->` | `tool-version-updates.md` |
 | security title and label | `fix(deps): ` / `agentic-dependabot` | `dependabot-remediation.md` |
 | native label and marker | `agentic-dependency-upgrade` / `<!-- native-dependabot-maintenance:` | `gh-aw-recompile.md`, continuation workflow |

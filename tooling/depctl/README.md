@@ -40,8 +40,9 @@ described in [docs/design.md](docs/design.md).
 ## Commands
 
 Commands that produce a record print it on stdout, or write it to `--output`;
-diagnostics go to stderr. A record is `schemaVersion: depctl/v1`. `version`
-prints provenance text, and `run --mode simulate` prints its scenario report.
+diagnostics go to stderr. A record is `schemaVersion: depctl/v1`. `guard`
+rewrites the safe-output artifact in place, `version` prints provenance text, and
+`run --mode simulate` prints its scenario report.
 
 ### inventory
 
@@ -142,6 +143,26 @@ depctl proposal --repo . --plan plan.json --candidate candidate.json \
   --validation validation.json --output proposal.json
 ```
 
+### guard
+
+```bash
+depctl guard --agent-output PATH --repository OWNER/REPO
+```
+
+Reads the agent's safe-output artifact and the open proposals owned by
+`aro-hcp-robot[bot]`. When an owned tooling proposal is already open on `main`,
+every `create_pull_request` item is replaced with one `noop` summary so a second
+proposal is never published; other item types are preserved. A malformed
+artifact, a proposal for another repository or base, or incomplete remote
+metadata fails closed and leaves the artifact untouched.
+
+```bash
+depctl guard --agent-output "$AGENT_OUTPUT" --repository Azure/ARO-HCP
+```
+
+Only the local artifact is rewritten: no branch, pull request or comment is
+created. The reader takes `GH_TOKEN` or `GITHUB_TOKEN` and never prints it.
+
 ### run --mode prepare
 
 ```bash
@@ -231,6 +252,7 @@ prints the same as JSON. `--verbosity` (global) sets the log level.
 | `apply` | the source checkout | a committed candidate worktree, kept on success |
 | `verify` | baseline and candidate worktrees | consumer logs, a temporary baseline worktree |
 | `proposal` | the candidate worktree | a patch file and `--output` |
+| `guard` | the safe-output artifact and open owned proposals | the same artifact, rewritten in place |
 | `run --mode prepare` | the source checkout, optionally upstream releases | candidate, logs, records, journal |
 | `run --mode simulate` | a fixture repository | a scratch directory under `--work-dir` |
 | `maintenance inspect` | `gh api` and public Prow artifacts | evidence files, journal, `--output` |
@@ -246,7 +268,8 @@ outside the repository unless you name a directory yourself.
 Offline discovery needs `bash` for the CI tool mapping and `go` for the bingo
 module metadata. Candidate preparation and the tools consumers need the tools the
 repository already uses: `bingo`, `make`, `go`, `jq`, and `bicep` for a Bicep
-candidate. `maintenance inspect` needs an authenticated `gh`.
+candidate. `maintenance inspect` needs an authenticated `gh`; `guard` needs
+`GH_TOKEN` or `GITHUB_TOKEN` for the REST API.
 
 ## Exit codes
 

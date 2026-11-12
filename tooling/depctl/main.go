@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/apply"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/evidence"
+	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/guard"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/inventory"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/maintenance"
 	"github.com/Azure/ARO-HCP/tooling/depctl/cmd/plan"
@@ -104,6 +105,7 @@ reachable from this binary.`,
 		verify.NewCommand,
 		proposal.NewCommand,
 		run.NewCommand,
+		guard.NewCommand,
 		maintenance.NewCommand,
 		evidence.NewCommand,
 	}

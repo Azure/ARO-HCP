@@ -78,13 +78,24 @@ safe-outputs:
   noop:
     report-as-issue: false
   steps:
+    - name: Set up Go for the publication guard
+      if: contains(needs.agent.outputs.output_types, 'create_pull_request')
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.work
+        check-latest: true
+    - name: Build the publication guard
+      if: contains(needs.agent.outputs.output_types, 'create_pull_request')
+      run: make -C tooling/depctl build BINARY="$RUNNER_TEMP/depctl"
     - name: Serialize tooling proposals before creation
       if: contains(needs.agent.outputs.output_types, 'create_pull_request')
       env:
         GH_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         REPO: ${{ github.repository }}
         AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-      run: python3 .github/scripts/tool_version_guard.py "$AGENT_OUTPUT" "$REPO"
+      run: |
+        set -euo pipefail
+        "$RUNNER_TEMP/depctl" guard --agent-output "$AGENT_OUTPUT" --repository "$REPO"
   create-pull-request:
     max: 1
     draft: false
