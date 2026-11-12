@@ -179,21 +179,21 @@
               "type": "string"
             },
             "customerNsgName": {
-              "defaultValue": "customer-nsg",
+              "defaultValue": "Customer-NSG",
               "metadata": {
                 "description": "Network Security Group Name"
               },
               "type": "string"
             },
             "customerVnetName": {
-              "defaultValue": "customer-vnet",
+              "defaultValue": "Customer-VNet",
               "metadata": {
                 "description": "Virtual Network Name"
               },
               "type": "string"
             },
             "customerVnetSubnetName": {
-              "defaultValue": "customer-subnet-1",
+              "defaultValue": "Customer-Subnet-1",
               "metadata": {
                 "description": "Subnet Name"
               },
@@ -413,9 +413,9 @@
           ],
           "variables": {
             "addressPrefix": "10.0.0.0/16",
-            "customerKeyVaultName": "[format('cust-kv-{0}', variables('randomSuffix'))]",
+            "customerKeyVaultName": "[format('Cust-KV-{0}', variables('randomSuffix'))]",
             "keyVaultCryptoOfficerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '14b46e9e-c2b7-41b4-b07b-48a6ebf60603')]",
-            "randomSuffix": "[toLower(uniqueString(resourceGroup().id, parameters('clusterName')))]",
+            "randomSuffix": "[uniqueString(resourceGroup().id, parameters('clusterName'))]",
             "subnetPrefix": "10.0.0.0/24",
             "vnetIntegrationSubnetPrefix": "10.0.1.0/24"
           }

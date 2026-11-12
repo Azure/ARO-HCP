@@ -2,13 +2,13 @@
 param persistTagValue bool = false
 
 @description('Network Security Group Name')
-param customerNsgName string = 'customer-nsg'
+param customerNsgName string = 'Customer-NSG'
 
 @description('Virtual Network Name')
-param customerVnetName string = 'customer-vnet'
+param customerVnetName string = 'Customer-VNet'
 
 @description('Subnet Name')
-param customerVnetSubnetName string = 'customer-subnet-1'
+param customerVnetSubnetName string = 'Customer-Subnet-1'
 
 @description('The name of the encryption key for etcd')
 param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
@@ -26,13 +26,13 @@ param assignKeyVaultCryptoOfficer bool = false
 // Variables
 //
 
-var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
+var randomSuffix = uniqueString(resourceGroup().id, clusterName)
 
 // The Key Vault Name is defined here in a variable instead of using a
 // parameter because of strict Azure requirements for KeyVault names
 // (KeyVault names are globally unique and must be between 3-24 alphanumeric
 // characters).
-var customerKeyVaultName = 'cust-kv-${randomSuffix}'
+var customerKeyVaultName = 'Cust-KV-${randomSuffix}'
 
 //
 // Network

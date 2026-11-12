@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -232,7 +233,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
 
 			if devEnv {
-				firstRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, firstKeyVersion)
+				firstRotationFingerprint := backup.AzureKMSKeyFingerprint(strings.ToLower(clusterParams.KeyVaultName), clusterParams.EtcdEncryptionKeyName, firstKeyVersion)
 				verifyOnDemandBackupRespectingPauseState(ctx, httpClient, adminAPIAddress, hcpResourceID, firstRotationFingerprint, "first")
 			}
 
@@ -342,7 +343,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
 
 			if devEnv {
-				secondRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, secondKeyVersion)
+				secondRotationFingerprint := backup.AzureKMSKeyFingerprint(strings.ToLower(clusterParams.KeyVaultName), clusterParams.EtcdEncryptionKeyName, secondKeyVersion)
 				verifyOnDemandBackupRespectingPauseState(ctx, httpClient, adminAPIAddress, hcpResourceID, secondRotationFingerprint, "second")
 
 				By("verifying backup schedules still exist after rotation")
