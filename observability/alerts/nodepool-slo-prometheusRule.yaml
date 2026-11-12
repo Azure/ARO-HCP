@@ -59,7 +59,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="create"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="create", phase=~"accepted|provisioning"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="create", phase=~"accepted|provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
@@ -90,7 +90,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="update"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="update", phase=~"accepted|updating"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="update", phase=~"accepted|provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )
@@ -121,7 +121,7 @@ spec:
               (
                 (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="delete"})
                 and
-                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="delete", phase=~"accepted|deleting"} == 1
+                backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="delete", phase=~"accepted|provisioning|updating|deleting"} == 1
               ) > 7200
             )[6h:5m]
           )

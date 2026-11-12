@@ -1035,3 +1035,84 @@ tests:
   # At 180m, failures have aged out of the 30m short window → alert resolves
   - eval_time: 180m
     alertname: userJourneyNodePoolErrorsDegradation
+
+# ========================================
+# Test: Cross-phase stuck operations
+# ========================================
+# The phase follows the Cluster Service node pool state, not the operation verb,
+# so each per-verb stuck alert must match every in-progress phase.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/x1/np/cross-update", subscription_id="sub-x1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/x1/np/cross-update", subscription_id="sub-x1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyNodePoolUpdateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "update"
+        phase: "deleting"
+        resource_id: "/sub/x1/np/cross-update"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-x1"
+      exp_annotations:
+        correlationId: "userJourneyNodePoolUpdateStuckOperation/mgmt-1//sub/x1/np/cross-update"
+        summary: "mgmt-1: Node Pool update for /sub/x1/np/cross-update stuck in deleting for over 2 hours"
+        description: "Node pool update operation for /sub/x1/np/cross-update has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/x2/np/cross-delete", subscription_id="sub-x2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/x2/np/cross-delete", subscription_id="sub-x2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyNodePoolDeleteStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "delete"
+        phase: "updating"
+        resource_id: "/sub/x2/np/cross-delete"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-x2"
+      exp_annotations:
+        correlationId: "userJourneyNodePoolDeleteStuckOperation/mgmt-1//sub/x2/np/cross-delete"
+        summary: "mgmt-1: Node Pool delete for /sub/x2/np/cross-delete stuck in updating for over 2 hours"
+        description: "Node pool delete operation for /sub/x2/np/cross-delete has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/x3/np/cross-create", subscription_id="sub-x3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/x3/np/cross-create", subscription_id="sub-x3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: userJourneyNodePoolCreateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "create"
+        phase: "updating"
+        resource_id: "/sub/x3/np/cross-create"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: "4"
+        exclude_internal_subscriptions: "true"
+        subscription_id: "sub-x3"
+      exp_annotations:
+        correlationId: "userJourneyNodePoolCreateStuckOperation/mgmt-1//sub/x3/np/cross-create"
+        summary: "mgmt-1: Node Pool create for /sub/x3/np/cross-create stuck in updating for over 2 hours"
+        description: "Node pool create operation for /sub/x3/np/cross-create has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"

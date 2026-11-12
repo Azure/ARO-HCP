@@ -6939,14 +6939,14 @@
   group: arohcp_nodepool_slo_error_alerts
   alert: userJourneyNodePoolCreateStuckOperation
   occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
     conditions:
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left
         queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds: []
         unsupported: ""
@@ -6954,14 +6954,14 @@
   group: arohcp_nodepool_slo_error_alerts
   alert: userJourneyNodePoolDeleteStuckOperation
   occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
     conditions:
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left
         queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds: []
         unsupported: ""
@@ -6969,14 +6969,14 @@
   group: arohcp_nodepool_slo_error_alerts
   alert: userJourneyNodePoolUpdateStuckOperation
   occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
     conditions:
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left
         queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds: []
         unsupported: ""
@@ -11664,18 +11664,18 @@
           (
             (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="create"})
             and
-            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="create", phase=~"accepted|provisioning"} == 1
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="create", phase=~"accepted|provisioning|updating|deleting"} == 1
           ) > 7200
         )[6h:5m]
       )
     )
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
     conditions:
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
         path: root
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
             role: signal
         thresholds: []
         unsupported: ""
@@ -11699,18 +11699,18 @@
           (
             (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="delete"})
             and
-            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="delete", phase=~"accepted|deleting"} == 1
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="delete", phase=~"accepted|provisioning|updating|deleting"} == 1
           ) > 7200
         )[6h:5m]
       )
     )
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
     conditions:
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
         path: root
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
             role: signal
         thresholds: []
         unsupported: ""
@@ -11734,18 +11734,18 @@
           (
             (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="update"})
             and
-            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="update", phase=~"accepted|updating"} == 1
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="update", phase=~"accepted|provisioning|updating|deleting"} == 1
           ) > 7200
         )[6h:5m]
       )
     )
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
     conditions:
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
         path: root
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
             role: signal
         thresholds: []
         unsupported: ""
