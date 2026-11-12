@@ -618,8 +618,6 @@ personal-development configuration remains supported. Azure pool/catalog
 retirement and removal of release-side lease gates are deferred.
 
 `provision-from-main.sh` uses the checked-out baseline's binary and configuration
-adapter; it does not preserve PR code across checkout. A pre-feature baseline
-does not understand the slot bundle, so identical identities across an upgrade
-from that baseline are not guaranteed. Such an inplace-upgrade run may fail and
-is non-gating for this feature's introduction. `SHARED_DIR` is Secret-backed;
-binary/adapter subdirectories must not be created there.
+adapter; it does not preserve PR code across checkout. Bundle support depends
+on that baseline's consumers. `SHARED_DIR` is Secret-backed; binary/adapter
+subdirectories must not be created there.

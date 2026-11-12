@@ -336,7 +336,28 @@ with affected jobs drained, not a deployment/admission/release operation. Use th
 deterministic application name for the certificate name and `<name>.hcp.osadev.cloud`
 for its DNS name.
 
-Managed HSM-local data-plane grants are distinct from these subscription roles.
-The current mock admission verifies Graph, certificates and the subscription
-baseline; it does not yet recover leaked HSM-local grants. Test teardown's HSM
-purge is best-effort and is not a recovery guarantee before slot reuse.
+### Test-scoped Managed HSM access
+
+The Managed HSM Crypto User grants made by tests are HSM-local data-plane
+assignments tied to the test HSM lifecycle, not part of the persistent ARM
+subscription RBAC baseline. Mock admission is read-only: it verifies Graph,
+certificates and the persistent identity bundle's subscription baseline, but
+does not synchronously revoke test-scoped grants. Acquire and release are no-ops
+for this asset. A reused slot principal can therefore retain access to an old
+test HSM until the test resource group's expiry and successful background cleanup
+if test teardown did not remove it. Expiry alone does not revoke access.
+
+The test framework tags resource groups with `e2e.aro-hcp-ci.redhat.com=true`
+and `deleteAfter.aro-hcp-ci.redhat.com`. Periodic expired-resource-group cleanup
+selects these groups; its `no-rp` workflow deletes the resource group and then
+attempts to purge its soft-deleted Key Vaults and Managed HSMs. HSM purge is
+best-effort. Failed resource group deletions remain discoverable by later scans,
+but a failed purge after successful resource group deletion is not retried by
+the expired-resource-group scan because that group no longer exists.
+
+Resource group deletion and permanent HSM purge are distinct: Azure soft-delete
+retention and purge protection apply, so cleanup does not guarantee immediate
+permanent erasure. See [CI cleanup](cleanup.md) and
+[Managed HSM soft delete](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/soft-delete-overview).
+The ARM orphan-role sweeper handles assignments whose Graph principals no longer
+exist; it does not clean up HSM-local grants to live persistent mock principals.
