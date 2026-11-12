@@ -15,8 +15,9 @@
 
 set -euo pipefail
 
-GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER:-Azure}"
-GITHUB_REPO_NAME="${GITHUB_REPO_NAME:-ARO-HCP}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=hack/ci/grafana-preview-lib.sh
+source "${SCRIPT_DIR}/grafana-preview-lib.sh"
 
 # Exit early when another repository's pull request started this job. Without
 # this guard, PULL_BASE_SHA points at a commit that is absent from the ARO-HCP
@@ -27,31 +28,15 @@ if [[ -n "${REPO_OWNER:-}${REPO_NAME:-}" \
     exit 0
 fi
 
-for tool in az curl jq git grep sed tr head tail mktemp sha1sum; do
-    if ! command -v "${tool}" &>/dev/null; then
-        echo "ERROR: ${tool} is required but not found" >&2
-        exit 1
-    fi
-done
-
-if ! az extension show --name amg &>/dev/null; then
-    echo "ERROR: Azure Managed Grafana CLI extension (amg) is not installed." >&2
-    echo "Install it with: az extension add --upgrade --name amg" >&2
-    exit 1
-fi
-
-GRAFANA_APP_ID="ce34e7e5-485f-4d76-964f-b3d2b16d1e4f"
-DASHBOARD_DIR="observability/grafana-dashboards"
-GITHUB_API="https://api.github.com"
+require_tools az curl jq git grep sed tr head tail mktemp sha1sum
 
 : "${PULL_NUMBER:?PULL_NUMBER must be set}"
 : "${PULL_BASE_SHA:?PULL_BASE_SHA must be set}"
-: "${GRAFANA_NAME:?GRAFANA_NAME must be set}"
-: "${GRAFANA_RESOURCE_GROUP:?GRAFANA_RESOURCE_GROUP must be set}"
+: "${GITHUB_TOKEN:?GITHUB_TOKEN must be set}"
 
 PULL_PULL_SHA="${PULL_PULL_SHA:-$(git rev-parse HEAD)}"
 
-detect_changed_dashboards() {
+get_modified_dashboards() {
     if ! git cat-file -e "${PULL_BASE_SHA}^{commit}" 2>/dev/null; then
         echo "ERROR: PULL_BASE_SHA=${PULL_BASE_SHA} not found in git history (is the repo fetched deeply enough?)" >&2
         return 1
@@ -66,52 +51,30 @@ detect_changed_dashboards() {
         | grep -E '\.json$' || true
 }
 
-get_grafana_endpoint() {
-    az grafana show \
-        --name "${GRAFANA_NAME}" \
-        --resource-group "${GRAFANA_RESOURCE_GROUP}" \
-        --query "properties.endpoint" \
-        --output tsv
-}
+create_or_read_preview_folder() {
+    local folder_uid folder_title
+    folder_uid=$(build_preview_folder_uid "${PULL_NUMBER}")
+    folder_title=$(build_preview_folder_title "${PULL_NUMBER}")
 
-get_grafana_token() {
-    az account get-access-token \
-        --resource "${GRAFANA_APP_ID}" \
-        --query "accessToken" \
-        --output tsv
-}
-
-grafana_api() {
-    local method="$1"
-    local path="$2"
-    shift 2
-
-    curl --silent --fail-with-body \
-        -X "${method}" \
-        -H "Authorization: Bearer ${GRAFANA_TOKEN}" \
-        -H "Content-Type: application/json" \
-        "${GRAFANA_ENDPOINT}${path}" \
-        "$@"
-}
-
-create_or_get_folder() {
-    local folder_uid="pr-${PULL_NUMBER}"
-    local folder_title="PR-${PULL_NUMBER}"
+    local folder_status_code
+    folder_status_code=$(get_preview_folder_status_code "${folder_uid}")
+    case "${folder_status_code}" in
+        200)
+            echo "Skipped creating folder '${folder_title}' (already exists)" >&2
+            echo "${folder_uid}"
+            return 0
+            ;;
+        404)
+            echo "No preview folder currently exists. Creating folder..." >&2
+            ;;
+        *)
+            echo "ERROR: Failed to read folder ${folder_uid} from Grafana (HTTP ${folder_status_code})" >&2
+            return 1
+            ;;
+    esac
 
     local response
-    local http_code
-    http_code=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-        -X GET \
-        -H "Authorization: Bearer ${GRAFANA_TOKEN}" \
-        "${GRAFANA_ENDPOINT}/api/folders/${folder_uid}")
-
-    if [[ "${http_code}" == "200" ]]; then
-        echo "Skipped creating folder '${folder_title}' (already exists)" >&2
-        echo "${folder_uid}"
-        return 0
-    fi
-
-    response=$(grafana_api POST "/api/folders" \
+    response=$(send_grafana_request POST "/api/folders" \
         -d "{\"uid\": \"${folder_uid}\", \"title\": \"${folder_title}\"}")
 
     local created_uid
@@ -149,7 +112,7 @@ upload_dashboard() {
         '{dashboard: $dashboard, folderUid: $folder_uid, overwrite: true}')
 
     local response
-    response=$(grafana_api POST "/api/dashboards/db" -d "${payload}")
+    response=$(send_grafana_request POST "/api/dashboards/db" -d "${payload}")
 
     local status
     status=$(echo "${response}" | jq -r '.status')
@@ -159,111 +122,99 @@ upload_dashboard() {
     fi
 }
 
-github_request() {
-    local method="$1" url="$2"
-    shift 2
-    case "${url}" in
-        http*) : ;;
-        *) url="${GITHUB_API}${url}" ;;
+# Deletes the dashboards that are in the preview folder but are not in the current
+# set of changes in the Pull Request due to a force-push that dropped dashboards.
+prune_removed_dashboards() {
+    local folder_uid="$1"
+    shift
+    local -a kept_uids=("$@")
+
+    local existing_uids
+    if ! existing_uids=$(list_folder_dashboards "${folder_uid}"); then
+        echo "ERROR: Failed to list the dashboards in folder ${folder_uid}" >&2
+        return 1
+    fi
+    [[ -z "${existing_uids}" ]] && return 0
+
+    local existing_uid
+    while IFS= read -r existing_uid; do
+        [[ -z "${existing_uid}" ]] && continue
+
+        # Prune only the dashboards that this PR created.
+        if [[ "${existing_uid}" != "pr-${PULL_NUMBER}-"* ]]; then
+            echo "WARNING: Skipping ${existing_uid}: it is not a preview of PR ${PULL_NUMBER}" >&2
+            continue
+        fi
+
+        local should_keep=false uid
+        for uid in "${kept_uids[@]}"; do
+            if [[ "${uid}" == "${existing_uid}" ]]; then
+                should_keep=true
+                break
+            fi
+        done
+        "${should_keep}" && continue
+
+        echo "Pruning dashboard no longer changed by this PR: ${existing_uid}"
+        delete_dashboard "${existing_uid}" || echo "WARNING: Failed to prune ${existing_uid}" >&2
+    done <<< "${existing_uids}"
+}
+
+# Removes the preview folder and comment when the PR no longer contains dashboard changes
+# after a force-push that reverted the dashboard updates.
+delete_preview_folder_and_comments() {
+    local folder_uid
+    folder_uid=$(build_preview_folder_uid "${PULL_NUMBER}")
+
+    local folder_status_code
+    folder_status_code=$(get_preview_folder_status_code "${folder_uid}")
+
+    local has_failed=0
+    case "${folder_status_code}" in
+        200)
+            echo "No Grafana dashboard changes detected, removing the existing preview."
+            delete_preview_folder "${folder_uid}" || has_failed=1
+            ;;
+        404)
+            echo "No Grafana dashboard changes detected and no preview folder exists."
+            ;;
+        *)
+            echo "ERROR: Could not read the preview folder ${folder_uid} (HTTP ${folder_status_code}), so the cleanup did nothing." >&2
+            return 1
+            ;;
     esac
-    curl --silent --fail-with-body \
-        -X "${method}" \
-        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-        -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "${url}" "$@"
-}
 
-# Fetch every issue comment, following the "Link: next" header across all pages.
-list_all_issue_comments() {
-    local url="${GITHUB_API}/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/${PULL_NUMBER}/comments?per_page=100"
-    local headers body next
-    while [[ -n "${url}" ]]; do
-        headers=$(mktemp)
-        body=$(curl --silent --fail-with-body \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -D "${headers}" \
-            "${url}")
-        printf '%s\n' "${body}"
-        next=$({ grep -i '^link:' "${headers}" || true; } | tr ',' '\n' \
-            | sed -n 's/.*<\([^>]*\)>;[[:space:]]*rel="next".*/\1/p' | tr -d '\r' | head -1)
-        rm -f "${headers}"
-        url="${next}"
-    done | jq -s 'add // []'
-}
-
-post_or_update_pr_comment() {
-    local comment_body="$1"
-    local marker="<!-- grafana-preview -->"
-
-    local full_body="${marker}
-${comment_body}"
-
-    local payload
-    payload=$(jq -n --arg body "${full_body}" '{body: $body}')
-
-    local marker_ids
-    # $marker below must stay single-quoted so jq receives it literally
-    # shellcheck disable=SC2016
-    marker_ids=$(list_all_issue_comments \
-        | jq -r --arg marker "${marker}" \
-            '[.[] | select(.user.type == "Bot" and (.body | startswith($marker)))]
-             | sort_by(.id) | .[].id')
-
-    if [[ -z "${marker_ids}" ]]; then
-        github_request POST "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/${PULL_NUMBER}/comments" \
-            -H "Content-Type: application/json" \
-            -d "${payload}" > /dev/null
-        echo "Posted new PR comment" >&2
-        return 0
+    # An earlier run can delete the folder and still leave the comment behind, so
+    # look for a comment even when the folder is already gone. A failure here must
+    # fail the job: the dead links stay on the PR until a rerun removes them.
+    if ! delete_preview_comments; then
+        echo "ERROR: Failed to delete the preview PR comment." >&2
+        has_failed=1
     fi
 
-    # Keep and edit the newest match; delete older duplicates.
-    local latest_id old_id
-    latest_id=$(printf '%s\n' "${marker_ids}" | tail -1)
-
-    while IFS= read -r old_id; do
-        [[ -z "${old_id}" || "${old_id}" == "${latest_id}" ]] && continue
-        github_request DELETE "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/comments/${old_id}" > /dev/null
-        echo "Deleted stale preview comment ${old_id}" >&2
-    done <<< "${marker_ids}"
-
-    github_request PATCH "/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/issues/comments/${latest_id}" \
-        -H "Content-Type: application/json" \
-        -d "${payload}" > /dev/null
-    echo "Updated existing PR comment ${latest_id}" >&2
+    return "${has_failed}"
 }
 
 main() {
-    local changed_files
-    changed_files=$(detect_changed_dashboards)
+    local modified_dashboards
+    modified_dashboards=$(get_modified_dashboards)
 
-    if [[ -z "${changed_files}" ]]; then
-        echo "No Grafana dashboard changes detected, skipping preview."
+    resolve_grafana_access
+
+    if [[ -z "${modified_dashboards}" ]]; then
+        delete_preview_folder_and_comments
         exit 0
     fi
 
-    echo "Changed dashboards:"
-    echo "${changed_files}"
+    echo "Modified dashboards:"
+    echo "${modified_dashboards}"
     echo ""
 
-    GRAFANA_ENDPOINT=$(get_grafana_endpoint)
-    if [[ -z "${GRAFANA_ENDPOINT}" ]]; then
-        echo "ERROR: Failed to resolve Grafana endpoint (check GRAFANA_NAME/GRAFANA_RESOURCE_GROUP and Azure auth)" >&2
-        exit 1
-    fi
-    GRAFANA_TOKEN=$(get_grafana_token)
-    if [[ -z "${GRAFANA_TOKEN}" ]]; then
-        echo "ERROR: Failed to obtain Grafana access token (check Azure auth and GRAFANA_APP_ID)" >&2
-        exit 1
-    fi
-
     local folder_uid
-    folder_uid=$(create_or_get_folder)
+    folder_uid=$(create_or_read_preview_folder)
 
     local dashboard_links=()
+    local uploaded_uids=()
     local file original_uid title preview_uid link
 
     while IFS= read -r file; do
@@ -275,23 +226,26 @@ main() {
             continue
         fi
 
-        # Grafana limits dashboard UIDs to 40 characters.
-        # If the new UID is longer, replace the end with hash.
-        preview_uid="pr-${PULL_NUMBER}-${original_uid}"
-        if (( ${#preview_uid} > 40 )); then
-            local uid_hash
-            uid_hash=$(printf '%s' "${preview_uid}" | sha1sum | head -c 6)
-            preview_uid="${preview_uid:0:33}-${uid_hash}"
-        fi
+        preview_uid=$(build_preview_dashboard_uid "${PULL_NUMBER}" "${original_uid}")
 
         echo "Uploading: ${title} (${file})"
         upload_dashboard "${file}" "${folder_uid}" "${preview_uid}" "${title}"
+        uploaded_uids+=("${preview_uid}")
 
         link="${GRAFANA_ENDPOINT}/d/${preview_uid}"
         local title_md
         title_md=$(printf '%s' "${title}" | tr '\n' ' ' | sed 's/[][]/\\&/g') # prevent PR title from escaping markdown
         dashboard_links+=("- [${title_md}](${link})")
-    done <<< "${changed_files}"
+    done <<< "${modified_dashboards}"
+
+    # Every changed file was skipped for a missing uid, so nothing is previewable.
+    if (( ${#uploaded_uids[@]} == 0 )); then
+        echo "WARNING: No dashboard had a usable uid, removing the preview." >&2
+        delete_preview_folder_and_comments
+        exit 0
+    fi
+
+    prune_removed_dashboards "${folder_uid}" "${uploaded_uids[@]}"
 
     echo ""
     echo "============================================"
@@ -303,12 +257,11 @@ main() {
     done
     echo "============================================"
 
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        local links_md
-        links_md=$(printf '%s\n' "${dashboard_links[@]}")
+    local links_md
+    links_md=$(printf '%s\n' "${dashboard_links[@]}")
 
-        local comment_body
-        comment_body="## Grafana Dashboard Preview
+    local comment_body
+    comment_body="## Grafana Dashboard Preview
 
 The following Grafana dashboards have been deployed for preview:
 
@@ -316,13 +269,12 @@ ${links_md}
 
 :file_folder: [View all in PR folder](${GRAFANA_ENDPOINT}/dashboards/f/${folder_uid})
 
+When this PR closes or merges, the preview dashboards will be deleted.
+
 *Preview updated for commit ${PULL_PULL_SHA:0:7}*"
 
-        if ! post_or_update_pr_comment "${comment_body}"; then
-            echo "WARNING: Failed to post/update PR comment." >&2
-        fi
-    else
-        echo "GITHUB_TOKEN not set, skipping PR comment."
+    if ! create_or_update_comment "${comment_body}"; then
+        echo "WARNING: Failed to create/update PR comment." >&2
     fi
 }
 
