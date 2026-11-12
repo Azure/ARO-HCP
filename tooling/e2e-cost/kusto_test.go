@@ -67,7 +67,7 @@ kusto: {rg: shared-kusto, kustoName: historical-audit, location: eastus, service
       - resource: {resourceGroup: run-mgmt-2, name: not-an-aks, resourceType: Microsoft.Storage/storageAccounts}
 `)
 	discoveryResults(t, objects, map[string]any{"name": "Customer creates clusters", "result": "skipped", "output": ""})
-	return Discover(context.Background(), discoveryClient(t, objects), discoveryTestURL, discoveryNow())
+	return Discover(context.Background(), discoveryClient(t, objects, discoveryTestPrefix), discoveryTestURL, discoveryNow())
 }
 
 func kustoID(sub, rg, name string) string {

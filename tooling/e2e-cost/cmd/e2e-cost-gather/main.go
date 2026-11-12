@@ -30,7 +30,7 @@ func main() {
 }
 
 func run() int {
-	job := flag.String("job", "", "Public Prow e2e-parallel job URL (required)")
+	job := flag.String("job", "", "Public Prow e2e-parallel or e2e-parallel-inplace-upgrade job URL (required)")
 	output := flag.String("output", "run-data.json", "Render-ready JSON snapshot path")
 	timeout := flag.Duration("timeout", 30*time.Minute, "Maximum collection duration")
 	flag.Parse()
