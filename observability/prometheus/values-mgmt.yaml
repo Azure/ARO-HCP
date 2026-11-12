@@ -83,22 +83,6 @@ kube-prometheus-stack:
         - action: replace
           replacement: service
           targetLabel: microsoft_metrics_include_label
-        # Schedule CRs live in namespace velero as
-        # {hostedClusterNamespace}-{cadence}. Promote namespace from the
-        # CR name to ocm-* so remoteWrite routes them to the HCP workspace
-        # (ARO-30331). Same ocm-<env>-<id> shape / __name__ scoping as
-        # #8035 for veleroBackup_* / veleroDeleteBackupRequest_* — if that
-        # PR lands first, append this rule to its metricRelabelings list
-        # instead of adding a second key.
-        metricRelabelings:
-        - action: replace
-          sourceLabels: [__name__, name]
-          separator: ;
-          # Cluster Service IDs are lowercase alphanumeric (not hex-only);
-          # e.g. docs/etcd-restore.md uses ...-2sd1pej7kdkk1qvccoiqq534ae1knhh4-...
-          regex: 'veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
-          targetLabel: namespace
-          replacement: '${1}'
     image:
       registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
@@ -113,9 +97,6 @@ kube-prometheus-stack:
         verbs: ["list", "watch"]
       - apiGroups: ["velero.io"]
         resources: ["deletebackuprequests"]
-        verbs: ["list", "watch"]
-      - apiGroups: ["velero.io"]
-        resources: ["schedules"]
         verbs: ["list", "watch"]
       - apiGroups: ["cluster.x-k8s.io"]
         resources: ["machines"]
@@ -239,43 +220,6 @@ kube-prometheus-stack:
                   labelsFromPath:
                     name: [metadata, name]
                     namespace: [metadata, namespace]
-          # Velero Schedule CRs (ARO-30331): presence, phase, and paused for
-          # insufficient-schedule / HCP-lane alerts. schedule label =
-          # metadata.name (same value as velero_backup_* schedule).
-          - groupVersionKind:
-              group: velero.io
-              kind: "Schedule"
-              version: "v1"
-            metricNamePrefix: veleroSchedule
-            labelsFromPath:
-              name: [metadata, name]
-              namespace: [metadata, namespace]
-              schedule: [metadata, name]
-            metrics:
-            - name: "phase"
-              help: "Schedule phase"
-              each:
-                type: StateSet
-                stateSet:
-                  path: [status, phase]
-                  labelName: phase
-                  list: ["New", "Enabled", "FailedValidation"]
-            - name: "info"
-              help: "Schedule CR presence indicator - one row per existing Schedule"
-              each:
-                type: Info
-                info:
-                  labelsFromPath:
-                    name: [metadata, name]
-                    namespace: [metadata, namespace]
-                    schedule: [metadata, name]
-            - name: "paused"
-              help: "1 when Schedule.spec.paused is true, 0 otherwise"
-              each:
-                type: Gauge
-                gauge:
-                  path: [spec, paused]
-                  nilIsZero: true
           # CAPI Machines for the hosted clusters live in the hosted control plane
           # namespaces (ocm-*) on this management cluster, so these metrics are routed
           # to the HCP Azure Monitor Workspace by the remoteWrite rules in
