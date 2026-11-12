@@ -538,6 +538,48 @@ resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
   }
 }
 
+resource arohcpClusterUpdateSloStuckAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_stuck_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterUpdateStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'cluster-update-stuck'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
+          description: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          info: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
+          title: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-user-journey-cluster-upgrade-monitor-rules'
   location: location

@@ -27,12 +27,13 @@ spec:
   # first check what the affected updates changed from the Backend logs, then
   # triage the matching journey.
   #
-  # Scope — this file contains only error (terminal "failed") alerts. Updates
+  # Scope — the error alerts below fire on terminal "failed" updates. Updates
   # that exceed their completion deadline (90 minutes by default) are failed by
-  # the Backend and therefore counted here. Stuck (non-terminal) update
-  # operations and OperationClusterUpdate controller saturation are not
-  # alerted on by this SLO; the backend alerts that watch those conditions
-  # deploy to the dev lane only, so they are not SRE coverage.
+  # the Backend and therefore counted there. userJourneyClusterUpdateStuckOperation
+  # (arohcp_cluster_update_slo_stuck_alerts) covers updates still in flight past
+  # that deadline, i.e. when the deadline is not being enforced.
+  # OperationClusterUpdate controller saturation is not alerted on by this SLO;
+  # the backend alerts that watch it deploy to the dev lane only.
   #
   # Windowed burn-rate alerting, following the cluster deletion SLO.
   # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
@@ -149,3 +150,57 @@ spec:
     # ticket shadowing every Sev 3 page for one condition. Its only unique
     # coverage was the 15-30% band, where Errors3d already tickets at 6h.
     # ----------------------------------------
+  # ========================================
+  # Cluster Update SLO Alerts — Stuck Operations
+  # ========================================
+  # Cluster updates have a completion deadline, 90 minutes by default; the
+  # Backend fails an update that exceeds it, so it is counted by the error
+  # alerts above. An update still accepted/updating more than 90 minutes after
+  # it started therefore means the deadline is not being enforced, and it is
+  # invisible to the success/failure SLI.
+  #
+  # The phase comes from current:backend_cluster_update:last_transition_time_seconds
+  # (cluster-update-slo-recordingRule.yaml), which selects one current state per
+  # operation, so a former Backend leader's stale in-flight snapshot cannot keep
+  # this alert firing after the update completed.
+  #
+  # Stickiness (max_over_time ... [6h:5m]), as in the node pool and cluster
+  # deletion stuck alerts: if the condition transiently clears while the update
+  # stays wedged, each clear would auto-resolve the IcM incident and the next
+  # re-fire would open a new one. Holding the condition over a 6h look-back
+  # keeps one incident per stuck update; the trailing `and on (...)` clears the
+  # alert as soon as the update leaves accepted/updating.
+  - name: arohcp_cluster_update_slo_stuck_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyClusterUpdateStuckOperation
+      expr: |
+        max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+          max_over_time(
+            (
+              (
+                time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+                  backend_resource_operation_start_time_seconds{
+                    resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                    operation_type="update"
+                  }
+                )
+                and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+                current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+              ) > 5400
+            )[6h:5m]
+          )
+        )
+        and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+        current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+      for: 15m
+      labels:
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes"
+        description: "Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}"
