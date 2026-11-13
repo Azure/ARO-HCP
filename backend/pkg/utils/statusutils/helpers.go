@@ -43,8 +43,9 @@ const DegradedConditionType = "Degraded"
 // kind in the aggregated Degraded reason/message. Controllers use no prefix and
 // are named by the trailing segment of their resource ID.
 const (
-	ApplyDesireSourcePrefix = "applydesire"
-	ReadDesireSourcePrefix  = "readdesire"
+	ApplyDesireSourcePrefix           = "applydesire"
+	ReadDesireSourcePrefix            = "readdesire"
+	DeploymentStackDesireSourcePrefix = "deploymentstackdesire"
 )
 
 // ConditionsOfKnown returns the Status.Conditions of any item type that this

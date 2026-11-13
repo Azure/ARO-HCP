@@ -796,3 +796,22 @@ type IdentityMetadataValue struct {
 	// Written by: FetchManagedIdentitiesInfo
 	RetrievalError *string `json:"retrievalError,omitempty"`
 }
+
+// RoleAssignmentKey is the key for RoleAssignments.
+// Fields are strings (not pointers) so the struct is a comparable map key and
+// two keys with the same values compare equal. The identity resource ID is
+// not part of the key: the Azure role assignment name does not include it.
+type RoleAssignmentKey struct {
+	// PrincipalID is the Principal ID written to the Azure role assignment.
+	// For a control-plane operator or the service managed identity this is
+	// the MSI dataplane or hardcoded identity, which may differ from the ARM
+	// principal of the same managed identity.
+	PrincipalID string `json:"principalID,omitempty"`
+	// RoleDefinitionResourceID is the tenant-level role definition resource ID
+	// ("/providers/Microsoft.Authorization/roleDefinitions/{guid}"). Its casing
+	// is significant and must not be normalized: the Azure role assignment
+	// name is a UUIDv5 derived from scope, principal, and this value, so a
+	// casing change produces a different assignment name and is treated as a
+	// different key.
+	RoleDefinitionResourceID string `json:"roleDefinitionResourceID,omitempty"`
+}

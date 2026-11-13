@@ -90,12 +90,13 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 			}, nil
 		})
 		factory, err := newStorageFactory("https://cosmos.test", "test", options, StorageFactoryOptions{
-			ResourcesRUsPerSecond:  3.75, // 1 RU per controller after 80% utilization.
-			BillingRUsPerSecond:    7.5,  // 2 RUs per controller.
-			FleetRUsPerSecond:      15,   // 4 RUs per controller.
-			KubeApplierUtilization: 0.3,
-			ControllerNames:        []string{"normal", "other", "cleanup"},
-			ControllerFractions:    map[string]float64{"cleanup": 0.1},
+			ResourcesRUsPerSecond:      3.75, // 1 RU per controller after 80% utilization.
+			BillingRUsPerSecond:        7.5,  // 2 RUs per controller.
+			FleetRUsPerSecond:          15,   // 4 RUs per controller.
+			AzureResourcesRUsPerSecond: 15,   // 4 RUs per controller.
+			KubeApplierUtilization:     0.3,
+			ControllerNames:            []string{"normal", "other", "cleanup"},
+			ControllerFractions:        map[string]float64{"cleanup": 0.1},
 		})
 		require.NoError(t, err)
 		require.Same(t, factory.ResourcesStorageClient("normal"), factory.ResourcesStorageClient("normal"))
@@ -175,8 +176,9 @@ func TestStorageFactorySeparatesContainerAndControllerBudgets(t *testing.T) {
 func testStorageAllocations() StorageFactoryOptions {
 	return StorageFactoryOptions{
 		ResourcesRUsPerSecond: 10, BillingRUsPerSecond: 10,
-		FleetRUsPerSecond: 10,
-		ControllerNames:   []string{"one"},
+		FleetRUsPerSecond:          10,
+		AzureResourcesRUsPerSecond: 10,
+		ControllerNames:            []string{"one"},
 	}
 }
 
@@ -199,6 +201,7 @@ func TestStorageFactoryRejectsInvalidConfiguration(t *testing.T) {
 		{"invalid Resources budget", func(o *StorageFactoryOptions) { o.ResourcesRUsPerSecond = 0 }},
 		{"invalid Billing budget", func(o *StorageFactoryOptions) { o.BillingRUsPerSecond = 0 }},
 		{"invalid Fleet budget", func(o *StorageFactoryOptions) { o.FleetRUsPerSecond = 0 }},
+		{"invalid AzureResources budget", func(o *StorageFactoryOptions) { o.AzureResourcesRUsPerSecond = 0 }},
 		{"invalid fraction", func(o *StorageFactoryOptions) { o.ControllerFractions = map[string]float64{"one": 0} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -371,7 +374,7 @@ func TestBillingPatchRequestsAndErrors(t *testing.T) {
 				}
 				return &http.Response{StatusCode: exchange.Status, Request: req, Header: headers, Body: io.NopCloser(strings.NewReader(exchange.Body))}, nil
 			})
-			factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(ControllerContext{}, 19000, 4000, 4000))
+			factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(ControllerContext{}, 19000, 4000, 4000, 4000))
 			require.NoError(t, err)
 			crud := factory.BillingStorageClient("orphanedbillingcleanup").BillingDocs("sub")
 			for _, call := range tc.calls {
@@ -417,7 +420,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 			t.Fatal("startup must not contact Cosmos")
 			return nil, nil
 		})
-		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(controllerContext, 19000, 4000, 4000))
+		factory, err := newStorageFactory("https://cosmos.test", "test", options, BackendStorageFactoryOptions(controllerContext, 19000, 4000, 4000, 4000))
 		require.NoError(t, err)
 		for _, name := range names {
 			require.NotNil(t, factory.ResourcesStorageClient(name))
@@ -431,7 +434,7 @@ func TestBackendStorageRegistrations(t *testing.T) {
 
 func TestBackendInformerStorageIsUnlimited(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		options := BackendStorageFactoryOptions(ControllerContext{}, 19000, 4000, 4000)
+		options := BackendStorageFactoryOptions(ControllerContext{}, 19000, 4000, 4000, 4000)
 		require.ElementsMatch(t, []string{
 			BackendInformersStorageName,
 			FleetInformersStorageName,
@@ -530,13 +533,13 @@ func TestStorageFactoryRejectsInvalidManagementCluster(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantError)
 			require.ErrorContains(t, err, key.GetResourceID().String())
 			require.Nil(t, client)
-			require.Len(t, factory.rateLimits, 3)
+			require.Len(t, factory.rateLimits, 4)
 			lookupError = nil
 			maximum = 100
 			client, err = clients.For(t.Context(), key.GetResourceID())
 			require.NoError(t, err)
 			require.NotNil(t, client)
-			require.Len(t, factory.rateLimits, 4)
+			require.Len(t, factory.rateLimits, 5)
 		})
 	}
 }

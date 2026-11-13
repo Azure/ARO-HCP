@@ -19,8 +19,10 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
@@ -30,6 +32,7 @@ func WithCacheSyncs(instantiate func(ControllerContext) (Runnable, error), usesU
 		tracking := &cacheTracking{collecting: true}
 		context.BackendInformers = &trackingBackendInformers{BackendInformers: context.BackendInformers, tracking: tracking}
 		context.FleetInformers = &trackingFleetInformers{FleetInformers: context.FleetInformers, tracking: tracking}
+		context.AzureResourcesInformers = &trackingAzureResourcesInformers{AzureResourcesInformers: context.AzureResourcesInformers, tracking: tracking}
 		if usesUnion {
 			tracking.add(context.UnionKubeApplierInformers.HasSynced)
 		}
@@ -184,6 +187,17 @@ func (informers *trackingFleetInformers) ControlPlaneVersionRollouts() (cache.Sh
 
 func (informers *trackingFleetInformers) HCPResourceRequirements() (cache.SharedIndexInformer, fleetlisters.HCPResourceRequirementsLister) {
 	informer, lister := informers.FleetInformers.HCPResourceRequirements()
+	informers.tracking.add(informer.HasSynced)
+	return informer, lister
+}
+
+type trackingAzureResourcesInformers struct {
+	azureresourcesinformers.AzureResourcesInformers
+	tracking *cacheTracking
+}
+
+func (informers *trackingAzureResourcesInformers) DeploymentStackDesires() (cache.SharedIndexInformer, azureresourceslisters.DeploymentStackDesireLister) {
+	informer, lister := informers.AzureResourcesInformers.DeploymentStackDesires()
 	informers.tracking.add(informer.HasSynced)
 	return informer, lister
 }

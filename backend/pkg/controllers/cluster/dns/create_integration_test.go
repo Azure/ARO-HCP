@@ -168,7 +168,7 @@ func TestCreatePersistsClaimedDNSBeforeDispatch(t *testing.T) {
 						require.NoError(t, err)
 						require.NoError(t, clusterInformer.GetIndexer().Update(storedCluster))
 						_, managementLister := fi.ManagementClusters()
-						syncer := creation.NewClusterClusterServiceCreateController(db, client, managementLister, ci, false)
+						syncer := creation.NewClusterClusterServiceCreateController(db, client, managementLister, ci, nil, false, false)
 						err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{SubscriptionID: testSubscriptionID, ResourceGroupName: testResourceGroupName, HCPClusterName: testClusterName})
 						if err != nil {
 							require.True(t, loseResponse)
