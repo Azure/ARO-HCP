@@ -39,6 +39,7 @@ import (
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra"
 	mergegate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/merge-gate"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/priorities"
 	slotmanager "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
@@ -282,6 +283,7 @@ func setupCli() (*cobra.Command, error) {
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
+	root.AddCommand(priorities.NewCommand())
 	root.AddCommand(metadataapi.Must(mergegate.NewCommand()))
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))
