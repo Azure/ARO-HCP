@@ -194,3 +194,37 @@ func TestTableShowsExclusionsAndInsufficientStrata(t *testing.T) {
 		t.Fatalf("thin row is missing:\n%s", table)
 	}
 }
+
+func TestTableKeepsUnnamedRowsDistinguishable(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	bundle := citests.Bundle{
+		SchemaVersion: citests.BundleSchemaVersion,
+		Selection: citests.Selection{Origin: "https://example.invalid/ServiceLogs", From: start,
+			To: start.Add(24 * time.Hour), JobFilter: "e2e-parallel"},
+	}
+	for _, id := range []string{"review-test-id", "second-review-id"} {
+		bundle.Runs = append(bundle.Runs, citests.Run{BuildID: id, JobName: "pull-ci-Azure-ARO-HCP-main-e2e-parallel",
+			Environment: citests.EnvironmentDev, OverallResult: "SUCCESS", Processed: true,
+			StartedAt: start, FinishedAt: start.Add(2 * time.Hour)})
+		bundle.Observations = append(bundle.Observations, citests.Observation{BuildID: id, TestID: id,
+			Source: "e2e", Result: "passed", StartedAt: start, FinishedAt: start.Add(30 * time.Minute)})
+	}
+
+	report, err := citests.ScorePriorities(bundle, citests.PriorityOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := writeTable(&output, report); err != nil {
+		t.Fatal(err)
+	}
+	table := output.String()
+	for _, id := range []string{"review-test-id", "second-review-id"} {
+		if !strings.Contains(table, id) {
+			t.Fatalf("unnamed row %q is not traceable:\n%s", id, table)
+		}
+	}
+	if !strings.Contains(table, "unusable-name: 2") {
+		t.Fatalf("unusable-name exclusions are missing:\n%s", table)
+	}
+}

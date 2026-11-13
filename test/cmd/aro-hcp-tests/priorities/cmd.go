@@ -303,10 +303,19 @@ func writeTable(out io.Writer, report citests.PriorityReport) error {
 		if len(observed) == 0 {
 			observed = []string{"-"}
 		}
-		fmt.Fprintf(writer, "%s\t%s\t%s\t%d\t%s\t%s\n", row.Name, priority, score, builds,
+		fmt.Fprintf(writer, "%s\t%s\t%s\t%d\t%s\t%s\n", displayName(row), priority, score, builds,
 			strings.Join(observed, ","), row.Status)
 	}
 	return writer.Flush()
+}
+
+// displayName labels a row by its source name, falling back to the test ID so
+// rows without a resolved name stay distinguishable and traceable.
+func displayName(row citests.TestReport) string {
+	if row.Name != "" {
+		return row.Name
+	}
+	return row.TestID
 }
 
 // formatMinutes renders a duration in minutes with one decimal place.
