@@ -3774,6 +3774,9 @@
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
     },
+    "aprRG": {
+      "$ref": "#/definitions/resourceGroupName"
+    },
     "serviceKeyVault": {
       "type": "object",
       "properties": {
@@ -4154,6 +4157,7 @@
     "oidc",
     "region",
     "regionRG",
+    "aprRG",
     "serviceKeyVault",
     "serviceTreeId",
     "sessiongate",
