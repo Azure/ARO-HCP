@@ -13,6 +13,16 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -33,6 +43,17 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: remove-legacy-monitoring-stack
+    action: ARMStack
+    operation: delete
+    deploymentLevel: ResourceGroup
+    deploymentStackNameForDelete:
+      value: Monitoring.regional.monitoring
+    actionOnUnmanage: detach
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: monitoring
     action: ARMStack
     template: templates/monitoring.bicep
@@ -45,6 +66,9 @@ resourceGroups:
       - "DeploymentStackInNonTerminalState"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+    dependsOn:
+    - resourceGroup: regional
+      step: remove-legacy-monitoring-stack
     variables:
     - name: azureMonitoringWorkspaceId
       input:
