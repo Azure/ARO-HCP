@@ -294,7 +294,7 @@ var _ = Describe("Customer", func() {
 			// Demo notes ~5 minutes for a Karpenter-provisioned Azure VM to
 			// initialize and start trying to register, on top of normal
 			// cluster-create time already spent above; budget generously.
-			err = verifiers.VerifyKarpenterNodeProvisioned(karpenterResourceName, 25*time.Minute).Verify(ctx, adminRESTConfig)
+			err = verifiers.VerifyKarpenterNodeProvisioned(karpenterResourceName, 25*time.Minute, verifiers.KarpenterProvisioningChecks{}).Verify(ctx, adminRESTConfig)
 			stopCSRApprover()
 			<-csrApproverDone
 			GinkgoLogr.Info("Karpenter node CSR approver finished", "approved", approvedCSRCount)
