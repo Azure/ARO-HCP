@@ -16,6 +16,8 @@ package framework
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -78,5 +80,68 @@ func TestIsAPINotDeployedError(t *testing.T) {
 				t.Errorf("IsAPINotDeployedError() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIsAPIVersionNotServed(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil error", err: nil, want: false},
+		{name: "non-ResponseError", err: errors.New("some other error"), want: false},
+		{name: "bare 404 is not a missing version", err: &azcore.ResponseError{StatusCode: http.StatusNotFound}, want: false},
+		{name: "NoRegisteredProviderFound", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "NoRegisteredProviderFound"}, want: true},
+		{name: "InvalidResourceType", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: coreapi.CloudErrorCodeInvalidResourceType}, want: true},
+		{name: "other 400", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "Other"}, want: false},
+		{name: "500", err: &azcore.ResponseError{StatusCode: http.StatusInternalServerError}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAPIVersionNotServed(tt.err); got != tt.want {
+				t.Errorf("IsAPIVersionNotServed() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyAPIVersionProbeError(t *testing.T) {
+	cause := fmt.Errorf("dial: %w", io.EOF)
+	tests := []struct {
+		name       string
+		err        error
+		wantServed bool
+		wantErr    bool
+	}{
+		{name: "nil error is served", err: nil, wantServed: true},
+		{name: "404 ResourceGroupNotFound is served", err: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: coreapi.CloudErrorCodeResourceGroupNotFound}, wantServed: true},
+		{name: "404 ResourceNotFound is served", err: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: coreapi.CloudErrorCodeResourceNotFound}, wantServed: true},
+		{name: "404 NotFound is served", err: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: coreapi.CloudErrorCodeNotFound}, wantServed: true},
+		{name: "400 InvalidResourceType is not served", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: coreapi.CloudErrorCodeInvalidResourceType}},
+		{name: "400 NoRegisteredProviderFound is not served", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "NoRegisteredProviderFound"}},
+		{name: "bare 404 is an error", err: &azcore.ResponseError{StatusCode: http.StatusNotFound}, wantErr: true},
+		{name: "404 with an unknown code is an error", err: &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "SomethingElse"}, wantErr: true},
+		{name: "401 is an error", err: &azcore.ResponseError{StatusCode: http.StatusUnauthorized}, wantErr: true},
+		{name: "403 is an error", err: &azcore.ResponseError{StatusCode: http.StatusForbidden}, wantErr: true},
+		{name: "500 is an error", err: &azcore.ResponseError{StatusCode: http.StatusInternalServerError}, wantErr: true},
+		{name: "wrapped transport error is an error", err: cause, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			served, err := classifyAPIVersionProbeError(tt.err)
+			if served != tt.wantServed {
+				t.Errorf("classifyAPIVersionProbeError() served = %v, want %v", served, tt.wantServed)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("classifyAPIVersionProbeError() error = %v, want an error: %v", err, tt.wantErr)
+			}
+			if err != nil && !errors.Is(err, tt.err) {
+				t.Errorf("classifyAPIVersionProbeError() error = %v, must wrap %v", err, tt.err)
+			}
+		})
+	}
+	if _, err := classifyAPIVersionProbeError(cause); !errors.Is(err, io.EOF) {
+		t.Errorf("classifyAPIVersionProbeError() error = %v, must wrap io.EOF", err)
 	}
 }

@@ -165,6 +165,43 @@ func IsAPINotDeployedError(err error) bool {
 	return false
 }
 
+// IsAPIVersionNotServed returns true only when the error states that the API
+// version is not served.
+//
+// It is stricter than IsAPINotDeployedError. It does not match a bare 404,
+// because a missing resource also returns 404 when the API version is served.
+func IsAPIVersionNotServed(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	if strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound") {
+		return true
+	}
+	return respErr.StatusCode == http.StatusBadRequest && respErr.ErrorCode == coreapi.CloudErrorCodeInvalidResourceType
+}
+
+// classifyAPIVersionProbeError classifies the error from a probe request for a
+// resource that does not exist. It returns true when the service serves the API
+// version. A 404 with a known not-found code counts as served. The function
+// returns all other errors, so that the caller fails and does not skip.
+func classifyAPIVersionProbeError(err error) (bool, error) {
+	if err == nil {
+		return true, nil
+	}
+	if IsAPIVersionNotServed(err) {
+		return false, nil
+	}
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+		switch respErr.ErrorCode {
+		case coreapi.CloudErrorCodeResourceGroupNotFound, coreapi.CloudErrorCodeResourceNotFound, coreapi.CloudErrorCodeNotFound:
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("failed to probe the v20270201 API: %w", err)
+}
+
 type NonConformingClustersError struct {
 	clusters []string
 }

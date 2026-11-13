@@ -767,6 +767,28 @@ func GetNodePool20270201(
 
 // --- Functions from per_test_framework.go ---
 
+// apiVersionProbeResourceGroup and apiVersionProbeCluster are names that the
+// probe expects to be absent. The probe needs no real resource.
+const (
+	apiVersionProbeResourceGroup = "aro-hcp-api-probe-does-not-exist"
+	apiVersionProbeCluster       = "aro-hcp-api-probe-does-not-exist"
+)
+
+// IsAPI20270201Deployed probes the v20270201 API with a read-only request.
+//
+// It returns false only when the service states that the API version is not
+// served. A 404 with a known not-found code counts as served. In that case, the
+// service accepted the api-version and reported the missing object. The probe
+// returns all other errors, for example 401, 403 and 500.
+//
+// Do not use IsAPINotDeployedError for this probe. That function matches a bare
+// 404, and a missing resource group also returns 404 when the API version is
+// served.
+func IsAPI20270201Deployed(ctx context.Context, client *hcpsdk20270201.HcpOpenShiftClustersClient) (bool, error) {
+	_, err := client.Get(ctx, apiVersionProbeResourceGroup, apiVersionProbeCluster, nil)
+	return classifyAPIVersionProbeError(err)
+}
+
 func (tc *perItOrDescribeTestContext) Get20270201ClientFactory(ctx context.Context) (*hcpsdk20270201.ClientFactory, error) {
 	tc.contextLock.RLock()
 	if tc.clientFactory20270201 != nil {
