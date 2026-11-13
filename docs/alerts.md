@@ -40,6 +40,7 @@ for these controllers, which receive `CheckAccessV2ClientBuilder`. Alert selecto
 match the lowercase workqueue `name` labels:
 
 - `clustervalidationcontrolplaneidentitiespermissionsclustervalidation`
+- `clustervalidationservicemanagedidentitypermissionsclustervalidation`
 - `clustervalidationdataplaneidentitiespermissionsvalidation`
 - `clustervalidationcontainerregistrypullcredentialspermissionvalidation`
 
@@ -50,7 +51,7 @@ backend replica. Queue draining can therefore take substantially longer. The
 queue depth threshold remains 10, and the 90-minute window still requires a
 continuously high queue.
 
-All other controllers retain 15 minutes. These three controllers also retain
+All other controllers retain 15 minutes. These four controllers also retain
 15 minutes with real FPA identities or when the mode metric is absent, including
 during deployment of this metric to older backends. The two alert rules are
 mutually exclusive for each queue/cluster and share the same alert name and labels.
