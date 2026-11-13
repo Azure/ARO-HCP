@@ -29,7 +29,12 @@ rules:
   - clusterrolebindings
   - roles
   - rolebindings
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "bind", "escalate"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources:
+  - clusterroles
+  - roles
+  verbs: ["bind", "escalate"]
 - apiGroups: ["velero.io"]
   resources:
   - backupstoragelocations
