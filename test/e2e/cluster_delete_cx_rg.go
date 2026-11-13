@@ -42,12 +42,12 @@ var _ = Describe("Customer", func() {
 		labels.StartPriority(60),
 		func(ctx context.Context) {
 			const (
-				customerNetworkSecurityGroupName = "customer-nsg"
-				customerVnetName                 = "customer-vnet"
-				customerVnetSubnetName           = "customer-vnet-subnet1"
-				customerClusterName              = "cx-rg-hcp-cluster"
-				customerNodePool1Name            = "np-1"
-				customerNodePool2Name            = "np-2"
+				customerNetworkSecurityGroupName = "arohcp-e2e-cx-nsg"
+				customerVnetName                 = "arohcp-e2e-cx-vnet"
+				customerVnetSubnetName           = "arohcp-e2e-cx-vnet-subnet1"
+				customerClusterName              = "arohcp-e2e-cluster"
+				customerNodePool1Name            = "arohcp-e2e-cx-np-1"
+				customerNodePool2Name            = "arohcp-e2e-cx-np-2"
 			)
 			tc := framework.NewTestContext()
 
@@ -57,7 +57,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating the customer resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "cx-rg-cluster", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "arohcp-e2e-cx-rg", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resource group")
 
 			By("creating cluster parameters")
