@@ -46,7 +46,7 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l.startsWith("%s"))`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0], labels.ExpectFailureLabelPrefix)
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l.startsWith("%s"))`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.ProdOnly[0], labels.HypershiftPresubmit[0], labels.ExpectFailureLabelPrefix)
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -80,7 +80,9 @@ func registerSuites(ext *e.Extension, miPools map[string]int, upgradeInPlaceCoun
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l.startsWith("%s"))`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0], labels.ExpectFailureLabelPrefix)
+	// Stage differs from prod only by excluding ProdOnly: the two environments
+	// are otherwise selected identically.
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l.startsWith("%s"))`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.ProdOnly[0], labels.HypershiftPresubmit[0], labels.ExpectFailureLabelPrefix)
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
