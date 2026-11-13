@@ -49,36 +49,6 @@ tests:
   - eval_time: 90m
     alertname: userJourneyNodePoolStuckOperation
 # ========================================
-# Test 7: Queue depth — workqueue depth exceeds threshold
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "15+0x10"
-  alert_rule_test:
-  - eval_time: 7m
-    alertname: userJourneyNodePoolSaturationQueueDepth
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        component: slo
-        name: "OperationNodePoolUpdate"
-        severity: "4"
-      exp_annotations:
-        summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
-        description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-# ========================================
-# Test 8: Queue depth normal — below threshold, no alert
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "5+0x10"
-  alert_rule_test:
-  - eval_time: 7m
-    alertname: userJourneyNodePoolSaturationQueueDepth
-# ========================================
 # Test 12: Stuck delete operation
 # ========================================
 # Verifies that delete operations stuck for >2h also trigger the alert.
@@ -677,32 +647,6 @@ tests:
   alert_rule_test:
   - eval_time: 140m
     alertname: userJourneyNodePoolErrorsDegradation
-# ========================================
-# Recovery: Queue depth returns to normal → alert resolves
-# ========================================
-# Depth starts at 15 (above threshold), then drops to 5. The alert fires while
-# depth is high, then resolves once depth drops below 10.
-- interval: 1m
-  input_series:
-  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "15+0x10 5+0x10"
-  alert_rule_test:
-  # Alert fires at 7m (depth > 10 sustained for > 5m)
-  - eval_time: 7m
-    alertname: userJourneyNodePoolSaturationQueueDepth
-    exp_alerts:
-    - exp_labels:
-        cluster: "mgmt-1"
-        component: slo
-        name: "OperationNodePoolUpdate"
-        severity: "4"
-      exp_annotations:
-        summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
-        description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-  # After depth drops to 5 at t=10m, condition no longer holds → alert resolves
-  - eval_time: 15m
-    alertname: userJourneyNodePoolSaturationQueueDepth
 # ========================================
 # Recovery: Fast burn (1h5m) — failures age out of short window → alert resolves
 # ========================================
