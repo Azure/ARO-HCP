@@ -1169,25 +1169,6 @@ func instantiateIdentityRoleAssignmentsController(controllerContext controllerco
 	), nil
 }
 
-func registerMockFPARoleAssignmentIntentController() controllerconfig.ControllerRegistration {
-	return controllerconfig.ControllerRegistration{
-		Workers:     20,
-		Enabled:     func(controllerContext controllerconfig.ControllerContext) bool { return !controllerContext.HasRealFPA },
-		Instantiate: controllerconfig.WithCacheSyncs(instantiateMockFPARoleAssignmentsIntentController, false),
-	}
-}
-
-func instantiateMockFPARoleAssignmentsIntentController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
-	return mockfparoleassignments.NewMockFPARoleAssignmentsIntentController(
-		controllerContext.Clock,
-		controllerContext.ResourcesDBClient,
-		controllerContext.BackendInformers,
-		controllerContext.AzureResourcesInformers,
-		controllerContext.MockFirstPartyApplicationPrincipalID,
-		mockfparoleassignments.OwnerRoleDefinitionResourceID,
-	), nil
-}
-
 func registerMockFPARoleAssignmentsController() controllerconfig.ControllerRegistration {
 	return controllerconfig.ControllerRegistration{
 		Workers:     20,
@@ -1202,6 +1183,8 @@ func instantiateMockFPARoleAssignmentsController(controllerContext controllercon
 		controllerContext.AzureResourcesDBClient,
 		controllerContext.BackendInformers,
 		controllerContext.AzureResourcesInformers,
+		controllerContext.MockFirstPartyApplicationPrincipalID,
+		mockfparoleassignments.OwnerRoleDefinitionResourceID,
 	), nil
 }
 
@@ -1459,7 +1442,6 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationIntentControllerName)] = registerDataPlaneWorkloadsOIDCFederationIntentController()
 	registry[strings.ToLower(clusterdataplaneworkloads.DataPlaneWorkloadIdentityOIDCFederationControllerName)] = registerDataPlaneWorkloadsOIDCFederationController()
 	registry[strings.ToLower(clusterroleassignments.RoleAssignmentsControllerName)] = registerIdentityRoleAssignmentsController()
-	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsIntentControllerName)] = registerMockFPARoleAssignmentIntentController()
 	registry[strings.ToLower(mockfparoleassignments.MockFPARoleAssignmentsControllerName)] = registerMockFPARoleAssignmentsController()
 	registry[strings.ToLower(clusterbackups.KeyRotationBackupControllerName)] = registerKeyRotationBackupController()
 }

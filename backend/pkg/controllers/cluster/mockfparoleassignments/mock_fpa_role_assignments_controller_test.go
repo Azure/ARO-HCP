@@ -16,18 +16,80 @@ package mockfparoleassignments
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/roleassignment"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
 )
+
+const (
+	testManagedRGScope     = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-mrg"
+	testMockFPAPrincipalID = "mock-fpa-principal"
+	roleAssignmentInfix    = "/providers/Microsoft.Authorization/roleAssignments/"
+)
+
+func mustReservedID(t *testing.T, name string) *azcorearm.ResourceID {
+	t.Helper()
+	id, err := azcorearm.ParseResourceID(testManagedRGScope + roleAssignmentInfix + name)
+	require.NoError(t, err, "failed to parse reserved role assignment resource ID")
+	return id
+}
+
+func mustScope(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	scope, err := azcorearm.ParseResourceID(testManagedRGScope)
+	require.NoError(t, err, "failed to parse managed resource group scope")
+	return scope
+}
+
+// desireFor builds a mock FPA DeploymentStackDesire whose Spec renders rendered, and,
+// when observed is true, whose Status reports the spec as observed (matching hash), the
+// named assignments as Managed, and (when applied) a successful Apply.
+func desireFor(t *testing.T, scope *azcorearm.ResourceID, rendered map[coreapi.RoleAssignmentKey]string, managedNames []string, observed, applied bool) *azureresourcesapi.DeploymentStackDesire {
+	t.Helper()
+	spec, err := desiredDeploymentStackDesireSpec(scope, rendered)
+	require.NoError(t, err, "failed to build desired spec")
+
+	desire := &azureresourcesapi.DeploymentStackDesire{Spec: spec}
+	if !observed {
+		return desire
+	}
+
+	hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(spec)
+	require.NoError(t, err, "failed to hash spec")
+	desire.Status.ObservedSpecHash = hash
+
+	resources := make([]*armdeploymentstacks.ManagedResourceReference, 0, len(managedNames))
+	for _, name := range managedNames {
+		id := scope.String() + roleAssignmentInfix + name
+		resources = append(resources, &armdeploymentstacks.ManagedResourceReference{
+			ID:     ptr.To(id),
+			Status: ptr.To(armdeploymentstacks.ResourceStatusModeManaged),
+		})
+	}
+	desire.Status.Stack = &armdeploymentstacks.DeploymentStack{
+		Properties: &armdeploymentstacks.DeploymentStackProperties{Resources: resources},
+	}
+	if applied {
+		desire.Status.Conditions = []metav1.Condition{{
+			Type:               azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Applied",
+			LastTransitionTime: metav1.Now(),
+		}}
+	}
+	return desire
+}
 
 func TestManagedResourceGroupScope(t *testing.T) {
 	t.Parallel()
@@ -54,100 +116,123 @@ func TestManagedResourceGroupScope(t *testing.T) {
 	})
 }
 
-func TestServiceProviderClusterWithReservedAzureResourceIDs(t *testing.T) {
-	t.Parallel()
-
-	scope, err := azcorearm.ParseResourceID(testManagedRGScope)
-	require.NoError(t, err)
-
-	desiredKey := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
-	wantReservedID := roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), desiredKey.PrincipalID, desiredKey.RoleDefinitionResourceID)
-
-	s := &mockFPARoleAssignmentsSyncer{}
-
-	t.Run("assigns a deterministic reserved ID to a non-draining key that lacks one", func(t *testing.T) {
-		t.Parallel()
-		existing := &coreapi.ServiceProviderCluster{}
-		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			desiredKey: {},
-		}
-
-		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
-		require.NoError(t, err)
-		gotStatus := got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey]
-		require.NotNil(t, gotStatus.ReservedAzureResourceID, "non-draining key should get a reserved ID")
-		assert.Equal(t, wantReservedID, gotStatus.ReservedAzureResourceID.String(), "reserved ID must be the deterministic name")
-
-		assert.Nil(t, existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID, "input must not be mutated")
-	})
-
-	t.Run("does not reserve for a draining key", func(t *testing.T) {
-		t.Parallel()
-		stamp := metav1.NewTime(time.Now())
-		existing := &coreapi.ServiceProviderCluster{}
-		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			desiredKey: {DeconfigureTimestamp: &stamp},
-		}
-
-		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
-		require.NoError(t, err)
-		assert.Nil(t, got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID, "draining key must not get a reserved ID")
-	})
-
-	t.Run("preserves an existing reserved ID, never recomputes", func(t *testing.T) {
-		t.Parallel()
-		preset := mustReservedID(t, "11111111-1111-1111-1111-111111111111")
-		existing := &coreapi.ServiceProviderCluster{}
-		existing.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup = map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			desiredKey: {ReservedAzureResourceID: preset},
-		}
-
-		got, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existing, scope)
-		require.NoError(t, err)
-		assert.Equal(t, preset.String(), got.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[desiredKey].ReservedAzureResourceID.String(), "existing reserved ID must be preserved")
-	})
-}
-
 func TestRoleAssignmentTemplateResources(t *testing.T) {
 	t.Parallel()
 
-	desiredKey := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
-	drainingKey := coreapi.RoleAssignmentKey{PrincipalID: "old-principal", RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
-	stamp := metav1.NewTime(time.Now())
+	keyA := coreapi.RoleAssignmentKey{PrincipalID: "aaaa", RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	keyB := coreapi.RoleAssignmentKey{PrincipalID: "bbbb", RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
 
-	t.Run("renders the non-draining key and excludes the draining one", func(t *testing.T) {
+	t.Run("renders one resource per key, sorted by principal", func(t *testing.T) {
 		t.Parallel()
-		assignments := map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			desiredKey:  {ReservedAzureResourceID: mustReservedID(t, "11111111-1111-1111-1111-111111111111")},
-			drainingKey: {DeconfigureTimestamp: &stamp, ReservedAzureResourceID: mustReservedID(t, "22222222-2222-2222-2222-222222222222")},
-		}
-		resources, err := roleAssignmentTemplateResources(assignments)
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
+		resources := roleAssignmentTemplateResources(map[coreapi.RoleAssignmentKey]string{
+			keyB: "name-b",
+			keyA: "name-a",
+		})
+		require.Len(t, resources, 2, "one resource per key")
+		// Sorted by principal, so A comes before B, making the spec hash stable.
+		assert.Equal(t, "name-a", resources[0]["name"], "first resource is the lexicographically smaller principal")
+		assert.Equal(t, "name-b", resources[1]["name"], "second resource is the larger principal")
 		assert.Equal(t, "Microsoft.Authorization/roleAssignments", resources[0]["type"])
-		assert.Equal(t, "11111111-1111-1111-1111-111111111111", resources[0]["name"])
 		props := resources[0]["properties"].(map[string]any)
-		assert.Equal(t, testMockFPAPrincipalID, props["principalId"])
+		assert.Equal(t, "aaaa", props["principalId"])
 		assert.Equal(t, OwnerRoleDefinitionResourceID, props["roleDefinitionId"])
 		assert.Equal(t, "ServicePrincipal", props["principalType"])
 	})
 
-	t.Run("errors when a non-draining key has no reserved ID", func(t *testing.T) {
+	t.Run("empty input renders no resources", func(t *testing.T) {
 		t.Parallel()
-		assignments := map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			desiredKey: {},
-		}
-		_, err := roleAssignmentTemplateResources(assignments)
-		require.Error(t, err)
+		assert.Empty(t, roleAssignmentTemplateResources(map[coreapi.RoleAssignmentKey]string{}), "no keys means no resources")
+	})
+}
+
+func TestNextRenderedRoleAssignments(t *testing.T) {
+	t.Parallel()
+
+	scope := mustScope(t)
+	syncer := &mockFPARoleAssignmentsSyncer{
+		mockFPAPrincipalID:              testMockFPAPrincipalID,
+		desiredRoleDefinitionResourceID: OwnerRoleDefinitionResourceID,
+	}
+	desiredKey := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	desiredName := reserveRoleAssignmentName(scope, desiredKey)
+
+	oldKey := coreapi.RoleAssignmentKey{PrincipalID: "old-principal", RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	oldName := reserveRoleAssignmentName(scope, oldKey)
+	olderKey := coreapi.RoleAssignmentKey{PrincipalID: "older-principal", RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	olderName := reserveRoleAssignmentName(scope, olderKey)
+
+	t.Run("fresh cluster reserves the desired key", func(t *testing.T) {
+		t.Parallel()
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, nil)
+		require.NoError(t, err)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName}, next, "only the desired key is rendered, with its deterministic reserved name")
 	})
 
-	t.Run("empty when all keys are draining", func(t *testing.T) {
+	t.Run("reuses the reserved name already published for the desired key", func(t *testing.T) {
 		t.Parallel()
-		assignments := map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-			drainingKey: {DeconfigureTimestamp: &stamp, ReservedAzureResourceID: mustReservedID(t, "22222222-2222-2222-2222-222222222222")},
-		}
-		resources, err := roleAssignmentTemplateResources(assignments)
+		current := map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName}
+		desire := desireFor(t, scope, current, []string{desiredName}, true, true)
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, desire)
 		require.NoError(t, err)
-		assert.Empty(t, resources)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName}, next, "desired key keeps its published name; nothing to drain")
 	})
+
+	t.Run("keeps a superseded key live until the desired one is confirmed", func(t *testing.T) {
+		t.Parallel()
+		// The desired key is not in the published template yet, so it cannot be confirmed.
+		current := map[coreapi.RoleAssignmentKey]string{oldKey: oldName}
+		desire := desireFor(t, scope, current, []string{oldName}, true, true)
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, desire)
+		require.NoError(t, err)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{
+			desiredKey: desiredName,
+			oldKey:     oldName,
+		}, next, "the superseded key stays rendered (grant stays live) while the replacement is added")
+	})
+
+	t.Run("drops a superseded key once the desired one is confirmed live", func(t *testing.T) {
+		t.Parallel()
+		current := map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName, oldKey: oldName}
+		// Both are managed and the apply succeeded, so the desired key is confirmed.
+		desire := desireFor(t, scope, current, []string{desiredName, oldName}, true, true)
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, desire)
+		require.NoError(t, err)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName}, next, "the superseded key is excluded so the stack deletes it")
+	})
+
+	t.Run("does not drop a superseded key while the apply has not yet succeeded", func(t *testing.T) {
+		t.Parallel()
+		current := map[coreapi.RoleAssignmentKey]string{desiredKey: desiredName, oldKey: oldName}
+		// Observed but not applied: not yet confirmed.
+		desire := desireFor(t, scope, current, []string{desiredName, oldName}, true, false)
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, desire)
+		require.NoError(t, err)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{
+			desiredKey: desiredName,
+			oldKey:     oldName,
+		}, next, "without a successful apply the superseded key is kept")
+	})
+
+	t.Run("transitive replacement unions all superseded keys until the desired one is confirmed", func(t *testing.T) {
+		t.Parallel()
+		// A to B to C: two superseded keys are still live and the desired key is new.
+		current := map[coreapi.RoleAssignmentKey]string{olderKey: olderName, oldKey: oldName}
+		desire := desireFor(t, scope, current, []string{olderName, oldName}, true, true)
+		next, err := syncer.calculateDesiredRoleAssignmentKeys(desiredKey, scope, desire)
+		require.NoError(t, err)
+		assert.Equal(t, map[coreapi.RoleAssignmentKey]string{
+			desiredKey: desiredName,
+			oldKey:     oldName,
+			olderKey:   olderName,
+		}, next, "every superseded key stays rendered until the replacement is confirmed; no grant is lost and none are orphaned")
+	})
+}
+
+func TestReservedRoleAssignmentName(t *testing.T) {
+	t.Parallel()
+	scope := mustScope(t)
+	key := coreapi.RoleAssignmentKey{PrincipalID: testMockFPAPrincipalID, RoleDefinitionResourceID: OwnerRoleDefinitionResourceID}
+	got := reserveRoleAssignmentName(scope, key)
+	want := roleassignment.GenerateManagedResourceGroupScopedRoleAssignmentName(scope.String(), key.PrincipalID, key.RoleDefinitionResourceID)
+	assert.Equal(t, want, got, "reserved name must match the deterministic generator")
 }

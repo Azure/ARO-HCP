@@ -811,12 +811,36 @@ func TestCreatePreconditionMockFPARoleAssignmentsCreated(t *testing.T) {
 
 	reserved := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testManagedResourceGroup + "/providers/Microsoft.Authorization/roleAssignments/22222222-2222-2222-2222-222222222222"))
 
+	// mockFPATemplate builds the published Spec template declaring the mock FPA Owner
+	// role assignment under the reserved name, matching what the controller publishes.
+	mockFPATemplate := func() map[string]any {
+		return map[string]any{
+			"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+			"contentVersion": "1.0.0.0",
+			"resources": []map[string]any{{
+				"type":       "Microsoft.Authorization/roleAssignments",
+				"apiVersion": "2022-04-01",
+				"name":       reserved.Name,
+				"properties": map[string]any{
+					"principalId":      mockFPAPrincipalID,
+					"roleDefinitionId": ownerRoleDefinitionResourceID,
+					"principalType":    "ServicePrincipal",
+				},
+			}},
+		}
+	}
+
 	// configuredDesire reports reserved as managed under the currently published,
 	// successfully applied spec, so MockFPARoleAssignmentsConfigured returns true.
 	configuredDesire := func(t *testing.T) *azureresourcesapi.DeploymentStackDesire {
 		t.Helper()
 		d := &azureresourcesapi.DeploymentStackDesire{
-			Spec: azureresourcesapi.DeploymentStackDesireSpec{Action: azureresourcesapi.DeploymentStackDesireActionTypeApply},
+			Spec: azureresourcesapi.DeploymentStackDesireSpec{
+				Action: azureresourcesapi.DeploymentStackDesireActionTypeApply,
+				Stack: &armdeploymentstacks.DeploymentStack{
+					Properties: &armdeploymentstacks.DeploymentStackProperties{Template: mockFPATemplate()},
+				},
+			},
 			Status: azureresourcesapi.DeploymentStackDesireStatus{
 				Stack: &armdeploymentstacks.DeploymentStack{
 					Properties: &armdeploymentstacks.DeploymentStackProperties{
@@ -834,19 +858,29 @@ func TestCreatePreconditionMockFPARoleAssignmentsCreated(t *testing.T) {
 		return d
 	}
 
-	spcWithReservedKey := &coreapi.ServiceProviderCluster{
-		Status: coreapi.ServiceProviderClusterStatus{
-			MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup: map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus{
-				{PrincipalID: mockFPAPrincipalID, RoleDefinitionResourceID: ownerRoleDefinitionResourceID}: {ReservedAzureResourceID: reserved},
+	// emptyTemplateDesire is published and applied but declares no role assignments yet
+	// (the grant intent has not been recorded), so it is not configured.
+	emptyTemplateDesire := func(t *testing.T) *azureresourcesapi.DeploymentStackDesire {
+		t.Helper()
+		d := &azureresourcesapi.DeploymentStackDesire{
+			Spec: azureresourcesapi.DeploymentStackDesireSpec{
+				Action: azureresourcesapi.DeploymentStackDesireActionTypeApply,
+				Stack: &armdeploymentstacks.DeploymentStack{
+					Properties: &armdeploymentstacks.DeploymentStackProperties{Template: map[string]any{"resources": []map[string]any{}}},
+				},
 			},
-		},
+		}
+		hash, err := azureresourcesapihelpers.DeploymentStackDesireSpecHash(d.Spec)
+		require.NoError(t, err)
+		d.Status.ObservedSpecHash = hash
+		d.Status.Conditions = []metav1.Condition{{Type: azureresourcesapi.DeploymentStackDesireConditionTypeSuccessfullyApplied, Status: metav1.ConditionTrue}}
+		return d
 	}
 
 	tests := []struct {
 		name      string
 		enabled   bool
 		lister    *fakeDeploymentStackDesireLister
-		spc       *coreapi.ServiceProviderCluster
 		wantReady bool
 		wantErr   bool
 	}{
@@ -854,35 +888,30 @@ func TestCreatePreconditionMockFPARoleAssignmentsCreated(t *testing.T) {
 			name:      "disabled short-circuits to ready without consulting the lister",
 			enabled:   false,
 			lister:    nil, // must not be dereferenced
-			spc:       &coreapi.ServiceProviderCluster{},
 			wantReady: true,
 		},
 		{
 			name:      "enabled and desire not yet published waits",
 			enabled:   true,
 			lister:    &fakeDeploymentStackDesireLister{err: cosmosstorageutils.NewNotFoundError()},
-			spc:       spcWithReservedKey,
 			wantReady: false,
 		},
 		{
 			name:      "enabled and grant not yet live waits",
 			enabled:   true,
-			lister:    &fakeDeploymentStackDesireLister{desire: configuredDesire(t)},
-			spc:       &coreapi.ServiceProviderCluster{}, // empty map: intent not recorded yet
+			lister:    &fakeDeploymentStackDesireLister{desire: emptyTemplateDesire(t)},
 			wantReady: false,
 		},
 		{
 			name:      "enabled and grant live is ready",
 			enabled:   true,
 			lister:    &fakeDeploymentStackDesireLister{desire: configuredDesire(t)},
-			spc:       spcWithReservedKey,
 			wantReady: true,
 		},
 		{
 			name:    "enabled and lister error is surfaced",
 			enabled: true,
 			lister:  &fakeDeploymentStackDesireLister{err: fmt.Errorf("boom")},
-			spc:     spcWithReservedKey,
 			wantErr: true,
 		},
 	}
@@ -902,7 +931,7 @@ func TestCreatePreconditionMockFPARoleAssignmentsCreated(t *testing.T) {
 				HCPClusterName:    testClusterName,
 			}
 
-			ready, err := syncer.createPreconditionMockFPARoleAssignmentsCreated(ctx, key, tt.spc)
+			ready, err := syncer.createPreconditionMockFPARoleAssignmentsCreated(ctx, key)
 
 			if tt.wantErr {
 				require.Error(t, err)

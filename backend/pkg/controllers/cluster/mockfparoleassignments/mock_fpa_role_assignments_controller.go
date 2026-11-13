@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/azureresourcesapihelpers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -48,6 +48,12 @@ import (
 // context/logger controller name, and log fields.
 const MockFPARoleAssignmentsControllerName = "MockFPARoleAssignments"
 
+// OwnerRoleDefinitionResourceID is the tenant-level resource ID of the Azure
+// built-in Owner role definition. It is the role the mock First Party Application
+// principal is granted over each cluster's managed resource group.
+// The ID has been obtained from https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/privileged#owner.
+const OwnerRoleDefinitionResourceID = "/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+
 const (
 	// mockFPARoleAssignmentsAzureDeploymentStackName is the deployment stack name, stable within
 	// each cluster's managed resource group.
@@ -62,44 +68,76 @@ const (
 // permissions manager identity, so the stack desires controller can apply or
 // delete it in Azure. It only runs when the backend has no real FPA.
 //
-// It does not call Azure itself. It reserves a role assignment resource ID for a
-// key that does not have one yet and persists it before use, then renders every
-// non-draining key into one ARM template. A key that has started deconfigure
-// (DeconfigureTimestamp set) is excluded from the template immediately, which
-// lets the stack desires controller delete it from Azure right away rather than
-// after a time-based wait.
+// There is no intermediate state on the ServiceProviderCluster. The published
+// DeploymentStackDesire.Spec template is itself the ledger: its
+// Microsoft.Authorization/roleAssignments resources record, for every assignment
+// the mock FPA stack manages, that assignment's principal ID, role definition, and
+// reserved role assignment name. The syncer reads that template back to learn what
+// is currently managed, unions it with the single desired key (the configured mock
+// FPA principal paired with the Owner role), and republishes.
+//
+// Identity replacement (for example when the mock FPA principal ID changes, or a
+// transitive A to B to C change) is handled without losing the Owner grant and
+// without orphaning any assignment:
+//   - A superseded key is kept rendered in the template (so its Azure assignment
+//     stays live) until the desired key is confirmed live in Azure by a current,
+//     successful stack reconcile.
+//   - Once the desired key is confirmed, the superseded key is excluded from the
+//     next published template. The deployment stack deletes it via ActionOnUnmanage,
+//     and dropping it from the template is the only bookkeeping needed - the stack
+//     tracks its own managed resources, so there is nothing further to reconcile here.
+//
+// It does not call Azure itself. Because the reserved role assignment name is baked
+// into the published template before Azure ever applies it, the Spec write is the
+// durable reservation: a crash after apply cannot orphan an assignment whose name
+// was never recorded. Role assignment names are deterministic today; when they
+// become fully random the read path above is unchanged (it reads the name from the
+// template) and only the reservation call below would switch to a random generator.
 type mockFPARoleAssignmentsSyncer struct {
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	subscriptionLister           corelisters.SubscriptionLister
 	deploymentStackDesireLister  azureresourceslisters.DeploymentStackDesireLister
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	azureResourcesDBClient       azureresourcescosmosstorage.AzureResourcesDBClient
+	// mockFPAPrincipalID is the principal ID of the mock FPA service principal that
+	// is granted Owner over the managed resource group.
+	mockFPAPrincipalID string
+	// desiredRoleDefinitionResourceID is the role definition resource ID granted to
+	// the mock FPA principal over the managed resource group (the Owner role).
+	desiredRoleDefinitionResourceID string
 }
 
 var _ controllerutils.ClusterSyncer = (*mockFPARoleAssignmentsSyncer)(nil)
 
 // NewMockFPARoleAssignmentsController creates a cluster-watching controller that
-// publishes ServiceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup
-// as a StackDesire for the stack desires controller to reconcile against Azure.
+// publishes the mock FPA Owner role assignment over the managed resource group as a
+// DeploymentStackDesire, using that desire's own Spec template as the ledger of what
+// is managed. It must only be instantiated when the backend has no real FPA.
 func NewMockFPARoleAssignmentsController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
+	mockFPAPrincipalID string,
+	desiredRoleDefinitionResourceID string,
 ) controllerutils.Controller {
+	if len(mockFPAPrincipalID) == 0 {
+		panic("mock FPA principal ID is not configured")
+	}
+	if len(desiredRoleDefinitionResourceID) == 0 {
+		panic("desired role definition resource ID is not configured")
+	}
+
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
-	_, subscriptionLister := backendInformers.Subscriptions()
 	deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
 
 	syncer := &mockFPARoleAssignmentsSyncer{
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		subscriptionLister:           subscriptionLister,
-		deploymentStackDesireLister:  deploymentStackDesireLister,
-		resourcesDBClient:            resourcesDBClient,
-		azureResourcesDBClient:       azureResourcesDBClient,
+		clusterLister:                   clusterLister,
+		serviceProviderClusterLister:    serviceProviderClusterLister,
+		deploymentStackDesireLister:     deploymentStackDesireLister,
+		azureResourcesDBClient:          azureResourcesDBClient,
+		mockFPAPrincipalID:              mockFPAPrincipalID,
+		desiredRoleDefinitionResourceID: desiredRoleDefinitionResourceID,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -117,12 +155,13 @@ func NewMockFPARoleAssignmentsController(
 	// AddInterestingResource only filters events, it does not subscribe to them.
 	// Wire the DeploymentStackDesire informer as an actual event source so that
 	// the stack desires controller writing an observed Azure status back onto the
-	// desire re-triggers this controller, which consumes that status to advance its
-	// stamp/drop state machine. Resync is 0: the periodic resync is done once on the
-	// cluster (key) resource inside NewClusterWatchingController. This watch only
-	// needs to fire on actual DeploymentStackDesire changes.
+	// desire re-triggers this controller, which consumes that status to decide when a
+	// superseded key is safe to drop from the template. Resync is 0: the periodic
+	// resync is done once on the cluster (key) resource inside
+	// NewClusterWatchingController. This watch only needs to fire on actual
+	// DeploymentStackDesire changes.
 	if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
-		panic(err)
+		panic(err) // coding error
 	}
 	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 
@@ -159,8 +198,7 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 	// the MRG is gone (both references cleared by the managed resource group controller).
 	// The assignment itself is MRG-scoped, so Azure removes it in cascade with the MRG.
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil && scope == nil {
-		err := s.deleteDeploymentStackDesireDatabaseEntry(ctx, key)
-		if err != nil {
+		if err := s.deleteDeploymentStackDesireDatabaseEntry(ctx, key); err != nil {
 			return fmt.Errorf("failed to delete mock FPA role assignments DeploymentStackDesire from the database: %w", err)
 		}
 		return nil
@@ -172,40 +210,104 @@ func (s *mockFPARoleAssignmentsSyncer) SyncOnce(ctx context.Context, key control
 		return nil
 	}
 
-	// Publishing an empty template rather than deleting the whole stack keeps the
-	// stack (which lives in and cascades away with the managed resource group anyway) and
-	// avoids create/delete churn if a key is later re-added.
+	existingDeploymentStackDesire, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
+	}
+	if cosmosstorageutils.IsNotFoundError(err) {
+		existingDeploymentStackDesire = nil
+	}
 
-	// Reserve the mock FPA role assignment resource IDs onto the ServiceProviderCluster as a first step. This ensures
-	// that the role assignments references are not lost if the DeploymentStackDesire is not published yet. In the future
-	// the references will be generated randomly and non deterministically.
-	desiredServiceProviderCluster, err := s.serviceProviderClusterWithReservedAzureResourceIDs(existingServiceProviderCluster, scope)
+	desiredKey := coreapi.RoleAssignmentKey{
+		PrincipalID:              s.mockFPAPrincipalID,
+		RoleDefinitionResourceID: s.desiredRoleDefinitionResourceID,
+	}
+
+	desiredRoleAssignmentKeys, err := s.calculateDesiredRoleAssignmentKeys(desiredKey, scope, existingDeploymentStackDesire)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to reserve mock FPA role assignment resource IDs: %w", err))
-	}
-	if controllerutil.NeedsUpdate(existingServiceProviderCluster, desiredServiceProviderCluster) {
-		logger.Info("reserving mock FPA role assignment resource IDs onto ServiceProviderCluster")
-		persisted, err := s.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, desiredServiceProviderCluster, nil)
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-		}
-		desiredServiceProviderCluster = persisted
+		return utils.TrackError(fmt.Errorf("failed to compute desired mock FPA role assignments: %w", err))
 	}
 
-	desiredSpec, err := s.desiredDeploymentStackDesireSpec(desiredServiceProviderCluster, scope)
+	desiredSpec, err := desiredDeploymentStackDesireSpec(scope, desiredRoleAssignmentKeys)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build desired mock FPA role assignments DeploymentStackDesire spec: %w", err))
 	}
 
-	err = s.publishDeploymentStackDesire(ctx, key, desiredSpec, logger)
-	if err != nil {
+	if err := s.publishDeploymentStackDesire(ctx, key, desiredSpec, logger); err != nil {
 		return fmt.Errorf("failed to publish mock FPA role assignments DeploymentStackDesire: %w", err)
 	}
 
 	return nil
+}
+
+// calculateDesiredRoleAssignmentKeys computes the set of role assignments to render in the
+// next published template, keyed by RoleAssignmentKey and valued by the reserved role
+// assignment name.
+//
+// The currently published template is read back from existingDeploymentStackDesire (the
+// ledger) here, so the current set can never diverge from the desire it is derived from.
+//
+// The desired key is always rendered, reusing its already-reserved name when it is
+// already in the published template, or reserving a new name otherwise. Every other
+// key currently in the template (a superseded identity) is kept rendered until the
+// desired key is confirmed live in Azure, then excluded so the deployment stack
+// deletes it. This keeps the Owner grant over the managed resource group continuous
+// across an identity replacement, including transitive A to B to C changes where
+// several superseded keys may be live at once.
+func (s *mockFPARoleAssignmentsSyncer) calculateDesiredRoleAssignmentKeys(
+	desiredKey coreapi.RoleAssignmentKey,
+	scope *azcorearm.ResourceID,
+	existingDeploymentStackDesire *azureresourcesapi.DeploymentStackDesire,
+) (map[coreapi.RoleAssignmentKey]string, error) {
+	currentRoleAssignmentKeysInSpecTemplate, err := coreapihelpers.MockFPARoleAssignmentsInSpecTemplate(existingDeploymentStackDesire)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read rendered mock FPA role assignments from DeploymentStackDesire: %w", err)
+	}
+
+	desiredRoleAssignmentKeys := make(map[coreapi.RoleAssignmentKey]string)
+
+	// Desired key: reuse the reserved name already in the published template, or reserve
+	// a new one. Reserving here and persisting via the Spec write below records the name
+	// durably before Azure ever applies it.
+	desiredName, ok := currentRoleAssignmentKeysInSpecTemplate[desiredKey]
+	if !ok {
+		desiredName = reserveRoleAssignmentName(scope, desiredKey)
+	}
+	desiredRoleAssignmentKeys[desiredKey] = desiredName
+
+	// Whether the desired assignment is confirmed live in Azure per the current,
+	// successful stack reconcile. A superseded assignment is only removed once this is
+	// true, so we never lose the Owner grant over the managed resource group during an
+	// identity replacement. The check uses the name as it appears in the published spec
+	// (currentRendered[desiredKey]); a freshly reserved, not-yet-published name is never
+	// configured.
+	desiredConfigured, err := coreapihelpers.MockFPARoleAssignmentConfigured(existingDeploymentStackDesire, currentRoleAssignmentKeysInSpecTemplate[desiredKey])
+	if err != nil {
+		return nil, err
+	}
+
+	for existingKey, name := range currentRoleAssignmentKeysInSpecTemplate {
+		if existingKey == desiredKey {
+			continue
+		}
+		if !desiredConfigured {
+			// Keep the superseded assignment live until the replacement is confirmed.
+			desiredRoleAssignmentKeys[existingKey] = name
+		}
+		// Once the desired assignment is confirmed, exclude the superseded key so the
+		// deployment stack deletes it via ActionOnUnmanage. Dropping it from the template
+		// is the removal. The stack tracks its own managed resources.
+	}
+
+	return desiredRoleAssignmentKeys, nil
+}
+
+// reserveRoleAssignmentName returns the role assignment name to reserve for key at
+// scope. It is deterministic today (derived from scope, principal, and role
+// definition); if the naming scheme ever becomes fully random this is the only call
+// that changes, because every reader resolves the name from the published template.
+func reserveRoleAssignmentName(scope *azcorearm.ResourceID, key coreapi.RoleAssignmentKey) string {
+	return roleassignment.GenerateManagedResourceGroupScopedRoleAssignmentName(scope.String(), key.PrincipalID, key.RoleDefinitionResourceID)
 }
 
 // managedResourceGroupScope returns the resource ID to scope the mock FPA role
@@ -223,53 +325,16 @@ func managedResourceGroupScope(ref coreapi.AzureReference) *azcorearm.ResourceID
 	return ref.PendingAzureResource
 }
 
-// serviceProviderClusterWithReservedAzureResourceIDs returns a copy of existing with a
-// ReservedAzureResourceID assigned to every non-draining role assignment key that does not
-// have one yet. Draining keys keep whatever reserved ID they already had; naming is a
-// one-time reservation, never recomputed.
-//
-// It is pure (no I/O): the caller persists the result, so the reserved ID is recorded
-// durably before it is rendered into the deployment stack. An error is returned only for
-// an internal failure building the deterministic resource ID.
-func (s *mockFPARoleAssignmentsSyncer) serviceProviderClusterWithReservedAzureResourceIDs(existing *coreapi.ServiceProviderCluster, scope *azcorearm.ResourceID) (*coreapi.ServiceProviderCluster, error) {
-	replacement := existing.DeepCopy()
-
-	keys := make([]coreapi.RoleAssignmentKey, 0, len(replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup))
-	for key := range replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup {
-		keys = append(keys, key)
-	}
-	sortRoleAssignmentKeys(keys)
-
-	for _, key := range keys {
-		status := replacement.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup[key]
-		if status.DeconfigureTimestamp != nil || status.ReservedAzureResourceID != nil {
-			continue
-		}
-		reservedID, err := azcorearm.ParseResourceID(roleassignment.ManagedResourceGroupScopedRoleAssignmentResourceID(scope.String(), key.PrincipalID, key.RoleDefinitionResourceID))
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to parse reserved role assignment resource ID: %w", err))
-		}
-		status.ReservedAzureResourceID = reservedID
-	}
-
-	return replacement, nil
-}
-
 // desiredDeploymentStackDesireSpec builds the StackDesire spec that applies every
-// non-draining key as one ARM template, authenticated as the ARM permissions
-// manager identity.
-func (s *mockFPARoleAssignmentsSyncer) desiredDeploymentStackDesireSpec(
-	serviceProviderCluster *coreapi.ServiceProviderCluster,
+// rendered key as one ARM template, authenticated as the ARM permissions manager
+// identity.
+func desiredDeploymentStackDesireSpec(
 	scope *azcorearm.ResourceID,
+	desiredRoleAssignmentKeys map[coreapi.RoleAssignmentKey]string,
 ) (azureresourcesapi.DeploymentStackDesireSpec, error) {
 	target, err := azcorearm.ParseResourceID(scope.String() + "/providers/Microsoft.Resources/deploymentStacks/" + mockFPARoleAssignmentsAzureDeploymentStackName)
 	if err != nil {
 		return azureresourcesapi.DeploymentStackDesireSpec{}, utils.TrackError(fmt.Errorf("failed to parse mock FPA role assignments stack resource ID: %w", err))
-	}
-
-	resources, err := roleAssignmentTemplateResources(serviceProviderCluster.Status.MockFirstPartyApplicationRoleAssignmentsOverManagedResourceGroup)
-	if err != nil {
-		return azureresourcesapi.DeploymentStackDesireSpec{}, utils.TrackError(fmt.Errorf("failed to build role assignment template resources: %w", err))
 	}
 
 	return azureresourcesapi.DeploymentStackDesireSpec{
@@ -283,7 +348,7 @@ func (s *mockFPARoleAssignmentsSyncer) desiredDeploymentStackDesireSpec(
 				Template: map[string]any{
 					"$schema":        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
 					"contentVersion": "1.0.0.0",
-					"resources":      resources,
+					"resources":      roleAssignmentTemplateResources(desiredRoleAssignmentKeys),
 				},
 				ActionOnUnmanage: roleAssignmentsActionOnUnmanage(),
 				DenySettings: &armdeploymentstacks.DenySettings{
@@ -306,30 +371,22 @@ func roleAssignmentsActionOnUnmanage() *armdeploymentstacks.ActionOnUnmanage {
 }
 
 // roleAssignmentTemplateResources renders one Microsoft.Authorization/roleAssignments
-// template resource per non-draining key, named with that key's
-// ReservedAzureResourceID. Draining keys (DeconfigureTimestamp set) are excluded so
-// the stack desires controller deletes them from Azure. Keys are sorted so the
-// generated template (and therefore its spec hash) is stable across syncs.
-func roleAssignmentTemplateResources(assignments map[coreapi.RoleAssignmentKey]*coreapi.MockFPARoleAssignmentStatus) ([]map[string]any, error) {
-	keys := make([]coreapi.RoleAssignmentKey, 0, len(assignments))
-	for key := range assignments {
-		if assignments[key] == nil || assignments[key].DeconfigureTimestamp != nil {
-			continue
-		}
+// template resource per key, named with that key's reserved role assignment name. Keys
+// are sorted so the generated template (and therefore its spec hash) is stable across
+// syncs.
+func roleAssignmentTemplateResources(desiredRoleAssignmentKeys map[coreapi.RoleAssignmentKey]string) []map[string]any {
+	keys := make([]coreapi.RoleAssignmentKey, 0, len(desiredRoleAssignmentKeys))
+	for key := range desiredRoleAssignmentKeys {
 		keys = append(keys, key)
 	}
 	sortRoleAssignmentKeys(keys)
 
 	resources := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
-		status := assignments[key]
-		if status.ReservedAzureResourceID == nil {
-			return nil, utils.TrackError(fmt.Errorf("mock FPA role assignment for principal ID %s role definition resource ID %s has no reserved AzureResourceID", key.PrincipalID, key.RoleDefinitionResourceID))
-		}
 		resources = append(resources, map[string]any{
-			"type":       "Microsoft.Authorization/roleAssignments",
+			"type":       coreapihelpers.RoleAssignmentResourceType,
 			"apiVersion": roleAssignmentAPIVersion,
-			"name":       status.ReservedAzureResourceID.Name,
+			"name":       desiredRoleAssignmentKeys[key],
 			"properties": map[string]any{
 				"principalId":      key.PrincipalID,
 				"roleDefinitionId": key.RoleDefinitionResourceID,
@@ -337,7 +394,7 @@ func roleAssignmentTemplateResources(assignments map[coreapi.RoleAssignmentKey]*
 			},
 		})
 	}
-	return resources, nil
+	return resources
 }
 
 func sortRoleAssignmentKeys(keys []coreapi.RoleAssignmentKey) {

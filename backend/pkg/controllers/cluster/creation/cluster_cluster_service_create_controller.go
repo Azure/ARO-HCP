@@ -202,7 +202,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
-	ready, err = c.createPreconditionMockFPARoleAssignmentsCreated(ctx, key, existingServiceProviderCluster)
+	ready, err = c.createPreconditionMockFPARoleAssignmentsCreated(ctx, key)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -332,12 +332,12 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 // Readiness is read from the mock FPA DeploymentStackDesire's observed Azure state via
 // coreapihelpers.MockFPARoleAssignmentsConfigured, which gates on the observation being
 // current (ObservedSpecHash matches the published spec), the apply having succeeded, and
-// every desired assignment being managed. Reading the whole desired set from the status
-// map means this scales to more than one role assignment without changes here. An empty
-// map (the grant intent has not been recorded yet, the common case for a fresh cluster) is
-// reported as not configured, so the POST waits. Returns (false, nil) when this controller
-// should wait and retry.
-func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignmentsCreated(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+// every rendered assignment being managed. Reading the whole desired set from the
+// published template means this scales to more than one role assignment without changes
+// here. A desire whose template declares no assignments yet (the grant intent has not been
+// recorded, the common case for a fresh cluster) is reported as not configured, so the
+// POST waits. Returns (false, nil) when this controller should wait and retry.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignmentsCreated(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !c.mockFirstPartyApplicationRoleAssignmentsEnabled {
@@ -353,7 +353,7 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignm
 		return false, utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
 	}
 
-	configured, err := coreapihelpers.MockFPARoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
+	configured, err := coreapihelpers.MockFPARoleAssignmentsConfigured(desire)
 	if err != nil {
 		return false, utils.TrackError(err)
 	}
