@@ -31,6 +31,13 @@ param mondayStallSeconds int = 208800
 var weekdayStallGate = 'day_of_week() >= 2 and day_of_week() <= 5'
 var mondayStallGate = 'day_of_week() == 1'
 
+// The managed Prometheus agent scrapes each target from two replicas, and the
+// AMW stores both series (differing only in the prometheus_replica label).
+// Every rule expression therefore aggregates that label away: without this,
+// a breaching metric yields one alert instance per replica and the action
+// group is notified twice per firing.
+var replicaDedup = 'max without (prometheus_replica)'
+
 resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'image-updater-alerts'
   location: resourceGroup().location
@@ -44,7 +51,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
       {
         alert: 'ImageUpdaterConsecutiveFailures'
         enabled: true
-        expression: 'image_updater_consecutive_failures >= ${maxConsecutiveFailures}'
+        expression: '${replicaDedup} (image_updater_consecutive_failures) >= ${maxConsecutiveFailures}'
         for: 'PT15M'
         severity: 3
         labels: {
@@ -68,7 +75,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
       {
         alert: 'ImageUpdaterRunStalled'
         enabled: true
-        expression: '((time() - image_updater_last_run_timestamp_seconds > ${weekdayStallSeconds}) and on() (${weekdayStallGate})) or ((time() - image_updater_last_run_timestamp_seconds > ${mondayStallSeconds}) and on() (${mondayStallGate}))'
+        expression: '((time() - ${replicaDedup} (image_updater_last_run_timestamp_seconds) > ${weekdayStallSeconds}) and on() (${weekdayStallGate})) or ((time() - ${replicaDedup} (image_updater_last_run_timestamp_seconds) > ${mondayStallSeconds}) and on() (${mondayStallGate}))'
         for: 'PT30M'
         severity: 3
         labels: {
@@ -92,7 +99,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
       {
         alert: 'ImageUpdaterRunDurationExceeded'
         enabled: true
-        expression: 'image_updater_last_run_duration_seconds > ${maxRunDurationSeconds}'
+        expression: '${replicaDedup} (image_updater_last_run_duration_seconds) > ${maxRunDurationSeconds}'
         for: 'PT15M'
         severity: 3
         labels: {
@@ -116,7 +123,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
       {
         alert: 'ImageUpdaterScrapeFailed'
         enabled: true
-        expression: 'absent_over_time(image_updater_scrape_success[15m]) == 1 or image_updater_scrape_success == 0 or (time() - image_updater_last_scrape_timestamp_seconds > 900)'
+        expression: 'absent_over_time(image_updater_scrape_success[15m]) == 1 or ${replicaDedup} (image_updater_scrape_success) == 0 or (time() - ${replicaDedup} (image_updater_last_scrape_timestamp_seconds) > 900)'
         for: 'PT10M'
         severity: 3
         labels: {
@@ -142,7 +149,7 @@ resource imageUpdaterAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         enabled: true
         // scrape_success == 1 separates "regex matches nothing" (this alert)
         // from "poll failing" (ImageUpdaterScrapeFailed).
-        expression: 'image_updater_jobs_matched == 0 and on() (image_updater_scrape_success == 1)'
+        expression: '${replicaDedup} (image_updater_jobs_matched) == 0 and on() (${replicaDedup} (image_updater_scrape_success) == 1)'
         for: 'PT30M'
         severity: 3
         labels: {
