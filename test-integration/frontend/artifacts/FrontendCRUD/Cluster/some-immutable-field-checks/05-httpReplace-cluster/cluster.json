@@ -33,9 +33,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "illegal-change",
-							"vaultName": "illegal-change",
 							"version": "abcdef0123456789abcdef0123456789"
-						}
+						},
+						"vaultName": "illegal-change",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
@@ -72,7 +73,8 @@
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"version": {
 			"channelGroup": "stable",

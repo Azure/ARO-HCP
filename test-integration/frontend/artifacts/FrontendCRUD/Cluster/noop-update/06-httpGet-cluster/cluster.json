@@ -29,6 +29,7 @@
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},
+		"cryptoRestrictions": "None",
 		"dns": {
 			"baseDomainPrefix": "cluster"
 		},
@@ -39,13 +40,17 @@
 					"kms": {
 						"activeKey": {
 							"name": "encryptionKeyName",
-							"vaultName": "keyVaultName",
 							"version": "4e832b5c8f1e4e3d9c6b2a1f3e7d9c5b"
-						}
+						},
+						"vaultName": "keyVaultName",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
 			}
+		},
+		"ingress": {
+			"type": "Public"
 		},
 		"network": {
 			"hostPrefix": 23,
@@ -54,6 +59,7 @@
 			"podCidr": "10.128.0.0/14",
 			"serviceCidr": "172.30.0.0/16"
 		},
+		"nodeDrainTimeoutMinutes": 0,
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
@@ -79,7 +85,8 @@
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"provisioningState": "Accepted",
 		"version": {
