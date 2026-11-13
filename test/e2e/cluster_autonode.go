@@ -17,47 +17,38 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/blang/semver/v4"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20270201 "github.com/Azure/ARO-HCP/test/sdk/v20270201/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-const autoNodeTestOpenshiftVersion = "4.22"
-
-// This test exercises: the enablement signal (properties.autoNode.mode,
-// translated into the same AFEC-gated experimental tag and projected onto
-// ExperimentalFeatures.AutoNode by admit_cluster.go's mutateClusterExperimentalFeatures
-// — see the v20270201 version package's normalizeAutoNode) plus the
-// "autonode" data-plane operator identity per ClusterOperatorIdentifierAutoNode
-// in internal/azure/cluster_scoped_identities_config.go; automatic delivery of
-// spec.autoNode onto the cluster's HostedCluster by the backend's
-// AutoNodeEnabler controller; and that Karpenter actually provisions a real
-// Azure node once scheduling pressure exists, and deprovisions it again once
-// that pressure is gone.
+// This test covers the AutoNode enablement path and the node lifecycle.
 //
-// Known gap this test works around rather than fixes: there is no CSR
-// auto-approver for Karpenter-provisioned nodes on Azure (see
-// framework.RunKarpenterNodeCSRApprover's doc comment) - a passing run here is
-// not evidence that gap is closed.
+// Enablement: properties.autoNode.mode becomes the AFEC-gated experimental tag.
+// mutateClusterExperimentalFeatures (internal/admission/admit_cluster.go)
+// projects it onto ExperimentalFeatures.AutoNode. The v20270201 version package
+// normalizes the field.
+//
+// Identity and delivery: the cluster receives the "autonode" data-plane operator
+// identity (ClusterOperatorIdentifierAutoNode, in
+// internal/azure/cluster_scoped_identities_config.go). The backend
+// AutoNodeEnabler controller writes spec.autoNode to the HostedCluster.
+//
+// Provisioning: Karpenter provisions a real Azure node under scheduling
+// pressure, and removes it when the pressure is gone.
+//
+// Known gap: Azure has no CSR auto-approver for Karpenter-provisioned nodes.
+// This test works around that gap and does not fix it (see
+// framework.RunKarpenterNodeCSRApprover). A passing run is not proof that the
+// gap is closed.
 var _ = Describe("Customer", func() {
 	It("should be able to create a cluster with autonode enabled on OCP version >= 4.22 and run a web app on the Karpenter-provisioned node",
 		labels.RequireNothing, labels.Medium, labels.Slow, labels.Positive, labels.AroRpApiCompatible, labels.CreateCluster,
@@ -66,6 +57,16 @@ var _ = Describe("Customer", func() {
 			const clusterName = "autonode-enable-422"
 
 			tc := framework.NewTestContext()
+
+			By("checking that the v20270201 API is deployed before creating Azure resources")
+			apiDeployed, probeErr := framework.IsAPI20270201Deployed(ctx, tc.Get20270201ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient())
+			Expect(probeErr).NotTo(HaveOccurred(), "failed to probe the v20270201 API")
+			if !apiDeployed {
+				if time.Now().Before(framework.V20270201DeploymentDeadline) {
+					Skip(fmt.Sprintf("v20270201 API not yet deployed; skipping until %s", framework.V20270201DeploymentDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20270201 API still not deployed as of %s deadline", framework.V20270201DeploymentDeadline.Format(time.RFC3339)))
+			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -81,12 +82,11 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = autoNodeTestOpenshiftVersion
 			// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
-			// registered for this to be honored (see NewDefaultClusterParams20270201,
-			// whose default tags rely on the same AFEC). Without it, admission silently
-			// zeroes ExperimentalFeatures instead of rejecting the request
-			// (mutateClusterExperimentalFeatures in internal/admission/admit_cluster.go),
-			// so a missing AFEC registration would surface here as a failed round-trip
-			// assertion below, not a clean create-time error.
+			// registered. NewDefaultClusterParams20270201 relies on the same AFEC for its
+			// default tags. Without the registration, mutateClusterExperimentalFeatures
+			// (internal/admission/admit_cluster.go) clears ExperimentalFeatures and does not
+			// reject the request. A missing registration therefore fails the round-trip
+			// assertion below, not the create call.
 			clusterParams.AutoNodeMode = to.Ptr(hcpsdk20270201.AutoNodeModeEnabled)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
@@ -103,10 +103,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for AutoNode enablement cluster")
 
 			By("verifying the autonode data-plane operator identity was provisioned")
-			Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil(), "UserAssignedIdentitiesProfile should be populated after creating customer resources")
-			autoNodeIdentityID := clusterParams.UserAssignedIdentitiesProfile.DataPlaneOperators["autonode"]
-			Expect(autoNodeIdentityID).NotTo(BeNil(), "DataPlaneOperators should contain an \"autonode\" identity")
-			Expect(*autoNodeIdentityID).NotTo(BeEmpty(), "autonode data-plane identity resource ID should not be empty")
+			validateAutoNodeIdentity20270201(clusterParams.UserAssignedIdentitiesProfile)
 
 			By("creating the HCP cluster with the typed AutoNode field set")
 			err = tc.CreateHCPClusterFromParam20270201(
@@ -126,33 +123,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster with the typed AutoNode field set")
 
 			By("verifying the typed AutoNode field round-trips on the created cluster")
-			actualHCPCluster, err := tc.Get20270201ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, clusterName, nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %s", clusterName)
-			Expect(actualHCPCluster.Properties).NotTo(BeNil(), "AutoNode cluster response properties must be present")
-			if actualHCPCluster.Properties.AutoNode == nil || actualHCPCluster.Properties.AutoNode.Mode == nil || *actualHCPCluster.Properties.AutoNode.Mode != hcpsdk20270201.AutoNodeModeEnabled {
-				subscriptionID, subErr := tc.SubscriptionID(ctx)
-				if subErr != nil {
-					subscriptionID = fmt.Sprintf("<unknown, failed to resolve: %s>", subErr)
-				}
-				var gotMode any
-				if actualHCPCluster.Properties.AutoNode != nil {
-					gotMode = actualHCPCluster.Properties.AutoNode.Mode
-				}
-				Fail(fmt.Sprintf(
-					"\n"+
-						"=================================================================\n"+
-						"AUTONODE FIELD DID NOT ROUND-TRIP (got mode: %v)\n"+
-						"This is almost certainly NOT an AutoNode bug: it means the %q AFEC\n"+
-						"flag is not registered on this test subscription (%s), so\n"+
-						"mutateClusterExperimentalFeatures (internal/admission/admit_cluster.go)\n"+
-						"silently zeroed ExperimentalFeatures instead of honoring the request.\n"+
-						"Fix by registering the flag on this subscription and re-running:\n"+
-						"  az feature register --namespace Microsoft.RedHatOpenShift \\\n"+
-						"    --name ExperimentalReleaseFeatures --subscription %s\n"+
-						"=================================================================\n",
-					gotMode, metadataapi.FeatureExperimentalReleaseFeatures, subscriptionID, subscriptionID,
-				))
-			}
+			validateAutoNodeEnabled20270201(ctx, tc.Get20270201ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(), *resourceGroup.Name, clusterName, tc.SubscriptionID)
 
 			By("getting admin REST config")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20270201(
@@ -169,48 +140,26 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %s is healthy", clusterName)
 
 			By("creating a regular worker node pool so cluster-infra pods have somewhere to run besides the Karpenter node")
-			// Without a regular node pool, every non-DaemonSet infra pod (router,
-			// monitoring, image-registry, etc.) has nowhere to schedule except the
-			// single Karpenter-provisioned node, since that would otherwise be the
-			// only Ready node in the cluster. That starved Karpenter's own node
-			// drain during teardown: deleting the NodePool tries to evict those
-			// pods, but they have nowhere else to go, so the drain hangs (observed
-			// as "Failed to drain node, N pods are waiting to be evicted" events
-			// and VerifyKarpenterDeprovisioned timing out). Mirrors the regular
-			// worker node pool created by other multi-node e2e tests (e.g.
-			// complete_cluster_create_multiversion.go); the workload pod that
-			// actually exercises Karpenter is pinned away from this node pool via
-			// nodeSelector below.
+			// Without this node pool, each non-DaemonSet infra pod (router, monitoring,
+			// image-registry) has nowhere to run except the Karpenter node. That node would
+			// be the only Ready node in the cluster. Karpenter then cannot drain the node
+			// during teardown: the NodePool delete tries to evict those pods, and the pods
+			// have nowhere to go. The drain hangs, and VerifyKarpenterDeprovisioned times
+			// out. Observed event: "Failed to drain node, N pods are waiting to be evicted".
+			//
+			// Other multi-node e2e tests create the same worker pool (for example
+			// complete_cluster_create_multiversion.go). The workload that exercises
+			// Karpenter is pinned away from this pool through its nodeSelector.
 			const workerNodePoolName = "workers"
 			nodePoolParams := framework.NewDefaultNodePoolParams20270201()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = workerNodePoolName
 			nodePoolParams.Replicas = 1
 
-			// The node pool API requires a concrete Major.Minor.Patch version (unlike
-			// the control plane, which resolves a bare "4.22"), so resolve one from
-			// the cluster's own ClusterVersion history rather than guessing.
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client for cluster %s", clusterName)
-			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterVersion for cluster %s", clusterName)
-			var parseableVersions []string
-			for _, h := range clusterVersion.Status.History {
-				if _, err := semver.ParseTolerant(h.Version); err != nil {
-					continue
-				}
-				parseableVersions = append(parseableVersions, h.Version)
-				if h.State == configv1.CompletedUpdate {
-					break
-				}
-			}
-			sort.Slice(parseableVersions, func(i, j int) bool {
-				vi, _ := semver.ParseTolerant(parseableVersions[i])
-				vj, _ := semver.ParseTolerant(parseableVersions[j])
-				return vi.LT(vj)
-			})
-			Expect(parseableVersions).NotTo(BeEmpty(), "no parseable node pool install version found in ClusterVersion history for cluster %s", clusterName)
-			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
+			// The node pool API requires a full Major.Minor.Patch version. The control
+			// plane accepts a bare "4.22". Resolve the node version from the ClusterVersion
+			// history of the cluster.
+			nodePoolParams.OpenshiftVersionId = resolveAutoNodeWorkerVersion(ctx, adminRESTConfig, clusterName)
 
 			err = tc.CreateNodePoolFromParam20270201(
 				ctx,
@@ -223,119 +172,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create worker node pool %q for cluster %s", workerNodePoolName, clusterName)
 
-			By("verifying the guest Karpenter CRDs are installed")
-			// Hard precondition, not a workaround target: the standalone
-			// karpenter-operator installs these unconditionally on startup, so
-			// their absence means the container itself is broken, not a normal
-			// timing state to build a fallback around.
-			err = verifiers.VerifyKarpenterCRDsInstalled(5*time.Minute).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "guest Karpenter CRDs are not installed on cluster %s", clusterName)
-
-			const karpenterResourceName = "autonode-e2e"
-			karpenterInstanceTypes := []string{"Standard_D4s_v3", "Standard_D4s_v5"}
-			err = framework.ValidateKarpenterInstanceTypes(karpenterInstanceTypes)
-			Expect(err).NotTo(HaveOccurred(), "invalid instance types for Karpenter NodePool %q", karpenterResourceName)
-
-			By("creating a test-owned OpenShiftAzureNodeClass for Karpenter")
-			err = framework.ApplyOpenShiftAzureNodeClass(ctx, adminRESTConfig, karpenterResourceName)
-			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShiftAzureNodeClass %q", karpenterResourceName)
-			DeferCleanup(func(ctx context.Context) {
-				_ = framework.DeleteOpenShiftAzureNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
-			})
-
-			By("waiting for the OpenShiftAzureNodeClass to become ready")
-			err = verifiers.VerifyOpenShiftAzureNodeClassReady(karpenterResourceName, 5*time.Minute).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "OpenShiftAzureNodeClass %q did not become ready", karpenterResourceName)
-
-			By("creating a Karpenter NodePool that references the ready NodeClass")
-			err = framework.ApplyKarpenterNodePool(ctx, adminRESTConfig, karpenterResourceName, karpenterInstanceTypes)
-			Expect(err).NotTo(HaveOccurred(), "failed to create Karpenter NodePool %q", karpenterResourceName)
-
-			// Deploy workload
-			nodeSelector := map[string]string{
-				"autonode":                       "true",
-				framework.KarpenterNodePoolLabel: karpenterResourceName,
-			}
-			const workloadNamespace = "autonode-e2e-workload"
-			const workloadName = "autonode-e2e-pending"
-
-			By("deploying a workload matched to the Karpenter NodePool, initially at 0 replicas")
-			err = framework.DeployPendingWorkload(ctx, adminRESTConfig, workloadNamespace, workloadName, nodeSelector)
-			Expect(err).NotTo(HaveOccurred(), "failed to deploy pending workload %q", workloadName)
-			DeferCleanup(func(ctx context.Context) {
-				_ = framework.DeleteNamespace(ctx, adminRESTConfig, workloadNamespace)
-			})
-
-			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client for cluster %s", clusterName)
-
-			By("scaling the workload to 1 replica to create real scheduling pressure")
-			err = framework.ScaleDeployment(ctx, adminRESTConfig, workloadNamespace, workloadName, 1)
-			Expect(err).NotTo(HaveOccurred(), "failed to scale workload %q to 1 replica", workloadName)
-
-			By("verifying the workload's pod is Pending, proving the scheduling pressure is real")
-			Eventually(func(g Gomega) {
-				pods, err := kubeClient.CoreV1().Pods(workloadNamespace).List(ctx, metav1.ListOptions{LabelSelector: "app=" + workloadName})
-				g.Expect(err).NotTo(HaveOccurred(), "failed to list pods for workload %q", workloadName)
-				g.Expect(pods.Items).To(HaveLen(1), "expected exactly one pod for workload %q", workloadName)
-				g.Expect(pods.Items[0].Status.Phase).To(Equal(corev1.PodPending), "expected workload pod to be Pending: no node satisfying the NodePool's requirements should exist yet")
-			}, time.Minute, 5*time.Second).Should(Succeed(), "workload pod never reached Pending phase")
-
-			By("waiting for Karpenter to provision a real Azure node, approving its CSRs as a workaround for the missing Azure auto-approver")
-			csrApproverCtx, stopCSRApprover := context.WithCancel(ctx)
-			var approvedCSRCount int
-			var csrApproverErr error
-			csrApproverDone := make(chan struct{})
-			go func() {
-				defer close(csrApproverDone)
-				approvedCSRCount, csrApproverErr = framework.RunKarpenterNodeCSRApprover(csrApproverCtx, adminRESTConfig, 10*time.Second)
-			}()
-
-			// Demo notes ~5 minutes for a Karpenter-provisioned Azure VM to
-			// initialize and start trying to register, on top of normal
-			// cluster-create time already spent above; budget generously.
-			err = verifiers.VerifyKarpenterNodeProvisioned(karpenterResourceName, 25*time.Minute, verifiers.KarpenterProvisioningChecks{}).Verify(ctx, adminRESTConfig)
-			stopCSRApprover()
-			<-csrApproverDone
-			GinkgoLogr.Info("Karpenter node CSR approver finished", "approved", approvedCSRCount)
-			Expect(csrApproverErr).NotTo(HaveOccurred(), "background Karpenter node CSR approver failed")
-			Expect(err).NotTo(HaveOccurred(), "Karpenter never provisioned a Ready, schedulable, fully-linked node for NodePool %q", karpenterResourceName)
-
-			By("verifying the workload's pod reaches Running on the Karpenter-provisioned node")
-			Eventually(func(g Gomega) {
-				pods, err := kubeClient.CoreV1().Pods(workloadNamespace).List(ctx, metav1.ListOptions{LabelSelector: "app=" + workloadName})
-				g.Expect(err).NotTo(HaveOccurred(), "failed to list pods for workload %q", workloadName)
-				g.Expect(pods.Items).To(HaveLen(1), "expected exactly one pod for workload %q", workloadName)
-				g.Expect(pods.Items[0].Status.Phase).To(Equal(corev1.PodRunning), "expected workload pod to reach Running once Karpenter provisioned a node")
-			}, 5*time.Minute, 10*time.Second).Should(Succeed(), "workload pod never reached Running phase on the Karpenter-provisioned node")
-
-			By("verifying a simple web app can run on the Karpenter-provisioned node")
-			err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
-
-			By("scaling the workload back down and deleting the NodePool/OpenShiftAzureNodeClass, verifying Karpenter actually deprovisions the node")
-			err = framework.ScaleDeployment(ctx, adminRESTConfig, workloadNamespace, workloadName, 0)
-			Expect(err).NotTo(HaveOccurred(), "failed to scale workload %q back to 0 replicas", workloadName)
-			err = framework.DeleteOpenShiftAzureNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)
-			Expect(err).NotTo(HaveOccurred(), "failed to delete OpenShiftAzureNodeClass/NodePool %q", karpenterResourceName)
-			// 10m: an observed real run drained and deprovisioned in ~1m15s once
-			// cluster-infra pods had a regular worker node pool to live on instead
-			// of the Karpenter node (see the worker node pool step above), so 10m
-			// leaves a comfortable margin without masking a genuine hang.
-			// Consolidation itself is not the bottleneck - Karpenter's default
-			// consolidateAfter is 0s when the NodePool doesn't set spec.disruption
-			// (confirmed against karpenter.sh_nodepools.yaml).
-			//
-			// Without the regular worker node pool above, draining this node can
-			// get stuck behind router-default's PodDisruptionBudget, since that's
-			// the only other place for it to go once evicted. Observed events:
-			//   Normal  DisruptionBlocked  4m57s  karpenter  Pdb prevents pod evictions (PodDisruptionBudget=[openshift-ingress/router-default])
-			//   Normal  DisruptionBlocked  57s (x2 over 2m57s)  karpenter  Node is deleting or marked for deletion
-			err = verifiers.VerifyKarpenterDeprovisioned(karpenterResourceName, 10*time.Minute).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "Karpenter did not remove Nodes, NodeClaims, and both NodeClasses for NodePool %q; resources may remain", karpenterResourceName)
-
-			By("deleting the workload namespace")
-			err = framework.DeleteNamespace(ctx, adminRESTConfig, workloadNamespace)
-			Expect(err).NotTo(HaveOccurred(), "failed to delete workload namespace %q", workloadNamespace)
+			run := provisionKarpenterNode(ctx, adminRESTConfig, clusterName, karpenterRunOptions{})
+			deprovisionKarpenterNode(ctx, adminRESTConfig, run)
 		})
 })
