@@ -25,9 +25,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/azureresourcescosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -45,9 +47,10 @@ import (
 // deletion pipelines. The orphan scraper handles controller status after the
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
-	clusterLister        corelisters.ClusterLister
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
+	clusterLister          corelisters.ClusterLister
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient
+	kubeApplierDBClients   kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
@@ -56,15 +59,17 @@ const ClusterChildResourcesCleanupControllerControllerName = "ClusterChildResour
 
 func NewClusterChildResourcesCleanupController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	azureResourcesDBClient azureresourcescosmosstorage.AzureResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
+		clusterLister:          clusterLister,
+		resourcesDBClient:      resourcesDBClient,
+		azureResourcesDBClient: azureResourcesDBClient,
+		kubeApplierDBClients:   kubeApplierDBClients,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -85,6 +90,7 @@ func NewClusterChildResourcesCleanupController(
 	controller.AddInterestingResource(coreapi.ClusterScopedManagementClusterContentResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedApplyDesireResourceType, "*")
 	controller.AddInterestingResource(kubeapplierapi.ClusterScopedReadDesireResourceType, "*")
+	controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, "*")
 	nodePoolInformer, _ := informers.NodePools()
 	externalAuthInformer, _ := informers.ExternalAuths()
 	requestInformer, _ := informers.SystemAdminCredentialRequests()
@@ -196,6 +202,10 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier content: %w", err))
+	}
+
+	if err := c.ensureDeploymentStackDesiresDeleted(ctx, clusterResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped deployment stack desires: %w", err))
 	}
 
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*clusterResourceID)
@@ -654,4 +664,83 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteRead
 
 		return true, nil
 	}
+}
+
+// ensureDeploymentStackDesiresDeleted removes every DeploymentStackDesire scoped
+// directly under this cluster from the AzureResources container. Unlike the rest
+// of this controller's children, DeploymentStackDesire lives in its own Cosmos
+// container and is therefore never reached by the generic resourcesDBClient
+// recursive sweep below, so it needs its own explicit hard-delete here. This
+// mirrors today's behavior for the resource before the container split: an
+// unconditional Cosmos document delete, no Azure-side call. This is a backstop for
+// any desire that a producer missed, not a stronger guarantee.
+//
+// One desire is NOT swept unconditionally: the mock FPA Owner role assignment over
+// the managed resource group. In environments without a real FPA, the mock FPA
+// deletes the MRG using exactly that assignment - its base subscription role grants
+// resourceGroups read/write but NOT delete - so the assignment must outlive Cluster
+// Service deletion for as long as the MRG exists. Deleting its bookkeeping desire
+// here while the MRG is still present would strand the assignment and fight the mock
+// FPA controllers that keep it published, so this desire is kept until the MRG is
+// gone, mirroring the ServiceProviderCluster MRG gate. Once the MRG is gone the
+// assignment has cascaded away with it and the desire is swept normally.
+func (c *clusterChildResourcesCleanupController) ensureDeploymentStackDesiresDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	managedResourceGroupPresent, err := c.managedResourceGroupStillPresent(ctx, clusterResourceID)
+	if err != nil {
+		return err
+	}
+
+	desires, err := c.azureResourcesDBClient.DeploymentStackDesiresForCluster(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create cluster-scoped DeploymentStackDesire CRUD: %w", err))
+	}
+
+	desireIterator, err := desires.List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped deployment stack desires: %w", err))
+	}
+	for _, desire := range desireIterator.Items(ctx) {
+		if managedResourceGroupPresent && desire.ResourceID.Name == azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName {
+			logger.Info("keeping mock FPA role assignments deployment stack desire until the managed resource group is deleted",
+				"deploymentStackDesireResourceID", desire.ResourceID)
+			continue
+		}
+		logger.Info("deleting cluster-scoped deployment stack desire", "deploymentStackDesireResourceID", desire.ResourceID)
+		if err := desires.Delete(ctx, desire.ResourceID.Name); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to delete deployment stack desire %q: %w", desire.ResourceID.String(), err))
+		}
+	}
+	if err := desireIterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("error iterating cluster-scoped deployment stack desires: %w", err))
+	}
+
+	return nil
+}
+
+// managedResourceGroupStillPresent reports whether the cluster's ServiceProviderCluster
+// still reflects a managed resource group (confirmed or pending). The managed resource
+// group controller clears both references once the MRG is deleted in Azure.
+//
+// A missing ServiceProviderCluster reports false (MRG not present), which is safe: the
+// ServiceProviderCluster is only deleted once the MRG is gone - its own delete gate
+// (extraDeleteGateShouldDeleteServiceProviderCluster) blocks while either MRG reference
+// is set - so a gone ServiceProviderCluster implies a gone MRG, and the mock FPA desire
+// is then free to be swept. Within a single sweep this runs before the ServiceProviderCluster
+// delete, so the lookup normally succeeds; the not-found path only happens on a later run
+// after the MRG (and then the ServiceProviderCluster) have already been removed.
+func (c *clusterChildResourcesCleanupController) managedResourceGroupStillPresent(ctx context.Context, clusterResourceID *azcorearm.ResourceID) (bool, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(
+		clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name,
+	).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	managedResourceGroup := spc.Status.AzureResources.ManagedResourceGroup
+	return managedResourceGroup.AzureResource != nil || managedResourceGroup.PendingAzureResource != nil, nil
 }

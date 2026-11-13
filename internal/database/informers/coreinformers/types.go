@@ -244,7 +244,6 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	defer logger.Info("stopped informers")
 
 	wg := sync.WaitGroup{}
-
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()

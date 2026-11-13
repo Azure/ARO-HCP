@@ -27,7 +27,7 @@ type containerThroughputReader interface {
 }
 
 func discoverStorageFactoryOptions(ctx context.Context, account containerThroughputReader, controllerContext app.ControllerContext) (app.StorageFactoryOptions, error) {
-	var resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond float64
+	var resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond, azureResourcesRUsPerSecond float64
 	for _, container := range []struct {
 		name  string
 		value *float64
@@ -35,6 +35,7 @@ func discoverStorageFactoryOptions(ctx context.Context, account containerThrough
 		{"Resources", &resourcesRUsPerSecond},
 		{"Billing", &billingRUsPerSecond},
 		{"Fleet", &fleetRUsPerSecond},
+		{"AzureResources", &azureResourcesRUsPerSecond},
 	} {
 		throughput, err := account.ContainerThroughput(ctx, container.name)
 		if err != nil {
@@ -45,5 +46,5 @@ func discoverStorageFactoryOptions(ctx context.Context, account containerThrough
 		}
 		*container.value = throughput
 	}
-	return app.BackendStorageFactoryOptions(controllerContext, resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond), nil
+	return app.BackendStorageFactoryOptions(controllerContext, resourcesRUsPerSecond, billingRUsPerSecond, fleetRUsPerSecond, azureResourcesRUsPerSecond), nil
 }

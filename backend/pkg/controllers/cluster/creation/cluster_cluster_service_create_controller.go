@@ -26,13 +26,16 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/azureresourcesapi"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/azureresourcesinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/azureresourceslisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -45,11 +48,22 @@ type clusterClusterServiceCreateSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	subscriptionLister           corelisters.SubscriptionLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
-	clustersServiceClient        ocm.ClusterServiceClientSpec
+	// deploymentStackDesireLister reads the mock FPA role assignments DeploymentStackDesire to
+	// observe whether the grant is live in Azure. It is only set (and non-nil) when
+	// mockFPARoleAssignmentsEnabled is true.
+	deploymentStackDesireLister azureresourceslisters.DeploymentStackDesireLister
+	clustersServiceClient       ocm.ClusterServiceClientSpec
 	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
 	denyAssignmentsEnabled bool
+	// mockFirstPartyApplicationRoleAssignmentsEnabled mirrors whether the MockFPARoleAssignments controller runs (i.e.
+	// no real FPA is available). When true, cluster creation must wait for the mock FPA principal to
+	// hold Owner over the managed resource group before posting to Cluster Service, because Cluster
+	// Service provisions into that managed resource group as the mock FPA and cannot do so without
+	// the grant. When false (a real FPA is available), the FPA already holds ambient permissions, so
+	// there is no per-cluster grant to wait for and nothing publishes one.
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
@@ -61,19 +75,22 @@ func NewClusterClusterServiceCreateController(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
+	azureResourcesInformers azureresourcesinformers.AzureResourcesInformers,
 	denyAssignmentsEnabled bool,
+	mockFirstPartyApplicationRoleAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		resourcesDBClient:            resourcesDBClient,
-		clusterLister:                clusterLister,
-		serviceProviderClusterLister: serviceProviderClusterLister,
-		subscriptionLister:           subscriptionLister,
-		managementClusterLister:      managementClusterLister,
-		clustersServiceClient:        clustersServiceClient,
-		denyAssignmentsEnabled:       denyAssignmentsEnabled,
+		resourcesDBClient:                               resourcesDBClient,
+		clusterLister:                                   clusterLister,
+		serviceProviderClusterLister:                    serviceProviderClusterLister,
+		subscriptionLister:                              subscriptionLister,
+		managementClusterLister:                         managementClusterLister,
+		clustersServiceClient:                           clustersServiceClient,
+		denyAssignmentsEnabled:                          denyAssignmentsEnabled,
+		mockFirstPartyApplicationRoleAssignmentsEnabled: mockFirstPartyApplicationRoleAssignmentsEnabled,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -88,6 +105,20 @@ func NewClusterClusterServiceCreateController(
 	controller.AddInterestingResource(coreapi.ServiceProviderClusterResourceType, coreapi.ServiceProviderClusterResourceName)
 	controller.AddInterestingResource(azcorearm.SubscriptionResourceType, "*")
 	controller.AddInterestingResource(fleetapi.ManagementClusterResourceType, fleetapi.ManagementClusterResourceName)
+
+	// Only watch (and read) the mock FPA role assignments DeploymentStackDesire when the
+	// MockFPARoleAssignments controller runs. When a real FPA is available nothing publishes it,
+	// so wiring the watch would be dead weight and the precondition short-circuits to ready.
+	if mockFirstPartyApplicationRoleAssignmentsEnabled {
+		deploymentStackDesireInformer, deploymentStackDesireLister := azureResourcesInformers.DeploymentStackDesires()
+		syncer.deploymentStackDesireLister = deploymentStackDesireLister
+		// Wake this controller when the stack desires controller writes an observed Azure status back
+		// onto the desire, so the POST fires promptly once the grant lands rather than only on resync.
+		if err := controller.QueueForChildInformers(0, deploymentStackDesireInformer); err != nil {
+			panic(err)
+		}
+		controller.AddInterestingResource(azureresourcesapi.ClusterScopedDeploymentStackDesireResourceType, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	}
 
 	return controller
 }
@@ -164,6 +195,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	ready, err = c.createPreconditionDenyAssignmentsCreated(ctx, existingServiceProviderCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !ready {
+		return nil
+	}
+
+	ready, err = c.createPreconditionMockFPARoleAssignmentsCreated(ctx, key, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -277,6 +316,52 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCre
 	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
 		"pendingDenyAssignmentTypes", pendingTypes)
 	return false, nil
+}
+
+// createPreconditionMockFPARoleAssignmentsCreated reports whether the mock First Party
+// Application role assignments over the managed resource group are live in Azure. In
+// environments without a real FPA the mock FPA principal must hold these grants (Owner over
+// the managed resource group) before Cluster Service can provision into that resource group
+// as the mock FPA, so a POST must wait until they are confirmed.
+//
+// Returns (true, nil) immediately when the MockFPARoleAssignments controller is not running
+// (a real FPA is available): the FPA then holds ambient permissions, nothing publishes a
+// per-cluster grant, and waiting would block creation forever. This mirrors how
+// createPreconditionDenyAssignmentsCreated no-ops when deny assignments are disabled.
+//
+// Readiness is read from the mock FPA DeploymentStackDesire's observed Azure state via
+// coreapihelpers.MockFPARoleAssignmentsConfigured, which gates on the observation being
+// current (ObservedSpecHash matches the published spec), the apply having succeeded, and
+// every desired assignment being managed. Reading the whole desired set from the status
+// map means this scales to more than one role assignment without changes here. An empty
+// map (the grant intent has not been recorded yet, the common case for a fresh cluster) is
+// reported as not configured, so the POST waits. Returns (false, nil) when this controller
+// should wait and retry.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionMockFPARoleAssignmentsCreated(ctx context.Context, key controllerutils.HCPClusterKey, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	if !c.mockFirstPartyApplicationRoleAssignmentsEnabled {
+		return true, nil
+	}
+
+	desire, err := c.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("Mock FPA role assignments DeploymentStackDesire not yet published, waiting for MockFPARoleAssignments controller")
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
+	}
+
+	configured, err := coreapihelpers.MockFPARoleAssignmentsConfigured(&serviceProviderCluster.Status, desire)
+	if err != nil {
+		return false, utils.TrackError(err)
+	}
+	if !configured {
+		logger.Info("Mock FPA role assignments not yet live in Azure, waiting for MockFPARoleAssignments controller")
+		return false, nil
+	}
+	return true, nil
 }
 
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.Cluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
