@@ -22,6 +22,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 func TestE2E(t *testing.T) {
@@ -36,5 +38,6 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	framework.WriteHCPAPIVersionUsageReport(GinkgoWriter)
 	// Cleanup is done by Resource Group DeferCleanup
 })
