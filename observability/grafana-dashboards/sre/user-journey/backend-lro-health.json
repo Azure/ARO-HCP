@@ -1,0 +1,789 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": ["user-journey"],
+      "title": "Other LRO / User Journey dashboards",
+      "type": "dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "LRO health from the unified metrics; covers every Resource/Verb pair. Use Resource Type / Operation Type above to drill in (all optional); use the Region selector to pick a Prometheus workspace. See related per-resource-operation dashboards above.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "id": 2,
+      "title": "Overview (selected window: $window)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Terminal (succeeded + failed, canceled excluded) operations whose terminal transition landed within the selected window, summed across all matching Resource/Verb pairs. This is the exact denominator of Operation Error Rate; in-flight operations are not included here (see In-Flight Operations).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "decimals": 0,
+          "mappings": [],
+          "unit": "operations"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 5 },
+      "id": 16,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(errors:backend_resource_operation:total_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Terminal Operations ({{ $window }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Terminal Operations",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Count of failed terminal operations whose terminal transition landed within the selected window, summed across all matching Resource/Verb pairs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent" },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "decimals": 0,
+          "unit": "operations"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 5, "y": 5 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(errors:backend_resource_operation:failed_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Failed Operations ({{ $window }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Operations",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Error rate over the selected window: failed / (succeeded + failed), across whatever resource_type/operation_type scope is currently selected, within the selected Region (Prometheus workspace). Canceled operations are excluded from both the numerator and denominator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "decimals": 2,
+          "mappings": [],
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 10, "y": 5 },
+      "id": 3,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(errors:backend_resource_operation:failed_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"})\n/\nclamp_min(sum(errors:backend_resource_operation:total_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}), 1)",
+          "instant": true,
+          "legendFormat": "Error Rate ({{ $window }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Operation Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Operations currently in a non-terminal phase (not succeeded, failed, or canceled), summed across all matching Resource/Verb pairs. Not windowed; reflects current state.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "decimals": 0,
+          "mappings": [],
+          "unit": "operations"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 15, "y": 5 },
+      "id": 5,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(inflight:backend_resource_operation:count{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "In-Flight Operations",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Operations",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Worst-case in-flight duration across all matching Resource/Verb pairs: how long the longest-running active operation has been in a non-terminal phase. Not windowed; reflects current state.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "mappings": [],
+          "unit": "dthms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 5 },
+      "id": 6,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max(inflight:backend_resource_operation:max_duration_seconds{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Max In-Flight Duration",
+          "refId": "A"
+        }
+      ],
+      "title": "Max In-Flight Duration",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 7,
+      "title": "Error Rate & Latency Trends (selected window: $window)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Error rate over time per Resource/Verb pair for the selected window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "decimals": 2,
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 16, "w": 12, "x": 0, "y": 12 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:error_rate_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "legendFormat": "{{ resource_type }} / {{ operation_type }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "p50/p95/p99 latency of succeeded operations for the selected window, per Resource/Verb pair.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "dthms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 16, "w": 12, "x": 12, "y": 12 },
+      "id": 9,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "latency:backend_resource_operation:p50_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\", phase=\"succeeded\"}",
+          "legendFormat": "p50 {{ resource_type }} / {{ operation_type }}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "latency:backend_resource_operation:p95_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\", phase=\"succeeded\"}",
+          "legendFormat": "p95 {{ resource_type }} / {{ operation_type }}",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "latency:backend_resource_operation:p99_$window{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\", phase=\"succeeded\"}",
+          "legendFormat": "p99 {{ resource_type }} / {{ operation_type }}",
+          "refId": "C"
+        }
+      ],
+      "title": "Latency Percentiles (Succeeded)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 10,
+      "title": "Multi-Window Burn Rate Comparison",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Error rate and completed-operation volume side-by-side across all three windows per Resource/Verb pair, independent of the SLO Window selector above. Terminal Ops is total completed operations (succeeded + failed) in the window; Failed is the subset that failed; both give the volume behind the error rate.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*(Ops|Failed)" },
+            "properties": [
+              { "id": "unit", "value": "operations" },
+              { "id": "decimals", "value": 0 },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*Error Rate" },
+            "properties": [{ "id": "custom.width", "value": 110 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Resource Type" },
+            "properties": [{ "id": "custom.width", "value": 480 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Operation" },
+            "properties": [{ "id": "custom.width", "value": 90 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 29 },
+      "id": 11,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "1h Error Rate" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:error_rate_1h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:error_rate_6h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:error_rate_3d{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:total_1h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:total_6h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "E"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:total_3d{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "F"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:failed_1h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "G"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:failed_6h{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "H"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:backend_resource_operation:failed_3d{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "I"
+        }
+      ],
+      "title": "Error Rate & Volume by Window",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "exclude": { "names": ["microsoft.amwresourceid", "cluster", "region", "Time", "__name__", "environment"] }
+          }
+        },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "resource_type": 0,
+              "operation_type": 1,
+              "Value #D": 2,
+              "Value #G": 3,
+              "Value #A": 4,
+              "Value #E": 5,
+              "Value #H": 6,
+              "Value #B": 7,
+              "Value #F": 8,
+              "Value #I": 9,
+              "Value #C": 10
+            },
+            "renameByName": {
+              "Value #D": "1h Terminal Ops",
+              "Value #G": "1h Failed",
+              "Value #A": "1h Error Rate",
+              "Value #E": "6h Terminal Ops",
+              "Value #H": "6h Failed",
+              "Value #B": "6h Error Rate",
+              "Value #F": "3d Terminal Ops",
+              "Value #I": "3d Failed",
+              "Value #C": "3d Error Rate",
+              "resource_type": "Resource Type",
+              "operation_type": "Operation"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "id": 12,
+      "title": "In-Flight Operations",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "In-flight (non-terminal) operation count over time per Resource/Verb pair.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 16, "w": 12, "x": 0, "y": 46 },
+      "id": 13,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "inflight:backend_resource_operation:count{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "legendFormat": "{{ resource_type }} / {{ operation_type }}",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Operation Count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Worst-case in-flight duration over time per Resource/Verb pair.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "dthms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 16, "w": 12, "x": 12, "y": 46 },
+      "id": 14,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "inflight:backend_resource_operation:max_duration_seconds{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}",
+          "legendFormat": "{{ resource_type }} / {{ operation_type }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Max In-Flight Duration Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Every operation currently in a non-terminal phase, sorted by Duration descending. Not windowed; reflects current state. Sourced from the raw gauges (not the aggregated recording rules), since resource_id isn't carried by those.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Resource Type" },
+            "properties": [{ "id": "custom.width", "value": 480 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Operation" },
+            "properties": [{ "id": "custom.width", "value": 90 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Phase" },
+            "properties": [{ "id": "custom.width", "value": 130 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Duration" },
+            "properties": [
+              { "id": "custom.width", "value": 120 },
+              { "id": "unit", "value": "dthms" }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 62 },
+      "id": 15,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Duration" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "floor(\n  time()\n  -\n  max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (\n    backend_resource_operation_start_time_seconds{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\"}\n  )\n)\nand\n(\n  max by (cluster, environment, region, resource_id, resource_type, operation_type, phase) (\n    backend_resource_operation_phase_info{resource_type=~\"$resource_type\", operation_type=~\"$operation_type\", phase!~\"succeeded|failed|canceled\"}\n  ) == 1\n)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Operation Details",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": { "names": ["resource_type", "operation_type", "phase", "resource_id", "Value"] }
+          }
+        },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "resource_type": 0,
+              "operation_type": 1,
+              "phase": 2,
+              "Value": 3,
+              "resource_id": 4
+            },
+            "renameByName": {
+              "Value": "Duration",
+              "resource_id": "Resource ID",
+              "resource_type": "Resource Type",
+              "operation_type": "Operation",
+              "phase": "Phase"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Grafana --" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 78 },
+      "id": 17,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "", "mode": "markdown" },
+      "pluginVersion": "11.6.9",
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["aro-hcp", "backend", "lro", "slo", "user-journey"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "includeAll": false,
+        "label": "Region (Prometheus Workspace)",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": { "text": "1h (fast burn)", "value": "1h" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "SLO Window",
+        "multi": false,
+        "name": "window",
+        "options": [
+          { "selected": true, "text": "1h (fast burn)", "value": "1h" },
+          { "selected": false, "text": "6h (medium burn)", "value": "6h" },
+          { "selected": false, "text": "3d (slow burn)", "value": "3d" }
+        ],
+        "query": "1h (fast burn) : 1h,6h (medium burn) : 6h,3d (slow burn) : 3d",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(inflight:backend_resource_operation:count, resource_type)",
+        "description": "Optional, leave as All to see every resource family (clusters, nodepools, external auths, admin credentials, ...).",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Resource Type",
+        "multi": true,
+        "name": "resource_type",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(inflight:backend_resource_operation:count, resource_type)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(inflight:backend_resource_operation:count, operation_type)",
+        "description": "Optional, leave as All to see create/update/delete/revoke/etc. together.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Operation Type",
+        "multi": true,
+        "name": "operation_type",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(inflight:backend_resource_operation:count, operation_type)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Backend LRO Health (Unified)",
+  "uid": "backend-lro-health-unified",
+  "version": 1
+}
