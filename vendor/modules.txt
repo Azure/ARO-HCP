@@ -88,6 +88,7 @@ github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshi
 # github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af => ./test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ## explicit; go 1.23.0
 github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/fake
 # github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000 => ./test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ## explicit; go 1.25.0
 github.com/Azure/ARO-HCP/test/sdk/v20261001/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
