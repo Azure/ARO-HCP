@@ -493,6 +493,13 @@ resourceGroups:
       # Retry when the step's container never starts (empty log, exit code -1).
       # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
       - "Waiting to run"
+      # Transient zonal capacity shortage (ARO-29935): Azure intermittently
+      # cannot allocate the zone + ephemeral OS disk + accelerated networking +
+      # VM size combination of the zone-pinned pools; retry while capacity frees
+      # up. The ARM error body in the step output carries these nested detail
+      # codes below the top-level DeploymentFailed.
+      - "OverconstrainedZonalAllocationRequest"
+      - "ZonalAllocationFailed"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   # Everything that needs the ManagedCluster to already exist: ACR pull roles,
