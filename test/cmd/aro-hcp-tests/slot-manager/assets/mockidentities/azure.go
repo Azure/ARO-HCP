@@ -25,10 +25,12 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	kiota "github.com/microsoft/kiota-abstractions-go"
 	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	"github.com/microsoftgraph/msgraph-sdk-go/applicationswithuniquename"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipalswithappid"
 
 	"k8s.io/utils/ptr"
 
@@ -68,6 +70,14 @@ func newAzureStore(credential azcore.TokenCredential) (identityStore, error) {
 	return &azureStore{credential: credential, graph: client, certificates: pinning.NewCertificateClient(certificates), certificateAPI: certificates, applications: applications}, nil
 }
 
+// createIfMissing makes Graph treat an alternate-key PATCH as an upsert; without
+// it a PATCH on a missing object returns 404 "Resource ... does not exist".
+func createIfMissing() *kiota.RequestHeaders {
+	headers := kiota.NewRequestHeaders()
+	headers.Add("Prefer", "create-if-missing")
+	return headers
+}
+
 func (store *azureStore) Resolve(ctx context.Context, name string, apply bool) (leaseenv.MockPrincipal, error) {
 	result := leaseenv.MockPrincipal{CertificateName: name}
 	application, err := store.graph.ApplicationsWithUniqueName(&name).Get(ctx, nil)
@@ -75,7 +85,10 @@ func (store *azureStore) Resolve(ctx context.Context, name string, apply bool) (
 		body := models.NewApplication()
 		body.SetDisplayName(&name)
 		body.SetSignInAudience(ptr.To("AzureADMyOrg"))
-		application, err = store.graph.ApplicationsWithUniqueName(&name).Patch(ctx, body, nil)
+		application, err = store.graph.ApplicationsWithUniqueName(&name).Patch(ctx, body, &applicationswithuniquename.ApplicationsWithUniqueNameRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
+		if err == nil && application == nil {
+			application, err = store.graph.ApplicationsWithUniqueName(&name).Get(ctx, nil)
+		}
 	}
 	if err != nil {
 		return result, err
@@ -100,7 +113,10 @@ func (store *azureStore) Resolve(ctx context.Context, name string, apply bool) (
 	if graph.IsNotFound(err) && apply {
 		body := models.NewServicePrincipal()
 		body.SetDisplayName(&name)
-		principal, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Patch(ctx, body, nil)
+		principal, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Patch(ctx, body, &serviceprincipalswithappid.ServicePrincipalsWithAppIdRequestBuilderPatchRequestConfiguration{Headers: createIfMissing()})
+		if err == nil && principal == nil {
+			principal, err = store.graph.ServicePrincipalsWithAppId(application.GetAppId()).Get(ctx, nil)
+		}
 	}
 	if err != nil {
 		return result, err

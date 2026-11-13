@@ -72,6 +72,9 @@ func graphTestClient(t *testing.T, exchanges []graphExchange) *msgraph.GraphServ
 		}
 		expected := exchanges[index]
 		index++
+		if request.Method == "PATCH" && request.Header.Get("Prefer") != "create-if-missing" {
+			t.Errorf("Graph upsert %s lacks Prefer: create-if-missing", request.URL)
+		}
 		if request.Method != expected.method || request.URL.Path != "/v1.0/"+expected.path || request.URL.Host != "graph.microsoft.com" {
 			t.Fatalf("Graph request %d: got %s %s, want %s %s", index, request.Method, request.URL, expected.method, expected.path)
 		}

@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,6 +42,22 @@ type fakeStore struct {
 	fail         string
 	owner        bool
 	reads        int
+	owners       map[string][]string
+}
+
+func (store *fakeStore) Owners(_ context.Context, name string, _ leaseenv.MockPrincipal, desired []string, apply bool) error {
+	if slices.Equal(store.owners[name], desired) {
+		return nil
+	}
+	if !apply {
+		return errors.New("owner drift")
+	}
+	if store.owners == nil {
+		store.owners = map[string][]string{}
+	}
+	store.owners[name] = desired
+	store.writes++
+	return nil
 }
 
 func (store *fakeStore) AuthorizeOwner(context.Context, string) error {

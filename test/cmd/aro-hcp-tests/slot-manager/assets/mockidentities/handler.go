@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	msgraph "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/spf13/pflag"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -30,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/graph"
+	"github.com/Azure/ARO-HCP/tooling/entra-app-credentials/pkg/owners"
 )
 
 const VaultURL = "https://aro-hcp-dev-svc-kv.vault.azure.net"
@@ -39,13 +42,36 @@ type identityStore interface {
 	Resolve(context.Context, string, bool) (leaseenv.MockPrincipal, error)
 	Certificate(context.Context, string, bool) error
 	Roles(context.Context, string, leaseenv.MockIdentityBundlePayload, bool) error
+	// Owners makes the application and service principal named name owned by
+	// exactly desired (apply) or reports any difference (!apply).
+	Owners(ctx context.Context, name string, principal leaseenv.MockPrincipal, desired []string, apply bool) error
 }
 
 type Handler struct {
 	newStore func(azcore.TokenCredential) (identityStore, error)
+	// owners supplies the authoritative owner list used by the Owner
+	// apply/validate pool commands. Lease admission never touches owners.
+	owners func() (ownerSettings, error)
+	// checkOwnerGroup rejects an owner list that drifted from the Entra group.
+	checkOwnerGroup func(context.Context, azcore.TokenCredential, ownerSettings) error
 }
 
-func NewHandler() *Handler                                               { return &Handler{newStore: newAzureStore} }
+func NewHandler() *Handler {
+	return &Handler{newStore: newAzureStore, owners: ownerSettingsFromEnv, checkOwnerGroup: checkOwnerGroup}
+}
+
+func checkOwnerGroup(ctx context.Context, credential azcore.TokenCredential, settings ownerSettings) error {
+	directory, err := owners.NewGraphDirectory(credential)
+	if err != nil {
+		return err
+	}
+	client, err := msgraph.NewGraphServiceClientWithCredentials(credential, []string{graph.Scope})
+	if err != nil {
+		return err
+	}
+	return owners.Check(ctx, strictOwnerDirectory{Directory: directory, store: &azureStore{graph: client}}, settings.GroupID, settings.IDs)
+}
+
 func (*Handler) Kind() assets.Kind                                       { return slots.KindMockIdentities }
 func (*Handler) AttachOptions(*pflag.FlagSet)                            {}
 func (*Handler) Declared(pool slots.Pool) bool                           { return pool.SlotAssets.MockIdentities != nil }
@@ -88,6 +114,18 @@ func reconcile(ctx context.Context, store identityStore, slot slots.ExpandedSlot
 		return nil, err
 	}
 	return bundle, nil
+}
+
+// reconcileBundleOwners enforces the owner list on every application and
+// service principal of the slot's bundle.
+func reconcileBundleOwners(ctx context.Context, store identityStore, slot slots.ExpandedSlot, bundle *leaseenv.MockIdentityBundlePayload, desired []string, apply bool) error {
+	principals := []leaseenv.MockPrincipal{bundle.MSI, bundle.Backend, bundle.ClustersService}
+	for index, name := range IdentityNames(slot) {
+		if err := store.Owners(ctx, name, principals[index], desired, apply); err != nil {
+			return fmt.Errorf("owners %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func ownerRepair(slot slots.ExpandedSlot, err error) error {
@@ -153,6 +191,19 @@ func (handler *Handler) ValidatePools(ctx context.Context, request assets.PoolRe
 }
 
 func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, apply bool) error {
+	var eligible []slots.Pool
+	for _, pool := range request.Pools {
+		if handler.Declared(pool) && (pool.SlotAssets.E2EIdentities == nil || pool.SlotAssets.E2EIdentities.Provisioning != slots.IdentityProvisioningUnmanaged || request.IncludeUnmanaged) && len(slots.ExpandSlotsForPool(request.Environment, pool)) > 0 {
+			eligible = append(eligible, pool)
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	ownerList, err := handler.owners()
+	if err != nil {
+		return err
+	}
 	testContext := framework.NewTestContext()
 	credential, err := testContext.AzureCredential()
 	if err != nil {
@@ -166,7 +217,10 @@ func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, a
 	if err != nil {
 		return err
 	}
-	for _, pool := range request.Pools {
+	if err := handler.checkOwnerGroup(ctx, credential, ownerList); err != nil {
+		return err
+	}
+	for _, pool := range eligible {
 		if !handler.Declared(pool) {
 			continue
 		}
@@ -180,7 +234,10 @@ func (handler *Handler) pools(ctx context.Context, request assets.PoolRequest, a
 		for _, slot := range slots.ExpandSlotsForPool(request.Environment, pool) {
 			slot.Subscriptions.E2E.ID = subscriptionID
 			bounded, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			_, err := reconcile(bounded, store, slot, apply)
+			bundle, err := reconcile(bounded, store, slot, apply)
+			if err == nil {
+				err = reconcileBundleOwners(bounded, store, slot, bundle, ownerList.IDs, apply)
+			}
 			cancel()
 			if err != nil {
 				return ownerRepair(slot, err)

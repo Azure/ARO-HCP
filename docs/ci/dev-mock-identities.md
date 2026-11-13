@@ -319,6 +319,35 @@ Failed applies can be retried: application unique names, SP application IDs,
 certificate names and role assignment IDs are stable. Ambiguous or mismatched
 Graph objects require investigation, never arbitrary selection or deletion.
 
+Apply also reconciles Entra ownership of every slot application **and** service
+principal to exactly `entraAppOwnerIds` (`config/config-dev-ci.yaml`, mirroring the
+`aro-hcp-owners` group), the same authoritative `replace` semantics as the dev-ci
+pipeline. This grants the configured Entra group members ownership, not repository
+OWNERS membership or ARM subscription roles. `make -C test apply-pool-assets`
+and `validate-pool-assets` export `ENTRA_APP_OWNER_IDS` and
+`ENTRA_APP_OWNERS_GROUP_ID` from that file (requires Mike Farah `yq` v4). Explicit
+environment or Make overrides are supported but must still match the live group;
+`MOCK_IDENTITY_CONFIG` selects an alternate config file. The binary fails before
+mock-asset writes when these settings are invalid or the list has drifted from
+the group. Re-running apply
+fixes objects created earlier: missing owners are added first, then unexpected
+owners (including the creator, if not in the list) are removed. Both application
+and SP additions must be visible before either object's removals begin; complete
+owner enumeration and final equality checks fail closed. Retry after partial
+failure or propagation delay; no transaction or concurrent-owner-update isolation
+is provided. Keep reconciliation serialized. `validate` reports
+any difference as an error. Lease admission in CI never reads or changes owners.
+
+The applying operator must retain Entra application-management authorization
+throughout reconciliation: use a configured owner with the necessary delegated
+permissions, or an appropriately authorized tenant application administrator /
+application credential whose access does not depend on being an object owner.
+Adding other owners does not preserve the creator's own access after removal.
+An ownership-only operator excluded from the desired list can lose access and
+must hand off retries to an authorized owner or administrator. ARM subscription
+Owner alone does not grant these Graph permissions. Pool validation additionally
+needs group membership and application/SP owner reads; CI admission does not.
+
 Each slot has six persistent assignments at its customer subscription: MSI gets
 the MSI custom role and Key Vault Crypto User; each helper gets Contributor and
 Role Based Access Control Administrator. No grant is added to the infrastructure
