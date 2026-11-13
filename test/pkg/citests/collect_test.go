@@ -331,6 +331,13 @@ func (h *wireHarness) serve(writer http.ResponseWriter, request *http.Request) {
 			observation := []any{buildID, "e2e", "test-" + buildID, "", 0, "passed", false,
 				start.Format(time.RFC3339Nano), start.Add(10 * time.Minute).Format(time.RFC3339Nano),
 				nil, nil, nil}
+			if h.mode == "late-names" {
+				// The name dimension becomes visible only after the first batch.
+				observation[2] = slowTestID
+				if len(h.batches) == 2 {
+					observation[3], observation[4] = slowTestName, 1
+				}
+			}
 			rows = append(rows, observation, observation)
 		}
 		mode := "success"

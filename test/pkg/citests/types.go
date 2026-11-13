@@ -134,7 +134,9 @@ type EnvironmentSummary struct {
 
 // Quality counts the selected population and every excluded observation reason.
 // Exclusions describe records present in the input only: skipped results are
-// absent from the exporter, so unobserved skips are never inferred.
+// absent from the exporter, so unobserved skips are never inferred. An
+// unusable-name exclusion counts executions that still normalized the medians but
+// cannot be proposed, because no single source label identifies them.
 type Quality struct {
 	SelectedBuildCount  int            `json:"selected_build_count"`
 	ProcessedBuildCount int            `json:"processed_build_count"`
