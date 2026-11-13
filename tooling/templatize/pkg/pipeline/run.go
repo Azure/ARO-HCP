@@ -55,6 +55,8 @@ var DefaultDeploymentTimeoutSeconds = 30 * 6
 // the step definition does not specify a type-specific override.
 const defaultStepContextTimeout = 30 * time.Minute
 
+const executionDetailsTimeout = 2 * time.Minute
+
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
 	return ret
@@ -731,19 +733,17 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
 							defer utilruntime.HandleCrash()
-							defer func() {
-								consumerWg.Done()
-								stepLogger.V(4).Info("Finished fetching execution details.")
-							}()
-							stepLogger.V(4).Info("Fetching execution details.")
-							d, err := details(consumerCtx)
+							defer consumerWg.Done()
+							defer logger.V(4).Info("Finished fetching execution details.")
+							logger.V(4).Info("Fetching execution details.")
+							d, err := collectExecutionDetails(logr.NewContext(consumerCtx, logger), details, executionDetailsTimeout)
 							if err != nil {
 								logger.Error(err, "error fetching execution details")
 							}
 							state.Lock()
 							state.Details[step] = d
 							state.Unlock()
-						}(step, stepLogger)
+						}(step, thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step, "stamp", step.Stamp.String()))
 					}
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -984,7 +984,17 @@ func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
 	return false
 }
 
+func collectExecutionDetails(ctx context.Context, details DetailsProducer, timeout time.Duration) (*ExecutionDetails, error) {
+	detailsCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	return details(detailsCtx)
+}
+
 func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+	return runStep(id, s, ctx, executionTarget, options, state, newArmClient)
+}
+
+func runStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState, createARMClient func(string, string, *bicep.LSPClient) (*armClient, error)) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Running step.", "description", s.Description())
 
@@ -1071,13 +1081,13 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return nil, nil, nil
 	case *types.ARMStep:
-		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
+		a, err := createARMClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}
 		output, details, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
+			return nil, details, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, details, nil
 	case *types.ARMStackStep:
