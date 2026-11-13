@@ -124,7 +124,7 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 			return nil, fmt.Errorf("failed to load developer settings: %w", err)
 		}
 
-		env, err := devSettings.Resolve(ctx, o.Cloud, o.Environment)
+		env, err := devSettings.Resolve(o.Cloud, o.Environment)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve environment %s in cloud %s: %w", o.Environment, o.Cloud, err)
 		}
