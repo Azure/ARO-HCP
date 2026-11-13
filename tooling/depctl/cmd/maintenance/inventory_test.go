@@ -46,22 +46,15 @@ func TestInventoryPayloadUsesTheAgentFieldNames(t *testing.T) {
 		t.Fatalf("payload = %+v", payload)
 	}
 	record := payload[0]
-	for _, key := range []string{
-		"repository", "pull_request", "expected_head", "head", "kind", "held", "active_holds", "ci",
-		"release_status", "can_release_hold", "can_recover_retry", "retry_blockers", "recovery_marker",
-		"can_refresh_upgrade", "release_blockers", "refresh_blockers",
-	} {
-		if _, ok := record[key]; !ok {
-			t.Fatalf("record is missing %q: %+v", key, record)
-		}
+	if record.Repository != "Azure/ARO-HCP" || record.PullRequest != 7892 ||
+		record.ReleaseStatus != "eligible" || !record.CanReleaseHold || !record.CanRecoverRetry {
+		t.Fatalf("record = %+v", record)
 	}
-	holds := record["active_holds"].([]map[string]any)
-	if len(holds) != 1 || holds[0]["comment_id"] != 7 || holds[0]["sha"] != "head" {
-		t.Fatalf("active_holds = %+v", holds)
+	if len(record.ActiveHolds) != 1 || record.ActiveHolds[0].CommentID != 7 ||
+		record.ActiveHolds[0].SHA == nil || *record.ActiveHolds[0].SHA != "head" {
+		t.Fatalf("active_holds = %+v", record.ActiveHolds)
 	}
-	ci := record["ci"].(map[string]any)
-	blocked := ci["blocked"].([]map[string]any)
-	if len(blocked) != 1 || blocked[0]["name"] != "ci/prow/e2e-parallel" {
-		t.Fatalf("blocked = %+v", blocked)
+	if len(record.CI.Blocked) != 1 || record.CI.Blocked[0].Name != "ci/prow/e2e-parallel" {
+		t.Fatalf("blocked = %+v", record.CI.Blocked)
 	}
 }

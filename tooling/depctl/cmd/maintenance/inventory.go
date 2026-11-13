@@ -114,36 +114,79 @@ func (c *CompletedInventory) Run(ctx context.Context) error {
 	return nil
 }
 
-// inventoryPayload converts decisions to the snake_case array the agent reads.
-func inventoryPayload(decisions []model.MaintenanceDecision) []map[string]any {
-	payload := make([]map[string]any, 0, len(decisions))
+// inventoryRecord is the snake_case shape the maintenance agent reads.
+type inventoryRecord struct {
+	Repository        string          `json:"repository"`
+	PullRequest       int             `json:"pull_request"`
+	ExpectedHead      string          `json:"expected_head"`
+	Head              string          `json:"head"`
+	Kind              string          `json:"kind"`
+	Held              bool            `json:"held"`
+	ActiveHolds       []inventoryHold `json:"active_holds"`
+	CI                inventoryCI     `json:"ci"`
+	ReleaseStatus     string          `json:"release_status"`
+	CanReleaseHold    bool            `json:"can_release_hold"`
+	CanRecoverRetry   bool            `json:"can_recover_retry"`
+	RetryBlockers     []string        `json:"retry_blockers"`
+	RecoveryMarker    string          `json:"recovery_marker"`
+	CanRefreshUpgrade bool            `json:"can_refresh_upgrade"`
+	ReleaseBlockers   []string        `json:"release_blockers"`
+	RefreshBlockers   []string        `json:"refresh_blockers"`
+}
+
+// inventoryHold is one hold command still in force.
+type inventoryHold struct {
+	CommentID int     `json:"comment_id"`
+	Author    string  `json:"author"`
+	Kind      string  `json:"kind"`
+	SHA       *string `json:"sha"`
+}
+
+// inventoryCI separates positive checks from failing, pending or unknown ones.
+type inventoryCI struct {
+	Positive []string         `json:"positive"`
+	Blocked  []inventoryCheck `json:"blocked"`
+}
+
+// inventoryCheck is one blocked status or check run.
+type inventoryCheck struct {
+	Name    string `json:"name"`
+	State   string `json:"state"`
+	URL     string `json:"url"`
+	Pending bool   `json:"pending"`
+}
+
+// inventoryPayload converts decisions to the array the agent reads.
+func inventoryPayload(decisions []model.MaintenanceDecision) []inventoryRecord {
+	payload := make([]inventoryRecord, 0, len(decisions))
 	for _, decision := range decisions {
-		holds := make([]map[string]any, 0, len(decision.ActiveHolds))
+		holds := make([]inventoryHold, 0, len(decision.ActiveHolds))
 		for _, hold := range decision.ActiveHolds {
-			var sha any
+			var sha *string
 			if hold.SHA != "" {
-				sha = hold.SHA
+				value := hold.SHA
+				sha = &value
 			}
-			holds = append(holds, map[string]any{
-				"comment_id": hold.CommentID, "author": hold.Author, "kind": hold.Kind, "sha": sha,
+			holds = append(holds, inventoryHold{
+				CommentID: hold.CommentID, Author: hold.Author, Kind: hold.Kind, SHA: sha,
 			})
 		}
-		blocked := make([]map[string]any, 0, len(decision.CI.Blocked))
+		blocked := make([]inventoryCheck, 0, len(decision.CI.Blocked))
 		for _, check := range decision.CI.Blocked {
-			blocked = append(blocked, map[string]any{
-				"name": check.Name, "state": check.State, "url": check.URL, "pending": check.Pending,
+			blocked = append(blocked, inventoryCheck{
+				Name: check.Name, State: check.State, URL: check.URL, Pending: check.Pending,
 			})
 		}
-		payload = append(payload, map[string]any{
-			"repository": decision.Repository, "pull_request": decision.PullRequest,
-			"expected_head": decision.ExpectedHead, "head": decision.Head, "kind": decision.Kind,
-			"held": decision.Held, "active_holds": holds,
-			"ci":             map[string]any{"positive": nonNilStrings(decision.CI.Positive), "blocked": blocked},
-			"release_status": decision.ReleaseStatus, "can_release_hold": decision.CanReleaseHold,
-			"can_recover_retry": decision.CanRecoverRetry, "retry_blockers": nonNilStrings(decision.RetryBlockers),
-			"recovery_marker": decision.RecoveryMarker, "can_refresh_upgrade": decision.CanRefreshUpgrade,
-			"release_blockers": nonNilStrings(decision.ReleaseBlockers),
-			"refresh_blockers": nonNilStrings(decision.RefreshBlockers),
+		payload = append(payload, inventoryRecord{
+			Repository: decision.Repository, PullRequest: decision.PullRequest,
+			ExpectedHead: decision.ExpectedHead, Head: decision.Head, Kind: decision.Kind,
+			Held: decision.Held, ActiveHolds: holds,
+			CI:            inventoryCI{Positive: nonNilStrings(decision.CI.Positive), Blocked: blocked},
+			ReleaseStatus: decision.ReleaseStatus, CanReleaseHold: decision.CanReleaseHold,
+			CanRecoverRetry: decision.CanRecoverRetry, RetryBlockers: nonNilStrings(decision.RetryBlockers),
+			RecoveryMarker: decision.RecoveryMarker, CanRefreshUpgrade: decision.CanRefreshUpgrade,
+			ReleaseBlockers: nonNilStrings(decision.ReleaseBlockers),
+			RefreshBlockers: nonNilStrings(decision.RefreshBlockers),
 		})
 	}
 	return payload
