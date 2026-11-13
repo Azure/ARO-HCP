@@ -23,29 +23,15 @@ import (
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
-	"github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/ciruns"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/citables"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // observationBatchSize bounds each observation query response without sampling
 // or truncating the captured run population.
 const observationBatchSize = 128
-
-// QueryClient must return only complete datasets, including late failures.
-// kusto.Client implements this contract; bare SDK v1.2.3 clients require a
-// kusto.CompleteTransport because materialized SDK Query alone is insufficient.
-type QueryClient interface {
-	Query(context.Context, string, azkustodata.Statement, ...azkustodata.QueryOption) (query.Dataset, error)
-}
-
-const schemaQuery = `union
-(ciJobOutcomes | getschema | extend TableName="ciJobOutcomes"),
-(ciProcessedJobs | getschema | extend TableName="ciProcessedJobs"),
-(ciTestResults | getschema | extend TableName="ciTestResults"),
-(ciTestNames | getschema | extend TableName="ciTestNames")
-| project TableName, ColumnName, ColumnType`
 
 // Parameter declarations are supplied by the SDK QueryParameters option.
 const runsQuery = `let jobFilter = tostring(filters.job_filter);
@@ -70,26 +56,6 @@ ciTestResults
 | project buildId, source, testId, testName=coalesce(name, ""), nameVariants=coalesce(nameVariants, 0),
     result, failed, startedAt, finishedAt, setupFinishTime, testStartTime, cleanupStartTime
 | order by buildId asc, testId asc, startedAt asc`
-
-var requiredSchema = map[string]map[string]string{
-	"ciJobOutcomes": {
-		"buildId": "string", "jobName": "string", "prowUrl": "string", "overallResult": "string",
-		"failed": "bool", "startedAt": "datetime", "finishedAt": "datetime", "runtimeRegion": "string",
-	},
-	"ciProcessedJobs": {"buildId": "string"},
-	"ciTestResults": {
-		"buildId": "string", "testId": "string", "source": "string", "result": "string", "failed": "bool",
-		"startedAt": "datetime", "finishedAt": "datetime", "setupFinishTime": "datetime",
-		"testStartTime": "datetime", "cleanupStartTime": "datetime",
-	},
-	"ciTestNames": {"testId": "string", "name": "string"},
-}
-
-type schemaColumn struct {
-	TableName  string
-	ColumnName string
-	ColumnType string
-}
 
 type runRow struct {
 	BuildID       string    `kusto:"buildId"`
@@ -120,7 +86,7 @@ type observationRow struct {
 
 // Collect bounds the entire collection (schema and population) by timeout. No
 // bundle is returned if a query is partial, truncated or undecodable.
-func Collect(ctx context.Context, client QueryClient, database string, selection Selection, timeout time.Duration) (Bundle, error) {
+func Collect(ctx context.Context, client citables.QueryClient, database string, selection Selection, timeout time.Duration) (Bundle, error) {
 	if err := selection.Validate(); err != nil {
 		return Bundle{}, err
 	}
@@ -133,15 +99,7 @@ func Collect(ctx context.Context, client QueryClient, database string, selection
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	options := []azkustodata.QueryOption{azkustodata.NoTruncation(), azkustodata.ServerTimeout(timeout)}
-	dataset, err := client.Query(ctx, database, kql.New(schemaQuery), options...)
-	if err != nil {
-		return Bundle{}, fmt.Errorf("inspect CI schema: %w", err)
-	}
-	columns, err := kusto.DecodePrimary[schemaColumn](dataset)
-	if err != nil {
-		return Bundle{}, fmt.Errorf("decode CI schema: %w", err)
-	}
-	if err := validateSchema(columns); err != nil {
+	if err := citables.Ensure(ctx, client, database, options...); err != nil {
 		return Bundle{}, err
 	}
 	// SDK v1.2.3 AddString emits invalid KQL escapes for non-BMP text.
@@ -156,7 +114,7 @@ func Collect(ctx context.Context, client QueryClient, database string, selection
 		AddDateTime("windowFrom", selection.From.UTC()).
 		AddDateTime("windowTo", selection.To.UTC()).
 		AddSerializedDynamic("filters", filters)
-	dataset, err = client.Query(ctx, database, kql.New(runsQuery), append(options, azkustodata.QueryParameters(parameters))...)
+	dataset, err := client.Query(ctx, database, kql.New(runsQuery), append(options, azkustodata.QueryParameters(parameters))...)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("collect CI runs (partial results are not usable): %w", err)
 	}
@@ -217,29 +175,6 @@ func Collect(ctx context.Context, client QueryClient, database string, selection
 // validateSchema requires every column and type this feature reads to exist, so
 // a database that has not deployed the CI ingestion schema is an error rather
 // than empty history.
-func validateSchema(columns []schemaColumn) error {
-	actual := map[string]map[string]string{}
-	for _, column := range columns {
-		if actual[column.TableName] == nil {
-			actual[column.TableName] = map[string]string{}
-		}
-		actual[column.TableName][column.ColumnName] = column.ColumnType
-	}
-	var missing []string
-	for table, required := range requiredSchema {
-		for column, columnType := range required {
-			if actual[table][column] != columnType {
-				missing = append(missing, table+"."+column+":"+columnType)
-			}
-		}
-	}
-	if len(missing) == 0 {
-		return nil
-	}
-	sort.Strings(missing)
-	return fmt.Errorf("CI schema prerequisite missing or incompatible: %v; deploy the source-aware CI ingestion schema to this database before collecting test priorities", missing)
-}
-
 // buildRuns classifies runs, applies the environment filter and returns the
 // sorted captured build-ID set that later queries must use instead of reselecting.
 func buildRuns(selection Selection, rows []runRow) ([]Run, []string, error) {
