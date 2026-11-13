@@ -54,7 +54,7 @@ var _ = Describe("SRE", func() {
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
-		labels.StartPriority(50),
+		labels.StartPriority(60),
 		func(ctx context.Context) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			if channelGroup == string(metadataapi.ChannelGroupNightly) {

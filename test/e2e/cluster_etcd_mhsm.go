@@ -51,7 +51,7 @@ var _ = Describe("Cluster Etcd Managed HSM Encryption", func() {
 		labels.Slow,
 		labels.CreateCluster,
 		labels.MIContainers(1),
-		labels.StartPriority(80),
+		labels.StartPriority(70),
 		func(ctx context.Context) {
 			const customerClusterName = "etcd-mhsm"
 
