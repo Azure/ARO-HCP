@@ -475,6 +475,13 @@ func (in *ManagementClusterSchedulingStatus) DeepCopyInto(out *ManagementCluster
 			}
 		}
 	}
+	if in.PendingSwiftNICReservations != nil {
+		in, out := &in.PendingSwiftNICReservations, &out.PendingSwiftNICReservations
+		*out = make(map[string]int64, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

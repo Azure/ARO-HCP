@@ -348,7 +348,8 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 			PartitionKey: testStampIdentifier,
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{
-			PendingAssignedClusters: []*azcorearm.ResourceID{ridObserved, ridStillPending},
+			PendingAssignedClusters:     []*azcorearm.ResourceID{ridObserved, ridStillPending},
+			PendingSwiftNICReservations: map[string]int64{strings.ToLower(ridObserved.String()): 3, strings.ToLower(ridStillPending.String()): 0},
 		},
 	}, nil)
 	require.NoError(t, err)
@@ -360,6 +361,7 @@ func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, scheduling.Status.PendingAssignedClusters, 1, "observed pending reservation should be dropped")
 	assert.Equal(t, strings.ToLower(ridStillPending.String()), strings.ToLower(scheduling.Status.PendingAssignedClusters[0].String()))
+	assert.Equal(t, map[string]int64{strings.ToLower(ridStillPending.String()): 0}, scheduling.Status.PendingSwiftNICReservations, "drop observed reservation metadata while preserving explicit zero for non-SWIFT")
 }
 
 // --- Test doubles for conflict-on-create scenario ---

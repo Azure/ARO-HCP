@@ -33,6 +33,7 @@ func TestControllerRegistry(t *testing.T) {
 		"ensuresharedingressreaddesirecontroller":          1,
 		"hcpresourcerequirementscontroller":                1,
 		"managementclusterlifecyclecontroller":             1,
+		"managementclusterpressurecontroller":              1,
 		"managementclusterscaleceilingreportingcontroller": 1,
 		"nodepoolcontroller":                               4,
 		"sharedingressreportingcontroller":                 1,

@@ -86,10 +86,14 @@ func swiftNICsForCluster(cluster *coreapi.Cluster) int64 {
 // from the cache, or an unexpected lister error) reserves the conservative
 // swiftNICsPerHCP maximum, so a cache miss never under-reserves capacity.
 func (c *placementSyncer) swiftNICsForResourceID(ctx context.Context, clusterResourceID *azcorearm.ResourceID) int64 {
-	if clusterResourceID == nil || c.clusterLister == nil {
+	return swiftNICsForResourceID(ctx, c.clusterLister, clusterResourceID)
+}
+
+func swiftNICsForResourceID(ctx context.Context, clusterLister corelisters.ClusterLister, clusterResourceID *azcorearm.ResourceID) int64 {
+	if clusterResourceID == nil || clusterLister == nil {
 		return swiftNICsPerHCP
 	}
-	cluster, err := c.clusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	cluster, err := clusterLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
 		return swiftNICsPerHCP
 	}
@@ -550,21 +554,30 @@ func swiftNICCount(resources corev1.ResourceList) int64 {
 // cluster's PendingAssignedClusters list (idempotently). On a write conflict it
 // returns an error so the workqueue retries the whole reconcile with backoff.
 func (c *placementSyncer) reservePendingAssignment(ctx context.Context, scheduling *fleetapi.ManagementClusterScheduling, managementClusterResourceID, clusterResourceID *azcorearm.ResourceID) error {
+	updated := scheduling.DeepCopy()
+	alreadyPending := false
 	for _, pending := range scheduling.Status.PendingAssignedClusters {
 		if controllerutil.ResourceIDsEqual(pending, clusterResourceID) {
-			return nil // already reserved
+			alreadyPending = true
+			break
 		}
+	}
+	if !alreadyPending {
+		updated.Status.PendingAssignedClusters = append(updated.Status.PendingAssignedClusters, coreapi.DeepCopyResourceID(clusterResourceID))
+	}
+	if updated.Status.PendingSwiftNICReservations == nil {
+		updated.Status.PendingSwiftNICReservations = map[string]int64{}
+	}
+	reservationKey := strings.ToLower(clusterResourceID.String())
+	if _, exists := updated.Status.PendingSwiftNICReservations[reservationKey]; !exists {
+		updated.Status.PendingSwiftNICReservations[reservationKey] = c.swiftNICsForResourceID(ctx, clusterResourceID)
+	}
+	if !controllerutil.NeedsUpdate(scheduling, updated) {
+		return nil
 	}
 
 	stampIdentifier := stampIdentifierFromResourceID(managementClusterResourceID)
 	schedulingCRUD := c.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Scheduling()
-	updated := scheduling.DeepCopy()
-	// TODO: also increase the estimated resource utilization for this reservation
-	// (e.g. reflect the swift-NIC cost of the pending HCP in
-	// ObservedResources.Usage) so capacity accounting reflects the pending
-	// assignment directly, not only indirectly via the PendingAssignedClusters
-	// entries.
-	updated.Status.PendingAssignedClusters = append(updated.Status.PendingAssignedClusters, coreapi.DeepCopyResourceID(clusterResourceID))
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to reserve pending assignment on management cluster %q: %w", managementClusterResourceID.String(), err))
 	}

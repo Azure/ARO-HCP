@@ -900,6 +900,47 @@ func TestPlacementSyncer_reservePendingAssignment_CaseInsensitiveIdempotent(t *t
 	updated, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
 	assert.Len(t, updated.Status.PendingAssignedClusters, 1, "a case-differing duplicate must not be appended")
+	assert.Equal(t, int64(3), updated.Status.PendingSwiftNICReservations[strings.ToLower(clusterResourceID.String())], "legacy assignment gets reservation metadata")
+	require.NoError(t, syncer.reservePendingAssignment(ctx, updated, mcResourceID, clusterResourceID))
+	stable, err := fleetDB.Stamps().ManagementClusters(stamp).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	require.Equal(t, updated.CosmosETag, stable.CosmosETag, "repeated reservation converges")
+}
+
+func TestPlacementPersistsPendingSwiftNICReservation(t *testing.T) {
+	for _, test := range []struct {
+		name                    string
+		singleReplica, nonSwift bool
+		want                    int64
+	}{
+		{name: "ha", want: 3},
+		{name: "single", singleReplica: true, want: 1},
+		{name: "nonSwift", nonSwift: true, want: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			cluster := clusterWithAvailability(test.name, coreapi.DefaultControlPlaneAvailability)
+			if test.singleReplica {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+			}
+			if test.nonSwift {
+				cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+			}
+			db := fleetcosmosstoragetesting.NewMockFleetDBClient()
+			crud := db.Stamps().ManagementClusters("1").Scheduling()
+			doc, err := crud.Create(ctx, schedulingDoc("1", 100, 0, 0, 0), nil)
+			require.NoError(t, err)
+			syncer := &placementSyncer{fleetDBClient: db, clusterLister: &corelistertesting.SliceClusterLister{Clusters: []*coreapi.Cluster{cluster}}}
+			require.NoError(t, syncer.reservePendingAssignment(ctx, doc, metadataapi.Must(fleetapihelpers.ToManagementClusterResourceID("1")), cluster.ID))
+			stored, err := crud.Get(ctx, fleetapi.SchedulingResourceName)
+			require.NoError(t, err)
+			count, exists := stored.Status.PendingSwiftNICReservations[strings.ToLower(cluster.ID.String())]
+			require.True(t, exists, "zero-NIC reservations must be present, not indistinguishable from missing metadata")
+			require.Equal(t, test.want, count)
+			require.Len(t, stored.Status.PendingAssignedClusters, 1)
+			require.Empty(t, doc.Status.PendingSwiftNICReservations, "DeepCopy must not mutate the cached input")
+		})
+	}
 }
 
 func TestPlacementSyncer_reservePendingAssignment_StaleSnapshotRejected(t *testing.T) {

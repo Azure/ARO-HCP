@@ -15,6 +15,8 @@
 package capacityreporting
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -27,6 +29,40 @@ import (
 	"github.com/Azure/ARO-HCP/internal/kuberesources"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 )
+
+// Validate each worker pool, not just the aggregate: a complete pool can mask
+// another pool's missing resource dimension in the summed ResourceList.
+func validateScaleCeilingInputs(report *capacityreportv1alpha1.CapacityReport, pools []armcontainerservice.AgentPool, skuMetadata map[string]*skucache.SKUMetadata) error {
+	nodes := map[string]capacityreportv1alpha1.NodeSKUCapacity{}
+	if report != nil {
+		for _, node := range report.Status.Nodes {
+			nodes[node.SKU] = node
+		}
+	}
+	for index, pool := range pools {
+		if !agentpools.IsWorkerPool(pool) {
+			continue
+		}
+		properties := pool.Properties
+		if properties.VMSize == nil || *properties.VMSize == "" || properties.Count == nil {
+			return fmt.Errorf("worker pool %d is missing VM size or node count", index)
+		}
+		if properties.EnableAutoScaling != nil && *properties.EnableAutoScaling && properties.MaxCount == nil {
+			return fmt.Errorf("autoscaling worker pool %d is missing its maximum node count", index)
+		}
+		if *properties.Count < 0 || agentpools.PoolMaxCount(pool) < 0 {
+			return fmt.Errorf("worker pool %d has a negative node count", index)
+		}
+		resources := perNodeAllocatable(*properties.VMSize, nodes, skuMetadata, properties.Tags)
+		for _, name := range scheduling.Resources() {
+			quantity, found := resources[name]
+			if !found || quantity.Sign() < 0 {
+				return fmt.Errorf("worker pool %d is missing valid per-node %s capacity", index, name)
+			}
+		}
+	}
+	return nil
+}
 
 // computeMaxCapacity derives the maximum scheduling capacity from AKS agent
 // pool scaling limits and per-node allocatable data. Per-node allocatable is
@@ -108,7 +144,7 @@ func perNodeAllocatable(vmSize string, nodesBySKU map[string]capacityreportv1alp
 	}
 	// Pool tag alone determines NIC count — our bicep sets the actual
 	// configured secondary NIC count which may differ from the SKU maximum.
-	if nics, present, err := agentpoolspec.SecondaryNICCount(tags); present && err == nil {
+	if nics, _, err := agentpoolspec.SecondaryNICCount(tags); err == nil {
 		result[kuberesources.SwiftNICResourceName] = *resource.NewQuantity(nics, resource.DecimalSI)
 	}
 	if len(result) == 0 {
