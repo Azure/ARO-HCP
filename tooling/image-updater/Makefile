@@ -1,6 +1,10 @@
-.PHONY: build update update-repositories clean test test-verbose test-coverage help
+.PHONY: build update update-repositories clean test test-verbose test-coverage image build-and-push image-digest help
 
 export AZURE_TOKEN_CREDENTIALS ?= dev
+
+IMAGE_UPDATER_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+-include $(IMAGE_UPDATER_DIR)/../../setup-env.mk
 
 BINARY_NAME := image-updater
 CONFIG_FILE := config.yaml
@@ -15,6 +19,18 @@ COMPONENT_FLAGS := $(if $(COMPONENTS),--components $(COMPONENTS))
 GROUP_FLAGS := $(if $(GROUPS),--groups $(GROUPS))
 EXCLUDE_FLAGS := $(if $(EXCLUDE_COMPONENTS),--exclude-components $(EXCLUDE_COMPONENTS))
 OUTPUT_FLAGS := $(if $(OUTPUT_FILE),--output-file $(OUTPUT_FILE)) $(if $(OUTPUT_FORMAT),--output-format $(OUTPUT_FORMAT))
+
+# The monitor image follows the tenant-quota-collector convention: built and
+# pushed by hand from a checkout, then pinned by digest in
+# config/config-dev-ci.yaml (opstool.imageUpdaterMonitor.image.digest).
+DEPLOY_ENV ?= dev-ci
+ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
+ARO_HCP_IMAGE_ACR ?= arohcpsvcdev
+ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+IMAGE_UPDATER_MONITOR_REPOSITORY ?= image-updater-monitor
+IMAGE_UPDATER_MONITOR_REPO ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${IMAGE_UPDATER_MONITOR_REPOSITORY} $(IMAGE_UPDATER_DIR)/../../generate-repo.sh)
+IMAGE_UPDATER_IMAGE_TAG ?= latest
+IMAGE_UPDATER_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(IMAGE_UPDATER_MONITOR_REPO):$(IMAGE_UPDATER_IMAGE_TAG)
 
 .DEFAULT_GOAL := help
 
@@ -39,6 +55,30 @@ test-coverage:
 clean:
 	rm -f $(BINARY_NAME)
 
+# ---------------------------------------------------------------------------
+# Monitor service image (deployed to the opstool cluster in dev CI)
+# ---------------------------------------------------------------------------
+image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum') Makefile
+	cd $(IMAGE_UPDATER_DIR)/../.. && \
+	$(CONTAINER_ENGINE) build . --file tooling/image-updater/Dockerfile \
+	               --build-arg PLATFORM=linux/amd64 \
+	               --build-arg REVISION=${ARO_HCP_REVISION} \
+	               --tag ${IMAGE_UPDATER_TAGGED_IMAGE}
+.PHONY: image
+
+build-and-push: image
+	$(acr-login)
+	$(CONTAINER_ENGINE) push ${IMAGE_UPDATER_TAGGED_IMAGE}
+	@echo ""
+	@echo "Pushed: ${IMAGE_UPDATER_TAGGED_IMAGE}"
+	@echo "Pin it in config/config-dev-ci.yaml (opstool.imageUpdaterMonitor.image.digest) using: make image-digest"
+.PHONY: build-and-push
+
+image-digest:
+	@az acr manifest list-metadata --name $(IMAGE_UPDATER_MONITOR_REPO) --registry $(ARO_HCP_IMAGE_ACR) \
+	  --query "sort_by([?tags != null && contains(tags, '$(IMAGE_UPDATER_IMAGE_TAG)')], &lastUpdateTime)[-1].digest" -o tsv
+.PHONY: image-digest
+
 help:
 	@echo "Available targets:"
 	@echo "  build              - Build the image-updater binary"
@@ -47,6 +87,9 @@ help:
 	@echo "  test               - Run tests"
 	@echo "  test-verbose       - Run tests with verbose output"
 	@echo "  test-coverage      - Run tests with coverage"
+	@echo "  image              - Build the monitor service container image"
+	@echo "  build-and-push     - Build and push the monitor image to the ACR"
+	@echo "  image-digest       - Print the digest of the pushed monitor image (for config pinning)"
 	@echo "  clean              - Remove built binary"
 	@echo ""
 	@echo "Variables:"

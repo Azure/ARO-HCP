@@ -20,6 +20,9 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
     pipelinePath: tooling/tenant-quota/pipeline.yaml
     purpose: Deploy the tenant-quota-collector.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.ImageUpdater
+    pipelinePath: tooling/image-updater/pipeline.yaml
+    purpose: Deploy the image-updater health monitor and its PagerDuty alert rules.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
     pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
     purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
