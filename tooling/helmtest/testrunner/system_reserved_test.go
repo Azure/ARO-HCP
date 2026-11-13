@@ -31,6 +31,7 @@ import (
 	"helm.sh/helm/v4/pkg/engine"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"sigs.k8s.io/yaml"
 )
@@ -44,7 +45,14 @@ func TestSystemReserved(t *testing.T) {
 	}
 	chart, err := loader.Load("../../../mgmt-fixes/deploy/kubelet-ds")
 	require.NoError(t, err)
-	rendered, err := engine.Render(chart, common.Values{"Values": map[string]any{"enabled": true}})
+	// Mirrors mgmt-fixes/kubelet-ds.values.yaml, which resolves
+	// .aksCommandRuntime.image to a digest. The chart's own values.yaml is
+	// empty on purpose, so the template must refuse to render without it.
+	const image = "mcr.microsoft.com/aks/command/runtime@sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef"
+	_, err = engine.Render(chart, common.Values{"Values": map[string]any{"enabled": true}})
+	require.ErrorContains(t, err, "kubelet-ds requires a digest-pinned kubeletParametersImage",
+		"an unset image must fail the render rather than emit `image: <no value>`")
+	rendered, err := engine.Render(chart, common.Values{"Values": map[string]any{"enabled": true, "kubeletParametersImage": image}})
 	require.NoError(t, err)
 	require.Len(t, rendered, 1)
 	var ds appsv1.DaemonSet
@@ -60,8 +68,11 @@ func TestSystemReserved(t *testing.T) {
 	require.Equal(t, int32(0), ds.Spec.UpdateStrategy.RollingUpdate.MaxSurge.IntVal)
 	require.Len(t, ds.Spec.Template.Spec.Containers, 1)
 	require.Len(t, ds.Spec.Template.Spec.InitContainers, 1)
-	command := ds.Spec.Template.Spec.InitContainers[0].Command
-	require.Equal(t, []string{"nsenter", "--target", "1", "--mount", "--uts", "--ipc", "--net", "--pid", "--", "sh", "-c"}, command[:len(command)-1])
+	init := ds.Spec.Template.Spec.InitContainers[0]
+	command := init.Command
+	// The pinned runtime image ships no nsenter, so the script reaches the node
+	// by chrooting into the host root rather than by entering PID 1's namespaces.
+	require.Equal(t, []string{"/usr/sbin/chroot", "/host", "/bin/sh", "-c"}, command[:len(command)-1])
 	script := command[len(command)-1]
 	mv, err := exec.LookPath("mv")
 	require.NoError(t, err)
@@ -70,16 +81,49 @@ func TestSystemReserved(t *testing.T) {
 	syntaxOutput, err := exec.CommandContext(t.Context(), "sh", "-n", "-c", script).CombinedOutput()
 	require.NoError(t, err, "rendered script syntax: %s", syntaxOutput)
 	main := ds.Spec.Template.Spec.Containers[0]
-	require.Equal(t, []string{"sleep", "infinity"}, main.Command)
+	require.Equal(t, []string{"/bin/sleep", "infinity"}, main.Command)
 	require.NotNil(t, main.ReadinessProbe)
+	// On the host network the probe reaches kubelet with the image's own curl,
+	// so it needs no namespace-crossing prefix at all.
 	probe := main.ReadinessProbe.Exec.Command
-	require.Equal(t, command[:9], probe[:9], "readiness must check host health through nsenter")
-	require.Equal(t, []string{"curl", "--fail", "--silent", "--show-error", "--noproxy", "*", "--connect-timeout", "2", "--max-time", "5", "http://127.0.0.1:10248/healthz"}, probe[9:])
+	require.Equal(t, []string{"/usr/bin/curl", "--fail", "--silent", "--show-error", "--noproxy", "*", "--connect-timeout", "2", "--max-time", "5", "http://127.0.0.1:10248/healthz"}, probe)
 	require.Equal(t, int32(1), main.ReadinessProbe.FailureThreshold)
 	require.Greater(t, main.ReadinessProbe.TimeoutSeconds, int32(5))
-	require.True(t, *ds.Spec.Template.Spec.InitContainers[0].SecurityContext.Privileged)
-	require.True(t, *main.SecurityContext.Privileged)
+
+	// Both containers must pull the same digest-pinned image. An untagged or
+	// tag-only reference resolves at pull time and is what this chart regressed
+	// to before; keep that from coming back.
+	for _, container := range append(ds.Spec.Template.Spec.InitContainers, ds.Spec.Template.Spec.Containers...) {
+		require.Equal(t, image, container.Image, "%s must use the values-provided image", container.Name)
+		require.Contains(t, container.Image, "@sha256:", "%s image must be digest-pinned", container.Name)
+	}
+
+	require.True(t, *init.SecurityContext.Privileged)
+	// The runtime image declares USER 100, but chroot(2) and rewriting the
+	// node's kubelet EnvironmentFile need uid 0.
+	require.NotNil(t, init.SecurityContext.RunAsUser, "init container must not inherit the image's non-root USER")
+	require.Equal(t, int64(0), *init.SecurityContext.RunAsUser)
+	// Only the init container touches the node, so the long-lived one stays unprivileged.
+	require.Nil(t, main.SecurityContext.Privileged)
+	require.False(t, *main.SecurityContext.AllowPrivilegeEscalation)
+
+	// chroot swaps the filesystem root but no other namespace: hostPID lets
+	// systemd resolve the caller over its private socket, and hostNetwork puts
+	// kubelet's 127.0.0.1-only healthz listener in reach of script and probe.
 	require.True(t, ds.Spec.Template.Spec.HostPID)
+	require.True(t, ds.Spec.Template.Spec.HostNetwork)
+	require.Equal(t, corev1.DNSClusterFirstWithHostNet, ds.Spec.Template.Spec.DNSPolicy)
+
+	require.Len(t, init.VolumeMounts, 1)
+	require.Equal(t, "/host", init.VolumeMounts[0].MountPath)
+	require.NotNil(t, init.VolumeMounts[0].MountPropagation)
+	require.Equal(t, corev1.MountPropagationHostToContainer, *init.VolumeMounts[0].MountPropagation)
+	require.Empty(t, main.VolumeMounts, "the long-lived container has no reason to see the host root")
+	require.Len(t, ds.Spec.Template.Spec.Volumes, 1)
+	hostRoot := ds.Spec.Template.Spec.Volumes[0]
+	require.Equal(t, init.VolumeMounts[0].Name, hostRoot.Name)
+	require.NotNil(t, hostRoot.HostPath)
+	require.Equal(t, "/", hostRoot.HostPath.Path)
 
 	const fresh = "--kube-reserved=cpu=100m,memory=1Gi,pid=500"
 	const legacy = "--system-reserved=cpu=3000m,memory=7550Mi,pid=1000"
@@ -214,7 +258,10 @@ func TestSystemReserved(t *testing.T) {
 				"curl":      "printf '%s\\n' \"$*\" >> \"$TEST_CURL_LOG\"\n[ \"$TEST_FAIL\" != health ]\n",
 				"mv":        "[ -f \"$TEST_PENDING\" ]\n[ \"$(stat -c '%a:%s' \"$TEST_PENDING\")\" = 600:0 ]\nexec \"$TEST_MV\" \"$@\"\n",
 				"sleep":     "[ \"$*\" = infinity ]\n",
-				"nsenter":   "exit 99\n",
+				// The script runs already inside the chroot, so it must never
+				// shell out to a namespace- or root-crossing helper itself.
+				"nsenter": "exit 99\n",
+				"chroot":  "exit 99\n",
 			} {
 				require.NoError(t, os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nset -eu\n"+body), 0700))
 			}
@@ -310,10 +357,10 @@ func TestSystemReserved(t *testing.T) {
 					require.Contains(t, string(curlCalls), "--fail --silent --show-error --noproxy * --connect-timeout 2 --max-time 5 --retry 60 --retry-delay 2 --retry-max-time 120 --retry-all-errors http://127.0.0.1:10248/healthz\n")
 				}
 			}
-			// Execute the rendered readiness command after the nsenter boundary,
-			// using the curl stub so no host namespace or network is accessed.
+			// Execute the rendered readiness command against the curl stub, so
+			// the probe's arguments are exercised without touching a network.
 			for _, healthFailure := range []bool{false, true} {
-				probeCommand := exec.CommandContext(t.Context(), filepath.Join(bin, probe[9]), probe[10:]...)
+				probeCommand := exec.CommandContext(t.Context(), filepath.Join(bin, filepath.Base(probe[0])), probe[1:]...)
 				failure := ""
 				if healthFailure {
 					failure = "health"

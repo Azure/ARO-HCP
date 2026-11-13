@@ -14,7 +14,8 @@
 
 set -eu
 
-# nsenter runs this on the host, not against the container CPU/memory limits.
+# This runs chrooted into the host root, so /proc and /sys are the node's and
+# these report node capacity rather than any container CPU/memory limit.
 cpu_count=$(getconf _NPROCESSORS_ONLN)
 reservation=$(awk -v cpus="$cpu_count" '
   /^MemTotal:/ {
