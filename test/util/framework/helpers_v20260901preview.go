@@ -75,7 +75,12 @@ type ClusterParams20260901 struct {
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20260901preview.ClusterAutoscalingProfile
 	CryptoRestrictions            *hcpsdk20260901preview.CryptoRestrictions
+	OutboundType                  string
 	Tags                          map[string]*string
+	// NatGatewayPublicIP is the customer NAT Gateway's public IP, populated from
+	// the customer-infra bicep deployment's natGatewayPublicIP output when
+	// attachNatGateway is set. Empty when no NAT Gateway was attached.
+	NatGatewayPublicIP string
 }
 
 type NodePoolParams20260901 struct {
@@ -226,6 +231,10 @@ func PopulateClusterParamsFromCustomerInfraDeployment20260901(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	natGatewayPublicIP, err := GetOutputValueString(customerInfraDeploymentResult, "natGatewayPublicIP")
+	if err != nil {
+		return params, fmt.Errorf("failed to get natGatewayPublicIP from customer infra deployment: %w", err)
+	}
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
@@ -235,6 +244,7 @@ func PopulateClusterParamsFromCustomerInfraDeployment20260901(
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
+	params.NatGatewayPublicIP = natGatewayPublicIP
 	return params, nil
 }
 
@@ -446,6 +456,13 @@ func ClearUserAssignedIdentityValues20260901(identity *hcpsdk20260901preview.Man
 	}
 }
 
+func conditionalOutboundType(outboundType string) *hcpsdk20260901preview.OutboundType {
+	if outboundType == "" {
+		return nil
+	}
+	return to.Ptr(hcpsdk20260901preview.OutboundType(outboundType))
+}
+
 func BuildHCPClusterFromParams20260901(
 	parameters ClusterParams20260901,
 	location string,
@@ -486,6 +503,7 @@ func BuildHCPClusterFromParams20260901(
 				NetworkSecurityGroupID:  to.Ptr(parameters.NsgResourceID),
 				SubnetID:                to.Ptr(parameters.SubnetResourceID),
 				VnetIntegrationSubnetID: vnetIntegrationSubnetID,
+				OutboundType:            conditionalOutboundType(parameters.OutboundType),
 				OperatorsAuthentication: &hcpsdk20260901preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: uamis,
 				},

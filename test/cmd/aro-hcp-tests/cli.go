@@ -173,6 +173,9 @@ func setupCli() (*cobra.Command, error) {
 			}()
 		})
 
+		// TODO: remove after PR validation
+		specs = specs.MustFilter([]string{`name.contains("outboundType=UserDefinedRouting")`})
+
 		// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 		// and AfterAll. "Each" functions must be thread safe.
 		//

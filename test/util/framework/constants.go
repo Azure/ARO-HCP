@@ -58,6 +58,7 @@ const (
 	CloudNetworkConfigVerifyTimeout = 10 * time.Minute
 	CSIVolumeVerifyTimeout          = 10 * time.Minute
 	CCMLoadBalancerVerifyTimeout    = 10 * time.Minute
+	NATGatewayEgressVerifyTimeout   = 10 * time.Minute
 )
 
 // Backup timeouts
