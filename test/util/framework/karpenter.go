@@ -219,11 +219,24 @@ func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, n
 				// A spec needs stable nodes. While a spec runs, Karpenter must not
 				// remove nodes that are empty or underutilized. consolidateAfter
 				// does not control drift replacement.
-				"disruption": map[string]any{"consolidateAfter": "Never"},
+				//
+				// Karpenter's default budget allows 10% of the initialized nodes in the
+				// pool, rounded up. Karpenter subtracts initialized nodes that are
+				// NotReady or marked for deletion. A test owns the pool alone. Thus
+				// allow every node, so that the budget has no effect on drift timing.
+				"disruption": map[string]any{
+					"budgets":          []any{map[string]any{"nodes": "100%"}},
+					"consolidateAfter": "Never",
+				},
 				"template": map[string]any{
 					"metadata": map[string]any{
 						"labels": map[string]any{
 							"autonode": "true",
+							// The kubelet sets this label on the node, but Karpenter
+							// plans replacement from the template. Declare it here, or
+							// the router and the image registry look unschedulable on a
+							// simulated node and Karpenter blocks every disruption.
+							"node-role.kubernetes.io/worker": "",
 						},
 					},
 					"spec": map[string]any{

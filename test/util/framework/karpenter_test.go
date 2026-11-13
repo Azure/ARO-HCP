@@ -64,26 +64,28 @@ func TestApplyKarpenterResources(t *testing.T) {
 	pool := <-requests
 	assert.Equal(t, map[string]any{
 		"apiVersion": "karpenter.sh/v1", "kind": "NodePool", "metadata": map[string]any{"name": "autonode-e2e"},
-		"spec": map[string]any{"disruption": map[string]any{"consolidateAfter": "Never"}, "template": map[string]any{
-			"metadata": map[string]any{"labels": map[string]any{"autonode": "true"}},
-			"spec": map[string]any{
-				"expireAfter":  "720h",
-				"nodeClassRef": map[string]any{"group": "karpenter.azure.com", "kind": "AKSNodeClass", "name": "autonode-e2e"},
-				"requirements": []any{
-					map[string]any{"key": "kubernetes.io/arch", "operator": "In", "values": []any{"amd64"}},
-					map[string]any{"key": "kubernetes.io/os", "operator": "In", "values": []any{"linux"}},
-					map[string]any{"key": "karpenter.sh/capacity-type", "operator": "In", "values": []any{"on-demand"}},
-					map[string]any{"key": "node.kubernetes.io/instance-type", "operator": "In", "values": []any{"Standard_D4s_v3", "Standard_D4s_v5"}},
+		"spec": map[string]any{
+			"disruption": map[string]any{"budgets": []any{map[string]any{"nodes": "100%"}}, "consolidateAfter": "Never"},
+			"template": map[string]any{
+				"metadata": map[string]any{"labels": map[string]any{"autonode": "true", "node-role.kubernetes.io/worker": ""}},
+				"spec": map[string]any{
+					"expireAfter":  "720h",
+					"nodeClassRef": map[string]any{"group": "karpenter.azure.com", "kind": "AKSNodeClass", "name": "autonode-e2e"},
+					"requirements": []any{
+						map[string]any{"key": "kubernetes.io/arch", "operator": "In", "values": []any{"amd64"}},
+						map[string]any{"key": "kubernetes.io/os", "operator": "In", "values": []any{"linux"}},
+						map[string]any{"key": "karpenter.sh/capacity-type", "operator": "In", "values": []any{"on-demand"}},
+						map[string]any{"key": "node.kubernetes.io/instance-type", "operator": "In", "values": []any{"Standard_D4s_v3", "Standard_D4s_v5"}},
+					},
 				},
-			},
-		}},
+			}},
 	}, pool.object, "the four-argument call must preserve the complete default NodePool creation payload")
 	assert.Equal(t, http.MethodPost, pool.method, "the NodePool must be created with POST")
 	assert.Equal(t, "/apis/karpenter.sh/v1/nodepools", pool.path, "the test must use the Karpenter v1 NodePool API")
 	assert.Equal(t, "karpenter.sh/v1", pool.object["apiVersion"], "the NodePool must declare the served API version")
 	assert.Equal(t, "NodePool", pool.object["kind"], "the payload must declare the NodePool resource kind")
 	template := pool.object["spec"].(map[string]any)["template"].(map[string]any)
-	assert.Equal(t, map[string]any{"labels": map[string]any{"autonode": "true"}}, template["metadata"], "restricted Karpenter labels must not be set")
+	assert.Equal(t, map[string]any{"labels": map[string]any{"autonode": "true", "node-role.kubernetes.io/worker": ""}}, template["metadata"], "restricted Karpenter labels must not be set")
 	spec := template["spec"].(map[string]any)
 	assert.NotContains(t, spec, "startupTaints", "the default NodePool payload must not declare startup taints")
 	assert.Equal(t, map[string]any{"group": "karpenter.azure.com", "kind": "AKSNodeClass", "name": "autonode-e2e"}, spec["nodeClassRef"], "the NodePool must reference the operator-owned Azure NodeClass")
