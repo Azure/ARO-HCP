@@ -22,13 +22,18 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
+
+// labelTestTimeout is sized so the derived retry interval
+// (timeout/labelNodeRetryAttempts) keeps the exhaustion case fast while
+// still exercising every attempt.
+const labelTestTimeout = 240 * time.Millisecond
 
 func TestLabelNodeEgressAssignable(t *testing.T) {
 	cacheMessage := "autoscaling.openshift.io/ManagedNode infra config cache not synchronized"
@@ -42,7 +47,7 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 	}{
 		{name: "success", wantAttempts: 1},
 		{name: "cache synchronizes after multiple retries", responseError: cacheError, failingAttempts: 2, wantAttempts: 3},
-		{name: "cache retry budget exhausted", responseError: cacheError, failingAttempts: retry.DefaultBackoff.Steps, wantAttempts: retry.DefaultBackoff.Steps, wantError: true},
+		{name: "cache retry budget exhausted", responseError: cacheError, failingAttempts: labelNodeRetryAttempts, wantAttempts: labelNodeRetryAttempts, wantError: true},
 		{name: "unrelated forbidden fails immediately", responseError: apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New("permission denied")), failingAttempts: 1, wantAttempts: 1, wantError: true},
 		{name: "partial cache message fails immediately", responseError: apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New("infra config cache not synchronized")), failingAttempts: 1, wantAttempts: 1, wantError: true},
 		{name: "matching message without forbidden fails immediately", responseError: apierrors.NewInternalError(errors.New(cacheMessage)), failingAttempts: 1, wantAttempts: 1, wantError: true},
@@ -82,7 +87,7 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: server.URL}, "worker")
+			err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: server.URL}, "worker", labelTestTimeout)
 			if actual := int(attempts.Load()); actual != testCase.wantAttempts {
 				t.Errorf("PATCH attempts = %d, want %d", actual, testCase.wantAttempts)
 			}
@@ -100,5 +105,14 @@ func TestLabelNodeEgressAssignable(t *testing.T) {
 				t.Errorf("API error was not preserved: got %#v, want %#v", statusError.ErrStatus, testCase.responseError.ErrStatus)
 			}
 		})
+	}
+}
+
+func TestLabelNodeEgressAssignableInvalidTimeout(t *testing.T) {
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		err := LabelNodeEgressAssignable(t.Context(), &rest.Config{Host: "http://unused.invalid"}, "worker", timeout)
+		if err == nil {
+			t.Errorf("timeout %s: expected an error, got nil", timeout)
+		}
 	}
 }

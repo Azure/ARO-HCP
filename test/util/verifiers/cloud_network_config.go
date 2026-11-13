@@ -56,8 +56,13 @@ func (v verifyCloudNetworkConfigEgressIP) Verify(ctx context.Context, adminRESTC
 	// OVN-Kubernetes only considers egress-assignable-labeled nodes eligible
 	// to host an EgressIP, on every supported platform including Azure.
 	// Label v.nodeName so it's the (only) eligible node, making assignment
-	// deterministic, and unlabel it afterward regardless of outcome.
-	if err := framework.LabelNodeEgressAssignable(ctx, adminRESTConfig, v.nodeName); err != nil {
+	// deterministic, and unlabel it afterward regardless of outcome. The
+	// labeling retries for the full verifier timeout because a control plane
+	// rollout (for example one triggered by the console-login verifier's
+	// authentication configuration change) leaves freshly started
+	// kube-apiserver replicas rejecting node writes for several minutes; see
+	// ARO-30455.
+	if err := framework.LabelNodeEgressAssignable(ctx, adminRESTConfig, v.nodeName, v.timeout); err != nil {
 		return fmt.Errorf("failed to label node %s egress-assignable: %w", v.nodeName, err)
 	}
 	defer func() {
