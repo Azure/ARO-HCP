@@ -912,6 +912,9 @@ github.com/dennwc/varint
 # github.com/denormal/go-gitignore v0.0.0-20180930084346-ae8ad1d07817
 ## explicit
 github.com/denormal/go-gitignore
+# github.com/distribution/reference v0.6.0
+## explicit; go 1.20
+github.com/distribution/reference
 # github.com/docker/cli v29.4.0+incompatible
 ## explicit
 github.com/docker/cli/cli/config
@@ -1492,6 +1495,9 @@ github.com/jmespath/go-jmespath
 ## explicit; go 1.10
 github.com/jmoiron/sqlx
 github.com/jmoiron/sqlx/reflectx
+# github.com/jonboulle/clockwork v0.5.0
+## explicit; go 1.21
+github.com/jonboulle/clockwork
 # github.com/jpillora/backoff v1.0.0
 ## explicit; go 1.13
 github.com/jpillora/backoff
@@ -1559,6 +1565,9 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
+# github.com/lithammer/dedent v1.1.0
+## explicit
+github.com/lithammer/dedent
 # github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35
 ## explicit; go 1.21
 github.com/lufia/plan9stats
@@ -3277,6 +3286,7 @@ k8s.io/apimachinery/pkg/util/net
 k8s.io/apimachinery/pkg/util/portforward
 k8s.io/apimachinery/pkg/util/proxy
 k8s.io/apimachinery/pkg/util/rand
+k8s.io/apimachinery/pkg/util/remotecommand
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/sort
@@ -3799,6 +3809,7 @@ k8s.io/client-go/tools/portforward
 k8s.io/client-go/tools/record
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/tools/reference
+k8s.io/client-go/tools/remotecommand
 k8s.io/client-go/tools/watch
 k8s.io/client-go/transport
 k8s.io/client-go/transport/spdy
@@ -3809,6 +3820,7 @@ k8s.io/client-go/util/certificate/csr
 k8s.io/client-go/util/connrotation
 k8s.io/client-go/util/consistencydetector
 k8s.io/client-go/util/csaupgrade
+k8s.io/client-go/util/exec
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/jsonpath
@@ -3818,6 +3830,7 @@ k8s.io/client-go/util/watchlist
 k8s.io/client-go/util/workqueue
 # k8s.io/component-base v0.37.1
 ## explicit; go 1.26.0
+k8s.io/component-base/cli
 k8s.io/component-base/cli/flag
 k8s.io/component-base/compatibility
 k8s.io/component-base/featuregate
@@ -3846,6 +3859,8 @@ k8s.io/component-base/version
 k8s.io/component-base/zpages/features
 # k8s.io/component-helpers v0.37.1
 ## explicit; go 1.26.0
+k8s.io/component-helpers/auth/rbac/reconciliation
+k8s.io/component-helpers/auth/rbac/validation
 k8s.io/component-helpers/resource
 # k8s.io/cri-api v0.37.1
 ## explicit; go 1.26.0
@@ -3901,14 +3916,67 @@ k8s.io/kube-openapi/pkg/validation/strfmt/bson
 # k8s.io/kubectl v0.37.1
 ## explicit; go 1.26.0
 k8s.io/kubectl/pkg/apps
+k8s.io/kubectl/pkg/cmd
+k8s.io/kubectl/pkg/cmd/annotate
 k8s.io/kubectl/pkg/cmd/apiresources
+k8s.io/kubectl/pkg/cmd/apply
+k8s.io/kubectl/pkg/cmd/attach
+k8s.io/kubectl/pkg/cmd/auth
+k8s.io/kubectl/pkg/cmd/autoscale
+k8s.io/kubectl/pkg/cmd/certificates
+k8s.io/kubectl/pkg/cmd/clusterinfo
+k8s.io/kubectl/pkg/cmd/completion
+k8s.io/kubectl/pkg/cmd/config
+k8s.io/kubectl/pkg/cmd/cp
+k8s.io/kubectl/pkg/cmd/create
+k8s.io/kubectl/pkg/cmd/debug
+k8s.io/kubectl/pkg/cmd/delete
+k8s.io/kubectl/pkg/cmd/describe
+k8s.io/kubectl/pkg/cmd/diff
+k8s.io/kubectl/pkg/cmd/drain
+k8s.io/kubectl/pkg/cmd/edit
+k8s.io/kubectl/pkg/cmd/events
+k8s.io/kubectl/pkg/cmd/exec
+k8s.io/kubectl/pkg/cmd/explain
+k8s.io/kubectl/pkg/cmd/expose
 k8s.io/kubectl/pkg/cmd/get
+k8s.io/kubectl/pkg/cmd/kuberc
+k8s.io/kubectl/pkg/cmd/kustomize
+k8s.io/kubectl/pkg/cmd/label
+k8s.io/kubectl/pkg/cmd/logs
+k8s.io/kubectl/pkg/cmd/options
+k8s.io/kubectl/pkg/cmd/patch
+k8s.io/kubectl/pkg/cmd/plugin
 k8s.io/kubectl/pkg/cmd/portforward
+k8s.io/kubectl/pkg/cmd/proxy
+k8s.io/kubectl/pkg/cmd/replace
+k8s.io/kubectl/pkg/cmd/rollout
+k8s.io/kubectl/pkg/cmd/run
+k8s.io/kubectl/pkg/cmd/scale
+k8s.io/kubectl/pkg/cmd/set
+k8s.io/kubectl/pkg/cmd/set/env
+k8s.io/kubectl/pkg/cmd/taint
+k8s.io/kubectl/pkg/cmd/top
 k8s.io/kubectl/pkg/cmd/util
+k8s.io/kubectl/pkg/cmd/util/editor
+k8s.io/kubectl/pkg/cmd/util/editor/crlf
 k8s.io/kubectl/pkg/cmd/util/podcmd
+k8s.io/kubectl/pkg/cmd/version
+k8s.io/kubectl/pkg/cmd/wait
+k8s.io/kubectl/pkg/config
+k8s.io/kubectl/pkg/config/scheme
+k8s.io/kubectl/pkg/config/v1alpha1
+k8s.io/kubectl/pkg/config/v1beta1
 k8s.io/kubectl/pkg/describe
+k8s.io/kubectl/pkg/drain
+k8s.io/kubectl/pkg/explain
+k8s.io/kubectl/pkg/explain/v2
+k8s.io/kubectl/pkg/kuberc
+k8s.io/kubectl/pkg/metricsutil
 k8s.io/kubectl/pkg/polymorphichelpers
+k8s.io/kubectl/pkg/proxy
 k8s.io/kubectl/pkg/rawhttp
+k8s.io/kubectl/pkg/scale
 k8s.io/kubectl/pkg/scheme
 k8s.io/kubectl/pkg/util
 k8s.io/kubectl/pkg/util/certificate
@@ -3916,10 +3984,12 @@ k8s.io/kubectl/pkg/util/completion
 k8s.io/kubectl/pkg/util/deployment
 k8s.io/kubectl/pkg/util/event
 k8s.io/kubectl/pkg/util/fieldpath
+k8s.io/kubectl/pkg/util/hash
 k8s.io/kubectl/pkg/util/i18n
 k8s.io/kubectl/pkg/util/interrupt
 k8s.io/kubectl/pkg/util/openapi
 k8s.io/kubectl/pkg/util/podutils
+k8s.io/kubectl/pkg/util/prune
 k8s.io/kubectl/pkg/util/qos
 k8s.io/kubectl/pkg/util/rbac
 k8s.io/kubectl/pkg/util/resource
@@ -4158,6 +4228,9 @@ sigs.k8s.io/kustomize/api/provider
 sigs.k8s.io/kustomize/api/resmap
 sigs.k8s.io/kustomize/api/resource
 sigs.k8s.io/kustomize/api/types
+# sigs.k8s.io/kustomize/kustomize/v5 v5.8.1
+## explicit; go 1.24.0
+sigs.k8s.io/kustomize/kustomize/v5/commands/build
 # sigs.k8s.io/kustomize/kyaml v0.21.1
 ## explicit; go 1.24.0
 sigs.k8s.io/kustomize/kyaml/comments

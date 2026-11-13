@@ -21,6 +21,7 @@ use (
 	./swift-recorder
 	./test
 	./test-integration
+	./toolbox
 	// image-sync/oc-mirror/acrauth is deliberately outside this workspace: it requires a newer azcore/azidentity, and workspace version selection would raise those for every module listed here.
 	./tooling/aro-hcp-exporter
 	./tooling/azutils

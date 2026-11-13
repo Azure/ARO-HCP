@@ -11,17 +11,13 @@ TOOLBOX_IMAGE_TAG ?= $(or $(IMAGE_TAG),$(shell DETECT_DIRTY_GIT_WORKTREE=${DETEC
 TOOLBOX_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${TOOLBOX_IMAGE_REPOSITORY} ../generate-repo.sh)
 TOOLBOX_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(TOOLBOX_GENERATED_IMAGE_REPOSITORY):$(TOOLBOX_IMAGE_TAG)
 
-# kubectl release shipped in the toolbox image. Keep within one minor of the
-# management-cluster AKS version (kubectl client/server skew support).
-KUBECTL_VERSION ?= v1.36.6
-
 # Default target
 .DEFAULT_GOAL := image
 
 image:
-	$(CONTAINER_ENGINE) build $(TOOLBOX_DIR) \
+	cd $(TOOLBOX_DIR)/.. && \
+	$(CONTAINER_ENGINE) build . --file toolbox/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
-		--build-arg KUBECTL_VERSION=${KUBECTL_VERSION} \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
 		--tag ${TOOLBOX_TAGGED_IMAGE}

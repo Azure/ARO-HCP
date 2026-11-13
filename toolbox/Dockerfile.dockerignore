@@ -1,0 +1,23 @@
+# Paths are relative to the repository-root build context.
+**
+
+!go.work
+!vendor/**
+!config/config.yaml
+!admin/**
+!backend/**
+!toolbox/**
+!dev-infrastructure/scripts/**
+!fleet/**
+!frontend/**
+!hack/**
+!internal/**
+!kube-applier/**
+!mgmt-agent/**
+!sessiongate/**
+!swift-recorder/**
+!test/**
+!test-integration/**
+!tooling/**
+
+
