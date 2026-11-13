@@ -29,7 +29,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
 
 // EgressIPGVR identifies the cluster-scoped OVN-Kubernetes EgressIP custom
@@ -85,12 +84,30 @@ func LabelNodeEgressAssignable(ctx context.Context, adminRESTConfig *rest.Config
 		Factor:   1.0,
 		Steps:    labelNodeRetryAttempts,
 	}
-	err = retry.OnError(backoff, func(err error) bool {
-		return apierrors.IsForbidden(err) && strings.Contains(err.Error(), managedNodeCacheSyncMessage)
-	}, func() error {
+
+	// ExponentialBackoffWithContext aborts both the retry loop and any
+	// in-progress backoff sleep as soon as ctx is done, so cancellation or
+	// the verifier's shared deadline cannot stall the label step past its
+	// budget (retry.OnError sleeps blind and could overrun by one full
+	// timeout/labelNodeRetryAttempts interval). The lastErr handling mirrors
+	// retry.OnError: exhaustion or cancellation surfaces the final API error
+	// rather than a bare wait error.
+	var lastErr error
+	err = wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		_, err := kubeClient.CoreV1().Nodes().Patch(ctx, nodeName, types.MergePatchType, patch, metav1.PatchOptions{})
-		return err
+		switch {
+		case err == nil:
+			return true, nil
+		case apierrors.IsForbidden(err) && strings.Contains(err.Error(), managedNodeCacheSyncMessage):
+			lastErr = err
+			return false, nil
+		default:
+			return false, err
+		}
 	})
+	if wait.Interrupted(err) && lastErr != nil {
+		err = lastErr
+	}
 	if err != nil {
 		return fmt.Errorf("failed to apply %s label to node %q: %w", EgressAssignableLabel, nodeName, err)
 	}

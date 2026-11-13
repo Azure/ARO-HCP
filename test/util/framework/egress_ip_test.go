@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -114,5 +115,48 @@ func TestLabelNodeEgressAssignableInvalidTimeout(t *testing.T) {
 		if err == nil {
 			t.Errorf("timeout %s: expected an error, got nil", timeout)
 		}
+	}
+}
+
+func TestLabelNodeEgressAssignableCancelledDuringBackoff(t *testing.T) {
+	cacheMessage := "autoscaling.openshift.io/ManagedNode infra config cache not synchronized"
+	cacheError := apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "worker", errors.New(cacheMessage))
+
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		attempts.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		status := cacheError.ErrStatus.DeepCopy()
+		status.APIVersion = "v1"
+		status.Kind = "Status"
+		writer.WriteHeader(int(status.Code))
+		if err := json.NewEncoder(writer).Encode(status); err != nil {
+			t.Errorf("encode API error: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	// A 60s timeout spaces retry attempts 5s apart. Cancelling 250ms in
+	// lands during the first backoff sleep: the call must return promptly
+	// instead of sleeping the interval out, and must surface the last API
+	// error rather than a bare context error.
+	timeout := 60 * time.Second
+	interval := timeout / time.Duration(labelNodeRetryAttempts)
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(250*time.Millisecond, cancel)
+
+	start := time.Now()
+	err := LabelNodeEgressAssignable(ctx, &rest.Config{Host: server.URL}, "worker", timeout)
+	elapsed := time.Since(start)
+
+	if elapsed > interval/2 {
+		t.Errorf("label node returned %s after cancellation, want well under one %s retry interval", elapsed, interval)
+	}
+	if got := int(attempts.Load()); got != 1 {
+		t.Errorf("PATCH attempts = %d, want 1 (no further attempts after cancellation)", got)
+	}
+	var statusError *apierrors.StatusError
+	if !errors.As(err, &statusError) || statusError.Error() != cacheError.Error() {
+		t.Errorf("expected the last Forbidden API error to be surfaced, got %v", err)
 	}
 }
