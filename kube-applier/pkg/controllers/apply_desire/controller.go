@@ -320,8 +320,13 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			return syncErr
 		}
 		return statusErr
-	case kubeapplierapi.ApplyDesireTypeDelete:
-		evaluation := c.evaluateDelete(ctx, desire)
+	case kubeapplierapi.ApplyDesireTypeDelete, kubeapplierapi.ApplyDesireTypeFinalizeNamespace:
+		var evaluation deleteEvaluation
+		if desire.Spec.Type == kubeapplierapi.ApplyDesireTypeDelete {
+			evaluation = c.evaluateDelete(ctx, desire)
+		} else {
+			evaluation = c.evaluateFinalizeNamespace(ctx, desire)
+		}
 		if err := c.writer.UpdateStatus(ctx, key, evaluation.mutate); err != nil {
 			return err
 		}

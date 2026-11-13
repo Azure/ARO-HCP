@@ -66,6 +66,21 @@ rules:
   - update
   - patch
   - delete
+# Required by ApplyDesire Type=FinalizeNamespace, which clears the built-in
+# "kubernetes" finalizer from a namespace already stuck Terminating. A DELETE on
+# such a namespace succeeds and changes nothing, so the /finalize subresource is
+# the only operation that unwedges one.
+#
+# Note that this grant is cluster-wide: nothing in RBAC scopes it to the
+# namespaces the cleanup targets. The entire restriction lives in the desire's
+# execution preconditions (pinned UID, dwell, sole "kubernetes" finalizer, no
+# live HostedCluster). That is the same trust model as the delete verb above.
+- apiGroups:
+  - ''
+  resources:
+  - namespaces/finalize
+  verbs:
+  - update
 - apiGroups:
   - ''
   resources:

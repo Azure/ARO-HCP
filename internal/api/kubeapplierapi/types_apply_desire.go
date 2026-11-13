@@ -37,6 +37,18 @@ const (
 	// from the management cluster.
 	// +k8s:unionMember
 	ApplyDesireTypeDelete ApplyDesireType = "Delete"
+
+	// ApplyDesireTypeFinalizeNamespace indicates the desire is a clearing of the
+	// built-in "kubernetes" finalizer from .spec.targetItem, which must be a
+	// Namespace that is already Terminating.
+	//
+	// This is deliberately a distinct type rather than a flag on Delete. It is
+	// not a deletion: a DELETE on a Terminating namespace succeeds and changes
+	// nothing, so clearing spec.finalizers via the /finalize subresource is the
+	// only operation that unwedges one. Keeping it separate makes it impossible
+	// to confuse with an ordinary deletion in logs, metrics and review.
+	// +k8s:unionMember
+	ApplyDesireTypeFinalizeNamespace ApplyDesireType = "FinalizeNamespace"
 )
 
 // ApplyDesire holds a single intent to either server-side-apply a Kubernetes
@@ -76,6 +88,9 @@ type ApplyDesire struct {
 //     contains the KubeContent to apply.
 //   - Type=Delete: the ServerSideApply field must be nil. The controller
 //     deletes .spec.targetItem and waits for finalizers.
+//   - Type=FinalizeNamespace: the FinalizeNamespace field must be non-nil and
+//     ServerSideApply must be nil. The controller clears the "kubernetes"
+//     finalizer from an already-Terminating namespace.
 //
 // +k8s:discriminator=Type
 type ApplyDesireSpec struct {
@@ -101,9 +116,53 @@ type ApplyDesireSpec struct {
 	TargetItem ResourceReference `json:"targetItem"`
 
 	// ServerSideApply holds the configuration for the ServerSideApply variant.
-	// Must be non-nil when Type=ServerSideApply; must be nil when Type=Delete.
+	// Must be non-nil when Type=ServerSideApply; must be nil otherwise.
 	// +k8s:unionMember=ServerSideApply
 	ServerSideApply *ServerSideApplyConfig `json:"serverSideApply,omitempty"`
+
+	// FinalizeNamespace holds the configuration for the FinalizeNamespace
+	// variant. Must be non-nil when Type=FinalizeNamespace; must be nil
+	// otherwise.
+	// +k8s:unionMember=FinalizeNamespace
+	FinalizeNamespace *FinalizeNamespaceConfig `json:"finalizeNamespace,omitempty"`
+}
+
+// FinalizeNamespaceConfig holds fields specific to the FinalizeNamespace
+// variant of ApplyDesire.
+//
+// These fields are execution preconditions rather than parameters. A ReadDesire
+// observation is not a guaranteed fresh snapshot at the instant a mutation
+// runs, so the decision the backend made from one is re-checked here against
+// the live API immediately before acting.
+type FinalizeNamespaceConfig struct {
+	// UID is the namespace UID the backend pinned when it bound this request.
+	// The controller refuses to act if the live namespace no longer has this
+	// UID, which is what prevents a request from acting on a namespace that was
+	// deleted and recreated under the same name.
+	UID string `json:"uid"`
+
+	// MinimumDwell is how long the namespace must already have been Terminating
+	// before its finalizer may be cleared.
+	//
+	// It travels on the desire and is re-checked here precisely so that a
+	// request cannot shorten its own safety margin — only the operator
+	// deploying the backend can. Clearing the finalizer early would cut an
+	// in-flight HyperShift deprovision off mid-flight and strand the Azure
+	// resources, manufacturing the orphan this capability exists to clean up.
+	MinimumDwell metav1.Duration `json:"minimumDwell"`
+
+	// HostedClusterNamespace and HostedClusterName identify the HostedCluster
+	// associated with the target namespace, so that the controller can re-check
+	// its absence against the live API immediately before finalizing.
+	//
+	// A HostedCluster may still be releasing Azure resources after its
+	// deletionTimestamp is set. A ReadDesire observation is not guaranteed
+	// fresh at mutation time, so any HostedCluster still present blocks the
+	// namespace finalization here.
+	//
+	HostedClusterNamespace string `json:"hostedClusterNamespace"`
+
+	HostedClusterName string `json:"hostedClusterName"`
 }
 
 // ServerSideApplyConfig holds fields specific to the ServerSideApply variant

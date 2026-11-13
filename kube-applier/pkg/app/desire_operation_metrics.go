@@ -28,6 +28,12 @@ const (
 	OperationApply  = "apply"
 	OperationDelete = "delete"
 	OperationResync = "resync"
+
+	// OperationFinalizeNamespace is kept distinct from OperationDelete on
+	// purpose. Clearing a namespace's finalizer is not a deletion and carries a
+	// different risk profile, so an operator reading these metrics must be able
+	// to tell the two apart without inspecting the desire.
+	OperationFinalizeNamespace = "finalize-namespace"
 )
 
 // desireOperationMetrics tracks operation-level metrics for kube-applier desires.
@@ -64,10 +70,13 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 // recordApplyDesireOperation records metrics for an ApplyDesire operation.
 func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplierapi.ApplyDesire) {
 	// Determine operation type from the desire's spec.
+	// ServerSideApply is always "apply" - no create/update distinction.
 	operation := OperationApply
-	if desire.Spec.Type == kubeapplierapi.ApplyDesireTypeDelete {
-		// ServerSideApply is always "apply" - no create/update distinction.
+	switch desire.Spec.Type {
+	case kubeapplierapi.ApplyDesireTypeDelete:
 		operation = OperationDelete
+	case kubeapplierapi.ApplyDesireTypeFinalizeNamespace:
+		operation = OperationFinalizeNamespace
 	}
 
 	status, reason := getConditionStatusAndReason(desire.Status.Conditions)

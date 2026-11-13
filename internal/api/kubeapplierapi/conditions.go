@@ -42,6 +42,14 @@ const (
 	// ConditionReasonWaitingForDeletion.
 	ConditionTypeSuccessfullyDeleted = "SuccessfullyDeleted"
 
+	// ConditionTypeNamespaceFinalized is true when the controller most-recently
+	// observed that an ApplyDesire with Type=FinalizeNamespace achieved its
+	// desired effect (the namespace is gone). While an execution precondition
+	// does not hold it stays False with reason
+	// ConditionReasonFinalizePreconditionFailed, which is non-terminal: the
+	// target is re-observed and retried.
+	ConditionTypeNamespaceFinalized = "NamespaceFinalized"
+
 	// ConditionTypeDegraded reports controller-level health for the *Desire.
 	// True means the controller failed in a way unrelated to the kube-apiserver
 	// rejecting our request.
@@ -63,6 +71,17 @@ const (
 	// target item still exists in the cluster, either because finalizers are running or
 	// the delete call has just been issued.
 	ConditionReasonWaitingForDeletion = "WaitingForDeletion"
+
+	// ConditionReasonFinalizePreconditionFailed is set on an ApplyDesire with
+	// Type=FinalizeNamespace when a precondition re-checked against the live API
+	// immediately before the mutation did not hold — the pinned UID no longer
+	// matches, the namespace is not Terminating, the dwell has not elapsed, or
+	// spec.finalizers holds something other than the single "kubernetes" entry.
+	//
+	// It is deliberately not a success and deliberately not terminal: the
+	// controller re-observes and retries, and never overwrites a newer
+	// namespace to force progress.
+	ConditionReasonFinalizePreconditionFailed = "FinalizePreconditionFailed"
 
 	// ConditionReasonNoErrors is the success reason matching the existing controller
 	// convention (see backend's controllerutils.ReportSyncError).
