@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -418,4 +419,195 @@ func (e *errorSubscriptionCRUD) AddCreateToTransaction(context.Context, cosmosst
 
 func (e *errorSubscriptionCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
+}
+
+// gateSubscriptionCRUD stubs the Subscriptions CRUD for the persistent
+// completion-gate tests. Get returns a fixed subscription; Replace records the
+// call and succeeds, or panics when replaceAllowed is false so any unexpected
+// marker write fails the test loudly.
+type gateSubscriptionCRUD struct {
+	subscription   *coreapi.Subscription
+	replaceAllowed bool
+	replaceCalls   int
+}
+
+func (g *gateSubscriptionCRUD) Get(_ context.Context, _ string) (*coreapi.Subscription, error) {
+	return g.subscription, nil
+}
+
+func (g *gateSubscriptionCRUD) Replace(_ context.Context, newObj *coreapi.Subscription, _ *azcosmos.ItemOptions) (*coreapi.Subscription, error) {
+	if !g.replaceAllowed {
+		panic("Replace must not be called in this test")
+	}
+	g.replaceCalls++
+	return newObj, nil
+}
+
+func (g *gateSubscriptionCRUD) GetByID(context.Context, string) (*coreapi.Subscription, error) {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) List(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[coreapi.Subscription], error) {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) Create(context.Context, *coreapi.Subscription, *azcosmos.ItemOptions) (*coreapi.Subscription, error) {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) Delete(context.Context, string) error {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+func (g *gateSubscriptionCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+// gateResourcesDBClient wraps the mock client to inject the gate stub and,
+// optionally, a failing Operations CRUD.
+type gateResourcesDBClient struct {
+	*corecosmosstoragetesting.MockResourcesDBClient
+	subscriptions *gateSubscriptionCRUD
+	operations    corecosmosstorage.OperationCRUD
+}
+
+func (g *gateResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] {
+	return g.subscriptions
+}
+
+func (g *gateResourcesDBClient) Operations(subscriptionID string) corecosmosstorage.OperationCRUD {
+	if g.operations != nil {
+		return g.operations
+	}
+	return g.MockResourcesDBClient.Operations(subscriptionID)
+}
+
+// failingOperationsCRUD makes the operations List fail so the tree migration
+// errors before the subscription-document marker would be written.
+type failingOperationsCRUD struct{}
+
+func (f *failingOperationsCRUD) List(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[coreapi.Operation], error) {
+	return nil, fmt.Errorf("simulated operations list failure")
+}
+
+func (f *failingOperationsCRUD) Get(context.Context, string) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) GetByID(context.Context, string) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) Create(context.Context, *coreapi.Operation, *azcosmos.ItemOptions) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) Replace(context.Context, *coreapi.Operation, *azcosmos.ItemOptions) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) Delete(context.Context, string) error {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) DeleteWithETag(context.Context, string, azcore.ETag) error {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Operation, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Operation, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+func (f *failingOperationsCRUD) ListActiveOperations(*corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[coreapi.Operation] {
+	panic("not implemented")
+}
+
+// TestSyncOnceSkipsSubscriptionWrittenAfterCutoff verifies the persistent
+// completion gate: a subscription whose document was last written at or after
+// migrationCompletionCutoff is skipped without touching any other collection.
+func TestSyncOnceSkipsSubscriptionWrittenAfterCutoff(t *testing.T) {
+	subCRUD := &gateSubscriptionCRUD{
+		subscription:   &coreapi.Subscription{LastUpdated: migrationCompletionCutoff},
+		replaceAllowed: false,
+	}
+	controller := &cosmosMigrationController{
+		resourcesDBClient: &gateResourcesDBClient{
+			MockResourcesDBClient: corecosmosstoragetesting.NewMockResourcesDBClient(),
+			subscriptions:         subCRUD,
+		},
+	}
+
+	key := controllerutils.SubscriptionKey{SubscriptionID: "sub-gated"}
+
+	err := controller.SyncOnce(context.Background(), key)
+	require.NoError(t, err)
+
+	_, loaded := controller.completedSubscriptions.Load("sub-gated")
+	assert.True(t, loaded, "a gated subscription should be recorded as complete for this process")
+	assert.Zero(t, subCRUD.replaceCalls, "a gated subscription must not be migrated")
+}
+
+// TestSyncOnceMigratesSubscriptionWrittenBeforeCutoff verifies that a
+// subscription below the cutoff runs the full pass and rewrites the
+// subscription document exactly once as the completion marker.
+func TestSyncOnceMigratesSubscriptionWrittenBeforeCutoff(t *testing.T) {
+	subCRUD := &gateSubscriptionCRUD{
+		subscription:   &coreapi.Subscription{LastUpdated: migrationCompletionCutoff - 1},
+		replaceAllowed: true,
+	}
+	controller := &cosmosMigrationController{
+		resourcesDBClient: &gateResourcesDBClient{
+			MockResourcesDBClient: corecosmosstoragetesting.NewMockResourcesDBClient(),
+			subscriptions:         subCRUD,
+		},
+	}
+
+	key := controllerutils.SubscriptionKey{SubscriptionID: "sub-open"}
+
+	err := controller.SyncOnce(context.Background(), key)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, subCRUD.replaceCalls, "the subscription document must be rewritten once as the completion marker")
+	_, loaded := controller.completedSubscriptions.Load("sub-open")
+	assert.True(t, loaded, "a migrated subscription should be recorded as complete")
+}
+
+// TestSyncOnceLeavesMarkerUnwrittenWhenTreeFails verifies that the completion
+// marker is only written after the rest of the subscription migrates
+// successfully: a failing operations List must neither write the marker nor
+// mark the subscription complete.
+func TestSyncOnceLeavesMarkerUnwrittenWhenTreeFails(t *testing.T) {
+	subCRUD := &gateSubscriptionCRUD{
+		subscription:   &coreapi.Subscription{LastUpdated: migrationCompletionCutoff - 1},
+		replaceAllowed: false,
+	}
+	controller := &cosmosMigrationController{
+		resourcesDBClient: &gateResourcesDBClient{
+			MockResourcesDBClient: corecosmosstoragetesting.NewMockResourcesDBClient(),
+			subscriptions:         subCRUD,
+			operations:            &failingOperationsCRUD{},
+		},
+	}
+
+	key := controllerutils.SubscriptionKey{SubscriptionID: "sub-fail"}
+
+	err := controller.SyncOnce(context.Background(), key)
+	require.Error(t, err, "a failing tree migration must surface its error")
+	assert.Contains(t, err.Error(), "operations")
+
+	_, loaded := controller.completedSubscriptions.Load("sub-fail")
+	assert.False(t, loaded, "a failed subscription must not be marked complete")
+	assert.Zero(t, subCRUD.replaceCalls, "the completion marker must not be written when the tree migration failed")
 }
