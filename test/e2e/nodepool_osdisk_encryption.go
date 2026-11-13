@@ -37,7 +37,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
-		labels.StartPriority(30),
+		labels.StartPriority(40),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "des-encrypt"
