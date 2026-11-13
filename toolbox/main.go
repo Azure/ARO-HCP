@@ -24,13 +24,13 @@ package main
 import (
 	"os"
 
+	// Import to initialize client auth plugins.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	"k8s.io/component-base/cli"
 	"k8s.io/component-base/logs"
 	"k8s.io/kubectl/pkg/cmd"
 	"k8s.io/kubectl/pkg/cmd/util"
-
-	// Import to initialize client auth plugins.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 func main() {
