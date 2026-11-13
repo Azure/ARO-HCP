@@ -312,7 +312,7 @@ func convertEtcdRPToCS(in coreapi.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.
 			kms := in.DataEncryption.CustomerManaged.Kms
 			activeKeyBuilder.
 				KeyName(kms.ActiveKey.Name).
-				KeyVaultName(kms.ActiveKey.VaultName)
+				KeyVaultName(strings.ToLower(kms.ActiveKey.VaultName))
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
 			if len(kms.Visibility) != 0 {

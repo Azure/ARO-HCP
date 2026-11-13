@@ -1365,6 +1365,78 @@ func TestBuildCSCluster(t *testing.T) {
 				),
 		},
 		{
+			name: "CREATE - normalizes mixed-case key vault name to lowercase",
+			cluster: func() *coreapi.Cluster {
+				cluster := coreapitesting.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						KeyVaultType: coreapi.KmsKeyVaultTypeKeyVault,
+						Visibility:   metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
+							Name:      "test-key",
+							VaultName: "MyMixedCaseVault",
+							Version:   "v1",
+						},
+					},
+				}
+				return cluster
+			}(),
+			expectedCSCluster: ocmClusterDefaults(coreapitesting.TestLocation).
+				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+					Unit(csNodeDrainGracePeriodUnit).
+					Value(float64(0))).
+				Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+					PodPriorityThreshold(-10).
+					MaxNodeProvisionTime("15m").
+					MaxPodGracePeriod(600).
+					ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
+						MaxNodesTotal(0))).
+				Properties(map[string]string{}).
+				API(arohcpv1alpha1.NewClusterAPI().
+					Listening(arohcpv1alpha1.ListeningMethodExternal).
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+									KeyVaultType(arohcpv1alpha1.AzureKmsEncryptionKeyVaultTypeKeyVault).
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test-key").
+										KeyVaultName("mymixedcasevault").
+										KeyVersion("v1"),
+									),
+								),
+							),
+						)).
+					ManagedResourceGroupName(coreapitesting.TestManagedResourceGroupName).
+					NetworkSecurityGroupResourceID(coreapitesting.TestNetworkSecurityGroupResourceID).
+					NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+						OutboundType(csOutboundType)).
+					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+							ControlPlaneOperatorsManagedIdentities(testControlPlaneOperatorIdentities()).
+							DataPlaneOperatorsManagedIdentities(testDataPlaneOperatorIdentities()).
+							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
+					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
+					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
+					SubnetResourceID(coreapitesting.TestSubnetResourceID).
+					VnetIntegrationSubnetResourceID(coreapitesting.TestVnetIntegrationSubnetResourceID).
+					SubscriptionID(strings.ToLower(coreapitesting.TestSubscriptionID)).
+					TenantID(coreapitesting.TestTenantID),
+				),
+		},
+		{
 			name: "CREATE - sets ACR pull managed identity",
 			cluster: &coreapi.Cluster{
 				CustomerProperties: coreapi.ClusterCustomerProperties{
