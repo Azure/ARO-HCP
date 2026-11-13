@@ -36,35 +36,39 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// Karpenter and OpenShiftAzureNodeClass resource identities. These GVRs are not
-// imported from sigs.k8s.io/karpenter or the karpenter-provider-azure fork:
-// neither is (or should become) a dependency of this test module for a
-// handful of unstructured object creates, so the group/version/resource is
-// hardcoded here and must be kept in sync with whatever the deployed
-// karpenter-operator/karpenter-provider-azure actually serves.
+// Karpenter and OpenShiftAzureNodeClass resource identities.
+//
+// The test module does not import sigs.k8s.io/karpenter or the
+// karpenter-provider-azure fork. Both are large dependencies for a few
+// unstructured creates. The group, version, and resource are hardcoded here.
+// Keep these values in sync with the versions that the deployed
+// karpenter-operator and karpenter-provider-azure serve.
 var (
 	karpenterNodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
-	// The guest blocks direct AKSNodeClass writes with the
-	// karpenter.aksnodeclass.hypershift.io ValidatingAdmissionPolicy. Tests
-	// must create the OpenShiftAzureNodeClass instead; the
-	// karpenter-operator reconciles it into the AKSNodeClass of the same
-	// name and mirrors its conditions back.
+	// The guest cluster blocks direct AKSNodeClass writes through the
+	// karpenter.aksnodeclass.hypershift.io ValidatingAdmissionPolicy.
+	// A test must create an OpenShiftAzureNodeClass instead. The
+	// karpenter-operator reconciles it into an AKSNodeClass with the same
+	// name. The karpenter-operator also copies the conditions back.
 	openShiftAzureNodeClassGVR = schema.GroupVersionResource{Group: "karpenter.hypershift.openshift.io", Version: "v1alpha1", Resource: "openshiftazurenodeclasses"}
 )
 
-// KarpenterNodePoolLabel is the label Karpenter sets on every Node and
-// NodeClaim it provisions, naming the owning NodePool. It is Karpenter's own
-// label (sigs.k8s.io/karpenter), not HyperShift's NodePoolLabel.
+// KarpenterNodePoolLabel is the label that Karpenter sets on each Node and
+// NodeClaim it provisions. The label value is the name of the owning NodePool.
+// This is a Karpenter label. It is not the HyperShift NodePool label.
 const KarpenterNodePoolLabel = "karpenter.sh/nodepool"
 
-// NodeUninitializedTaint is the well-known cloud-provider taint
-// (k8s.io/cloud-provider/api.TaintExternalCloudProvider) that every kubelet
-// sets on itself at startup and that only an external cloud-controller-manager
-// clears once it has initialized the node. Hardcoded here rather than
-// importing k8s.io/cloud-provider for one string constant.
+// NodeUninitializedTaint is the standard cloud-provider taint. The value is the
+// same as k8s.io/cloud-provider/api.TaintExternalCloudProvider.
+//
+// Each kubelet sets this taint on itself at startup. The
+// cloud-controller-manager removes it, after the node is initialized.
+//
+// The value is hardcoded here to avoid an import for one string constant.
 const NodeUninitializedTaint = "node.cloudprovider.kubernetes.io/uninitialized"
 
-// ValidateKarpenterInstanceTypes checks requirements before any resource creation.
+// ValidateKarpenterInstanceTypes checks the input before the caller creates a
+// resource. The instance type list must contain at least one item.
 func ValidateKarpenterInstanceTypes(instanceTypes []string) error {
 	if len(instanceTypes) == 0 {
 		return fmt.Errorf("instanceTypes must not be empty")
@@ -72,9 +76,17 @@ func ValidateKarpenterInstanceTypes(instanceTypes []string) error {
 	return nil
 }
 
-// ApplyOpenShiftAzureNodeClass creates a test-owned, cluster-scoped NodeClass.
-// The operator derives the image and user data from the cluster ignition pipeline.
-// Callers must wait for Ready before creating the associated NodePool.
+// ApplyOpenShiftAzureNodeClass creates a test-owned NodeClass. The resource has
+// cluster scope.
+//
+// The NodeClass controller of the karpenter-operator fills the AKSNodeClass
+// from the node ignition Secret. The HyperShift ignition pipeline produces that
+// Secret.
+//
+// A caller can create the NodePool in parallel. Karpenter retries until the
+// NodeClass is ready. This recipe waits for the Ready condition first. Thus a
+// broken NodeClass fails here with the NodeClass status. Karpenter also does not
+// create and delete NodeClaims in the meantime.
 func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
@@ -89,8 +101,8 @@ func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Con
 				"name": name,
 			},
 			"spec": map[string]any{
-				// vnetSubnetID intentionally omitted: Karpenter falls back to
-				// the HostedCluster's own subnet.
+				// vnetSubnetID is omitted on purpose. Karpenter uses the
+				// subnet of the HostedCluster.
 				"osDiskSizeGiB": int64(128),
 			},
 		},
@@ -101,10 +113,43 @@ func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Con
 	return nil
 }
 
-// ApplyKarpenterNodePool creates a NodePool that references the same-name
-// operator-owned AKSNodeClass. Instance types must not be empty. Karpenter adds
-// KarpenterNodePoolLabel to Nodes and NodeClaims; the template must not set it.
-func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string, instanceTypes []string) error {
+type karpenterNodePoolOptions struct {
+	startupTaints []corev1.Taint
+}
+
+// KarpenterNodePoolOption sets one option on a test-owned NodePool before
+// creation.
+type KarpenterNodePoolOption func(*karpenterNodePoolOptions)
+
+// WithKarpenterStartupTaints declares taints that Karpenter must ignore while
+// it plans capacity. The component that owns each taint removes it from the node
+// after initialization.
+//
+// Karpenter sets these taints on the node at registration. A pod does not need a
+// toleration for Karpenter to start provisioning.
+//
+// A wrong declaration makes Karpenter treat the new node as unschedulable for
+// the pending pod. Karpenter then provisions more nodes. Use the key and the
+// effect of each taint that the owning component adds.
+//
+// The AutoNode Cilium spec uses node.cilium.io/agent-not-ready. The
+// cilium-operator adds that taint to each node. The cilium-operator removes it
+// when the Cilium agent pod on the node is Ready.
+func WithKarpenterStartupTaints(taints ...corev1.Taint) KarpenterNodePoolOption {
+	copied := append([]corev1.Taint(nil), taints...)
+	return func(options *karpenterNodePoolOptions) {
+		options.startupTaints = append([]corev1.Taint(nil), copied...)
+	}
+}
+
+// ApplyKarpenterNodePool creates a NodePool. The NodePool references the
+// AKSNodeClass that the karpenter-operator creates with the same name.
+//
+// The instance type list must not be empty.
+//
+// Karpenter adds the KarpenterNodePoolLabel to each Node and NodeClaim. The pod
+// template must not set this label.
+func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string, instanceTypes []string, options ...KarpenterNodePoolOption) error {
 	if err := ValidateKarpenterInstanceTypes(instanceTypes); err != nil {
 		return err
 	}
@@ -148,6 +193,23 @@ func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, n
 			},
 		},
 	}
+	var opts karpenterNodePoolOptions
+	for _, option := range options {
+		option(&opts)
+	}
+	if len(opts.startupTaints) > 0 {
+		taints := make([]any, 0, len(opts.startupTaints))
+		for _, taint := range opts.startupTaints {
+			entry := map[string]any{"key": taint.Key, "effect": string(taint.Effect)}
+			if taint.Value != "" {
+				entry["value"] = taint.Value
+			}
+			taints = append(taints, entry)
+		}
+		if err := unstructured.SetNestedSlice(nodePool.Object, taints, "spec", "template", "spec", "startupTaints"); err != nil {
+			return fmt.Errorf("failed to set startup taints on NodePool %q: %w", name, err)
+		}
+	}
 	if _, err := dynamicClient.Resource(karpenterNodePoolGVR).Create(ctx, nodePool, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("failed to create NodePool %q: %w", name, err)
 	}
@@ -155,12 +217,18 @@ func ApplyKarpenterNodePool(ctx context.Context, adminRESTConfig *rest.Config, n
 	return nil
 }
 
-// DeleteOpenShiftAzureNodeClassAndNodePool deletes the NodePool then the
-// OpenShiftAzureNodeClass. The operator deletes the same-name AKSNodeClass and
-// removes the OpenShiftAzureNodeClass finalizer after the provider object is gone.
-// Direct AKSNodeClass deletion is blocked by admission. Accepted DELETE requests
-// do not confirm node or NodeClass cleanup; callers must verify their absence.
-// Not-found is treated as success.
+// DeleteOpenShiftAzureNodeClassAndNodePool deletes the NodePool first. It
+// deletes the OpenShiftAzureNodeClass second.
+//
+// The karpenter-operator deletes the AKSNodeClass that has the same name. Then
+// it removes the finalizer from the OpenShiftAzureNodeClass.
+//
+// Admission blocks a direct delete of an AKSNodeClass.
+//
+// A successful DELETE request does not confirm the removal of the nodes or the
+// NodeClass. The caller must verify the removal.
+//
+// A missing resource counts as success.
 func DeleteOpenShiftAzureNodeClassAndNodePool(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
@@ -176,24 +244,26 @@ func DeleteOpenShiftAzureNodeClassAndNodePool(ctx context.Context, adminRESTConf
 	return nil
 }
 
-// DeployPendingWorkload creates a Deployment with 0 replicas in the given
-// namespace (created if it doesn't exist), whose pod template's nodeSelector
-// is exactly nodeSelector. It starts at 0 replicas deliberately: the caller
-// scales it up separately, so the moment scheduling pressure begins is
-// explicit and observable, rather than racing pod creation against this
-// function's return.
-func DeployPendingWorkload(ctx context.Context, adminRESTConfig *rest.Config, namespace, name string, nodeSelector map[string]string) error {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
+type pendingWorkloadOptions struct {
+	antiAffinityOnHostname bool
+}
 
-	if _, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: namespace},
-	}, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create namespace %q: %w", namespace, err)
-	}
+// PendingWorkloadOption sets one option on the pending workload before creation.
+type PendingWorkloadOption func(*pendingWorkloadOptions)
 
+// WithPodAntiAffinityOnHostname adds a required anti-affinity rule on the host
+// name. Two replicas cannot run on the same node. Use it to make Karpenter
+// provision one node per replica.
+func WithPodAntiAffinityOnHostname() PendingWorkloadOption {
+	return func(options *pendingWorkloadOptions) {
+		options.antiAffinityOnHostname = true
+	}
+}
+
+// newPendingWorkloadDeployment builds the workload Deployment. It keeps the
+// payload construction separate from the API call, so a unit test can check the
+// result without a server.
+func newPendingWorkloadDeployment(namespace, name string, nodeSelector map[string]string, options pendingWorkloadOptions) *appsv1.Deployment {
 	labels := map[string]string{"app": name}
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
@@ -223,17 +293,56 @@ func DeployPendingWorkload(ctx context.Context, adminRESTConfig *rest.Config, na
 			},
 		},
 	}
+	if options.antiAffinityOnHostname {
+		deployment.Spec.Template.Spec.Affinity = &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{{
+					LabelSelector: &metav1.LabelSelector{MatchLabels: labels},
+					TopologyKey:   corev1.LabelHostname,
+				}},
+			},
+		}
+	}
+
+	return deployment
+}
+
+// DeployPendingWorkload creates a Deployment with 0 replicas in the namespace.
+// It creates the namespace if the namespace does not exist. The pod template
+// uses exactly the given nodeSelector.
+//
+// The Deployment starts at 0 replicas on purpose. The caller scales it up in a
+// separate step. Thus the start of the scheduling pressure is explicit and
+// observable.
+func DeployPendingWorkload(ctx context.Context, adminRESTConfig *rest.Config, namespace, name string, nodeSelector map[string]string, options ...PendingWorkloadOption) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	if _, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	}, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create namespace %q: %w", namespace, err)
+	}
+
+	var opts pendingWorkloadOptions
+	for _, option := range options {
+		option(&opts)
+	}
+	deployment := newPendingWorkloadDeployment(namespace, name, nodeSelector, opts)
 	if _, err := kubeClient.AppsV1().Deployments(namespace).Create(ctx, deployment, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("failed to create deployment %q: %w", name, err)
 	}
 	return nil
 }
 
-// ScaleDeployment patches a Deployment's replica count via the scale
-// subresource, retrying on a resourceVersion conflict: the Deployment
-// controller itself can reconcile (bumping resourceVersion, e.g. right after
-// a freshly-created Deployment) in the window between GetScale and
-// UpdateScale, which a single-shot get-then-update would otherwise fail on.
+// ScaleDeployment sets the replica count through the scale subresource. It
+// retries after a resourceVersion conflict.
+//
+// The Deployment controller can change the Deployment between the read and the
+// write. For example, it can reconcile a newly created Deployment. A single
+// read-then-write sequence can fail at that point.
 func ScaleDeployment(ctx context.Context, adminRESTConfig *rest.Config, namespace, name string, replicas int32) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
@@ -254,8 +363,8 @@ func ScaleDeployment(ctx context.Context, adminRESTConfig *rest.Config, namespac
 	return nil
 }
 
-// DeleteNamespace deletes a namespace (and everything in it). Not-found is
-// treated as success.
+// DeleteNamespace deletes the namespace and all resources in it. A missing
+// namespace counts as success.
 func DeleteNamespace(ctx context.Context, adminRESTConfig *rest.Config, namespace string) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
@@ -267,25 +376,30 @@ func DeleteNamespace(ctx context.Context, adminRESTConfig *rest.Config, namespac
 	return nil
 }
 
-// RunKarpenterNodeCSRApprover approves pending kubelet-bootstrap
-// CertificateSigningRequests (requestor system:node:* or the
-// node-bootstrapper service account) every pollInterval, until ctx is done.
-// It is meant to run in a background goroutine for the duration of a wait for
-// node readiness: a Karpenter-provisioned node normally submits two CSRs
-// (client, then serving) at unpredictable points before it fully initializes,
-// with no reliable "no more are coming" signal to poll for instead - so
-// rather than guessing when CSRs have "settled", this just keeps approving
-// anything pending until the caller's context says the wait is over (success
-// or timeout). Returns the total number approved and any terminal error
-// (context cancellation/deadline is not treated as an error - that is the
-// normal way this function stops).
+// TODO: remove this approver when Karpenter supplies an auto-approver for node
+// CSRs.
 //
-// This is a workaround, not a fix: there is no CSR auto-approver for
-// Karpenter-provisioned nodes on Azure today (unlike ROSA's
-// MachineApproverController) - it's a capability that was left behind when
-// Karpenter was split out of the HyperShift-embedded operator into the
-// standalone karpenter-operator and never reimplemented there. Track the real
-// fix separately; do not read a passing e2e run as evidence this gap is closed.
+// RunKarpenterNodeCSRApprover approves pending kubelet-bootstrap
+// CertificateSigningRequests at each pollInterval. It stops when the context
+// ends.
+//
+// Run it in a background goroutine while the test waits for node readiness. A
+// Karpenter-provisioned node sends two CSRs at times that are not predictable:
+// first a client CSR, then a serving CSR. No signal shows that no more CSRs
+// will arrive. Therefore this function approves each pending CSR until the
+// caller's context ends.
+//
+// The return values are the number of approved CSRs and a terminal error. A
+// context cancellation is not an error. It is the usual way to stop this
+// function.
+//
+// This function is a workaround. It is not a fix. Azure has no CSR
+// auto-approver for Karpenter-provisioned nodes today. ROSA uses the
+// MachineApproverController for this task. The capability was lost when
+// Karpenter moved out of the HyperShift-embedded operator into the standalone
+// karpenter-operator. The standalone karpenter-operator does not implement that
+// capability. Track the real fix in a separate item. A passing e2e run does not
+// show that this gap is closed.
 func RunKarpenterNodeCSRApprover(ctx context.Context, adminRESTConfig *rest.Config, pollInterval time.Duration) (int, error) {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
@@ -313,19 +427,21 @@ func RunKarpenterNodeCSRApprover(ctx context.Context, adminRESTConfig *rest.Conf
 				return false, fmt.Errorf("failed to approve CertificateSigningRequest %q: %w", csr.Name, err)
 			}
 			approved++
-			// Logged per-approval (not just the final count) so a run's timeline
-			// can be correlated against node/NodeClaim creation timestamps when
-			// debugging why Karpenter provisioned more nodes than expected -
-			// requestor/signerName distinguish the client-cert vs serving-cert
-			// CSR a node typically submits.
+			// Log each approval, not only the final count. Then a run timeline
+			// can be compared with the Node and NodeClaim creation times when
+			// Karpenter provisions more nodes than expected. The requestor and
+			// the signerName identify the client CSR and the serving CSR of a
+			// node.
 			ginkgo.GinkgoLogr.Info("approved Karpenter node CSR",
 				"name", csr.Name, "requestor", csr.Spec.Username, "signerName", csr.Spec.SignerName,
 				"creationTimestamp", csr.CreationTimestamp.Time, "totalApproved", approved)
 		}
-		return false, nil // never "done" on its own; only ctx ending stops this loop
+		// Never report done here. Only the end of the context stops this loop.
+		return false, nil
 	})
 	if err != nil && ctx.Err() == nil {
-		// A real, non-cancellation error (e.g. a CSR approval call failed).
+		// A real error. A failed CSR approval is an example. A context
+		// cancellation is not an error.
 		return approved, err
 	}
 	return approved, nil
@@ -337,14 +453,16 @@ func isCSRApproved(csr *certificatesv1.CertificateSigningRequest) bool {
 			return true
 		}
 		if c.Type == certificatesv1.CertificateDenied && c.Status == corev1.ConditionTrue {
-			return true // denied is terminal too; don't try to approve it
+			// A denied CSR is also final. Do not try to approve it.
+			return true
 		}
 	}
 	return false
 }
 
-// isKubeletBootstrapCSR reports whether csr looks like a kubelet bootstrap
-// request (client or serving) rather than some unrelated CSR in the cluster.
+// isKubeletBootstrapCSR reports whether the CSR is a kubelet bootstrap request
+// for a client certificate or a serving certificate. It rejects unrelated CSRs
+// in the cluster.
 func isKubeletBootstrapCSR(csr *certificatesv1.CertificateSigningRequest) bool {
 	switch {
 	case csr.Spec.Username == "system:serviceaccount:openshift-machine-config-operator:node-bootstrapper":
