@@ -91,12 +91,27 @@ func TestKASLiveness(t *testing.T) {
 				if live.Target != wantTarget || live.Liveness != nil || live.Stage != "complete" || !live.TLSVerified || !live.TLSVerify || live.HTTPStatus != tc.liveStatus || live.Expected200 != (tc.liveStatus == 200) || (live.Error == "") != (tc.liveStatus == 200) {
 					t.Fatalf("incorrect liveness result: %+v", live)
 				}
-				if live.Source == result.Source || !strings.HasPrefix(live.Source, "127.0.0.2:") || live.Destination != result.Destination || !live.StartedAt.After(result.StartedAt) || live.Timings["tls"] <= 0 {
-					t.Fatal("liveness did not use a fresh connection to the same destination and source IP")
+				if live.Source == result.Source {
+					t.Errorf("liveness source must differ from readiness source: readiness=%q liveness=%q", result.Source, live.Source)
+				}
+				if !strings.HasPrefix(live.Source, "127.0.0.2:") {
+					t.Errorf("liveness source must have prefix %q: readiness=%q liveness=%q", "127.0.0.2:", result.Source, live.Source)
+				}
+				if live.Destination != result.Destination {
+					t.Errorf("liveness destination must equal readiness destination: readiness=%q liveness=%q", result.Destination, live.Destination)
+				}
+				if !live.StartedAt.After(result.StartedAt) {
+					t.Errorf("liveness start must be after readiness start: readiness=%s liveness=%s delta=%s", result.StartedAt.Format(time.RFC3339Nano), live.StartedAt.Format(time.RFC3339Nano), live.StartedAt.Sub(result.StartedAt))
+				}
+				if live.Timings["tls"] <= 0 {
+					t.Errorf("liveness TLS duration must be > 0 ms: readiness=%g ms liveness=%g ms", result.Timings["tls"], live.Timings["tls"])
 				}
 			}
-			if hits.Load() != wantHits || handshakes.Load() != wantHits {
-				t.Fatalf("requests=%d handshakes=%d want=%d", hits.Load(), handshakes.Load(), wantHits)
+			if hits.Load() != wantHits {
+				t.Errorf("request count: got=%d want=%d", hits.Load(), wantHits)
+			}
+			if handshakes.Load() != wantHits {
+				t.Errorf("TLS handshake count: got=%d want=%d", handshakes.Load(), wantHits)
 			}
 			var output bytes.Buffer
 			if err := writeResult(&output, Result{Targets: []Observation{result}}); err != nil {
