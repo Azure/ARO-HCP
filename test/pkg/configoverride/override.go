@@ -50,6 +50,8 @@ type Inputs struct {
 	ARMHelperLeases              []string
 	MSIContainers                string
 	InfrastructureIdentityBundle string
+	// RawOverrides are applied last, over everything else, to the document root.
+	RawOverrides []RawOverride
 }
 
 type Paths struct {
@@ -110,6 +112,12 @@ func InputsFromEnvironment(environ []string) (Inputs, error) {
 			input.RunCostTagValue = value
 		case "CI_RP_ALLOWED_SOURCE":
 			input.CIRPAllowedSource = value
+		case RawConfigOverridesEnv:
+			overrides, err := ParseRawOverrides(strings.Split(value, "\n"))
+			if err != nil {
+				return Inputs{}, fmt.Errorf("%s: %w", RawConfigOverridesEnv, err)
+			}
+			input.RawOverrides = append(input.RawOverrides, overrides...)
 		default:
 			if strings.HasSuffix(name, "_IMAGE") {
 				input.Images[name] = value
@@ -189,6 +197,9 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 		if _, err := publicip.ParseIPv4(input.CIRPAllowedSource); err != nil {
 			return Result{}, fmt.Errorf("CI_RP_ALLOWED_SOURCE must be a single IPv4 address, got %q: %w", input.CIRPAllowedSource, err)
 		}
+	}
+	if err := checkRawOverrideConflicts(input.RawOverrides); err != nil {
+		return Result{}, err
 	}
 
 	defaults := map[string]interface{}{}
@@ -280,6 +291,10 @@ func Generate(input Inputs, paths Paths) (Result, error) {
 			}
 			mergeMaps(root, overlay)
 		}
+	}
+	// Raw overrides win over every generated value and the Hypershift overlay.
+	if err := applyRawOverrides(root, input.RawOverrides); err != nil {
+		return Result{}, err
 	}
 	data, err := yaml.Marshal(root)
 	if err != nil {
