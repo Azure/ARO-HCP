@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -38,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	internalcontroller "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -82,14 +85,15 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		listerCluster     *coreapi.Cluster
-		existingNodePool  *coreapi.NodePool
-		listerNodePool    *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
-		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
-		wantErr           bool
-		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		name               string
+		listerCluster      *coreapi.Cluster
+		existingNodePool   *coreapi.NodePool
+		listerNodePool     *coreapi.NodePool // Optional. If not provided, existingNodePool is used as the listerNodePool
+		setupMockCSClient  func(mock *ocm.MockClusterServiceClientSpec)
+		wantErr            bool
+		wantErrContain     string
+		verifyDB           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
+		retryAfterCooldown bool
 	}{
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
@@ -189,6 +193,29 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			wantErrContain: "post failed",
 		},
 		{
+			name:             "when CS cluster is installing node pool creation waits for the next sync",
+			listerCluster:    newTestCluster(t, nil),
+			existingNodePool: newTestNodePoolForCreate(t, nil),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetNodePool(gomock.Any(), nodePoolCSInternalID).
+					Return(nil, fakeOCMNotFoundError()).Times(2)
+				mock.EXPECT().
+					PostNodePool(gomock.Any(), clusterCSInternalID, gomock.Any()).
+					Return(nil, fakeOCMError(http.StatusBadRequest, "Node pools can only be created on clusters in an updatable state, cluster requested is in 'installing' state."))
+				csNodePool, err := arohcpv1alpha1.NewNodePool().
+					ID(testNodePoolName).
+					HREF(testNodePoolCSIDStr).
+					Build()
+				require.NoError(t, err)
+				mock.EXPECT().
+					PostNodePool(gomock.Any(), clusterCSInternalID, gomock.Any()).
+					Return(csNodePool, nil)
+			},
+			verifyDB:           verifyClusterServiceIDIsSet,
+			retryAfterCooldown: true,
+		},
+		{
 			name:             "when PostNodePool returns 400 OCM error reconciler returns error",
 			listerCluster:    newTestCluster(t, nil),
 			existingNodePool: newTestNodePoolForCreate(t, nil),
@@ -253,11 +280,15 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, listerNodePool)
 			}
 
+			fakeClock := clocktesting.NewFakeClock(time.Now())
+			installingRetryCooldown := internalcontroller.NewSettableCooldownChecker()
+			installingRetryCooldown.SetClock(fakeClock)
 			syncer := &nodePoolClusterServiceCreateSyncer{
-				nodePoolLister:        &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
-				resourcesDBClient:     mockResourcesDBClient,
-				clustersServiceClient: mockCSClient,
+				nodePoolLister:          &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				clusterLister:           &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
+				resourcesDBClient:       mockResourcesDBClient,
+				clustersServiceClient:   mockCSClient,
+				installingRetryCooldown: installingRetryCooldown,
 			}
 
 			err = syncer.SyncOnce(ctx, testKey)
@@ -269,6 +300,12 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			if tc.retryAfterCooldown {
+				require.NoError(t, syncer.SyncOnce(ctx, testKey), "informer updates must not trigger another POST during cooldown")
+				verifyClusterServiceIDIsNil(t, ctx, mockResourcesDBClient)
+				fakeClock.Step(time.Minute + time.Second)
+				require.NoError(t, syncer.SyncOnce(ctx, testKey), "retry after cooldown")
+			}
 
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
