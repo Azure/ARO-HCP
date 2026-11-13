@@ -122,6 +122,12 @@ spec:
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
         correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
     # ----------------------------------------
+    # Note: there is deliberately no separate "degradation" precursor alert.
+    # A >15% / 30m precursor was considered and rejected: above 30% it fires at
+    # exactly the same time as Errors6h30m (same 30m 'for'), producing a Sev 4
+    # ticket shadowing every Sev 3 page for one condition. Its only unique
+    # coverage was the 15-30% band, where Errors3d already tickets at 6h.
+    # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
     # Per ADR: slow burn alerts generate a ticket, not a page.
@@ -143,13 +149,6 @@ spec:
         description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
         correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
-    # ----------------------------------------
-    # Note: there is deliberately no separate "degradation" precursor alert.
-    # A >15% / 30m precursor was considered and rejected: above 30% it fires at
-    # exactly the same time as Errors6h30m (same 30m 'for'), producing a Sev 4
-    # ticket shadowing every Sev 3 page for one condition. Its only unique
-    # coverage was the 15-30% band, where Errors3d already tickets at 6h.
-    # ----------------------------------------
   # ========================================
   # Cluster Update SLO Alerts — Stuck Operations
   # ========================================
