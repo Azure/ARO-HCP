@@ -11,6 +11,7 @@ digraph cluster_create {
   fleet [label="Fleet readiness + capacity\nSee placement panel", fillcolor="#e4f2e5", color="#4c8053"];
   azure [label="Azure prerequisites panel\nconfirmed group + deny assignments", fillcolor="#e4f2e5", color="#4c8053"];
   create [label="ClusterClusterServiceCreate", fillcolor="#e6f0fa", color="#35648a"];
+  federation [label="Data-plane OIDC federation panel\nall required operators: target identity ensured\nlast observation, not live Azure health", fillcolor="#e4f2e5", color="#4c8053"];
   cs [label="Cluster Service cluster exists\nClusterServiceID confirmed\nContinue in convergence panel", fillcolor="#e4f2e5", color="#4c8053"];
   put -> sp [label="missing service-provider\ndocument"];
   put -> id [label="missing pending/confirmed ID"];
@@ -22,6 +23,9 @@ digraph cluster_create {
   sp -> azure [label="group + identity inputs"];
   id -> azure [label="pending ID enables denies"];
   id -> create [label="pending ID"];
+  id -> federation [label="pending ID permits credential naming"];
+  put -> federation [label="desired operator identities"];
+  federation -> create [label="required before adoption / POST\nAND other prerequisites"];
   ver -> create [label="desired exact version"];
   place -> create [label="Spec.ManagementClusterResourceID"];
   azure -> create [label="deny precondition if enabled"];

@@ -1,0 +1,35 @@
+digraph dataplane_oidc_federation {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.7", fontname="DejaVu Sans", fontsize=18, labelloc=t, label="Data-plane OIDC federation · durable intent, Azure effects and retirement", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  inputs [label="Cluster desired operator identities\n+ ARM-resolved identity metadata\nno CS ID prerequisite for intent", fillcolor="#e4f2e5", color="#4c8053"];
+  cs_id [label="Pending-or-confirmed CS ID\ncredential naming prerequisite", fillcolor="#e4f2e5", color="#4c8053"];
+  intent [label="DataPlaneWorkloadIdentity\nOIDCFederationIntentController\n1m resync; no Azure writes"];
+  target [label="Provider assignment per identity + operator\nTargetIdentity = ClientID / PrincipalID / TenantID\nreplacement clears prior tracking / stamp", fillcolor="#e4f2e5", color="#4c8053"];
+  executor [label="DataPlaneWorkloadIdentity\nOIDCFederationController\nnondeleting + current assignment + CS ID"];
+  pending [label="Persist pending credential IDs first\nclear stamp for outstanding desired IDs\nETag conflict stops this pass", fillcolor="#e4f2e5", color="#4c8053"];
+  azure [label="Azure federated identity credentials\nGET; CreateOrUpdate if different\nDELETE obsolete tracked IDs", fillcolor="#fff0da", color="#b27624"];
+  stamp [label="EnsuredIdentity = TargetIdentity\nafter all desired credentials ensured\nfailed recheck can retain stamp", fillcolor="#e4f2e5", color="#4c8053"];
+  gates [label="CS-create / ARM-create observers\nEVERY required operator: matching stamp\nAND nil deconfigure timestamp\nAND independent lifecycle prerequisites"];
+  removed [label="Operator removed / repointed\nOR all cluster-retirement predicates:\ndeleting + CS deletion stamped + nil CS ID", fillcolor="#e4f2e5", color="#4c8053"];
+  draining [label="Intent stamps new retirement\nno stamp and no tracked IDs: drop assignment\nalready draining: preserve stamp\ndesired again cancels retirement"];
+  delete [label="Executor deconfigure\nlive cluster: wait 24h from stamp\ndeleting cluster: bypass wait"];
+  cleanup [label="Delete confirmed + pending IDs\nSMI absent: skip Azure deletes\nDeconfigure tolerates NotFound /\nParentResourceNotFound / AuthorizationFailed", fillcolor="#fff0da", color="#b27624"];
+  empty [label="Remove completed assignment\nother errors retain remaining IDs\nempty map removes recheck time", fillcolor="#e4f2e5", color="#4c8053"];
+  provider [label="ClusterChildResourcesCleanupController\nzero confirmed AND pending FIC IDs\nAND other provider cleanup prerequisites\nnot proof of physical Azure absence"];
+  inputs -> intent [label="cached desired state + resolved metadata"];
+  intent -> target [label="replace changed map"];
+  target -> executor [label="unensured / changed set / recheck due"];
+  cs_id -> executor [label="required for ensure, not intent\nAND current nondeleting assignment"];
+  executor -> pending [label="durable before external calls"];
+  pending -> azure [label="issuer = configured base + cluster tenant / CS ID\nsubject = configured service account; audience = openshift"];
+  azure -> stamp [label="all desired calls succeeded\nrecord per-assignment progress"];
+  stamp -> gates [label="last-ensured predicate", style=dashed, color="#857456"];
+  stamp -> executor [label="1m resync; idle Azure recheck 1–1.5h\nnew work bypasses cooldown", style=dashed, color="#857456", constraint=false];
+  removed -> draining [label="reconcile removal intent"];
+  draining -> delete [label="stamp exists; grace elapsed or deleting"];
+  delete -> cleanup [label="union of tracked IDs"];
+  cleanup -> empty [label="success / tolerated outcomes"];
+  empty -> provider [label="tracking empty; other gates still required"];
+  cleanup -> delete [label="other errors: persist remaining IDs and retry", style=dashed, color="#857456", constraint=false];
+}

@@ -13,8 +13,10 @@ digraph capacity_reporting {
   report [label="CapacityReport cluster · status SSA\natomic hostedControlPlanes\nresources / readyResources / size buckets\nlegacy usage/requested = overall totals\nReportCurrent=True + LastReportedAt", fillcolor="#e4f2e5", color="#4c8053"];
   failure [label="Collection failure\npreserve prior payload / absent fields / timestamp\nReportCurrent=False", fillcolor="#fbe8e5", color="#a64f43"];
   mirror [label="ReadDesireKubernetesController\nmirror report into Cosmos"];
-  scheduling [label="Fleet CapacityReportingController\nlegacy totals + ready/not-ready ID lists\nmirror even stale; mark freshness separately"];
-  average [label="HCPResourceRequirementsController\ncurrent reports with ready IDs only\nlegacy totals / ready-ID count\nnew ready-only and size totals NOT consumed"];
+  scheduling [label="Fleet CapacityReportingController\nlive ManagementCluster GET required\ncurrent + overall totals: replace observations\nand drop observed pending reservations"];
+  retained [label="Non-current / missing overall totals\nCapacityDataCurrent=False / Unknown\nretain observations, IDs and reservations", fillcolor="#fbe8e5", color="#a64f43"];
+  average [label="HCPResourceRequirementsController\ncurrent reports with ready IDs only\ndefault: readyResources / ready-ID count\nper size: bucket readyResources / readyCount"];
+  requirements [label="default + observed + existing configurations\nSamplesAvailable; no samples clears averages\nETag replace only on change; LastUpdatedAt\nnot a freshness or placement gate", fillcolor="#e4f2e5", color="#4c8053"];
   cache -> collect [label="cached inputs"];
   metrics -> collect [label="container usage"];
   collect -> nodes [label="role=worker + SKU"];
@@ -28,7 +30,9 @@ digraph capacity_reporting {
   collect -> failure [label="collection error"];
   report -> mirror [label="observed content"];
   failure -> mirror [label="stale retained content", style=dashed, color="#857456"];
-  mirror -> scheduling [label="legacy scheduling inputs"];
-  mirror -> average [label="legacy sample inputs"];
+  mirror -> scheduling [label="overall HCP totals + ID lists\nno legacy fallback / no age check"];
+  scheduling -> retained [label="ReportCurrent not True\nor overall totals absent"];
+  mirror -> average [label="ready-only / size populations\nskip unavailable or non-current reports"];
+  average -> requirements [label="positive samples: True/Computed\nzero samples: False/NoSamples"];
   failure -> collect [label="next periodic pass", style=dashed, color="#857456", constraint=false];
 }

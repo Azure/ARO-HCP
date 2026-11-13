@@ -1,0 +1,27 @@
+digraph acm_uninstall {
+  graph [rankdir=TB, bgcolor="white", pad=0.3, nodesep=0.45, ranksep=0.55, fontname="DejaVu Sans", fontsize=18, labelloc=t, label="ACM uninstall · guarded management-cluster migration", dpi=110];
+  node [shape=box, style="rounded,filled", fillcolor="#e6f0fa", color="#35648a", fontname="DejaVu Sans", fontsize=12, margin="0.16,0.10"];
+  edge [color="#536577", fontname="DejaVu Sans", fontsize=10, arrowsize=0.7];
+  startup [label="Management-agent leader election\nacm-uninstall: one startup key / one worker", fillcolor="#eee7fb", color="#7b59a4"];
+  owners [label="Live ownership prerequisites · ALL must pass\nPodNetworks + PodNetworkInstances\nHostedClusters + selected HC-namespace resources\nHC namespace + derived HCP namespace\nNo AppliedManifestWork / OCM-group owner reference"];
+  patch [label="GET hypershift/operator Deployment\nmerge-patch not-by-mce=true if needed\nwait for subsequent GET confirmation"];
+  latch [label="Latch prerequisites in memory\nDo not recheck ownership until reconstruction", fillcolor="#e4f2e5", color="#4c8053"];
+  mce [label="Delete MultiClusterEngine/multiclusterengine\nwait until absent"];
+  namespace [label="Delete namespace multicluster-engine\nwait until absent; do not clear finalizers"];
+  works [label="List all AppliedManifestWorks\nclear all finalizers with Update, then Delete\nwait for empty list"];
+  crds [label="Delete CRDs ending .open-cluster-management.io\nwait for empty matching list"];
+  complete [label="Observed uninstall complete\nNo Cosmos / ARM-operation writes", fillcolor="#e4f2e5", color="#4c8053"];
+  note [label="Background migration, not an individual cluster gate\nDoes not transfer owner references itself\nPending steps: 30s; errors: rate-limited retries\nExternal finalizers can keep deletion pending", fillcolor="#fff0da", color="#b27624"];
+  startup -> owners [label="prerequisites not latched"];
+  owners -> owners [label="ACM owner remains: retry", style=dashed, color="#857456"];
+  owners -> patch [label="all ownership checks pass"];
+  patch -> patch [label="patched / not confirmed: retry", style=dashed, color="#857456"];
+  patch -> latch [label="annotation observed true"];
+  latch -> mce [label="begin ordered teardown"];
+  mce -> namespace [label="MCE absent"];
+  namespace -> works [label="namespace absent"];
+  works -> crds [label="no AppliedManifestWorks"];
+  crds -> complete [label="no matching CRDs"];
+  complete:e -> mce:e [label="15m idle recheck\nprerequisites stay latched", style=dashed, color="#857456", constraint=false];
+  complete -> note [style=invis];
+}
