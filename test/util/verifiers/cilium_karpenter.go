@@ -148,11 +148,10 @@ func (v verifyCiliumCrossNodePodTraffic) Verify(ctx context.Context, adminRESTCo
 		if err := ciliumTrafficSourceReady(source); err != nil {
 			return err
 		}
-		if !nodeReadyAndSchedulable(target) {
-			return fmt.Errorf("target node %q must remain Ready and schedulable", target.Name)
-		}
-		if _, ok := target.Labels[framework.KarpenterNodePoolLabel]; ok {
-			return fmt.Errorf("target node %q must not have a Karpenter NodePool label", target.Name)
+		// Same gate as the selection step. It accepts a Karpenter node as the
+		// target and requires that node to be initialized and untainted.
+		if err := ciliumTrafficTargetReady(target); err != nil {
+			return err
 		}
 		config, err := kubeClient.CoreV1().ConfigMaps(v.options.CiliumNamespace).Get(ctx, "cilium-config", metav1.GetOptions{})
 		if err != nil {
