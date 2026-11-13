@@ -43,7 +43,7 @@ func newTestController(t *testing.T) *Controller {
 		CIJobOutcomes: config.CIJobOutcomesConfig{ClusterURI: "http://127.0.0.1:8080", IngestionURI: "http://127.0.0.1:8081", Database: "test",
 			Outcomes: config.KustoTableConfig{Table: "ciJobOutcomes"}, TestNames: config.KustoTableConfig{Table: "ciTestNames"}, TestResults: config.KustoTableConfig{Table: "ciTestResults"}},
 		CIFailurePatterns: config.CIFailurePatternsConfig{Results: config.KustoTableConfig{Table: "ciFailurePatterns", IngestionMapping: "ciFailurePatternsMapping"}, Interval: "10ms", CacheTTL: "1h"},
-		Tenants:           []config.TenantConfig{{TenantID: "t", ServicePrincipalClientId: "c", KeyVaultSecretName: "s"}},
+		Tenants:           []config.TenantConfig{{TenantID: "t", ClientIDKeyVaultSecretName: "c", ClientSecretKeyVaultSecretName: "s"}},
 	}
 	require.NoError(t, cfg.Validate())
 	c := NewController(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))

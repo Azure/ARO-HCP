@@ -45,9 +45,9 @@ func testConfig(t *testing.T) *config.Config {
 	cfg := &config.Config{
 		Timeout: "5s",
 		Tenants: []config.TenantConfig{{
-			TenantID:                 "tenant",
-			ServicePrincipalClientId: "client",
-			KeyVaultSecretName:       "secret",
+			TenantID:                       "tenant",
+			ClientIDKeyVaultSecretName:     "client",
+			ClientSecretKeyVaultSecretName: "secret",
 		}},
 		CIJobOutcomes: config.CIJobOutcomesConfig{
 			ClusterURI: "http://localhost:8080", IngestionURI: "http://localhost:8081", Database: "local",
