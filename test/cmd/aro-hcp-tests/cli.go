@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
+	gathermustgather "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-must-gather"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/infra"
@@ -260,6 +261,7 @@ func setupCli() (*cobra.Command, error) {
 	root.AddCommand(metadataapi.Must(mergegate.NewCommand()))
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))
+	root.AddCommand(metadataapi.Must(gathermustgather.NewCommand()))
 	root.AddCommand(metadataapi.Must(gatherobservability.NewCommand()))
 	root.AddCommand(metadataapi.Must(gathersnapshot.NewCommand()))
 	root.AddCommand(metadataapi.Must(slotmanager.NewCommand()))
