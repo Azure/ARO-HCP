@@ -30,6 +30,14 @@ files matching `.*-summary.*\.html` inline. Emitting **one** such file (rather
 than one per panel) means Spyglass shows a single inline iframe with tabs instead
 of a separate collapsible section per panel.
 
+### Persistent-environment mode (`--persistent-env`)
+
+INT/STG/PROD runs have no per-run management cluster, so `runEnv`
+(`env_alerts.go`) attributes alerts with one query against the environment
+Kusto cluster (test RGs → cids → `alertEvents` by namespace cid) and writes the
+same artifacts as dev runs. Collection failures are recorded but do not fail the
+step; un-annotated fired alerts still do.
+
 ### Adding or changing a chart
 
 Edit `test/cmd/aro-hcp-tests/gather-observability/queries.yaml`. Each entry under
