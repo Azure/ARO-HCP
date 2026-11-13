@@ -163,9 +163,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "image-updater-monitor"
-            # TODO: pin a digest once the image-updater-monitor image is built
-            # and pushed by CI (follows the tenant-quota-collector convention).
-            digest: ""
+            digest: sha256:d2ce19e904af2a9949e0985ab6595e7cfae3651cd8a6c328695b037b1ec0568f # 9aa533e286a4cf68998eb0959177eeeacc92ed5c (2026-11-11 05:55)
           prow:
             baseURL: "https://prow.ci.openshift.org"
             jobRegex: "^periodic-ci-Azure-ARO-HCP-main-image-updater-"
