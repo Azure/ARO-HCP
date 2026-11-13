@@ -16,7 +16,9 @@ spec:
     - {{ .Release.Namespace }}
   endpoints:
   - port: metrics
-    interval: 5m
+    # Scrape well inside the 5m instant-vector lookback so remote-write
+    # delays cannot empty the alert-rule selectors and reset their timers.
+    interval: 30s
     path: /metrics
     relabelings:
     - action: replace
