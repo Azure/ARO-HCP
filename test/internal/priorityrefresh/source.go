@@ -128,6 +128,39 @@ func loadFile(repo, absPath string) (*fileContext, error) {
 	return context, nil
 }
 
+// ensureNoSymlinkComponents rejects any symlinked path component between the
+// checkout root and the file, so an edit can never leave the checkout.
+func ensureNoSymlinkComponents(repo, absPath string) error {
+	relative, err := filepath.Rel(repo, absPath)
+	if err != nil {
+		return fmt.Errorf("resolve %s within the checkout: %w", absPath, err)
+	}
+	current := repo
+	for _, part := range strings.Split(relative, string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s contains the symlink %s; refusing to edit it", absPath, current)
+		}
+	}
+	return nil
+}
+
+// commentBetween reports whether any comment overlaps the byte range.
+func (f *fileContext) commentBetween(start, end int) bool {
+	for _, group := range f.file.Comments {
+		groupStart := f.offset(group.Pos())
+		groupEnd := f.offset(group.End())
+		if groupStart < end && groupEnd > start {
+			return true
+		}
+	}
+	return false
+}
+
 // generated reports whether a file carries the standard generated-code marker.
 func generated(source []byte) bool {
 	for _, line := range strings.Split(string(source), "\n") {
@@ -269,32 +302,46 @@ func stringLiteral(expression ast.Expr) (string, bool) {
 	return value, true
 }
 
-// startPriorityIn finds a direct call to the imported labels package inside a
-// declaration's arguments. Dynamic spreads and aliased calls are not rewritten.
+// startPriorityIn finds the single direct StartPriority decorator of a
+// declaration. Only the declaration's own arguments are inspected: function
+// literals are the test body, so a call inside one is never a decorator. Spread
+// arguments and repeated decorators are rejected rather than rewritten, because
+// neither can be mapped onto one catalog label.
 func (f *fileContext) startPriorityIn(call *ast.CallExpr) (*ast.CallExpr, int, error) {
 	if f.labelsName == "" && !f.dotImport {
 		return nil, 0, nil
 	}
+	if call.Ellipsis.IsValid() {
+		return nil, 0, fmt.Errorf("%s:%d declaration spreads its arguments; refusing to edit it",
+			f.relPath, f.fset.Position(call.Pos()).Line)
+	}
 	var found *ast.CallExpr
+	matches := 0
 	for _, argument := range call.Args[1:] {
 		ast.Inspect(argument, func(node ast.Node) bool {
-			candidate, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			// A nested leaf declaration (a table's Entry rows) owns its own
-			// priority; it must never be read as a table-level decorator.
-			if leafCallNames[callName(candidate)] {
+			switch current := node.(type) {
+			case *ast.FuncLit:
 				return false
-			}
-			if f.isStartPriority(candidate) && found == nil {
-				found = candidate
+			case *ast.CallExpr:
+				// A nested leaf declaration (a table's Entry rows) owns its own
+				// priority; it must never be read as a table-level decorator.
+				if leafCallNames[callName(current)] {
+					return false
+				}
+				if f.isStartPriority(current) {
+					matches++
+					found = current
+				}
 			}
 			return true
 		})
 	}
-	if found == nil {
+	switch {
+	case matches == 0:
 		return nil, 0, nil
+	case matches > 1:
+		return nil, 0, fmt.Errorf("%s:%d declares StartPriority more than once; refusing to edit it",
+			f.relPath, f.fset.Position(call.Pos()).Line)
 	}
 	if len(found.Args) != 1 {
 		return nil, 0, fmt.Errorf("%s:%d StartPriority must take exactly one argument", f.relPath, f.fset.Position(found.Pos()).Line)

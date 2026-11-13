@@ -77,7 +77,7 @@ func reportDocument(t *testing.T, priority int) string {
 		"schema_version": 1,
 		"algorithm":      "environment-normalized-mean-v1",
 		"selection": map[string]any{
-			"origin": "https://hcp-dev-us-2.eastus2.kusto.windows.net/ServiceLogs",
+			"origin": "https://example.invalid/ServiceLogs",
 			"from":   "2026-01-01T00:00:00Z", "to": "2026-02-01T00:00:00Z", "job_filter": "e2e-parallel",
 		},
 		"min_samples":           3,

@@ -63,6 +63,7 @@ type fileChange struct {
 
 // ChangeSet is the process-local plan produced by Plan and consumed by Apply.
 type ChangeSet struct {
+	repo         string
 	files        []*fileChange
 	changes      []Change
 	unchanged    []string
@@ -110,6 +111,7 @@ func Plan(repo string, catalog et.ExtensionTestSpecs, report citests.PriorityRep
 		return ChangeSet{}, err
 	}
 	set := ChangeSet{
+		repo:         planner.repo,
 		changes:      planner.changes,
 		unchanged:    planner.unchanged,
 		insufficient: planner.insufficient,
@@ -433,6 +435,9 @@ func (p *planner) load(relPath string) (*fileContext, error) {
 	if !strings.HasPrefix(absPath, filepath.Join(p.repo, filepath.FromSlash(e2eDirectory))+string(filepath.Separator)) {
 		return nil, fmt.Errorf("%s escapes the %s subtree", relPath, e2eDirectory)
 	}
+	if err := ensureNoSymlinkComponents(p.repo, absPath); err != nil {
+		return nil, err
+	}
 	file, err := loadFile(p.repo, absPath)
 	if err != nil {
 		return nil, err
@@ -479,7 +484,12 @@ func (c *sourceCall) edit(priority int) (textEdit, error) {
 	if comma < 0 {
 		return textEdit{}, fmt.Errorf("cannot find the separator before StartPriority")
 	}
-	return textEdit{start: previousEnd + comma, end: argumentEnd, text: ""}, nil
+	start := previousEnd + comma
+	if f.commentBetween(start, argumentEnd) {
+		return textEdit{}, fmt.Errorf("%s:%d removing StartPriority would delete a comment; drop the decorator by hand",
+			f.relPath, f.fset.Position(c.node.Pos()).Line)
+	}
+	return textEdit{start: start, end: argumentEnd, text: ""}, nil
 }
 
 // checkSharedTargets refuses to rewrite a table-level priority whose descendants
@@ -500,8 +510,10 @@ func (p *planner) checkSharedTargets(planned map[string]Change) error {
 		line := call.file.fset.Position(call.node.Pos()).Line
 		// An unresolvable descendant still shares the table when its recorded
 		// locations point at the table declaration, so both views are required.
+		// Catalog locations identify the DescribeTable call, never the decorator.
 		candidates := append([]string{}, sharing[call.node]...)
-		key := call.file.relPath + ":" + strconv.Itoa(line)
+		tableLine := call.file.fset.Position(call.table.Pos()).Line
+		key := call.file.relPath + ":" + strconv.Itoa(tableLine)
 		candidates = append(candidates, p.locations[key]...)
 		for _, candidate := range candidates {
 			if _, resolved := p.resolved[candidate]; !resolved {

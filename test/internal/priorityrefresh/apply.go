@@ -29,8 +29,16 @@ import (
 // Apply publishes every planned file replacement. Each file is re-hashed first,
 // and a failure restores the files already replaced where possible.
 func Apply(changes ChangeSet) error {
+	if changes.repo == "" {
+		return fmt.Errorf("change set has no checkout path; plan the changes before applying them")
+	}
 	var replaced []writtenFile
 	for _, file := range changes.files {
+		// The checkout boundary is re-checked at publish time: a symlink created
+		// after planning must not redirect the write outside the repository.
+		if err := ensureNoSymlinkComponents(changes.repo, file.context.absPath); err != nil {
+			return restore(replaced, err)
+		}
 		current, err := os.ReadFile(file.context.absPath)
 		if err != nil {
 			return restore(replaced, fmt.Errorf("read %s before writing: %w", file.context.relPath, err))

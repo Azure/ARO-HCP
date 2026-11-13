@@ -610,3 +610,198 @@ func mustRead(t *testing.T, repo, relPath string) string {
 func itoa(value int) string {
 	return fmt.Sprintf("%d", value)
 }
+
+const bodyCallSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("body", func() {
+	It("should ignore a body call",
+		func(ctx context.Context) {
+			_ = ctx
+			_ = labels.StartPriority(0)
+		})
+})
+`
+
+const repeatedPrioritySource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("repeated", func() {
+	It("should reject repeated priorities",
+		labels.StartPriority(40),
+		labels.StartPriority(40),
+		func(ctx context.Context) {
+			_ = ctx
+		})
+})
+`
+
+const spreadSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var decorators = []any{labels.MIContainers(1)}
+
+var _ = Describe("spread", func() {
+	It("should reject spread arguments", append(decorators,
+		func(ctx context.Context) {
+			_ = ctx
+		})...)
+})
+`
+
+const commentedRemovalSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("commented", func() {
+	It("should keep its comment",
+		labels.MIContainers(2), // rationale for the isolation
+		labels.StartPriority(50),
+		func(ctx context.Context) {
+			_ = ctx
+		})
+})
+`
+
+const computedTableSource = `package e2e
+
+import (
+	"context"
+	"fmt"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("computed", func() {
+	DescribeTable("should share across entries",
+		labels.StartPriority(40),
+		func(ctx context.Context, version string) {
+			_ = ctx
+			_ = version
+		},
+		Entry("version 4.20", "4.20"),
+		Entry(fmt.Sprintf("version %s", "4.21"), "4.21"),
+	)
+})
+`
+
+func TestPlanIgnoresCallsInsideTestBodies(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/body.go": bodyCallSource})
+	name := "body should ignore a body call"
+	line := itoa(lineOf(t, repo, "test/e2e/body.go", "should ignore a body call"))
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 0, "test/e2e/body.go:"+line)}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 20, 18)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(changes); err != nil {
+		t.Fatal(err)
+	}
+	if got := effectivePriority(t, repo, "test/e2e/body.go", name); got != 20 {
+		t.Fatalf("effective priority = %d, want 20", got)
+	}
+	mustContain(t, repo, "test/e2e/body.go", "_ = labels.StartPriority(0)", "labels.StartPriority(20)")
+}
+
+func TestPlanRejectsUnmappableDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		source    string
+		needle    string
+		spec      string
+		catalog   int
+		proposal  int
+		substring string
+	}{
+		{name: "repeated", source: repeatedPrioritySource, needle: "should reject repeated priorities",
+			spec: "repeated should reject repeated priorities", catalog: 40, proposal: 90, substring: "more than once"},
+		{name: "spread", source: spreadSource, needle: "should reject spread arguments",
+			spec: "spread should reject spread arguments", catalog: 0, proposal: 20, substring: "spreads its arguments"},
+		{name: "comment", source: commentedRemovalSource, needle: "should keep its comment",
+			spec: "commented should keep its comment", catalog: 50, proposal: 0, substring: "would delete a comment"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			relPath := "test/e2e/" + tc.name + ".go"
+			repo := testRepo(t, map[string]string{relPath: tc.source})
+			line := itoa(lineOf(t, repo, relPath, tc.needle))
+			before := mustRead(t, repo, relPath)
+			catalog := et.ExtensionTestSpecs{catalogSpec(tc.spec, tc.catalog, relPath+":"+line)}
+			changes, err := Plan(repo, catalog, testReport(scoredRow(tc.spec, "id", tc.proposal, 20)))
+			if err == nil || !strings.Contains(err.Error(), tc.substring) {
+				t.Fatalf("error = %v, want %q", err, tc.substring)
+			}
+			if changes.Len() != 0 {
+				t.Fatalf("plan returned %d changes", changes.Len())
+			}
+			if after := mustRead(t, repo, relPath); after != before {
+				t.Fatalf("%s was modified by a rejected plan", relPath)
+			}
+		})
+	}
+}
+
+func TestPlanRejectsDirectorySymlink(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	outside := t.TempDir()
+	external := filepath.Join(outside, "spec.go")
+	if err := os.WriteFile(external, []byte(standaloneSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, "test/e2e/linked")); err != nil {
+		t.Fatal(err)
+	}
+	name := "suite should replace an existing priority"
+	line := itoa(lineOf(t, repo, "test/e2e/standalone.go", "should replace an existing priority"))
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/linked/spec.go:"+line)}
+	_, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("error = %v, want a symlink rejection", err)
+	}
+}
+
+func TestPlanTreatsUnresolvableTableDescendantAsShared(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/computed.go": computedTableSource})
+	tableLine := itoa(lineOf(t, repo, "test/e2e/computed.go", "should share across entries"))
+	entryLine := itoa(lineOf(t, repo, "test/e2e/computed.go", `Entry("version 4.20"`))
+	literal := "computed should share across entries version 4.20"
+	computed := "computed should share across entries version 4.21"
+	// The extension records the DescribeTable declaration for an entry it cannot
+	// locate, which is exactly the descendant the shared check must not miss.
+	catalog := et.ExtensionTestSpecs{
+		catalogSpec(literal, 40, "test/e2e/computed.go:"+entryLine),
+		catalogSpec(computed, 40, "test/e2e/computed.go:"+tableLine),
+	}
+	_, err := Plan(repo, catalog, testReport(scoredRow(literal, "id", 90, 60)))
+	if err == nil || !strings.Contains(err.Error(), "shared-priority-conflict") {
+		t.Fatalf("error = %v, want shared-priority-conflict", err)
+	}
+}
