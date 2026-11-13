@@ -30,6 +30,7 @@ require (
 	cloud.google.com/go/iam v1.7.0 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.4.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 // indirect
@@ -123,3 +124,5 @@ replace (
 	github.com/Azure/ARO-HCP/tooling/metricscache => ../metricscache
 	github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes
 )
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../../arohcp-cosmos-client

@@ -20,8 +20,8 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/metadataapihelpers"
 )
 
 func TestFindLowestAndHighestClusterVersion(t *testing.T) {

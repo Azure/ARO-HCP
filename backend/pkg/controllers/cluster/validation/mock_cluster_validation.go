@@ -18,8 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // MockClusterValidation is a ClusterValidation implementation for controller tests.

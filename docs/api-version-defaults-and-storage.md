@@ -302,7 +302,7 @@ flowchart TD
 - [ ] Allowed values. Immutability constraints.
 
 **6. Tests**
-- [ ] `internal/database/convert_defaults_consistency_test.go`:
+- [ ] `internal/azureapi/convert_defaults_consistency_test.go`:
   - [ ] Add field to `TestEnsureDefaultsConsistency*` (verifies canonical↔constructor↔versioned agreement)
   - [ ] Add field to `TestCSToRPDefaultsConsistency*` (verifies CS→RP matches canonical default)
   - [ ] Add field to `TestPreExistingData*` (verifies old Cosmos docs get the default)

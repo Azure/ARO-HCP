@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/apihelpers/coreapihelpers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 

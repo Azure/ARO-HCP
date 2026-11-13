@@ -21,6 +21,7 @@ updates:
   - '/admin'
   - '/backend'
   - '/internal'
+  - '/arohcp-cosmos-client'
   - '/tooling/mcerepkg'
   - '/tooling/prometheus-rules'
   - '/tooling/templatize'

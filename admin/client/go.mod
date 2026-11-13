@@ -29,3 +29,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../../internal
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../../arohcp-cosmos-client

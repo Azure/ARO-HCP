@@ -17,7 +17,7 @@ package backups
 import (
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 type BackupCadenceProfile string

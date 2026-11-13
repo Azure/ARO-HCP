@@ -13,8 +13,8 @@ package dns
 import (
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/fleetapi"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 func enqueueClusterForDNSClaim(queue controllerutils.Enqueuer) func(any) {

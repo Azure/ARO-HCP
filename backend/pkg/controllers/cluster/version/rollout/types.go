@@ -42,7 +42,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 // BestVersionSelector returns the upgrade-graph-selected best exact version for a

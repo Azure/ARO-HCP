@@ -7,6 +7,7 @@ replace github.com/Azure/ARO-HCP/internal => ../internal
 replace github.com/Azure/ARO-HCP/mgmt-agent => ../mgmt-agent
 
 require (
+	github.com/Azure/ARO-HCP/arohcp-cosmos-client v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/mgmt-agent v0.0.0-20260815230206-e4d13e8c96ca
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
@@ -138,3 +139,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/arohcp-cosmos-client => ../arohcp-cosmos-client

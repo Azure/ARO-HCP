@@ -1,0 +1,246 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package fleetapi
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/metadataapi"
+)
+
+// ManagementClusterConditionType represents the type of a management cluster condition.
+//
+// Condition lifecycle follows Kubernetes conventions:
+//   - Active conditions are added on first evaluation and retained. Retired conditions
+//     may be removed by the lifecycle controller.
+//   - Status is toggled between True/False/Unknown; absence means "not yet evaluated."
+//   - Each condition type is owned by exactly one controller (see ownership below).
+type ManagementClusterConditionType string
+
+// ManagementClusterConditionReason represents the reason for a management cluster condition.
+type ManagementClusterConditionReason string
+
+const (
+	// ManagementClusterConditionReady indicates the management cluster is
+	// provisioned and operational. This is an aggregate condition: True only
+	// when ClustersServiceRegistered and
+	// SharedIngressAvailable are all True.
+	// Owner: ManagementClusterLifecycleController.
+	ManagementClusterConditionReady ManagementClusterConditionType = "Ready"
+
+	// ManagementClusterConditionClustersServiceRegistered indicates whether the
+	// provision shard exists and is configured correctly in ClustersService.
+	// Owner: ClustersServiceRegistrationController.
+	ManagementClusterConditionClustersServiceRegistered ManagementClusterConditionType = "ClustersServiceRegistered"
+
+	// ManagementClusterConditionMaestroRegistered is retained for cleanup of legacy conditions.
+	// Owner: ManagementClusterLifecycleController.
+	ManagementClusterConditionMaestroRegistered ManagementClusterConditionType = "MaestroRegistered"
+
+	// ManagementClusterConditionSharedIngressAvailable indicates whether the
+	// shared-ingress router Service on the management cluster has been observed
+	// with at least one load balancer ingress IP.
+	// Owner: SharedIngressReportingController.
+	ManagementClusterConditionSharedIngressAvailable ManagementClusterConditionType = "SharedIngressAvailable"
+
+	// ManagementClusterConditionReasonProvisionShardActive indicates the CS provision
+	// shard is active and the management cluster is ready for scheduling.
+	ManagementClusterConditionReasonProvisionShardActive ManagementClusterConditionReason = "ProvisionShardActive"
+
+	// ManagementClusterConditionReasonProvisionShardMaintenance indicates the CS provision
+	// shard is in maintenance mode.
+	ManagementClusterConditionReasonProvisionShardMaintenance ManagementClusterConditionReason = "ProvisionShardMaintenance"
+
+	// ManagementClusterConditionReasonProvisionShardOffline indicates the CS provision
+	// shard is offline.
+	ManagementClusterConditionReasonProvisionShardOffline ManagementClusterConditionReason = "ProvisionShardOffline"
+
+	// ManagementClusterConditionReasonProvisionShardStatusUnknown indicates the CS provision
+	// shard has an unknown status.
+	ManagementClusterConditionReasonProvisionShardStatusUnknown ManagementClusterConditionReason = "ProvisionShardStatusUnknown"
+
+	// ManagementClusterConditionReasonRegistered indicates the downstream system
+	// (ClustersService) is configured correctly.
+	ManagementClusterConditionReasonRegistered ManagementClusterConditionReason = "Registered"
+
+	// ManagementClusterConditionReasonRegistrationFailed indicates the downstream system
+	// registration failed and could not be reestablished.
+	ManagementClusterConditionReasonRegistrationFailed ManagementClusterConditionReason = "RegistrationFailed"
+
+	// ManagementClusterConditionReasonRegistrationCheckFailed indicates the registration
+	// check failed but a previous registration was successful. The condition
+	// stays True to avoid regressing a known-good registration.
+	ManagementClusterConditionReasonRegistrationCheckFailed ManagementClusterConditionReason = "CheckFailed"
+
+	// ManagementClusterConditionReasonAllRegistered indicates all sub-conditions
+	// (ClustersServiceRegistered, SharedIngressAvailable) are True.
+	ManagementClusterConditionReasonAllRegistered ManagementClusterConditionReason = "AllRegistered"
+
+	// ManagementClusterConditionReasonRegistrationIncomplete indicates one or more
+	// sub-conditions are not True.
+	ManagementClusterConditionReasonRegistrationIncomplete ManagementClusterConditionReason = "RegistrationIncomplete"
+
+	// ManagementClusterConditionReasonSharedIngressIPsAvailable indicates the
+	// shared-ingress router Service has been mirrored and exposes at least one
+	// load balancer ingress IP.
+	ManagementClusterConditionReasonSharedIngressIPsAvailable ManagementClusterConditionReason = "SharedIngressIPsAvailable"
+
+	// ManagementClusterConditionReasonSharedIngressIPsUnavailable indicates the
+	// shared-ingress router Service has been mirrored but exposes no load
+	// balancer ingress IPs.
+	ManagementClusterConditionReasonSharedIngressIPsUnavailable ManagementClusterConditionReason = "SharedIngressIPsUnavailable"
+
+	// ManagementClusterConditionReasonSharedIngressIPsNotMirrored indicates the
+	// shared-ingress router Service has not been mirrored yet (the ReadDesire
+	// content is not yet populated).
+	ManagementClusterConditionReasonSharedIngressIPsNotMirrored ManagementClusterConditionReason = "SharedIngressIPsNotMirrored"
+)
+
+// ManagementClusterSchedulingPolicy controls whether new hosted control planes
+// may be scheduled onto a management cluster. Follows the Kubernetes typed
+// string enum pattern (like TaintEffect, RestartPolicy).
+type ManagementClusterSchedulingPolicy string
+
+const (
+	// ManagementClusterSchedulingPolicySchedulable allows new HCPs to be
+	// scheduled on the cluster (subject to Ready condition and capacity).
+	ManagementClusterSchedulingPolicySchedulable ManagementClusterSchedulingPolicy = "Schedulable"
+
+	// ManagementClusterSchedulingPolicyUnschedulable prevents new HCPs from
+	// being scheduled regardless of capacity. Analogous to cordoning a
+	// Kubernetes Node via kubectl cordon.
+	ManagementClusterSchedulingPolicyUnschedulable ManagementClusterSchedulingPolicy = "Unschedulable"
+)
+
+// ValidManagementClusterSchedulingPolicies is the set of valid values for
+// ManagementClusterSchedulingPolicy.
+var ValidManagementClusterSchedulingPolicies = sets.New(
+	ManagementClusterSchedulingPolicySchedulable,
+	ManagementClusterSchedulingPolicyUnschedulable,
+)
+
+// ManagementCluster is a target for provisioning hosted control planes.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ManagementCluster struct {
+	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
+	// it will be the ManagementClusterResourceTypeName.
+	// PartitionKey holds the lowercased stamp identifier of the parent Stamp;
+	// every fleet document for one stamp shares this partition key.
+	coreapi.CosmosMetadata `json:"cosmosMetadata"`
+
+	// Spec contains the desired state of the management cluster
+	Spec ManagementClusterSpec `json:"spec"`
+
+	// Status contains the observed state of the management cluster
+	Status ManagementClusterStatus `json:"status"`
+}
+
+// ManagementClusterSpec contains the desired state of a management cluster.
+type ManagementClusterSpec struct {
+	// SchedulingPolicy controls whether new hosted control planes can be scheduled
+	// on this management cluster.
+	//
+	// Valid values:
+	//   - "Schedulable": management cluster accepts new HCPs (subject to Ready
+	//     condition and capacity constraints)
+	//   - "Unschedulable": management cluster rejects new HCPs regardless of capacity
+	//     (analogous to cordoning a Kubernetes Node via kubectl cordon)
+	//
+	// Must be set explicitly. Empty string is not allowed.
+	//
+	// Ownership: currently synced from Cluster Service provision shard status
+	// by ManagementClusterMigrationController (temporary, during CS-to-Cosmos migration).
+	// Will transition to being owned by the admin API via a Geneva Action for
+	// SRE-initiated cordon/uncordon operations.
+	SchedulingPolicy ManagementClusterSchedulingPolicy `json:"schedulingPolicy"`
+}
+
+// ManagementClusterStatus contains the observed state of a management cluster.
+type ManagementClusterStatus struct {
+	// Conditions is a list of conditions tracking the lifecycle of the management cluster.
+	// Known condition types are defined as ManagementClusterConditionType constants:
+	// Ready, ClustersServiceRegistered, SharedIngressAvailable.
+	//
+	// Conditions are added on first evaluation and never removed. Status is toggled
+	// between True/False/Unknown. Absence of a condition means "not yet evaluated."
+	// Each condition type is owned by exactly one controller to avoid write conflicts.
+	//
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// AKSResourceID is the Azure resource ID of the AKS management cluster.
+	// Example: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/clustername"
+	//
+	// +required, validated as a well-formed ARM resource ID, immutable once set.
+	AKSResourceID *azcorearm.ResourceID `json:"aksResourceID,omitempty"`
+
+	// PublicDNSZoneResourceID is the Azure resource ID of the public DNS zone for the management cluster.
+	// Example: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"
+	//
+	// +required, validated as a well-formed ARM resource ID, immutable once set.
+	PublicDNSZoneResourceID *azcorearm.ResourceID `json:"publicDNSZoneResourceID,omitempty"`
+
+	// HostedClustersSecretsKeyVaultURL is the URL of the key vault containing secrets for hosted clusters on this management cluster.
+	// Example: "https://kv-hc-secrets.vault.azure.net"
+	//
+	// +required, validated as a well-formed URL, immutable once set.
+	HostedClustersSecretsKeyVaultURL string `json:"hostedClustersSecretsKeyVaultURL,omitempty"`
+
+	// HostedClustersManagedIdentitiesKeyVaultURL is the URL of the key vault containing managed identity backing certificates for hosted clusters.
+	// Example: "https://kv-hc-mi.vault.azure.net"
+	//
+	// +required, validated as a well-formed URL, immutable once set.
+	HostedClustersManagedIdentitiesKeyVaultURL string `json:"hostedClustersManagedIdentitiesKeyVaultURL,omitempty"`
+
+	// HostedClustersSecretsKeyVaultManagedIdentityClientID is the client ID of the managed identity
+	// used to access the hosted clusters secrets key vault.
+	// Example: "12345678-1234-1234-1234-123456789012"
+	//
+	// +required, validated as a UUID, immutable once set.
+	HostedClustersSecretsKeyVaultManagedIdentityClientID string `json:"hostedClustersSecretsKeyVaultManagedIdentityClientID,omitempty"`
+
+	// ClusterServiceProvisionShardID is the Cluster Service provision shard HREF for this management cluster.
+	// Example: "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	//
+	// +required, immutable once set.
+	ClusterServiceProvisionShardID *metadataapi.InternalID `json:"clusterServiceProvisionShardID,omitempty"`
+
+	// KubeApplierCosmosContainerName is the name of the Cosmos container that
+	// holds kube-applier *Desire documents for this management cluster.
+	//
+	// +required, immutable once set.
+	KubeApplierCosmosContainerName string `json:"kubeApplierCosmosContainerName,omitempty"`
+
+	// KubeApplierCosmosContainerMaxScale is the configured autoscale maximum
+	// throughput (RU/s) of the kube-applier Cosmos container, sourced from
+	// pipeline configuration (the same value used to provision the container
+	// via Bicep).
+	//
+	// +required, must be positive.
+	KubeApplierCosmosContainerMaxScale int32 `json:"kubeApplierCosmosContainerMaxScale,omitempty"`
+
+	// SharedIngressIPAddresses holds the load balancer ingress IP addresses of
+	// the shared-ingress router Service (namespace hypershift-sharedingress,
+	// name router) observed on the management cluster. It is cleared (nil) when
+	// shared ingress is not available.
+	//
+	// +optional
+	// Written by: SharedIngressReportingController.
+	SharedIngressIPAddresses []string `json:"sharedIngressIPAddresses,omitempty"`
+}

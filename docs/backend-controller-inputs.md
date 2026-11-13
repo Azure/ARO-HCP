@@ -28,7 +28,7 @@ external-auth, credential, subscription, operation and rollout names come from
 requests or runtime state. Service-provider and management-cluster singletons use
 the existing `coreapi`/`fleetapi` `ResourceName` constants for `default`.
 Fixed desire name identifiers below are declared in
-[`kubeapplierapi/resource_names.go`](../internal/api/kubeapplierapi/resource_names.go)
+[`kubeapplierapi/resource_names.go`](../arohcp-cosmos-client/api/kubeapplierapi/resource_names.go)
 and shared with producers/readers. Collection wildcards are justified in the
 last column; cleanup intentionally includes legacy or unexpected names.
 

@@ -24,8 +24,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 const (

@@ -17,7 +17,7 @@ package listertestingutils
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
 )
 
 // CollectFromIterator drains a cosmosstorageutils.DBClientIterator into a slice and propagates

@@ -36,9 +36,9 @@ Useful entry points (discover new ones rather than treating this as a closed lis
 - `sessiongate/pkg/controller/` and its startup wiring
 - `internal/controllerutils/`, `backend/pkg/utils/controllerutils/`,
   `internal/database/unioninformers/`
-- `internal/api/{coreapi,fleetapi,kubeapplierapi,metadataapi}/`,
-  `internal/apihelpers/{coreapihelpers,fleetapihelpers,kubeapplierapihelpers,metadataapihelpers}/`,
-  `internal/database/{cosmosstorage,informers,listers}/`
+- `arohcp-cosmos-client/api/{coreapi,fleetapi,kubeapplierapi,metadataapi}/`,
+  `arohcp-cosmos-client/apihelpers/{coreapihelpers,fleetapihelpers,kubeapplierapihelpers,metadataapihelpers}/`,
+  `arohcp-cosmos-client/storage/`, `internal/database/{informers,listers}/`
 - Azure client interfaces, OCM/Cluster Service adapters, desire builders,
   validation implementations, and lifecycle tests called by these controllers.
 

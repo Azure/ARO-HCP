@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // AzureClusterResourceGroupExistenceValidation validates that the Azure Resource

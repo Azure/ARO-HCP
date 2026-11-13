@@ -22,9 +22,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -163,7 +163,7 @@ func EnsureApplyDesireRemoved(
 // directly, leaving the object it applied (or the field it manages on a
 // foreign-owned object) untouched on the management cluster.
 //
-// Per the ApplyDesire contract (internal/api/kubeapplierapi/types_apply_desire.go):
+// Per the ApplyDesire contract (arohcp-cosmos-client/api/kubeapplierapi/types_apply_desire.go):
 // "Deleting an ApplyDesire from Cosmos has no effect on the kube object that
 // was applied or deleted. To stop reconciliation, remove the desire document."
 // Unlike EnsureApplyDesireRemoved (which flips the desire to Type=Delete so the

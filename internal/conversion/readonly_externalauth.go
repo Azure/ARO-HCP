@@ -14,7 +14,7 @@
 
 package conversion
 
-import "github.com/Azure/ARO-HCP/internal/api/coreapi"
+import "github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 
 func CopyReadOnlyProxyResourceValues(dest, src *coreapi.ProxyResource) {
 	dest.ID = src.ID

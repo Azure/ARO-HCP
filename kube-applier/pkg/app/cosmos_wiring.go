@@ -21,9 +21,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosclient"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosratelimit"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosclient"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/cosmosratelimit"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/storage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 

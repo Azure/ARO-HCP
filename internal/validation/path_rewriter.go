@@ -17,7 +17,7 @@ package validation
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/arohcp-cosmos-client/api/coreapi"
 )
 
 func RewriteValidationFieldPaths(internalValidationErrors field.ErrorList, validationPathMapperFn coreapi.ValidationPathMapperFunc) {
