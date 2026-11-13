@@ -54,6 +54,46 @@ type MaintenanceOptions struct {
 // ErrNoForge reports a command that needs remote read evidence.
 var ErrNoForge = errors.New("remote read adapters are not configured")
 
+// MaintenanceInventory assesses every open proposal owned by the robot identity.
+func (e *Engine) MaintenanceInventory(ctx context.Context, repository string) ([]model.MaintenanceDecision, error) {
+	if e.deps.Forge == nil {
+		return nil, ErrNoForge
+	}
+	pulls, err := e.deps.Forge.OpenPullRequests(ctx, policy.Robot)
+	if err != nil {
+		return nil, err
+	}
+	decisions := make([]model.MaintenanceDecision, 0, len(pulls))
+	for _, pull := range pulls {
+		kind, err := policy.OwnedKind(policy.PullRequest{
+			Number: pull.Number, Author: pull.Author, State: pull.State, Draft: pull.Draft,
+			Base: pull.BaseRef, HeadRef: pull.HeadRef, Title: pull.Title, Body: pull.Body,
+			Labels: pull.Labels, HeadRepo: pull.HeadRepo, BaseRepo: pull.BaseRepo,
+		}, repository)
+		if err != nil {
+			return nil, err
+		}
+		// Unrelated robot proposals (image digests, other automation) are not
+		// maintenance candidates and must not make the inventory fail.
+		if kind == "" {
+			continue
+		}
+		snapshot, err := e.deps.Forge.Snapshot(ctx, pull.Number, pull.HeadSHA)
+		if err != nil {
+			return nil, err
+		}
+		decision, err := policy.Assess(repository, pull.Number, pull.HeadSHA, snapshot)
+		if err != nil {
+			return nil, err
+		}
+		decisions = append(decisions, decision)
+	}
+	sort.Slice(decisions, func(left, right int) bool {
+		return decisions[left].PullRequest < decisions[right].PullRequest
+	})
+	return decisions, nil
+}
+
 // MaintenanceInspect assesses one owned proposal without mutating anything.
 func (e *Engine) MaintenanceInspect(ctx context.Context, repository string, number int, options MaintenanceOptions) (model.MaintenanceDecision, error) {
 	if e.deps.Forge == nil {
