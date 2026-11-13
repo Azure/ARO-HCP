@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/Azure/ARO-HCP/test/pkg/configoverride"
 	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
@@ -41,7 +42,7 @@ func clearEnvironment(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES", "BUILD_ID", "RUN_COST_TAG_VALUE",
+		"SHARED_DIR", "DEPLOY_ENV", "ARM_HELPER_POOL_CATALOG", "USE_OC_LOGIN_REGISTRIES", "BUILD_ID", "RUN_COST_TAG_VALUE", configoverride.RawConfigOverridesEnv,
 		leaseenv.MSIMockSP, leaseenv.ARMHelperSP, leaseenv.MSIContainers, leaseenv.InfrastructureIdentityBundle,
 		"BACKEND_IMAGE", "FRONTEND_IMAGE", "ADMIN_API_IMAGE", "SESSIONGATE_IMAGE", "HCP_RECOVERY_IMAGE",
 		"FLEET_IMAGE", "MGMT_AGENT_IMAGE", "SWIFT_RECORDER_IMAGE", "KUBE_APPLIER_IMAGE", "EXPORTER_IMAGE",
@@ -416,5 +417,63 @@ fi
 	}
 	if string(stdout) != strings.Repeat(registry, 2) {
 		t.Fatalf("adapter changed registry data: %q", stdout)
+	}
+}
+
+func TestRawConfigOverrides(t *testing.T) {
+	clearEnvironment(t)
+	shared := t.TempDir()
+	t.Setenv("SHARED_DIR", shared)
+	t.Setenv("DEPLOY_ENV", "ci00")
+	t.Setenv("USE_OC_LOGIN_REGISTRIES", "prior.example")
+	t.Setenv(configoverride.RawConfigOverridesEnv, "\nclouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize=Standard_D16ads_v6\n")
+	command := NewCommand()
+	var stdout, stderr bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetErr(&stderr)
+	command.SetArgs([]string{
+		"--raw-config-override", "clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.maxCount=9",
+		"--raw-config-override", "clouds.dev.environments.ci00.regions.westus3.svc.aks.systemAgentPool.minCount=2",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	// stdout stays pure registry data; overrides are reported on stderr only.
+	if stdout.String() != "prior.example\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	for _, entry := range []string{
+		"userAgentPool.vmSize=Standard_D16ads_v6", "userAgentPool.maxCount=9", "systemAgentPool.minCount=2",
+	} {
+		if !strings.Contains(stderr.String(), "raw config override applied: ") || !strings.Contains(stderr.String(), entry) {
+			t.Fatalf("stderr %q does not report %q", stderr.String(), entry)
+		}
+	}
+	pool := readDefaults(t, filepath.Join(shared, "config-override.yaml"), "ci00")["mgmt"].(map[string]any)["aks"].(map[string]any)["userAgentPool"]
+	// Environment entries, flag entries and generated healthcheck sizing coexist.
+	if want := map[string]any{"minCount": 1, "vmSize": "Standard_D16ads_v6", "maxCount": 9}; !reflect.DeepEqual(pool, want) {
+		t.Fatalf("userAgentPool = %#v, want %#v", pool, want)
+	}
+}
+
+func TestRawConfigOverrideRejectsInvalidInput(t *testing.T) {
+	for name, args := range map[string][]string{
+		"flag without value":   {"--raw-config-override", "a.b"},
+		"env and flag overlap": {"--raw-config-override", "a.b=2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clearEnvironment(t)
+			shared := t.TempDir()
+			t.Setenv("SHARED_DIR", shared)
+			t.Setenv("DEPLOY_ENV", "ci00")
+			t.Setenv(configoverride.RawConfigOverridesEnv, "a.b=1")
+			stdout, err := execute(args...)
+			if err == nil || stdout != "" {
+				t.Fatalf("stdout = %q, err = %v, want an error and no output", stdout, err)
+			}
+			if _, statErr := os.Stat(filepath.Join(shared, "config-override.yaml")); !os.IsNotExist(statErr) {
+				t.Fatalf("override file was published despite the error: %v", statErr)
+			}
+		})
 	}
 }

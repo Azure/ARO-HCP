@@ -33,6 +33,7 @@ func DefaultOptions() *RawOptions {
 		SourceDir: ".",
 		Environ:   os.Environ(),
 		Out:       os.Stdout,
+		ErrOut:    os.Stderr,
 	}
 	// All defaults and generator inputs come from the same environment snapshot.
 	for _, entry := range opts.Environ {
@@ -61,6 +62,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 	flags.StringVar(&opts.MSIMockCatalog, "msi-mock-pool-catalog", opts.MSIMockCatalog, "MSI mock catalog (default source-dir/dev-infrastructure/openshift-ci/msi-mock-pool.yaml)")
 	flags.StringVar(&opts.ARMHelperCatalog, "arm-helper-pool-catalog", opts.ARMHelperCatalog, "ARM helper catalog (default source-dir/dev-infrastructure/openshift-ci/arm-helper-pool.yaml)")
 	flags.StringVar(&opts.HypershiftOverlay, "hypershift-override-file", opts.HypershiftOverlay, "Hypershift overlay (default shared-dir/hypershift-image-overrides.yaml)")
+	flags.StringArrayVar(&opts.RawOverrides, "raw-config-override", opts.RawOverrides, fmt.Sprintf(
+		"Set a configuration key as path.to.key=value, repeatable. The path is rooted at the override document (e.g. clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize) "+
+			"and the value is YAML. Applied after, and over, every generated value, in addition to newline-separated entries in $%s", configoverride.RawConfigOverridesEnv))
 }
 
 type RawOptions struct {
@@ -71,8 +75,10 @@ type RawOptions struct {
 	MSIMockCatalog    string
 	ARMHelperCatalog  string
 	HypershiftOverlay string
+	RawOverrides      []string
 	Environ           []string
 	Out               io.Writer
+	ErrOut            io.Writer
 }
 
 type validatedOptions struct {
@@ -89,6 +95,7 @@ type completedOptions struct {
 	paths      configoverride.Paths
 	outputFile string
 	out        io.Writer
+	errOut     io.Writer
 }
 
 type Options struct {
@@ -104,6 +111,7 @@ func NewCommand() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(command *cobra.Command, _ []string) error {
 			opts.Out = command.OutOrStdout()
+			opts.ErrOut = command.ErrOrStderr()
 			validated, err := opts.Validate()
 			if err != nil {
 				return err
@@ -127,6 +135,11 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
+	flagOverrides, err := configoverride.ParseRawOverrides(o.RawOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("--raw-config-override: %w", err)
+	}
+	input.RawOverrides = append(input.RawOverrides, flagOverrides...)
 	input.DeployEnvironment = o.DeployEnvironment
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{RawOptions: o, input: input},
@@ -160,6 +173,7 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 			},
 			outputFile: outputFile,
 			out:        o.Out,
+			errOut:     o.ErrOut,
 		},
 	}, nil
 }
@@ -171,6 +185,13 @@ func (o *Options) Run(_ context.Context) error {
 	}
 	if err := configoverride.WriteOverride(o.outputFile, result.YAML); err != nil {
 		return err
+	}
+	// stdout is registry data for the shell adapter; report on stderr. Values
+	// are echoed verbatim, so raw overrides must never carry secrets.
+	for _, override := range o.input.RawOverrides {
+		if _, err := fmt.Fprintf(o.errOut, "raw config override applied: %s\n", override.Entry); err != nil {
+			return err
+		}
 	}
 	_, err = fmt.Fprintln(o.out, result.OCLoginRegistries)
 	return err

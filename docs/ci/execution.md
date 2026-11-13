@@ -332,6 +332,27 @@ Shared resources such as the leased identity pools, global Key Vault, and regist
 
 The deprovision step also uses the tag to find an aborted job's test resource groups (`cleanup resource-groups --job-id`).
 
+### Experimental Configuration Overrides
+
+A job can change any configuration key for one run without a dedicated change in this repository. Set `RAW_CONFIG_OVERRIDES` in the job's openshift/release configuration (the `aro-hcp-provision-environment` step declares it) to one `path.to.key=value` entry per line:
+
+```yaml
+env:
+  RAW_CONFIG_OVERRIDES: |
+    clouds.dev.environments.ci00.defaults.mgmt.aks.userAgentPool.vmSize=Standard_D16ads_v6
+    clouds.dev.environments.ci00.regions.westus3.mgmt.aks.userAgentPool.maxCount=4
+```
+
+The step wrapper, `hack/ci/provision-environment.sh` and the generator live in this repository, so an experiment never needs to merge: open an openshift/release PR that sets the variable on a job and run `/pj-rehearse` on it.
+
+- the path is rooted at the override document, which has the shape of `config/config.yaml`. The author picks the overlay that must win: an entry under `regions.<region>` in `config/config.yaml` beats the same key under `defaults`, so override that region entry instead (or as well)
+- the value is YAML: `3` is an integer, `true` a boolean, `"3"` a string, and `[a, b]` or `{x: 1}` are collections. Only the first `=` separates path from value, so values may contain `=`. Quote values containing `: ` or ` #`
+- entries replace the value at exactly that key, after, and over, every generated value and the Hypershift overlay; sibling generated keys are kept (for example the healthcheck `minCount`). `null` clears a key
+- two entries that set the same key, or a key inside another entry's value, fail instead of depending on order
+- the resolved configuration is schema-validated downstream, so a misspelled key (for example `vmSizee`) fails the provision with `additional properties ... not allowed` instead of being ignored
+- applied entries are echoed on stderr and the resolved `config.yaml` lands in the job artifacts. Values are logged verbatim, so never use this for secrets
+- `aro-hcp-tests infra build-config-override --raw-config-override path=value` (repeatable) does the same locally and is combined with the environment variable
+
 ### Cleanup Handoff
 
 Once a test has created resources, cleanup responsibility moves into one of three deliberately different paths:
