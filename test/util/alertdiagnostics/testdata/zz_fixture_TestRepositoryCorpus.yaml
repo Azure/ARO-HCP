@@ -6799,49 +6799,70 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_error_alerts
-  alert: userJourneyNodePoolStuckOperation
+  alert: userJourneyNodePoolCreateStuckOperation
   occurrence: 1
-  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
   plan:
-    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
     conditions:
-      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
         path: root/unless:left
         queries:
-          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_error_alerts
+  alert: userJourneyNodePoolDeleteStuckOperation
+  occurrence: 1
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  group: arohcp_nodepool_slo_error_alerts
+  alert: userJourneyNodePoolUpdateStuckOperation
+  occurrence: 1
+  input: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+  plan:
+    expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info
+    conditions:
+      - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
+        path: root/unless:left
+        queries:
+          - expression: (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) (internal_subscription:info)
             role: signal
         thresholds: []
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: userJourneyNodePoolErrors1h5m
+  alert: userJourneyNodePoolErrors1h
   occurrence: 1
-  input: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+  input: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72
   plan:
-    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+    expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72
     conditions:
-      - expression: errors:backend_nodepool_operation:failed_1h >= 3
-        path: root/and:left/and:left
+      - expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3
+        path: root/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:failed_1h
+          - expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_5m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -6851,32 +6872,32 @@
   group: arohcp_nodepool_slo_windowed_error_alerts
   alert: userJourneyNodePoolErrors3d
   occurrence: 1
-  input: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+  input: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05
   plan:
-    expression: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+    expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05
     conditions:
-      - expression: errors:backend_nodepool_operation:total_3d >= 10
+      - expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_3d
+          - expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 10
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_3d >= 2
+      - expression: errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:failed_3d
+          - expression: errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_3d > 0.05
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_3d
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -6884,34 +6905,34 @@
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: userJourneyNodePoolErrors6h30m
+  alert: userJourneyNodePoolErrors6h1h
   occurrence: 1
-  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+  input: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+    expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
     conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.3
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -6921,41 +6942,41 @@
   group: arohcp_nodepool_slo_windowed_error_alerts
   alert: userJourneyNodePoolErrorsDegradation
   occurrence: 1
-  input: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+  input: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
     conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5
         path: root/and:left/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+      - expression: errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2
         path: root/and:left/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:failed_6h
+          - expression: errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.15
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -11451,7 +11472,7 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_error_alerts
-  alert: userJourneyNodePoolStuckOperation
+  alert: userJourneyNodePoolCreateStuckOperation
   occurrence: 1
   input: |
     max by (
@@ -11467,58 +11488,117 @@
       max_over_time(
         (
           (
-            (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
+            (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="create"})
             and
-            backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="create", phase=~"accepted|provisioning|updating|deleting"} == 1
           ) > 7200
         )[6h:5m]
       )
     )
   plan:
-    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
     conditions:
-      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
         path: root
         queries:
-          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_error_alerts
+  alert: userJourneyNodePoolDeleteStuckOperation
+  occurrence: 1
+  input: |
+    max by (
+      cluster,
+      environment,
+      region,
+      subscription_id,
+      resource_id,
+      resource_type,
+      operation_type,
+      phase
+    ) (
+      max_over_time(
+        (
+          (
+            (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="delete"})
+            and
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="delete", phase=~"accepted|provisioning|updating|deleting"} == 1
+          ) > 7200
+        )[6h:5m]
+      )
+    )
+  plan:
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    conditions:
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+        path: root
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+            role: signal
+        thresholds: []
+        unsupported: ""
+- source: observability/alerts/nodepool-slo-prometheusRule.yaml
+  group: arohcp_nodepool_slo_error_alerts
+  alert: userJourneyNodePoolUpdateStuckOperation
+  occurrence: 1
+  input: |
+    max by (
+      cluster,
+      environment,
+      region,
+      subscription_id,
+      resource_id,
+      resource_type,
+      operation_type,
+      phase
+    ) (
+      max_over_time(
+        (
+          (
+            (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools", operation_type="update"})
+            and
+            backend_resource_operation_phase_info{resource_type=~".*nodepools", operation_type="update", phase=~"accepted|provisioning|updating|deleting"} == 1
+          ) > 7200
+        )[6h:5m]
+      )
+    )
+  plan:
+    expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+    conditions:
+      - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
+        path: root
+        queries:
+          - expression: max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))
             role: signal
         thresholds: []
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: userJourneyNodePoolErrors1h5m
+  alert: userJourneyNodePoolErrors1h
   occurrence: 1
   input: |
-    errors:backend_nodepool_operation:failed_1h >= 3
+    errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 3
     and
-    errors:backend_nodepool_operation:error_rate_1h > 0.72
-    and
-    errors:backend_nodepool_operation:error_rate_5m > 0.72
+    errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.72
   plan:
-    expression: errors:backend_nodepool_operation:failed_1h >= 3 and errors:backend_nodepool_operation:error_rate_1h > 0.72 and errors:backend_nodepool_operation:error_rate_5m > 0.72
+    expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72
     conditions:
-      - expression: errors:backend_nodepool_operation:failed_1h >= 3
-        path: root/and:left/and:left
+      - expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 3
+        path: root/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:failed_1h
+          - expression: errors:backend_resource_operation:failed_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 3
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_1h > 0.72
-        path: root/and:left/and:right
-        queries:
-          - expression: errors:backend_nodepool_operation:error_rate_1h
-            role: signal
-        thresholds:
-          - operator: '>'
-            value: 0.72
-        unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_5m > 0.72
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.72
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_5m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -11529,36 +11609,36 @@
   alert: userJourneyNodePoolErrors3d
   occurrence: 1
   input: |
-    errors:backend_nodepool_operation:total_3d >= 10
+    errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 10
     and
-    errors:backend_nodepool_operation:failed_3d >= 2
+    errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 2
     and
-    errors:backend_nodepool_operation:error_rate_3d > 0.05
+    errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.05
   plan:
-    expression: errors:backend_nodepool_operation:total_3d >= 10 and errors:backend_nodepool_operation:failed_3d >= 2 and errors:backend_nodepool_operation:error_rate_3d > 0.05
+    expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05
     conditions:
-      - expression: errors:backend_nodepool_operation:total_3d >= 10
+      - expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 10
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_3d
+          - expression: errors:backend_resource_operation:total_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 10
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_3d >= 2
+      - expression: errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:failed_3d
+          - expression: errors:backend_resource_operation:failed_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_3d > 0.05
+      - expression: errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.05
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_3d
+          - expression: errors:backend_resource_operation:error_rate_3d{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -11566,39 +11646,39 @@
         unsupported: ""
 - source: observability/alerts/nodepool-slo-prometheusRule.yaml
   group: arohcp_nodepool_slo_windowed_error_alerts
-  alert: userJourneyNodePoolErrors6h30m
+  alert: userJourneyNodePoolErrors6h1h
   occurrence: 1
   input: |
-    errors:backend_nodepool_operation:total_6h >= 5
+    errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 5
     and
-    errors:backend_nodepool_operation:error_rate_6h > 0.30
+    errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.30
     and
-    errors:backend_nodepool_operation:error_rate_30m > 0.30
+    errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.30
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:error_rate_6h > 0.3 and errors:backend_nodepool_operation:error_rate_30m > 0.3
+    expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
     conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5
         path: root/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.3
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.3
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.3
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.3
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
@@ -11609,47 +11689,47 @@
   alert: userJourneyNodePoolErrorsDegradation
   occurrence: 1
   input: |
-    errors:backend_nodepool_operation:total_6h >= 5
+    errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 5
     and
-    errors:backend_nodepool_operation:failed_6h >= 2
+    errors:backend_resource_operation:failed_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} >= 2
     and
-    errors:backend_nodepool_operation:error_rate_6h > 0.15
+    errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.15
     and
-    errors:backend_nodepool_operation:error_rate_30m > 0.15
+    errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type=~"create|update|delete"} > 0.15
   plan:
-    expression: errors:backend_nodepool_operation:total_6h >= 5 and errors:backend_nodepool_operation:failed_6h >= 2 and errors:backend_nodepool_operation:error_rate_6h > 0.15 and errors:backend_nodepool_operation:error_rate_30m > 0.15
+    expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5 and errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2 and errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15 and errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
     conditions:
-      - expression: errors:backend_nodepool_operation:total_6h >= 5
+      - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 5
         path: root/and:left/and:left/and:left
         queries:
-          - expression: errors:backend_nodepool_operation:total_6h
+          - expression: errors:backend_resource_operation:total_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 5
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:failed_6h >= 2
+      - expression: errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} >= 2
         path: root/and:left/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:failed_6h
+          - expression: errors:backend_resource_operation:failed_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>='
             value: 2
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_6h > 0.15
+      - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
         path: root/and:left/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_6h
+          - expression: errors:backend_resource_operation:error_rate_6h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
             value: 0.15
         unsupported: ""
-      - expression: errors:backend_nodepool_operation:error_rate_30m > 0.15
+      - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"} > 0.15
         path: root/and:right
         queries:
-          - expression: errors:backend_nodepool_operation:error_rate_30m
+          - expression: errors:backend_resource_operation:error_rate_1h{operation_type=~"create|update|delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}
             role: signal
         thresholds:
           - operator: '>'
