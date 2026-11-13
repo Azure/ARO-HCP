@@ -32,7 +32,10 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
-type verifyAllClusterOperatorsAvailableImpl struct{}
+type verifyAllClusterOperatorsAvailableImpl struct {
+	pollInterval time.Duration
+	pollTimeout  time.Duration
+}
 
 func (v verifyAllClusterOperatorsAvailableImpl) Name() string {
 	return "VerifyAllClusterOperatorsAvailable"
@@ -45,9 +48,17 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	}
 
 	start := time.Now()
+	interval := v.pollInterval
+	if interval == 0 {
+		interval = 20 * time.Second
+	}
+	timeout := v.pollTimeout
+	if timeout == 0 {
+		timeout = 10 * time.Minute
+	}
 	var lastErr error
 	var lastErrMsg string
-	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	verifyErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			if isContextExpiration(ctx, err) {

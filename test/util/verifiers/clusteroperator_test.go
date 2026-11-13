@@ -17,7 +17,9 @@ package verifiers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,4 +53,44 @@ func TestVerifyAllClusterOperatorsAvailableContextExpirationMidRequest(t *testin
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "rate limiter")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// TestVerifyAllClusterOperatorsAvailableContextExpirationAfterObservation
+// covers the case where the polling context's deadline fires mid-request after
+// an earlier poll already recorded a real observation. The final
+// errors.Join must keep the observation while the context expiration stays
+// identifiable via errors.Is.
+func TestVerifyAllClusterOperatorsAvailableContextExpirationAfterObservation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	unavailableOperators := `{"apiVersion":"config.openshift.io/v1","kind":"ClusterOperatorList","items":[{"metadata":{"name":"kube-apiserver"},"status":{"conditions":[{"type":"Available","status":"False","reason":"Test","message":"unavailable"}]}}]}`
+	listAttempts := 0
+	config := &rest.Config{
+		Host: "https://api.example",
+		Transport: imagePullRoundTripper(func(request *http.Request) (*http.Response, error) {
+			listAttempts++
+			if listAttempts == 1 {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": {"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(unavailableOperators)),
+				}, nil
+			}
+			<-request.Context().Done()
+			return nil, fmt.Errorf("client rate limiter Wait returned an error: %w", request.Context().Err())
+		}),
+	}
+
+	verifier := &verifyAllClusterOperatorsAvailableImpl{
+		pollInterval: time.Millisecond,
+		pollTimeout:  time.Minute,
+	}
+	err := verifier.Verify(ctx, config)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cluster operators not available")
+	require.Contains(t, err.Error(), "kube-apiserver")
+	require.NotContains(t, err.Error(), "rate limiter")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, 2, listAttempts)
 }

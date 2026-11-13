@@ -84,10 +84,8 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		}
 		pods, err := kubeClient.CoreV1().Pods(v.ciliumNamespace).List(ctx, listOptions)
 		if err != nil {
-			if isContextExpiration(ctx, err) {
-				if lastErr != nil {
-					lastErr = &pollObservationError{observation: lastErr, interruption: err}
-				}
+			if wrapped, expired := expireObservation(ctx, lastErr, err); expired {
+				lastErr = wrapped
 				return false, nil
 			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", v.ciliumNamespace, err)
@@ -350,10 +348,8 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		pods, err := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			if isContextExpiration(ctx, err) {
-				if lastErr != nil {
-					lastErr = &pollObservationError{observation: lastErr, interruption: err}
-				}
+			if wrapped, expired := expireObservation(ctx, lastErr, err); expired {
+				lastErr = wrapped
 				return false, nil
 			}
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", namespaceName, err)
