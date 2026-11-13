@@ -1,0 +1,287 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+- swift-networking-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# No router deployments means the management-cluster control-plane SLO is not applicable.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftRouterAvailability6h30m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftRouterAvailability3d6h
+    exp_alerts: []
+# A router Deployment scaled to zero is also ineligible and must not alert.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x120"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+# One missing router replica is not counted until its HCP has been short for
+# 10 minutes, then the five-minute `for:` must elapse before the alert fires.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x120"
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+  # Independent rule groups can evaluate in either order at the first tick;
+  # by eighteen minutes the 10 minute allowance and the five-minute
+  # notification allowance have always elapsed.
+  - eval_time: 18m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        slo: swift-router-availability
+        long_window: 1h
+        cluster: mgmt-1
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router replicas are unavailable (fast burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the fast burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-1"
+  - eval_time: 70m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        slo: swift-router-availability
+        long_window: 1h
+        cluster: mgmt-1
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router replicas are unavailable (fast burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the fast burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-1"
+# Router capacity shortfall sustained through the 6h/30m tier.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x420"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x420"
+  alert_rule_test:
+  - eval_time: 400m
+    alertname: userJourneySwiftRouterAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: medium
+        component: slo
+        slo: swift-router-availability
+        long_window: 6h
+        cluster: mgmt-1
+        short_window: 30m
+      exp_annotations:
+        summary: "SWIFT router replicas are unavailable (medium burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the medium burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-1"
+# One missing replica makes the management cluster minute bad once sustained.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-fractional", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-fractional", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x120"
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        slo: swift-router-availability
+        long_window: 1h
+        cluster: mgmt-fractional
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router replicas are unavailable (fast burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the fast burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-fractional"
+# Restored router capacity clears the fast-burn alert.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x80"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x70 3+0x10"
+  alert_rule_test:
+  - eval_time: 80m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+# Scaling configured router capacity to zero makes the SLO ineligible and
+# clears historical burn-rate conditions.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-zero-after-failure", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10 0+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-zero-after-failure", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x10 0+0x120"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+# Persistent capacity shortfall triggers the slow 3d/6h ticket.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x4500"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x4500"
+  alert_rule_test:
+  - eval_time: 75h
+    alertname: userJourneySwiftRouterAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        severity: "4"
+        burn_rate_tier: slow
+        component: slo
+        slo: swift-router-availability
+        long_window: 3d
+        short_window: 6h
+        cluster: mgmt-1
+      exp_annotations:
+        summary: "SWIFT router availability is below the SLO (slow burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the slow burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-1"
+# Fast burn must not fire once the short window has cleared: a router replica
+# missing for 20 minutes that recovered 30 minutes ago leaves the 1h window over
+# threshold but the 5m window under it.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-short-clear", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x100"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-short-clear", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10 2+0x20 3+0x70"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+  promql_expr_test:
+  - expr: '(sum_over_time(swift_router_capacity:degraded{cluster="mgmt-short-clear"}[1h]) / count_over_time(swift_router_capacity:degraded{cluster="mgmt-short-clear"}[1h])) > bool (14.4 * (1 - 0.9995))'
+    eval_time: 70m
+    exp_samples:
+    - labels: '{cluster="mgmt-short-clear"}'
+      value: 1
+  - expr: '(sum_over_time(swift_router_capacity:degraded{cluster="mgmt-short-clear"}[5m]) / count_over_time(swift_router_capacity:degraded{cluster="mgmt-short-clear"}[5m])) > bool (14.4 * (1 - 0.9995))'
+    eval_time: 70m
+    exp_samples:
+    - labels: '{cluster="mgmt-short-clear"}'
+      value: 0
+# Pod start-up, rollouts, node eviction and AKS auto-repair that heal within
+# 10 minutes never alert, however many HCPs are churning, at any tier.
+# A bad minute needs one HCP continuously short for 10 minutes; the
+# fleet fraction is irrelevant, so one stuck HCP among many healthy ones alerts.
+# Ten HCPs each lose one replica for a few minutes, staggered through the hour.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-0", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-0", deployment="router"}'
+    values: "3+0x10 2+0x5 3+0x384"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-1", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-1", deployment="router"}'
+    values: "3+0x15 2+0x5 3+0x379"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-2", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-2", deployment="router"}'
+    values: "3+0x20 2+0x5 3+0x374"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-3", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-3", deployment="router"}'
+    values: "3+0x25 2+0x5 3+0x369"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-4", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-4", deployment="router"}'
+    values: "3+0x30 2+0x5 3+0x364"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-5", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-5", deployment="router"}'
+    values: "3+0x35 2+0x5 3+0x359"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-6", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-6", deployment="router"}'
+    values: "3+0x40 2+0x5 3+0x354"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-7", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-7", deployment="router"}'
+    values: "3+0x45 2+0x5 3+0x349"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-8", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-8", deployment="router"}'
+    values: "3+0x50 2+0x5 3+0x344"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-9", deployment="router"}'
+    values: "3+0x400"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-churn", namespace="ocm-prod-hcp-9", deployment="router"}'
+    values: "3+0x55 2+0x5 3+0x339"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+  - eval_time: 400m
+    alertname: userJourneySwiftRouterAvailability6h30m
+    exp_alerts: []
+  promql_expr_test:
+  - expr: 'max_over_time(swift_router_capacity:degraded{cluster="mgmt-churn"}[400m])'
+    eval_time: 400m
+    exp_samples:
+    - labels: '{cluster="mgmt-churn"}'
+      value: 0
+# A router replica missing for 10 minutes or longer alerts even while other HCPs
+# on the same management cluster churn normally.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-stuck", namespace="ocm-prod-stuck", deployment="router"}'
+    values: "3+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-stuck", namespace="ocm-prod-stuck", deployment="router"}'
+    values: "3+0x20 2+0x100"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-stuck", namespace="ocm-prod-churn", deployment="router"}'
+    values: "3+0x120"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-stuck", namespace="ocm-prod-churn", deployment="router"}'
+    values: "3+0x30 2+0x5 3+0x85"
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: userJourneySwiftRouterAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        slo: swift-router-availability
+        long_window: 1h
+        cluster: mgmt-stuck
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router replicas are unavailable (fast burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the fast burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/mgmt-stuck"
