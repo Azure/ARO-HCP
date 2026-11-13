@@ -1,0 +1,495 @@
+rule_files:
+- cluster-update-slo-prometheusRule.yaml
+- backend-operation-slo-recordingRule.yaml
+- cluster-update-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Normal operation — all updates succeeded, no alerts
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s9", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s9", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+  - eval_time: 60m
+    alertname: userJourneyClusterUpdateErrors6h30m
+  - eval_time: 6h5m
+    alertname: userJourneyClusterUpdateErrors3d
+# ========================================
+# Test 2: Fast burn — 1 succeeded, 4 failed in the last hour and last 5m
+# ========================================
+# error_rate_1h = error_rate_5m = 0.8 > 0.72 with 4 failures >= 3. The
+# transitions are at 400s, so at every evaluation up to 10m (600s) they sit
+# inside the 5m short window, standing in for failures that keep landing for
+# the whole 'for' duration. Errors6h30m is still pending (30m 'for'), and
+# Errors3d needs at least 10 completions.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        component: slo
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        slo: cluster-update-errors
+      exp_annotations:
+        summary: "Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors6h30m
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors3d
+# ========================================
+# Test 2b: Short window — a fast burn that has already stopped does not page
+# ========================================
+# Same outcomes as Test 2, but every transition is at 0s. At 10m the 1h window
+# still holds 4 failures out of 5 (error_rate_1h = 0.8), but nothing landed in
+# the last 5 minutes, so the 5m short window no longer confirms the burn.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0.8
+  - expr: 'errors:backend_resource_operation:failed_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_5m{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+# ========================================
+# Test 2c: Internal subscriptions do not page
+# ========================================
+# Same burst as Test 2, but the 4 failures belong to an internal subscription
+# listed in internal_subscription:info. They are excluded before aggregation by
+# cluster, leaving 1 succeeded update and no failures.
+- interval: 1m
+  input_series:
+  - series: 'internal_subscription:info{subscription_id="internal-sub"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="internal-sub", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "400x400"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+# ========================================
+# Test 3: Volume floor — 100% failure rate, only 2 failures
+# ========================================
+# 2 < 3 failure floor and 2 < 5 completion floor: nothing fires.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "0x400"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:error_rate_1h{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 1
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+  - eval_time: 35m
+    alertname: userJourneyClusterUpdateErrors6h30m
+# ========================================
+# Test 4: Medium burn — 3 succeeded, 3 failed in the last 6h
+# ========================================
+# error_rate_6h = error_rate_30m = 0.5 > 0.30 with 6 completions >= 5. The
+# transitions are at 1500s, so up to 55m (3300s) they sit inside the 30m short
+# window, standing in for failures that keep landing for the whole 'for'
+# duration. error_rate_1h = 0.5 is below the 0.72 fast threshold, so Errors1h5m
+# does not fire.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1500x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1500x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1500x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1500x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1500x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1500x400"
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: userJourneyClusterUpdateErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        component: slo
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        slo: cluster-update-errors
+      exp_annotations:
+        summary: "Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
+  - eval_time: 35m
+    alertname: userJourneyClusterUpdateErrors1h5m
+# ========================================
+# Test 5: Stale failures do not alert
+# ========================================
+# 10 failed updates whose terminal transition is older than every window, but
+# still retained by the Cosmos TTL. Every retained update failed, so a
+# level-based rule over the retention would page; the windowed records count
+# none of them (failed_3d is pinned to 0), so nothing fires.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f9", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f9", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-300000x400"
+  promql_expr_test:
+  - expr: 'errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"}'
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_resource_operation:failed_3d{cluster="mgmt-1", operation_type="update", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyClusterUpdateErrors1h5m
+  - eval_time: 60m
+    alertname: userJourneyClusterUpdateErrors6h30m
+  - eval_time: 6h5m
+    alertname: userJourneyClusterUpdateErrors3d
+# ========================================
+# Test 6: Slow burn — failures within 3d but outside 6h
+# ========================================
+# 9 succeeded, 2 failed, all transitioned ~8h+ ago: outside the 1h and 6h
+# windows, inside 3d. 11 completions >= 10, 2 failures >= 2, rate 0.18 > 0.05.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s2", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s3", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s4", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s5", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s6", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s7", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/s8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/s8", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="succeeded", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f0", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-30000x400"
+  - series: 'backend_resource_operation_phase_info{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1x400"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/f1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "-30000x400"
+  alert_rule_test:
+  - eval_time: 6h5m
+    alertname: userJourneyClusterUpdateErrors3d
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        operation_type: update
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        component: slo
+        severity: "4"
+        long_window: 3d
+        slo: cluster-update-errors
+      exp_annotations:
+        summary: "Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/mgmt-1"
+  - eval_time: 6h5m
+    alertname: userJourneyClusterUpdateErrors1h5m
+  - eval_time: 6h5m
+    alertname: userJourneyClusterUpdateErrors6h30m
+# ========================================
+# Stuck operations: an update still in flight past the 90-minute deadline
+# ========================================
+# /stuck started at 0s and stays updating. (time() - start) first exceeds 5400s
+# at 91m, but the [6h:5m] subquery samples on 5m boundaries, so the condition is
+# first seen at 95m; with 'for: 15m' the alert fires from 110m. At 100m it is
+# still pending.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "60x200"
+  alert_rule_test:
+  - eval_time: 100m
+    alertname: userJourneyClusterUpdateStuckOperation
+  - eval_time: 115m
+    alertname: userJourneyClusterUpdateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+        operation_type: update
+        phase: updating
+        resource_id: /stuck
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        subscription_id: sub-1
+      exp_annotations:
+        summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
+# The alert clears as soon as the update completes, despite the 6h hold: /stuck
+# is updating until 119m and succeeded from 120m. By 130m the updating series is
+# stale and the current state is succeeded, so nothing fires.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "1x119"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "0x119"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating"}'
+    values: "60x119"
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded"}'
+    values: "_x120 1x60"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded"}'
+    values: "_x120 0x60"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded"}'
+    values: "_x120 7200x60"
+  alert_rule_test:
+  - eval_time: 115m
+    alertname: userJourneyClusterUpdateStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+        operation_type: update
+        phase: updating
+        resource_id: /stuck
+        resource_type: microsoft.redhatopenshift/hcpopenshiftclusters
+        subscription_id: sub-1
+      exp_annotations:
+        summary: "Cluster update operation /stuck stuck in updating for over 90 minutes"
+        description: "Cluster update operation for /stuck has been in updating phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateStuckOperation/mgmt-1/sub-1"
+  - eval_time: 130m
+    alertname: userJourneyClusterUpdateStuckOperation
+# A former Backend leader's stale snapshot does not page. backend-0 (former
+# leader) still reports /stuck as updating; backend-1 (current leader) reports
+# the same operation succeeded at 3000s. The current-state record keeps the
+# later transition, so the update is not in flight and nothing fires.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating", pod="backend-0"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating", pod="backend-0"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="updating", pod="backend-0"}'
+    values: "60x200"
+  - series: 'backend_resource_operation_phase_info{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded", pod="backend-1"}'
+    values: "1x200"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded", pod="backend-1"}'
+    values: "0x200"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_id="/stuck", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", cluster="mgmt-1", phase="succeeded", pod="backend-1"}'
+    values: "3000x200"
+  alert_rule_test:
+  - eval_time: 115m
+    alertname: userJourneyClusterUpdateStuckOperation

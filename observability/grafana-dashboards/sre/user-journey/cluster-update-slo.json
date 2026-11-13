@@ -1,0 +1,769 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "### Cluster Update SLO Dashboard\n\nMonitors customer cluster updates — PUT/PATCH requests on `hcpOpenShiftClusters` carried by the generic cluster **update** operation (`operation_type=\"update\"`). This includes `imageDigestMirrors` changes (the IDMS image registry mirror journey), authorized-CIDR and other cluster spec changes, and control plane version upgrades. The operation metrics do not record what an update changed, so confirm that from the Backend logs before triaging a specific journey.\n\n> **Current-state caveat:** the Backend keeps only the most recent update per cluster, so a failed update followed by a successful retry is overwritten. The success-rate, failed-count and error-budget panels therefore show the phase of each cluster's *latest* update over the ~7-day retention — a current-state view, not a count of every operation. The burn-rate alerts are driven by the windowed `errors:backend_resource_operation:*` series in `backend-operation-slo-recordingRule.yaml`, filtered to cluster updates.\n\n**SLO Target (Proposed — pending baseline):**\n- Success rate: 95%, alerted on 1h/5m, 6h/30m and 3d windows of terminal transitions. The alerts exclude internal subscriptions listed in `internal_subscription:info`; use **Exclude Subscriptions** to do the same on this dashboard.\n\n> **No latency SLO:** cluster updates have a completion deadline (90 minutes by default); the Backend fails updates that exceed it, so they count against the success rate. The 90m (5400s) line on the *Stuck Operations* and duration panels marks that default deadline. It is a reference line, not a latency SLI, and has no burn-rate alert.\n\n**Metrics Source:** `current:backend_cluster_update:last_transition_time_seconds` (one current state per cluster update operation, recorded in `cluster-update-slo-recordingRule.yaml` so a former Backend leader's stale snapshot is not double counted) and `backend_resource_operation_start_time_seconds` (Cosmos DB-backed), plus `workqueue_*` for the `OperationClusterUpdate` controller.\n\n**Jira:** [ARO-25924](https://redhat.atlassian.net/browse/ARO-25924) | **Journeys covered include:** [IDMS Image Registry Mirror Configuration](https://aka.ms/arohcp-runbook-idms)",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current-state view. Fraction of clusters whose latest succeeded-or-failed update succeeded, over the ~7-day Cosmos retention. A failed update later overwritten by a successful one is not counted, so this is not an LRO success rate. The burn-rate alerts use the windowed series instead.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "yellow", "value": 90 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 5 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or vector(0)) * 100",
+          "instant": true,
+          "legendFormat": "Succeeded x100",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})",
+          "instant": true,
+          "legendFormat": "Completed",
+          "refId": "B"
+        }
+      ],
+      "title": "Success Rate (Latest Update per Cluster)",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "groupBy", "options": { "fields": { "Metric": { "operation": "groupby", "aggregations": [] }, "Value": { "operation": "aggregate", "aggregations": ["sum"] } } } },
+        { "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "Metric", "handlerKey": "field.name" }, { "fieldName": "Value (sum)", "handlerKey": "field.value" }] } },
+        { "id": "calculateField", "options": { "alias": "Success Rate", "binary": { "left": "Succeeded x100", "operator": "/", "reducer": "sum", "right": "Completed" }, "mode": "binary", "reduce": { "reducer": "sum" }, "replaceFields": true } }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current-state view. Number of clusters whose latest update is in failed state. A failure later overwritten by a successful update is not counted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 5 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Failed Operations",
+          "refId": "A"
+        }
+      ],
+      "title": "Clusters with Failed Latest Update",
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "reduce", "options": { "reducers": ["sum"] } }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Cluster update operations whose current phase is accepted or updating and that started over 90 minutes ago, past the default cluster update completion deadline. The Backend fails updates at their deadline, so an operation here means the deadline is not being enforced. Reads the current state per operation, so a former Backend leader's stale in-flight snapshot is not counted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 5 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count((time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"})) > 5400) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck Operations",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck Operations (>90m)",
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "reduce", "options": { "reducers": ["sum"] } }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Indicative only. Derived from the current-state success rate rather than from every LRO, so it understates budget consumption when failed updates are retried successfully. The burn-rate alerts use the windowed series instead. Computed fleet-wide as (5% budget - failure rate) / 5% from failed and completed counts summed across the selected datasources; an overspent budget is shown as 0%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "mappings": [
+            { "type": "range", "options": { "from": null, "to": 0, "result": { "text": "0%", "color": "red", "index": 0 } } }
+          ],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "yellow", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 5 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}) - 20 * (count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"}) or vector(0))) * 100",
+          "instant": true,
+          "legendFormat": "Budget x100",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})",
+          "instant": true,
+          "legendFormat": "Completed",
+          "refId": "B"
+        }
+      ],
+      "title": "Error Budget Remaining (Indicative)",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "groupBy", "options": { "fields": { "Metric": { "operation": "groupby", "aggregations": [] }, "Value": { "operation": "aggregate", "aggregations": ["sum"] } } } },
+        { "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "Metric", "handlerKey": "field.name" }, { "fieldName": "Value (sum)", "handlerKey": "field.value" }] } },
+        { "id": "calculateField", "options": { "alias": "Error Budget Remaining", "binary": { "left": "Budget x100", "operator": "/", "reducer": "sum", "right": "Completed" }, "mode": "binary", "reduce": { "reducer": "sum" }, "replaceFields": true } }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current-state success rate over time (latest update per cluster), with the 95% target line, one line per region.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Success Rate",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(\n  (count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"succeeded\"}) or 0 * count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"}))\n  /\n  count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed\"})\n) * 100",
+          "legendFormat": "{{ region }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate Over Time (Latest Update per Cluster)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Number of clusters by the phase of their latest update, per region.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Operations",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count by (region, phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
+          "legendFormat": "{{ phase }} ({{ region }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest Update Phase per Cluster",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Age of in-flight cluster update operations at p50/p95/p99 per region. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 5400 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "quantile by (region) (0.5, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p50 ({{ region }})",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "quantile by (region) (0.95, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p95 ({{ region }})",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "quantile by (region) (0.99, time() - (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}))",
+          "legendFormat": "p99 ({{ region }})",
+          "refId": "C"
+        }
+      ],
+      "title": "In-Flight Operation Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "End-to-end duration of cluster update operations that reached a terminal phase. The 5400s (90m) line is the default cluster update completion deadline, for reference; there is no latency SLO.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 5400 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "id": 9,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"succeeded|failed|canceled\"} > 0) - on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"update\"})",
+          "legendFormat": "{{ resource_id }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Completed Operation Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Traffic. Number of cluster update operations currently in flight, per region.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "In-Flight",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=~\"accepted|updating\"}) or 0 * count by (region) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"})",
+          "legendFormat": "{{ region }}",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Cluster Updates (Traffic)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Clusters whose latest update is in failed state. A cluster that failed and then succeeded on retry will not appear. Confirm from the Backend logs what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version).",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "id": 11,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "subscription_id" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "count by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (current:backend_cluster_update:last_transition_time_seconds{cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\", phase=\"failed\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Clusters with Failed Latest Update — Detail",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Value": true, "__name__": true },
+            "renameByName": {
+              "resource_id": "Resource ID",
+              "subscription_id": "Subscription",
+              "operation_type": "Operation",
+              "phase": "Phase",
+              "resource_type": "Resource Type"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "id": 20,
+      "title": "Component Health — Workqueue",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Saturation. OperationClusterUpdate controller workqueue depth. Sustained growth means the controller is not keeping up with update operations.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Depth",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "max by (name, cluster) (max without(prometheus_replica) (workqueue_depth{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}))",
+          "legendFormat": "{{ name }} ({{ cluster }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Workqueue Depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Saturation. Ratio of retries to adds for the OperationClusterUpdate controller. A sustained high ratio indicates repeated failed reconciles.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Retry Ratio",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 0.5 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "id": 22,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_retries_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[10m]))) / sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[10m])))",
+          "legendFormat": "{{ name }} ({{ cluster }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Workqueue Retry Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Traffic. Rate of items being added to the OperationClusterUpdate workqueue.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Items/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "id": 23,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum by (name, cluster) (max without(prometheus_replica) (rate(workqueue_adds_total{namespace=\"aro-hcp\", name=\"OperationClusterUpdate\", cluster=~\"$cluster\"}[5m])))",
+          "legendFormat": "{{ name }} ({{ cluster }})",
+          "refId": "A"
+        }
+      ],
+      "title": "Workqueue Add Rate (Traffic)",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["aro-hcp", "cluster-update", "idms", "slo", "user-journey"],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(up,cluster)",
+        "includeAll": true,
+        "label": "Cluster",
+        "multi": true,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(up,cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "^.*-svc-\\d+$",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Pipe-separated subscription IDs to exclude from SLO calculations (e.g. internal/test subs)",
+        "label": "Exclude Subscriptions",
+        "name": "exclude_subs",
+        "options": [],
+        "query": "",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cluster Update SLO",
+  "uid": "cluster-update-slo",
+  "version": 1
+}

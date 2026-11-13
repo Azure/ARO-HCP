@@ -433,6 +433,153 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
   }
 }
 
+resource arohcpClusterUpdateSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_error_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterUpdateErrors1h5m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'cluster-update-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
+          description: 'More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          info: 'More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Cluster updates failing fast (>72% over 1h)'
+          title: 'Cluster updates failing fast (>72% over 1h)'
+        }
+        expression: 'errors:backend_resource_operation:failed_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 3 and errors:backend_resource_operation:error_rate_1h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72 and errors:backend_resource_operation:error_rate_5m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.72'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterUpdateErrors6h30m'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'cluster-update-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
+          description: 'More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          info: 'More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Cluster update error rate elevated (>30% over 6h)'
+          title: 'Cluster update error rate elevated (>30% over 6h)'
+        }
+        expression: 'errors:backend_resource_operation:total_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 5 and errors:backend_resource_operation:error_rate_6h{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3 and errors:backend_resource_operation:error_rate_30m{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterUpdateErrors3d'
+        enabled: true
+        labels: {
+          component: 'slo'
+          long_window: '3d'
+          severity: '4'
+          slo: 'cluster-update-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterUpdateErrors/{{ $labels.cluster }}'
+          description: 'More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          info: 'More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster\'s latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Cluster update failures persistent (>5% over 3d)'
+          title: 'Cluster update failures persistent (>5% over 3d)'
+        }
+        expression: 'errors:backend_resource_operation:total_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 10 and errors:backend_resource_operation:failed_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} >= 2 and errors:backend_resource_operation:error_rate_3d{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} > 0.05'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpClusterUpdateSloStuckAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cluster_update_slo_stuck_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyClusterUpdateStuckOperation'
+        enabled: true
+        labels: {
+          component: 'slo'
+          severity: '4'
+          slo: 'cluster-update-stuck'
+        }
+        annotations: {
+          correlationId: 'userJourneyClusterUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}'
+          description: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          info: 'Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
+          title: 'Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes'
+        }
+        expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) > 5400)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}) unless on (subscription_id) internal_subscription:info'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'rp-user-journey-cluster-upgrade-monitor-rules'
   location: location

@@ -1,0 +1,205 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: cluster-update-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Update SLO Alerts — Errors
+  # ========================================
+  # These alerts read the unified backend operation error records
+  # (errors:backend_resource_operation:* in
+  # observability/recording-rules/backend-operation-slo-recordingRule.yaml),
+  # filtered to resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"
+  # and operation_type="update".
+  #
+  # SCOPE: these alerts cover every customer change carried by the generic
+  # cluster "update" operation (operation_type="update"): imageDigestMirrors
+  # changes (the IDMS image registry mirror journey), authorizedCIDRs and other
+  # cluster spec changes, and control plane version upgrades. The operation
+  # metrics do not record what an update changed, so when one of these fires,
+  # first check what the affected updates changed from the Backend logs, then
+  # triage the matching journey.
+  #
+  # Scope — the error alerts below fire on terminal "failed" updates. Updates
+  # that exceed their completion deadline (90 minutes by default) are failed by
+  # the Backend and therefore counted there. userJourneyClusterUpdateStuckOperation
+  # (arohcp_cluster_update_slo_stuck_alerts) covers updates still in flight past
+  # that deadline, i.e. when the deadline is not being enforced.
+  # OperationClusterUpdate controller saturation is not alerted on by this SLO;
+  # the backend alerts that watch it deploy to the dev lane only.
+  #
+  # Windowed burn-rate alerting, following the cluster deletion SLO.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  #
+  # The windowed records
+  # (errors:backend_resource_operation:{failed,total,error_rate}_{5m,30m,1h,6h,3d})
+  # count only clusters whose latest update's terminal transition landed inside
+  # the window. Each tier therefore evaluates a real event window rather than the
+  # trailing 7-day gauge ratio, so a stale failure ages out instead of paging for
+  # the full Cosmos TTL.
+  #
+  # Multiwindow pairs: the fast (1h) and medium (6h) tiers also require the
+  # matching short window (5m / 30m) to exceed the same burn threshold, so the
+  # page only fires while failures are still landing and resets soon after they
+  # stop. The slow 3d tier is a budget ticket and, like the cluster provisioning
+  # and deletion SLOs, has no short window.
+  #
+  # Internal (e2e/dev/test) subscriptions are excluded inside the unified
+  # recording rules, before aggregation by cluster. These alerts deliberately do not carry
+  # exclude_internal_subscriptions: their input has no subscription_id label, so
+  # the generated `unless on(subscription_id)` would be a no-op.
+  #
+  # All tiers share one correlationId per service cluster, so concurrent tiers
+  # for the same condition update a single IcM incident. The IcM title already
+  # prefixes the cluster, so the summaries do not repeat it.
+  #
+  # These are counts of clusters by the outcome of their latest update, not
+  # counts of LROs: a failed update later retried successfully is overwritten
+  # and never counted, so the rates under-report LRO failures. A per-LRO rate
+  # needs a counter incremented once per terminal transition (ARO-25923).
+  #
+  # Burn rate thresholds calculated from 95% SLO (5% error budget):
+  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate over 1h and 5m
+  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate over 6h and 30m
+  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate over 3d
+  #
+  # Volume guard: each tier requires an absolute floor of completions/failures
+  # in the long window so a single failure on a quiet window cannot page. The
+  # floors match the cluster provisioning and deletion SLOs.
+  - name: arohcp_cluster_update_slo_error_alerts
+    labels:
+      component: slo
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
+    # ----------------------------------------
+    # 14.4x burn: >72% failures over 1h and 5m, at least 3 failures in 1h.
+    - alert: userJourneyClusterUpdateErrors1h5m
+      expr: |
+        errors:backend_resource_operation:failed_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 3
+        and
+        errors:backend_resource_operation:error_rate_1h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
+        and
+        errors:backend_resource_operation:error_rate_5m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.72
+      for: 5m
+      labels:
+        severity: "3"
+        slo: cluster-update-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "Cluster updates failing fast (>72% over 1h)"
+        description: "More than 72% of clusters on this service cluster whose latest update completed in the last hour have it in failed state (at least 3 failures), and the failures are still occurring over the last 5 minutes, a 14.4x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 3)
+    # ----------------------------------------
+    # 6x burn: >30% failures over 6h and 30m, at least 5 completions in 6h.
+    - alert: userJourneyClusterUpdateErrors6h30m
+      expr: |
+        errors:backend_resource_operation:total_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 5
+        and
+        errors:backend_resource_operation:error_rate_6h{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
+        and
+        errors:backend_resource_operation:error_rate_30m{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.30
+      for: 30m
+      labels:
+        severity: "3"
+        slo: cluster-update-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "Cluster update error rate elevated (>30% over 6h)"
+        description: "More than 30% of clusters on this service cluster whose latest update completed in the last 6 hours have it in failed state (at least 5 completions), and the failures are still occurring over the last 30 minutes, a 6x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Note: there is deliberately no separate "degradation" precursor alert.
+    # A >15% / 30m precursor was considered and rejected: above 30% it fires at
+    # exactly the same time as Errors6h30m (same 30m 'for'), producing a Sev 4
+    # ticket shadowing every Sev 3 page for one condition. Its only unique
+    # coverage was the 15-30% band, where Errors3d already tickets at 6h.
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — ticket)
+    # ----------------------------------------
+    # Per ADR: slow burn alerts generate a ticket, not a page.
+    # 1x burn: >5% failures over 3d, at least 10 completions and 2 failures.
+    - alert: userJourneyClusterUpdateErrors3d
+      expr: |
+        errors:backend_resource_operation:total_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 10
+        and
+        errors:backend_resource_operation:failed_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} >= 2
+        and
+        errors:backend_resource_operation:error_rate_3d{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update"} > 0.05
+      for: 6h
+      labels:
+        severity: "4"
+        slo: cluster-update-errors
+        long_window: 3d
+      annotations:
+        summary: "Cluster update failures persistent (>5% over 3d)"
+        description: "More than 5% of clusters on this service cluster whose latest update completed in the last 3 days have it in failed state (at least 10 completions and 2 failures), a 1x burn threshold. Internal subscriptions are excluded. Only each cluster's latest update is counted, so a failure overwritten by a successful retry is missed. Check what the affected updates changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateErrors/{{ $labels.cluster }}"
+  # ========================================
+  # Cluster Update SLO Alerts — Stuck Operations
+  # ========================================
+  # Cluster updates have a completion deadline, 90 minutes by default; the
+  # Backend fails an update that exceeds it, so it is counted by the error
+  # alerts above. An update still accepted/updating more than 90 minutes after
+  # it started therefore means the deadline is not being enforced, and it is
+  # invisible to the success/failure SLI.
+  #
+  # The phase comes from current:backend_cluster_update:last_transition_time_seconds
+  # (cluster-update-slo-recordingRule.yaml), which selects one current state per
+  # operation, so a former Backend leader's stale in-flight snapshot cannot keep
+  # this alert firing after the update completed.
+  #
+  # Stickiness (max_over_time ... [6h:5m]), as in the node pool and cluster
+  # deletion stuck alerts: if the condition transiently clears while the update
+  # stays wedged, each clear would auto-resolve the IcM incident and the next
+  # re-fire would open a new one. Holding the condition over a 6h look-back
+  # keeps one incident per stuck update; the trailing `and on (...)` clears the
+  # alert as soon as the update leaves accepted/updating.
+  - name: arohcp_cluster_update_slo_stuck_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyClusterUpdateStuckOperation
+      expr: |
+        max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+          max_over_time(
+            (
+              (
+                time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (
+                  backend_resource_operation_start_time_seconds{
+                    resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                    operation_type="update"
+                  }
+                )
+                and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+                current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+              ) > 5400
+            )[6h:5m]
+          )
+        )
+        and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase)
+        current:backend_cluster_update:last_transition_time_seconds{phase=~"accepted|updating"}
+      for: 15m
+      labels:
+        severity: "4"
+        slo: cluster-update-stuck
+        exclude_internal_subscriptions: "true"
+      annotations:
+        summary: "Cluster update operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 90 minutes"
+        description: "Cluster update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 90 minutes, past the default cluster update completion deadline, so the Backend has not failed it as expected. Stuck operations are invisible to the success/failure SLI and require investigation. Check what the update changed (for example imageDigestMirrors, authorizedCIDRs or the control plane version) before triaging."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html"
+        correlationId: "userJourneyClusterUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}"
