@@ -98,6 +98,39 @@ func TestInfrastructureIdentityResourceGroupSchema(t *testing.T) {
 	}
 }
 
+func TestBillingKustoLocationSchema(t *testing.T) {
+	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
+	require.NoError(t, err)
+	ev2, err := ev2config.ResolveConfig("public", "westus3")
+	require.NoError(t, err)
+	resolver, err := provider.GetResolver(&config.ConfigReplacements{
+		CloudReplacement:       "dev",
+		EnvironmentReplacement: "pers",
+		RegionReplacement:      "westus3",
+		RegionShortReplacement: "usw3",
+		StampReplacement:       "1",
+		Ev2Config:              ev2,
+	})
+	require.NoError(t, err)
+	baseline, err := resolver.GetRegionConfiguration("westus3")
+	require.NoError(t, err)
+	kusto, err := baseline.GetByPath("billing.kusto")
+	require.NoError(t, err)
+	billingKusto := kusto.(map[string]any)
+
+	delete(billingKusto, "location")
+	require.NoError(t, resolver.ValidateSchema(baseline), "billing Kusto location must remain optional")
+
+	billingKusto["location"] = "uksouth"
+	require.NoError(t, resolver.ValidateSchema(baseline), "billing Kusto location can differ from the rollout region")
+
+	billingKusto["location"] = ""
+	require.ErrorContains(t, resolver.ValidateSchema(baseline), "/billing/kusto/location", "billing Kusto location cannot be empty")
+
+	billingKusto["location"] = 123
+	require.ErrorContains(t, resolver.ValidateSchema(baseline), "/billing/kusto/location", "billing Kusto location must be a string")
+}
+
 func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
 	require.NoError(t, err)

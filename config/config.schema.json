@@ -1923,6 +1923,11 @@
         "kusto": {
           "type": "object",
           "properties": {
+            "location": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Azure region for the billing Kusto cluster, database, and data connection."
+            },
             "sku": {
               "type": "string"
             },
