@@ -33,6 +33,11 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/apihelpers/coreapihelpers"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
 )
 
 // logEntry represents a single log line from the backend
@@ -505,7 +510,7 @@ func parseLogJSON(logJSON string) (dataDumpEntry, bool) {
 // JSON file.
 func parseCSClusterStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 	csID := extractStringField(inner, "clusterServiceID")
-	clusterResourceID := extractStringField(inner, "resource_id")
+	clusterResourceID := csSnapshotClusterResourceID(inner)
 	csClusterRaw := extractRawField(inner, "csCluster")
 	if csID == "" || clusterResourceID == "" || csClusterRaw == "" {
 		return dataDumpEntry{}, false
@@ -526,7 +531,7 @@ func parseCSClusterStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 // hcpopenshiftcluster nodepools JSON file.
 func parseCSNodePoolStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 	npCSID := extractStringField(inner, "nodePoolClusterServiceID")
-	clusterResourceID := extractStringField(inner, "resource_id")
+	clusterResourceID := csSnapshotClusterResourceID(inner)
 	csNodePoolRaw := extractRawField(inner, "csNodePool")
 	if npCSID == "" || clusterResourceID == "" || csNodePoolRaw == "" {
 		return dataDumpEntry{}, false
@@ -539,6 +544,38 @@ func parseCSNodePoolStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 		FullMsg:      inner,
 		RelativePath: relPath,
 	}, true
+}
+
+// csSnapshotClusterResourceID accepts historical dump context and client logs
+// scoped to a child resource. Cluster list results carry their own Azure identity.
+func csSnapshotClusterResourceID(inner string) string {
+	if extractStringField(inner, "snapshotType") == "clusterService" {
+		var snapshot struct {
+			Cluster struct {
+				Azure struct {
+					SubscriptionID string `json:"subscription_id"`
+					ResourceGroup  string `json:"resource_group_name"`
+					ResourceName   string `json:"resource_name"`
+				} `json:"azure"`
+			} `json:"csCluster"`
+		}
+		if json.Unmarshal([]byte(inner), &snapshot) == nil {
+			azure := snapshot.Cluster.Azure
+			if azure.SubscriptionID != "" && azure.ResourceGroup != "" && azure.ResourceName != "" {
+				if id, err := coreapihelpers.ToClusterResourceID(azure.SubscriptionID, azure.ResourceGroup, azure.ResourceName); err == nil {
+					return id.String()
+				}
+			}
+		}
+	}
+	for _, field := range []string{"hcp_cluster_name", "resource_id"} {
+		if id, err := azcorearm.ParseResourceID(extractStringField(inner, field)); err == nil {
+			if clusterID := metadataapihelpers.ClusterNameFromResourceID(id); clusterID != "" {
+				return clusterID
+			}
+		}
+	}
+	return ""
 }
 
 // parseChangeFeedEntry parses a "delivering change feed item" log entry.

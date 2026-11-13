@@ -62,7 +62,7 @@ func NewCSStateDumpController(
 		clusterLister:   clusterLister,
 		nodePoolLister:  nodePoolLister,
 		csClient:        csClient,
-		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		nextDumpChecker: controllerutil.NewTimeBasedCooldownChecker(30 * time.Minute),
 	}
 
 	// kubeApplierInformers is intentionally omitted. SyncOnce only logs Cluster Service
@@ -74,7 +74,7 @@ func NewCSStateDumpController(
 		resourcesDBClient,
 		backendInformers,
 		nil,
-		1*time.Minute,
+		30*time.Minute,
 		syncer,
 	)
 	controller.AddInterestingResource(coreapi.ClusterResourceType, "*")
