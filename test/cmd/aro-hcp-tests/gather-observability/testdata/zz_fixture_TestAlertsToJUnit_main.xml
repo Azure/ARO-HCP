@@ -6,7 +6,7 @@
       <skipped message="known issue: Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation."></skipped>
     </testcase>
     <testcase name="[aro-hcp-observability] [svc] alert KubePodImagePull does not fire" time="3600">
-      <failure message="alert fired 1 time(s)">Firing 1:&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T07:00:00Z&#xA;  Severity:    Sev4&#xA;  Labels:      alertname=&#34;KubePodImagePull&#34;, cluster=&#34;prow-j3151872-svc&#34;, namespace=&#34;aro-hcp&#34;, pod=&#34;frontend-abc123&#34;, severity=&#34;warning&#34;&#xA;</failure>
+      <failure message="alert fired 1 time(s)">Firing 1:&#xA;  State:       Fired (not resolved) [STILL FIRING]&#xA;  Duration:    still firing&#xA;  Started:     2026-04-13T07:00:00Z&#xA;  Ended:       still firing&#xA;  Severity:    Sev4&#xA;  Labels:      alertname=&#34;KubePodImagePull&#34;, cluster=&#34;prow-j3151872-svc&#34;, namespace=&#34;aro-hcp&#34;, pod=&#34;frontend-abc123&#34;, severity=&#34;warning&#34;&#xA;  Expression:  kube_pod_container_status_waiting_reason{reason=&#34;ImagePullBackOff&#34;} &gt; 0&#xA;  Annotation description: Pod frontend-abc123 cannot pull its image&#xA;  Summary:     Pod image pull is failing&#xA;  Runbook URL: https://example.com/runbooks/KubePodImagePull&#xA;</failure>
     </testcase>
     <testcase name="[aro-hcp-observability] [svc] alert MiseEnvoyScrapeDown does not fire" time="600">
       <skipped message="known issue: Mise Envoy scrape targets intermittently go down during e2e runs."></skipped>
