@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/metadataapihelpers"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -299,8 +298,12 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.resources)
-			require.NoError(t, err)
+			var clusters []*coreapi.Cluster
+			for _, r := range tt.resources {
+				if cluster, ok := r.(*coreapi.Cluster); ok {
+					clusters = append(clusters, cluster)
+				}
+			}
 
 			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, tt.kubeApplierDesires)
@@ -317,9 +320,9 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &createClusterScopedReadDesiresSyncer{
-				resourcesDBClient:                   mockResourcesDBClient,
 				kubeApplierDBClients:                mockKubeApplierDBClients,
 				serviceProviderClusterLister:        serviceProviderClusterListerStub,
+				clusterLister:                       &corelistertesting.SliceClusterLister{Clusters: clusters},
 				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				hostedClusterNamespaceEnvIdentifier: readDesireTestEnvIdentifier,
 			}

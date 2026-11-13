@@ -22,7 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,18 +38,21 @@ func TestRevocationDeletion_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation
 		expectError bool
 	}{
 		{
-			name:        "revocation not found returns nil",
-			setupDB:     func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
+			name: "revocation not found returns nil",
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				return nil
+			},
 			expectError: false,
 		},
 		{
 			name: "revocation without DeletionTimestamp is no-op",
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestRevocation(t, db, testRevocationName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRevocation {
+				rev := createTestRevocation(t, db, testRevocationName)
+				return []*coreapi.SystemAdminCredentialRevocation{rev}
 			},
 			expectError: false,
 		},
@@ -57,10 +62,11 @@ func TestRevocationDeletion_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tc.setupDB(db)
+			revs := tc.setupDB(db)
 
 			syncer := &revocationDeletion{
 				resourcesDBClient: db,
+				revocationLister:  &corelistertesting.SliceSystemAdminCredentialRevocationLister{CredentialRevocations: revs},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)

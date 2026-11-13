@@ -37,29 +37,33 @@ func TestClusterDeletionCleanup_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name                    string
 		credName                string
-		setupDB                 func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupDB                 func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest
 		serviceProviderClusters []*coreapi.ServiceProviderCluster
 		expectError             bool
 	}{
 		{
 			name:     "credential not found returns nil",
 			credName: "nonexistent",
-			setupDB:  func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				return nil
+			},
 		},
 		{
 			name:     "credential without DeletionTimestamp is a no-op",
 			credName: testCredentialName,
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, testCredentialName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				cred := createTestCredentialRequest(t, db, testCredentialName)
+				return []*coreapi.SystemAdminCredentialRequest{cred}
 			},
 		},
 		{
 			name:     "credential with DeletionTimestamp but no ServiceProviderCluster returns nil",
 			credName: testCredentialName,
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, testCredentialName, func(cred *coreapi.SystemAdminCredentialRequest) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				cred := createTestCredentialRequest(t, db, testCredentialName, func(cred *coreapi.SystemAdminCredentialRequest) {
 					cred.Status.DeletionTimestamp = &now
 				})
+				return []*coreapi.SystemAdminCredentialRequest{cred}
 			},
 			serviceProviderClusters: nil,
 		},
@@ -69,12 +73,13 @@ func TestClusterDeletionCleanup_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tc.setupDB(db)
+			creds := tc.setupDB(db)
 
 			syncer := &credentialRequestDeletion{
 				resourcesDBClient:            db,
 				kubeApplierDBClients:         nil,
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tc.serviceProviderClusters},
+				credentialRequestLister:      &corelistertesting.SliceSystemAdminCredentialRequestLister{CredentialRequests: creds},
 			}
 
 			key := controllerutils.SystemAdminCredentialRequestKey{

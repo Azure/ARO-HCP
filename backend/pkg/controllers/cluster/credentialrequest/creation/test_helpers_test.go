@@ -62,9 +62,9 @@ func createTestCredentialRequest(t *testing.T, db *corecosmosstoragetesting.Mock
 	}
 
 	credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
-	_, err := credCRUD.Create(context.Background(), cred, nil)
+	created, err := credCRUD.Create(context.Background(), cred, nil)
 	require.NoError(t, err)
-	return cred
+	return created
 }
 
 func withCondition(condType string) func(*coreapi.SystemAdminCredentialRequest) {

@@ -42,10 +42,10 @@ import (
 )
 
 type revocationDesires struct {
-	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	revocationLister             corelisters.SystemAdminCredentialRevocationLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
 }
@@ -72,12 +72,13 @@ func NewRevocationDesiresController(
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, revocationLister := backendInformers.SystemAdminCredentialRevocations()
 
 	syncer := &revocationDesires{
-		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		revocationLister:             revocationLister,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
 	}
@@ -102,13 +103,14 @@ func NewRevocationDesiresController(
 func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
-	revocation, err := revocationCRUD.Get(ctx, key.RevocationName)
+	// Use cached data only — this controller never mutates the revocation
+	// document; it only needs DeletionTimestamp and RevokeOpSuffix to ensure desires.
+	revocation, err := c.revocationLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRevocation: %w", err))
 	}
 
 	// Once the revocation is marked for deletion the deletion controller owns it.

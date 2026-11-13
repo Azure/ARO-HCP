@@ -37,6 +37,7 @@ type revocationDeletion struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	revocationLister             corelisters.SystemAdminCredentialRevocationLister
 }
 
 var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDeletion)(nil)
@@ -56,11 +57,13 @@ func NewRevocationDeletionController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, revocationLister := backendInformers.SystemAdminCredentialRevocations()
 
 	syncer := &revocationDeletion{
 		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
 		serviceProviderClusterLister: serviceProviderClusterLister,
+		revocationLister:             revocationLister,
 	}
 
 	controller := controllerutils.NewSystemAdminCredentialRevocationWatchingController(
@@ -83,13 +86,14 @@ func NewRevocationDeletionController(
 func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRevocationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
-	revocation, err := revocationCRUD.Get(ctx, key.RevocationName)
+	// Use cached data only — once DeletionTimestamp is set it is not cleared, and
+	// the subsequent Delete already tolerates NotFound.
+	revocation, err := c.revocationLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cached SystemAdminCredentialRevocation: %w", err))
 	}
 
 	// Only tear down once the revocation has been marked for deletion.
@@ -134,6 +138,7 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 
 	// All revocation desires are gone — delete the revocation document. Its
 	// disappearance completes the operation.
+	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
 	if err := revocationCRUD.Delete(ctx, key.RevocationName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete SystemAdminCredentialRevocation: %w", err))
 	}

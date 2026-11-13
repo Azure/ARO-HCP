@@ -296,11 +296,15 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
 				clusters = append(clusters, c)
 			}
+			var creds []*coreapi.SystemAdminCredentialRequest
+			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName).Get(ctx, testCredentialName); err == nil {
+				creds = append(creds, c)
+			}
 			syncer := &desiresCreator{
-				resourcesDBClient:            db,
 				kubeApplierDBClients:         kubeApplierClients,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
 				serviceProviderClusterLister: tt.spcLister,
+				credentialRequestLister:      &corelistertesting.SliceSystemAdminCredentialRequestLister{CredentialRequests: creds},
 				applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{},
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
 			}

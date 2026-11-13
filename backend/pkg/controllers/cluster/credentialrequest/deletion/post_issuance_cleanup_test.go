@@ -32,37 +32,42 @@ func TestPostIssuanceCleanup_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name                    string
 		credName                string
-		setupDB                 func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		setupDB                 func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest
 		serviceProviderClusters []*coreapi.ServiceProviderCluster
 		expectError             bool
 	}{
 		{
 			name:     "credential not found returns nil",
 			credName: "nonexistent",
-			setupDB:  func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				return nil
+			},
 		},
 		{
 			name:     "credential still pending is a no-op",
 			credName: testCredentialName,
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, testCredentialName)
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				cred := createTestCredentialRequest(t, db, testCredentialName)
+				return []*coreapi.SystemAdminCredentialRequest{cred}
 			},
 		},
 		{
 			name:     "issued credential without ServiceProviderCluster returns nil",
 			credName: testCredentialName,
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, testCredentialName,
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				cred := createTestCredentialRequest(t, db, testCredentialName,
 					withCondition(coreapi.SystemAdminCredentialRequestConditionIssued))
+				return []*coreapi.SystemAdminCredentialRequest{cred}
 			},
 			serviceProviderClusters: nil,
 		},
 		{
 			name:     "failed credential without ServiceProviderCluster returns nil",
 			credName: testCredentialName,
-			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, testCredentialName,
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) []*coreapi.SystemAdminCredentialRequest {
+				cred := createTestCredentialRequest(t, db, testCredentialName,
 					withCondition(coreapi.SystemAdminCredentialRequestConditionFailed))
+				return []*coreapi.SystemAdminCredentialRequest{cred}
 			},
 			serviceProviderClusters: nil,
 		},
@@ -72,12 +77,12 @@ func TestPostIssuanceCleanup_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
-			tc.setupDB(db)
+			creds := tc.setupDB(db)
 
 			syncer := &postIssuanceCleanup{
-				resourcesDBClient:            db,
 				kubeApplierDBClients:         nil,
 				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: tc.serviceProviderClusters},
+				credentialRequestLister:      &corelistertesting.SliceSystemAdminCredentialRequestLister{CredentialRequests: creds},
 			}
 
 			key := controllerutils.SystemAdminCredentialRequestKey{
