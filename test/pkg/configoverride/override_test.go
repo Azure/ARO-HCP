@@ -551,3 +551,113 @@ func TestRunCostTagErrors(t *testing.T) {
 		t.Fatalf("InputsFromEnvironment = %#v, %v; want BUILD_ID and RUN_COST_TAG_VALUE captured", input, err)
 	}
 }
+
+func amdABUserAgentPool(t *testing.T, defaults map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	mgmt, ok := defaults["mgmt"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	aks, ok := mgmt["aks"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	pool, _ := aks["userAgentPool"].(map[string]interface{})
+	return pool
+}
+
+func TestAMDABAssignment(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		input        Inputs
+		wantVMSize   bool
+		wantMinCount bool
+		wantErr      string
+	}{
+		{"experiment unset", Inputs{MSIContainers: "leased", Location: "westus3"}, false, false, ""},
+		{"experiment disabled", Inputs{AMDABTest: "false", MSIContainers: "leased", Location: "westus3"}, false, false, ""},
+		{"arm required", Inputs{AMDABTest: "true", MSIContainers: "leased", Location: "westus3"}, false, false, "AMD_AB_ARM is required"},
+		{"amd arm", Inputs{AMDABTest: "true", AMDABArm: "amd", MSIContainers: "leased", Location: "westus3"}, true, false, ""},
+		{"intel arm keeps baseline", Inputs{AMDABTest: "true", AMDABArm: "intel", MSIContainers: "leased", Location: "westus3"}, false, false, ""},
+		{"intel outside quota region", Inputs{AMDABTest: "true", AMDABArm: "intel", MSIContainers: "leased", Location: "canadacentral"}, false, false, ""},
+		{"healthcheck sizing preserved", Inputs{AMDABTest: "true", AMDABArm: "amd", Location: "westus3"}, true, true, ""},
+		{"amd outside quota region", Inputs{AMDABTest: "true", AMDABArm: "amd", MSIContainers: "leased", Location: "canadacentral"}, false, false, "not allowed in location"},
+		{"amd without location", Inputs{AMDABTest: "true", AMDABArm: "amd", MSIContainers: "leased"}, false, false, "not allowed in location"},
+		{"invalid arm", Inputs{AMDABTest: "true", AMDABArm: "sparkling", MSIContainers: "leased", Location: "westus3"}, false, false, "must be \"amd\" or \"intel\""},
+		{"arm without experiment", Inputs{AMDABArm: "amd", MSIContainers: "leased", Location: "westus3"}, false, false, "requires AMD_AB_TEST"},
+		{"arm with experiment disabled", Inputs{AMDABTest: "false", AMDABArm: "amd", MSIContainers: "leased", Location: "westus3"}, false, false, "requires AMD_AB_TEST"},
+		{"invalid flag", Inputs{AMDABTest: "sometimes", MSIContainers: "leased", Location: "westus3"}, false, false, "boolean"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.input.DeployEnvironment = "ci01"
+			result, err := Generate(tc.input, Paths{})
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Generate error = %v, want it to mention %q", err, tc.wantErr)
+				}
+				if result.YAML != nil || result.OCLoginRegistries != "" {
+					t.Fatalf("partial result on failure: %#v", result)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document map[string]interface{}
+			if err := yaml.Unmarshal(result.YAML, &document); err != nil {
+				t.Fatalf("generated invalid YAML: %v", err)
+			}
+			if len(document) == 0 {
+				// Without image, lease or sizing overrides the generated
+				// document is empty, which is the expected no-op result.
+				if tc.wantVMSize || tc.wantMinCount {
+					t.Fatalf("no overrides generated, want userAgentPool sizing")
+				}
+				return
+			}
+			pool := amdABUserAgentPool(t, defaultsAt(t, document, "ci01"))
+			if tc.wantVMSize {
+				if pool == nil || pool["vmSize"] != amdABVMSize {
+					t.Fatalf("userAgentPool = %#v, want vmSize %q", pool, amdABVMSize)
+				}
+			} else if pool != nil {
+				if _, ok := pool["vmSize"]; ok {
+					t.Fatalf("unexpected vmSize override: %#v", pool)
+				}
+			}
+			if tc.wantMinCount && (pool == nil || pool["minCount"] != 1) {
+				t.Fatalf("healthcheck minCount lost: %#v", pool)
+			}
+		})
+	}
+}
+
+func TestAMDABEnvironmentInputs(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		environ []string
+		want    Inputs
+	}{
+		{"experiment flag and location", []string{AMDABTestEnv + "=true", "LOCATION=westus3"}, Inputs{AMDABTest: "true", Location: "westus3"}},
+		{"arm flag", []string{AMDABTestEnv + "=true", AMDABArmEnv + "=amd", "LOCATION=westus3"}, Inputs{AMDABTest: "true", AMDABArm: "amd", Location: "westus3"}},
+		// LOCATION is the region the provision wrapper deploys to; it already
+		// resolves SELECTED_LOCATION, which is therefore ignored in any order.
+		{"location after selected location", []string{leaseenv.SelectedLocation + "=centralus", "LOCATION=westus3"}, Inputs{Location: "westus3"}},
+		{"location before selected location", []string{"LOCATION=westus3", leaseenv.SelectedLocation + "=centralus"}, Inputs{Location: "westus3"}},
+		{"location before empty selected location", []string{"LOCATION=westus3", leaseenv.SelectedLocation + "="}, Inputs{Location: "westus3"}},
+		{"location after empty selected location", []string{leaseenv.SelectedLocation + "=", "LOCATION=westus3"}, Inputs{Location: "westus3"}},
+		{"unrelated variables ignored", []string{"SELECTED_CLUSTER_PROFILE_DIR=profile", "LOCATION_WEIGHTS=westus3=1", "MULTISTAGE_PARAM_OVERRIDE_LOCATION=westus3"}, Inputs{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input, err := InputsFromEnvironment(append([]string{"DEPLOY_ENV=ci01"}, tc.environ...))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := tc.want
+			want.DeployEnvironment, want.Images = "ci01", map[string]string{}
+			if !reflect.DeepEqual(input, want) {
+				t.Fatalf("InputsFromEnvironment = %#v, want %#v", input, want)
+			}
+		})
+	}
+}
