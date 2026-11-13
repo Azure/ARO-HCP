@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	"github.com/Azure/azure-kusto-go/azkustodata/query"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/ciruns"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
@@ -194,7 +195,7 @@ func assembleBundle(metadata Metadata, runs []runRow, observations []observation
 	bundle := Bundle{SchemaVersion: BundleSchemaVersion, Metadata: metadata, Runs: []Run{}, Observations: []Observation{}}
 	environments := make(map[string]string, len(runs))
 	for _, row := range runs {
-		environment := jobEnvironment(row.JobName)
+		environment := ciruns.JobEnvironment(row.JobName)
 		environments[row.BuildID] = environment
 		if metadata.Environment != "" && environment != metadata.Environment {
 			continue

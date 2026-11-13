@@ -419,6 +419,33 @@ the first wave is made of the longest measured specs instead of file order.
 `./test/aro-hcp-tests list tests --suite <suite> --output names` prints the
 resulting queue order, so a priority change is reviewable before it runs in CI.
 
+#### Start-priority scores
+
+`priorities` reviews environment-normalized scores from CI telemetry for a fixed
+window. It reports proposed bands without running tests or editing sources:
+
+```bash
+# Review the scores for the last 30 days.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --output table
+
+# Save the exact input and replay it later without Azure credentials.
+./test/aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --save-input observations.json
+./test/aro-hcp-tests priorities --input observations.json --output json
+```
+
+`priorities` reads `ciJobOutcomes`, `ciProcessedJobs`, `ciTestResults` and
+`ciTestNames` from the `ServiceLogs` database. Only successful, processed runs
+and passed `e2e` results contribute: each spec's mean in an environment is
+divided by that environment's median, the best ratio is multiplied by the pooled
+global median, and the result in minutes selects a band. A spec needs at least
+three distinct builds in an environment before it may propose anything, so
+skips, failures and unprocessed runs never masquerade as zero-duration tests.
+
+The table includes nonzero exclusion counts. Scored rows show contributing
+builds and environments; insufficient rows show the eligible evidence available.
+A missing or conflicting test name prevents a proposal, but valid durations
+still contribute to the normalization medians.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 

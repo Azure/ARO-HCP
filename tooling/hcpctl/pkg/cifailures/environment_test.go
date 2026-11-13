@@ -20,29 +20,6 @@ import (
 	"testing"
 )
 
-func TestJobEnvironmentFamilies(t *testing.T) {
-	for _, tc := range []struct{ name, want string }{
-		{"pull-ci-Azure-ARO-HCP-main-e2e-parallel", "dev"},
-		{"pull-ci-Azure-ARO-HCP-main-e2e-parallel-inplace-upgrade", "dev"},
-		{"pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel-all", "int"},
-		{"branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel-all", "int"},
-		{"periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-ocp-nightly", "stg"},
-		{"branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel-all", "stg"},
-		{"pull-ci-Azure-ARO-HCP-main-stage-canary-arm-endpoint-e2e-parallel", "stg"},
-		{"branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel", "prod"},
-		{"pull-ci-Azure-ARO-HCP-main-prod-canary-arm-endpoint-e2e-parallel-slow", "prod"},
-		{"unrelated-prod-e2e-parallel", "unknown"},
-		{"pull-ci-Other-Repo-main-e2e-parallel", "unknown"},
-		{"pull-ci-Azure-ARO-HCP-main-test-unit", "unknown"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := jobEnvironment(tc.name); got != tc.want {
-				t.Fatalf("got %q want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestEnvironmentSelectionAndReplayPreserveClassifications(t *testing.T) {
 	metadata := testBundle().Metadata
 	metadata.Environment = ""
