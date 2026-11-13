@@ -215,6 +215,25 @@ depctl maintenance inspect --repository Azure/ARO-HCP --pr 7892 \
 A human or unexplained hold, a consumed per-head recovery budget, a failing or
 pending current head, or missing evidence keeps the decision blocked.
 
+### maintenance inventory
+
+```bash
+depctl maintenance inventory --repository OWNER/REPO [--output FILE]
+```
+
+Assesses every open proposal owned by `aro-hcp-robot[bot]` with the same
+maintenance policy as `maintenance inspect`, and prints the array the
+maintenance workflow reads: `pull_request`, `expected_head`, `head`, `kind`,
+`held`, `active_holds`, `ci`, `release_status`, `can_release_hold`,
+`can_recover_retry`, `can_refresh_upgrade`, the blockers and the recovery marker.
+An assessment failure fails the command instead of returning an empty array.
+
+```bash
+depctl maintenance inventory --repository Azure/ARO-HCP --output inventory.json
+```
+
+The reader takes `GH_TOKEN` or `GITHUB_TOKEN`; no remote state is changed.
+
 ### evidence prow
 
 ```bash
@@ -256,6 +275,7 @@ prints the same as JSON. `--verbosity` (global) sets the log level.
 | `run --mode prepare` | the source checkout, optionally upstream releases | candidate, logs, records, journal |
 | `run --mode simulate` | a fixture repository | a scratch directory under `--work-dir` |
 | `maintenance inspect` | `gh api` and public Prow artifacts | evidence files, journal, `--output` |
+| `maintenance inventory` | open owned proposals and their evidence | nothing, or `--output` |
 | `evidence prow` | the public Prow bucket | artifacts and a manifest in `--output-dir` |
 | `version` | build metadata | nothing |
 
@@ -268,8 +288,8 @@ outside the repository unless you name a directory yourself.
 Offline discovery needs `bash` for the CI tool mapping and `go` for the bingo
 module metadata. Candidate preparation and the tools consumers need the tools the
 repository already uses: `bingo`, `make`, `go`, `jq`, and `bicep` for a Bicep
-candidate. `maintenance inspect` needs an authenticated `gh`; `guard` needs
-`GH_TOKEN` or `GITHUB_TOKEN` for the REST API.
+candidate. `maintenance inspect` needs an authenticated `gh`; `guard` and
+`maintenance inventory` need `GH_TOKEN` or `GITHUB_TOKEN` for the REST API.
 
 ## Exit codes
 
