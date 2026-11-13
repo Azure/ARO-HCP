@@ -364,6 +364,9 @@ func validateUsernameClaimProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("prefixPolicy"), &newObj.PrefixPolicy, safe.Field(oldObj, toUsernameClaimProfilePrefixPolicy), metadataapi.ValidUsernameClaimPrefixPolicies, nil)...)
 	union := validate.NewDiscriminatedUnionMembership("prefixPolicy", validate.NewDiscriminatedUnionMember("prefix", string(metadataapi.UsernameClaimPrefixPolicyPrefix)))
 	discriminatorExtractor := func(obj *coreapi.UsernameClaimProfile) metadataapi.UsernameClaimPrefixPolicy {
+		if obj == nil {
+			return ""
+		}
 		return obj.PrefixPolicy
 	}
 	isPrefixSetFn := func(obj *coreapi.UsernameClaimProfile) bool {
@@ -414,6 +417,9 @@ func validateTokenClaimValidationRule(ctx context.Context, op operation.Operatio
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toTokenClaimValidationRuleType), metadataapi.ValidTokenValidationRuleTypes, nil)...)
 	union := validate.NewDiscriminatedUnionMembership("type", validate.NewDiscriminatedUnionMember("requiredClaim", string(metadataapi.TokenValidationRuleTypeRequiredClaim)))
 	discriminatorExtractor := func(obj *coreapi.TokenClaimValidationRule) metadataapi.TokenValidationRuleType {
+		if obj == nil {
+			return ""
+		}
 		return obj.Type
 	}
 	isRequiredClaimSetFn := func(obj *coreapi.TokenClaimValidationRule) bool {
