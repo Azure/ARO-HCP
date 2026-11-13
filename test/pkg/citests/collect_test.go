@@ -35,7 +35,7 @@ import (
 // collectionSelection is the scope used by the wire-level collection tests.
 func collectionSelection() Selection {
 	return Selection{
-		Origin:    "https://hcp-dev-us-2.eastus2.kusto.windows.net/ServiceLogs",
+		Origin:    "https://example.invalid/ServiceLogs",
 		From:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		To:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 		JobFilter: "job𐐷\"; take 1",

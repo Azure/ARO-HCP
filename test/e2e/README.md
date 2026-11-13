@@ -421,9 +421,8 @@ resulting queue order, so a priority change is reviewable before it runs in CI.
 
 #### Start-priority scores
 
-The bands are maintained from CI telemetry rather than by hand. `priorities`
-reviews the environment-normalized scores for a fixed window, and neither it nor
-its saved input runs tests or edits sources:
+`priorities` reviews environment-normalized scores from CI telemetry for a fixed
+window. It reports proposed bands without running tests or editing sources:
 
 ```bash
 # Review the scores for the last 30 days.
@@ -441,6 +440,11 @@ divided by that environment's median, the best ratio is multiplied by the pooled
 global median, and the result in minutes selects a band. A spec needs at least
 three distinct builds in an environment before it may propose anything, so
 skips, failures and unprocessed runs never masquerade as zero-duration tests.
+
+The table includes nonzero exclusion counts. Scored rows show contributing
+builds and environments; insufficient rows show the eligible evidence available.
+A missing or conflicting test name prevents a proposal, but valid durations
+still contribute to the normalization medians.
 
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.

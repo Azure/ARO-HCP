@@ -72,7 +72,7 @@ Live selection uses CI run completion time in [from,to), not test timestamps.
 Each spec's mean per environment is divided by that environment's median, the best
 ratio is multiplied by the pooled global median, and the resulting minutes select a
 priority band. Skipped, failed and unprocessed records never count as zero durations.
-This command never edits test sources; use refresh-priorities for that.`,
+This command only reports proposed priorities; it never edits test sources.`,
 		Example: `  aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --since 720h --output json
   aro-hcp-tests priorities --kusto hcp-dev-us-2 --region eastus2 --from 2026-01-01T00:00:00Z --to 2026-02-01T00:00:00Z --save-input observations.json
   aro-hcp-tests priorities --input observations.json --output json`,

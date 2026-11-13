@@ -112,11 +112,9 @@ func ScorePriorities(bundle Bundle, options PriorityOptions) (PriorityReport, er
 	environmentSamples := map[string][]float64{}
 	environmentBuilds := map[string]map[string]struct{}{}
 	testEnvironmentSamples := map[string]map[string][]float64{}
-	testEnvironmentBuilds := map[string]map[string]map[string]struct{}{}
 	eligibleSamples := map[string]int{}
 	for _, test := range testOrder {
 		testEnvironmentSamples[test] = map[string][]float64{}
-		testEnvironmentBuilds[test] = map[string]map[string]struct{}{}
 	}
 
 	for _, buildID := range sortedKeys(executions) {
@@ -139,16 +137,12 @@ func ScorePriorities(bundle Bundle, options PriorityOptions) (PriorityReport, er
 				environmentBuilds[environment] = map[string]struct{}{}
 			}
 			environmentBuilds[environment][buildID] = struct{}{}
-			if testEnvironmentBuilds[test][environment] == nil {
-				testEnvironmentBuilds[test][environment] = map[string]struct{}{}
-			}
 			testEnvironmentSamples[test][environment] = append(testEnvironmentSamples[test][environment], minutes)
-			testEnvironmentBuilds[test][environment][buildID] = struct{}{}
 			eligibleSamples[test]++
 		}
 	}
 
-	if len(environmentSamples) == 0 || totalSamples(environmentSamples) == 0 {
+	if len(environmentSamples) == 0 {
 		report.Quality.Reason = QualityReasonNoEligibleSamples
 		report.Tests = insufficientRows(testOrder, names)
 		return report, nil
@@ -174,11 +168,6 @@ func ScorePriorities(bundle Bundle, options PriorityOptions) (PriorityReport, er
 			MedianMinutes:            median,
 			LatestEligibleCompletion: latestCompletion(runs, environmentBuilds[environment]),
 		})
-	}
-	if len(pooled) == 0 {
-		report.Quality.Reason = QualityReasonNoEligibleSamples
-		report.Tests = insufficientRows(testOrder, names)
-		return report, nil
 	}
 	globalMedian := exactMedian(pooled)
 	if !positiveFinite(globalMedian) {
@@ -206,7 +195,7 @@ func ScorePriorities(bundle Bundle, options PriorityOptions) (PriorityReport, er
 			}
 			stats := TestEnvironmentStats{
 				Environment:         environment,
-				EligibleBuildCount:  len(testEnvironmentBuilds[test][environment]),
+				EligibleBuildCount:  len(samples),
 				EligibleSampleCount: len(samples),
 				MeanMinutes:         arithmeticMean(samples),
 				MedianMinutes:       environmentMedians[environment],
@@ -290,8 +279,8 @@ func testNames(testOrder []string, executions map[string]map[string]*execution) 
 	for _, test := range testOrder {
 		distinct := map[string]struct{}{}
 		ambiguous := false
-		for _, buildID := range sortedKeys(executions) {
-			current, ok := executions[buildID][test]
+		for _, tests := range executions {
+			current, ok := tests[test]
 			if !ok {
 				continue
 			}
@@ -368,15 +357,6 @@ func latestCompletion(runs map[string]Run, builds map[string]struct{}) *time.Tim
 		}
 	}
 	return latest
-}
-
-// totalSamples counts the pooled eligible sample set.
-func totalSamples(environmentSamples map[string][]float64) int {
-	total := 0
-	for _, samples := range environmentSamples {
-		total += len(samples)
-	}
-	return total
 }
 
 // sortTests orders scored rows by descending score then name, with insufficient

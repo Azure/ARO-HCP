@@ -336,7 +336,7 @@ func TestExactMedianAveragesEvenCounts(t *testing.T) {
 func syntheticBundle(t *testing.T) Bundle {
 	t.Helper()
 	selection := Selection{
-		Origin:    "https://hcp-dev-us-2.eastus2.kusto.windows.net/ServiceLogs",
+		Origin:    "https://example.invalid/ServiceLogs",
 		From:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		To:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 		JobFilter: "e2e-parallel",
