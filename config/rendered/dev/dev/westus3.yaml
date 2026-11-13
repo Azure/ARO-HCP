@@ -175,7 +175,6 @@ billing:
     cloudName: ""
     endpoint: ""
   rg: placeholder
-  useGlobalMeterIds: false
 cloud: Public
 cloudEnvironmentName: AzurePublicCloud
 clustersService:
