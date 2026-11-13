@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"k8s.io/utils/ptr"
@@ -221,7 +222,11 @@ func objectIDs(objects []models.DirectoryObjectable) ([]string, error) {
 		if object == nil || ptr.Deref(object.GetId(), "") == "" {
 			return nil, fmt.Errorf("owner enumeration contains an object without an ID")
 		}
-		ids = append(ids, *object.GetId())
+		id, err := uuid.Parse(*object.GetId())
+		if err != nil {
+			return nil, fmt.Errorf("invalid owner object ID: %w", err)
+		}
+		ids = append(ids, id.String())
 	}
 	if len(ids) == 0 {
 		return ids, nil

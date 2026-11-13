@@ -212,6 +212,21 @@ func TestReconcileBundleOwnersCoversAllThreeIdentities(t *testing.T) {
 	}
 }
 
+func TestGraphOwnerEnumerationRejectsMalformedObjectIDs(t *testing.T) {
+	applicationID, owner := uuid.NewString(), uuid.NewString()
+	for _, malformed := range []string{" ", uuid.NewString() + "," + uuid.NewString(), ","} {
+		t.Run(malformed, func(t *testing.T) {
+			store := &azureStore{graph: graphTestClient(t, []graphExchange{{
+				method: "GET", path: "applications/" + applicationID + "/owners",
+				response: fmt.Sprintf(`{"value":[{"id":%q},{"id":%q}]}`, owner, malformed),
+			}})}
+			if _, err := store.applicationOwners(applicationID).list(t.Context()); err == nil {
+				t.Fatal("accepted a malformed directory object ID as a CSV fragment")
+			}
+		})
+	}
+}
+
 func TestOwnerPreflightSkipsUnrelatedPools(t *testing.T) {
 	handler := &Handler{owners: func() (ownerSettings, error) {
 		t.Fatal("owner preflight for unrelated pools")

@@ -17,6 +17,7 @@ package mockidentities
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ func TestOwnerGroupPreflight(t *testing.T) {
 	path := "groups/" + group + "/transitiveMembers"
 	user := fmt.Sprintf(`{"@odata.type":"#microsoft.graph.user","id":%q}`, owner)
 	page := `{"value":[` + user + `]}`
-	link := "https://graph.microsoft.com/v1.0/" + path + "?page=2"
+	link := "https://graph.microsoft.com/v1.0/" + path + "?$skiptoken=opaque%2B%2F%3D%3D&$top=2"
 	for _, scenario := range []string{"exact", "paginated", "mismatch", "empty", "incomplete", "nil-object", "missing-id", "read-error", "page-error", "cycle", "foreign-link"} {
 		t.Run(scenario, func(t *testing.T) {
 			exchanges := []graphExchange{{method: "GET", path: path, response: page}}
@@ -57,7 +58,7 @@ func TestOwnerGroupPreflight(t *testing.T) {
 				exchanges[0].response = `{"value":[],"@odata.nextLink":"https://example.invalid/page"}`
 			case "paginated", "page-error", "cycle":
 				exchanges[0].response = fmt.Sprintf(`{"value":[],"@odata.nextLink":%q}`, link)
-				second := graphExchange{method: "GET", path: path, query: map[string]string{"page": "2"}, response: page}
+				second := graphExchange{method: "GET", path: path, query: map[string]string{"$skiptoken": "opaque+/==", "$top": "2"}, response: page}
 				if scenario == "page-error" {
 					second.status = 403
 					second.response = `{"error":{"code":"Authorization_RequestDenied","message":"denied"}}`
@@ -73,6 +74,24 @@ func TestOwnerGroupPreflight(t *testing.T) {
 				t.Fatalf("group preflight %s: %v", scenario, err)
 			}
 		})
+	}
+}
+
+func TestOwnerGroupSupportedObjectTypes(t *testing.T) {
+	group, user, principal := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	objects := []string{
+		fmt.Sprintf(`{"@odata.type":"#microsoft.graph.user","id":%q}`, user),
+		fmt.Sprintf(`{"@odata.type":"#microsoft.graph.servicePrincipal","id":%q}`, principal),
+	}
+	for _, kind := range []string{"group", "device", "orgContact"} {
+		objects = append(objects, fmt.Sprintf(`{"@odata.type":"#microsoft.graph.%s","id":%q}`, kind, uuid.NewString()))
+	}
+	directory := strictOwnerDirectory{Directory: ownerLookup{}, store: &azureStore{graph: graphTestClient(t, []graphExchange{{
+		method: "GET", path: "groups/" + group + "/transitiveMembers",
+		response: `{"value":[` + strings.Join(objects, ",") + `]}`,
+	}})}}
+	if err := owners.Check(t.Context(), directory, group, []string{user, principal}); err != nil {
+		t.Fatalf("supported directory types with limited id/type fields: %v", err)
 	}
 }
 

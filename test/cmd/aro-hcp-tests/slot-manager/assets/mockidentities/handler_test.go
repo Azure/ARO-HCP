@@ -114,6 +114,8 @@ func testSlot() slots.ExpandedSlot {
 }
 
 func TestRegistryAdmissionOnlyDiscovery(t *testing.T) {
+	t.Setenv(OwnerIDsEnv, "malformed-owner-settings")
+	t.Setenv(OwnersGroupIDEnv, "")
 	store := &fakeStore{principals: map[string]leaseenv.MockPrincipal{}, certificates: map[string]bool{}, owner: true}
 	slot := testSlot()
 	if _, err := reconcile(t.Context(), store, slot, true); err != nil {

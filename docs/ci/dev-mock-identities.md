@@ -333,9 +333,11 @@ the group. Re-running apply
 fixes objects created earlier: missing owners are added first, then unexpected
 owners (including the creator, if not in the list) are removed. Both application
 and SP additions must be visible before either object's removals begin; complete
-owner enumeration and final equality checks fail closed. Retry after partial
-failure or propagation delay; no transaction or concurrent-owner-update isolation
-is provided. Keep reconciliation serialized. `validate` reports
+owner enumeration and final equality checks fail closed. Reconciliation is
+sequential across the three application/SP pairs: earlier pairs can be repaired
+even if a later pair fails. Retry after partial failure or propagation delay; no
+transaction or concurrent-owner-update isolation is provided. Keep reconciliation
+serialized. `validate` reports
 any difference as an error. Lease admission in CI never reads or changes owners.
 
 The applying operator must retain Entra application-management authorization
