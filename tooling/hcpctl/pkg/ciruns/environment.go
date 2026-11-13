@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cifailures
+// Package ciruns classifies ARO-HCP CI job runs by the environment they exercise.
+// Classification is name-only and stdlib-only so that every consumer, including
+// the E2E test module, shares one definition.
+package ciruns
 
 import "regexp"
 
@@ -21,10 +24,10 @@ var (
 	developmentJob           = regexp.MustCompile(`^(?:pull|branch)-ci-Azure-ARO-HCP-main-e2e-parallel(?:-.+)?$`)
 )
 
-// jobEnvironment follows the CIHealth source lane conventions, including their
+// JobEnvironment follows the CIHealth source lane conventions, including their
 // presubmit and canary variants. There is no endpoint/region/default-env inference.
 // Unknown job families remain visible when the job-name filter is broadened.
-func jobEnvironment(name string) string {
+func JobEnvironment(name string) string {
 	if match := persistentJobEnvironment.FindStringSubmatch(name); match != nil {
 		switch match[1] {
 		case "integration":
