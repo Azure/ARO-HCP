@@ -391,6 +391,7 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage
 # github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.5.0
 ## explicit; go 1.25.0
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates
+github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates/fake
 # github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0
 ## explicit; go 1.23.0
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys

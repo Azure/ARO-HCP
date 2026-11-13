@@ -105,6 +105,90 @@ issuer specifications. Artifact-collection errors do not replace the test failur
 Collection is skipped when the per-test artifact directory is empty, including
 local runs without `ARTIFACT_DIR`.
 
+### DigiCert credentials for the Key Vault ingress-certificate test
+
+The [Key Vault ingress-certificate test](cluster_ingress_cert_from_kv.go) issues
+and rotates an OV certificate through Key Vault's DigiCert issuer, syncs it with
+External Secrets Operator (ESO), and verifies HTTPS to a sample application.
+See the [test walkthrough](../../docs/ingress-certificates/e2e-test-plan.md) for
+the full sequence, wait budgets, diagnostics, and cleanup.
+
+The test reads three files from `/var/run/digicert`:
+`account-id`, `api-key`, and `organization-id`. The API key is used as the Key Vault
+issuer password and for CertCentral domain validation. The organization ID must
+be a positive integer, and the organization must already be OV validated.
+
+Set `ARO_HCP_DIGICERT_CREDENTIALS_PATH` to use another directory for local runs.
+The test skips before provisioning resources if a credential file is missing.
+
+After configuring the usual Azure test environment, build and run from the
+repository root with a local credential directory:
+
+```bash
+make -C test
+ARO_HCP_DIGICERT_CREDENTIALS_PATH=/path/to/digicert \
+  ./test/aro-hcp-tests run-test \
+  'Customer should be able to source the default ingress serving certificate from an Azure Key Vault and have rotations propagate automatically'
+```
+
+The Azure runner must be able to create the ESO UAMI and federated credential,
+assign vault roles, and read/update the delegated Azure DNS zone in the cluster's
+managed resource group. The test grants the UAMI Key Vault Certificate User and
+Key Vault Secrets User, and grants the Azure caller Key Vault Certificates
+Officer to configure the issuer and request certificates. The DigiCert API key
+must permit domain registration/validation in the same organization used by
+the Key Vault issuer; the test does not perform organization validation.
+
+The DigiCert DNS precheck uses the runner's configured recursive resolver to
+verify the expected zone delegation and validation TXT token. CertCentral then
+performs the public DCV check before Key Vault requests the certificate. This
+allows local runs on networks that permit DNS through their configured resolver
+but block direct queries to external DNS servers on port 53.
+
+The test also checks guest DNS before ESO authenticates: the DNS ClusterOperator
+and UDP endpoints must be ready, and a temporary pod in `external-secrets` must
+resolve `login.microsoftonline.com`. The pinned ESO v0.16.0 controller is checked
+in `default`; `external-secrets` holds the Azure-authentication ServiceAccount.
+The `ClusterSecretStore` and `ExternalSecret` each get a ten-minute readiness
+wait. Those budgets are independent of the 30-second refresh interval and the
+five-minute Secret-content checks.
+
+The test uses the pinned DigiCert root in `digicert-cas/` for both TLS Secret
+validation and HTTPS application probes, independent of the runner's CA bundle.
+The root's SHA-256 is checked against [DigiCert's published fingerprint](https://knowledge.digicert.com/general-information/digicert-trusted-root-authority-certificates)
+by a unit test. The current Key Vault integration issues through the legacy
+`DigiCert High Assurance EV Root CA`, removed from Mozilla and Chrome trust stores
+in April 2026. These checks validate DigiCert issuance, certificate delivery, and
+rotation; they do not establish public browser trust. For public trust, configure
+the CertCentral product to issue through a current chain and update the pinned
+test roots to match. See [DigiCert's chain selection guide](https://knowledge.digicert.com/general-information/digicert-g5-root-and-intermediate-ca-certificate-update).
+
+For each version, the TLS Secret must contain a matching key pair, the expected
+leaf fingerprint and wildcard SAN, and a valid chain. The sample application
+must return HTTP 200 using that exact leaf and the pinned trust roots, with TLS
+verification enabled in every environment. The test checks ACM's
+`openshift-ingress/cluster-ingress-cert` Secret is absent before the customer
+override, after it, and after rotation. Rotation explicitly requests a new Key
+Vault version; it does not wait for the configured 80%-lifetime AutoRenew trigger.
+
+Cleanup removes only the test-added TXT value and any CertCentral domain created
+by this test, preserving existing values and domain registrations. TestContext
+handles cluster and resource-group teardown.
+
+For CI, store each value as a separate field in a `digicert` group and add this
+entry to the `credentials` list of the step running `aro-hcp-tests` in
+`openshift/release`, replacing `YOUR_COLLECTION` with the team's collection:
+
+```yaml
+credentials:
+- collection: YOUR_COLLECTION
+  group: digicert
+  mount_path: /var/run/digicert
+```
+
+See [Adding a New Secret to CI](https://docs.ci.openshift.org/how-tos/adding-a-new-secret-to-ci-gsm/)
+for creating the fields and configuring the credential mount.
+
 ### Resource Naming
 
 > **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
