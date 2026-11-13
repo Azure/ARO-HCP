@@ -5012,8 +5012,8 @@
     "list": [
       {
         "current": {
-          "text": "Managed_Prometheus_services-australiaeast",
-          "value": "services-australiaeast"
+          "text": "Managed_Prometheus_hcps-australiaeast",
+          "value": "hcps-australiaeast"
         },
         "includeAll": false,
         "label": "Datasource",
@@ -5021,7 +5021,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-.*$",
+        "regex": "^Managed_Prometheus_hcps-.*$",
         "type": "datasource"
       },
       {
