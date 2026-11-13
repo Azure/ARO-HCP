@@ -172,6 +172,12 @@ func (c *Collector) poll(ctx context.Context) {
 	snapshots, err := c.computeSnapshots(ctx)
 	now := c.now().UTC()
 
+	// Enrich before taking the lock: reason fetches are slow network calls,
+	// and blocking Collect would fail the scrape.
+	if err == nil {
+		c.enrichFailureReasons(ctx, snapshots)
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lastScrape = float64(now.Unix())
@@ -182,7 +188,6 @@ func (c *Collector) poll(ctx context.Context) {
 	}
 	c.scrapeSuccess = 1
 	c.jobsMatched = len(snapshots)
-	c.enrichFailureReasons(ctx, snapshots)
 	c.snapshots = snapshots
 }
 
@@ -203,13 +208,16 @@ func (c *Collector) enrichFailureReasons(ctx context.Context, snapshots map[stri
 }
 
 // failureReason returns the classified reason for a build, memoized so a
-// stable failure streak costs one fetch.
+// stable failure streak costs one fetch. Empty results are not memoized:
+// artifacts land in GCS asynchronously, so a miss is often transient.
 func (c *Collector) failureReason(ctx context.Context, jobName, buildID string) string {
 	if reason, ok := c.reasonCache[buildID]; ok {
 		return reason
 	}
 	reason := c.reasons.FailureReason(ctx, jobName, buildID)
-	c.reasonCache[buildID] = reason
+	if reason != "" {
+		c.reasonCache[buildID] = reason
+	}
 	return reason
 }
 

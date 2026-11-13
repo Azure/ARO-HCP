@@ -102,9 +102,13 @@ graph; empty when the run produced no artifacts).
 `ImageUpdaterRunStalled` fires when the image-updater Prow periodic has not
 completed a run within the schedule-derived stall threshold: 9h
 (`weekdayStallSeconds`) on Tuesday-Friday — the 8h gap between the
-06:00/14:00/22:00 slots plus run time — and 58h (`mondayStallSeconds`) on
-Monday, spanning the ~56h weekend gap since the Friday 22:00 run (the job
-does not run Saturday or Sunday). A hung run never completes, so no failure
+06:00/14:00/22:00 slots plus run time — and from 09:00 UTC on Monday, and
+58h (`mondayStallSeconds`) before 09:00 UTC on Monday, spanning the ~56h
+weekend gap since the Friday 22:00 run (the job does not run Saturday or
+Sunday). The 09:00 Monday switchover keeps the weekend budget from masking
+a hung Monday 14:00 run until Tuesday: by 09:00 a completed 06:00 run
+leaves elapsed time well under 9h, and a hung one has already tripped the
+weekend rule ~08:25. A hung run never completes, so no failure
 result ever appears — the missing completion is the only signal. Common
 causes are the updater waiting on GitHub or Tide state, or a wedged registry
 client. Both thresholds were backtested against all completed runs

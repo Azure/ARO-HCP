@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/monitor"
 )
@@ -117,6 +118,7 @@ func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex,
 
 	errCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -124,6 +126,7 @@ func runMonitor(ctx context.Context, logger *slog.Logger, prowBaseURL, jobRegex,
 
 	pollErr := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		pollErr <- collector.Run(ctx, interval)
 	}()
 
