@@ -80,3 +80,26 @@ func TestIsAPINotDeployedError(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAPIVersionNotServed(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil error", err: nil, want: false},
+		{name: "non-ResponseError", err: errors.New("some other error"), want: false},
+		{name: "bare 404 is not a missing version", err: &azcore.ResponseError{StatusCode: http.StatusNotFound}, want: false},
+		{name: "NoRegisteredProviderFound", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "NoRegisteredProviderFound"}, want: true},
+		{name: "InvalidResourceType", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: coreapi.CloudErrorCodeInvalidResourceType}, want: true},
+		{name: "other 400", err: &azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "Other"}, want: false},
+		{name: "500", err: &azcore.ResponseError{StatusCode: http.StatusInternalServerError}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAPIVersionNotServed(tt.err); got != tt.want {
+				t.Errorf("IsAPIVersionNotServed() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

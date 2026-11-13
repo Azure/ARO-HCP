@@ -165,6 +165,22 @@ func IsAPINotDeployedError(err error) bool {
 	return false
 }
 
+// IsAPIVersionNotServed returns true only when the error states that the API
+// version is not served.
+//
+// It is stricter than IsAPINotDeployedError. It does not match a bare 404,
+// because a missing resource also returns 404 when the API version is served.
+func IsAPIVersionNotServed(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	if strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound") {
+		return true
+	}
+	return respErr.StatusCode == http.StatusBadRequest && respErr.ErrorCode == coreapi.CloudErrorCodeInvalidResourceType
+}
+
 type NonConformingClustersError struct {
 	clusters []string
 }
