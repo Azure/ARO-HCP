@@ -1,2 +1,1 @@
-Customer should create a fully private cluster with outboundType=UserDefinedRouting and verify both private reachability and NAT Gateway egress
-Customer should create a cluster with outboundType=UserDefinedRouting using v20260901preview
+Customer [THROWAWAY] should create a fully private cluster with outboundType=UserDefinedRouting and zero egress, and report what actually happens
