@@ -40,8 +40,10 @@ func registerNodePoolClusterServiceCreateController() controllerconfig.Controlle
 
 func instantiateNodePoolClusterServiceCreateController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
 	return nodepoolcreation.NewNodePoolClusterServiceCreateController(
+		controllerContext.Clock,
 		controllerContext.ResourcesDBClient,
 		controllerContext.ClustersServiceClient,
+		controllerContext.AsyncOperationNotificationClient,
 		controllerContext.BackendInformers,
 		controllerContext.UnionKubeApplierInformers,
 	), nil
