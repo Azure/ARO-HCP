@@ -35,6 +35,7 @@ Customer should be able to create a cluster with an external auth config and get
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should be able to create an HCP cluster with custom autoscaling and update the autoscaling configuration
 Customer should be able to create a HCP cluster and use cilium CNI plugin
+ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion
 Customer should create a cluster using v20260901preview API and verify cluster health
 FIPS Mode Support with v2026-09-01 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 4.21
@@ -64,7 +65,6 @@ Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PA
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Customer should be able to list available HCP OpenShift versions and validate response content
-ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.2
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.3
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.4

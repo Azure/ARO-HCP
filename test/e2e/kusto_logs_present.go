@@ -41,6 +41,7 @@ var _ = Describe("Engineering", func() {
 		labels.AroRpApiCompatible,
 		labels.RequiresConfig,
 		labels.MIContainers(1),
+		labels.StartPriority(40),
 		func(ctx context.Context) {
 			startTime := time.Now()
 			const (

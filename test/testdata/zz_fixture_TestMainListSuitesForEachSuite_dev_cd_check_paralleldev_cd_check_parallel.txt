@@ -31,10 +31,12 @@ Service Provider should upgrade the control plane z-stream automatically on beha
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.23
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.0
 Customer should be able to successfully upgrade control plane minor version from 4.20 minor to 4.21 minor
+SRE starts a control plane z-stream upgrade with an SRE pin
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should be able to create an HCP cluster with custom autoscaling and update the autoscaling configuration
 Customer should be able to create a HCP cluster and use cilium CNI plugin
+ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion
 Customer should create a cluster using v20260901preview API and verify cluster health
 FIPS Mode Support with v2026-09-01 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 4.21
@@ -43,7 +45,10 @@ Customer should be able to issue the default ingress serving certificate from Le
 Customer should be able to retrieve cluster and nodepool status active versions
 Customer should be able to create an HCP cluster and manage pull secrets
 Customer should be able to create an HCP cluster with back-level version 4.20
+Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to delete a nodepool
+SRE should be able to log into a cluster via a breakglass session
+SRE should be able to retrieve serial console logs for a VM
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
 Customer should be able to create an HCP cluster and custom node pool osDisk size
@@ -59,12 +64,11 @@ Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLates
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
+SRE can pause schedules to stop backup execution for an HCP cluster
 Customer should be able to create an HCP cluster with Image Registry not present
+Engineering want metrics from HCP to be present in Azure Monitor Workspace
 Customer should be able to list available HCP OpenShift versions and validate response content
-SRE should be able to log into a cluster via a breakglass session
-SRE should be able to retrieve serial console logs for a VM
 SRE should be able to perform alert processing rule CRUD operations
-ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.2
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.3
 Customer should be able to issue the default ingress serving certificate from Let's Encrypt using cert-manager with ACME DNS-01 challenges for cluster version 5.4
@@ -109,14 +113,10 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.9 minor to 5.10 minor
 Customer should be able to successfully upgrade control plane minor version from 5.10 minor to 5.11 minor
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
-SRE starts a control plane z-stream upgrade with an SRE pin
 Engineering should be able to retrieve expected metrics from the /metrics endpoint
 Fleet should have registered stamps with ready management clusters
 Fleet should have HCP resource requirements data
 Fleet should have scheduling data for ready management clusters
-SRE can pause schedules to stop backup execution for an HCP cluster
-Engineering should be able to retrieve kusto logs for a cluster and services
-Engineering want metrics from HCP to be present in Azure Monitor Workspace
 Engineering want metrics from SVC and MGMT clusters to be present in Azure Monitor WOrkspace
 Customer should be able to list available HCP Operator Identity Role Sets and validate response content
 Customer should be able to get a specific HCP Operator Identity Role Set by version
