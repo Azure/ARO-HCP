@@ -52,6 +52,8 @@ type karpenterRun struct {
 type karpenterRunOptions struct {
 	startupTaints      []corev1.Taint
 	provisioningChecks verifiers.KarpenterProvisioningChecks
+	// nodeClassOptions configure the test-owned NodeClass before creation.
+	nodeClassOptions []framework.OpenShiftAzureNodeClassOption
 	// replicas sets the workload replica count. Karpenter provisions one node per
 	// replica when the workload has a required anti-affinity rule. Zero means 1.
 	replicas int32
@@ -139,7 +141,7 @@ func provisionKarpenterNode(ctx context.Context, adminRESTConfig *rest.Config, c
 	Expect(err).NotTo(HaveOccurred(), "invalid instance types for Karpenter NodePool %q", karpenterResourceName)
 
 	By("creating a test-owned OpenShiftAzureNodeClass for Karpenter")
-	err = framework.ApplyOpenShiftAzureNodeClass(ctx, adminRESTConfig, karpenterResourceName)
+	err = framework.ApplyOpenShiftAzureNodeClass(ctx, adminRESTConfig, karpenterResourceName, options.nodeClassOptions...)
 	Expect(err).NotTo(HaveOccurred(), "failed to create OpenShiftAzureNodeClass %q", karpenterResourceName)
 	DeferCleanup(func(ctx context.Context) {
 		_ = framework.DeleteOpenShiftAzureNodeClassAndNodePool(ctx, adminRESTConfig, karpenterResourceName)

@@ -76,6 +76,53 @@ func ValidateKarpenterInstanceTypes(instanceTypes []string) error {
 	return nil
 }
 
+type openShiftAzureNodeClassOptions struct {
+	osDiskSizeGiB int64
+	vnetSubnetID  string
+	version       string
+}
+
+// OpenShiftAzureNodeClassOption sets one option on a test-owned NodeClass before
+// creation.
+type OpenShiftAzureNodeClassOption func(*openShiftAzureNodeClassOptions)
+
+// WithNodeClassOSDiskSizeGiB sets the node OS disk size in GiB.
+func WithNodeClassOSDiskSizeGiB(gib int64) OpenShiftAzureNodeClassOption {
+	return func(options *openShiftAzureNodeClassOptions) {
+		options.osDiskSizeGiB = gib
+	}
+}
+
+// WithNodeClassVNetSubnetID sets the subnet for the node network interfaces. The
+// subnet must belong to the virtual network of the cluster.
+func WithNodeClassVNetSubnetID(subnetID string) OpenShiftAzureNodeClassOption {
+	return func(options *openShiftAzureNodeClassOptions) {
+		options.vnetSubnetID = subnetID
+	}
+}
+
+// WithNodeClassVersion pins the OpenShift version of the nodes. The version must
+// be in the update channel of the cluster and must not be newer than the control
+// plane. A version change replaces the nodes.
+func WithNodeClassVersion(version string) OpenShiftAzureNodeClassOption {
+	return func(options *openShiftAzureNodeClassOptions) {
+		options.version = version
+	}
+}
+
+// nodeClassSpec builds the NodeClass spec. An empty option is omitted, so the
+// operator applies its default.
+func nodeClassSpec(options openShiftAzureNodeClassOptions) map[string]any {
+	spec := map[string]any{"osDiskSizeGiB": options.osDiskSizeGiB}
+	if options.vnetSubnetID != "" {
+		spec["vnetSubnetID"] = options.vnetSubnetID
+	}
+	if options.version != "" {
+		spec["version"] = options.version
+	}
+	return spec
+}
+
 // ApplyOpenShiftAzureNodeClass creates a test-owned NodeClass. The resource has
 // cluster scope.
 //
@@ -87,7 +134,11 @@ func ValidateKarpenterInstanceTypes(instanceTypes []string) error {
 // NodeClass is ready. This recipe waits for the Ready condition first. Thus a
 // broken NodeClass fails here with the NodeClass status. Karpenter also does not
 // create and delete NodeClaims in the meantime.
-func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Config, name string) error {
+func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Config, name string, options ...OpenShiftAzureNodeClassOption) error {
+	opts := openShiftAzureNodeClassOptions{osDiskSizeGiB: 128}
+	for _, option := range options {
+		option(&opts)
+	}
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -100,11 +151,7 @@ func ApplyOpenShiftAzureNodeClass(ctx context.Context, adminRESTConfig *rest.Con
 			"metadata": map[string]any{
 				"name": name,
 			},
-			"spec": map[string]any{
-				// vnetSubnetID is omitted on purpose. Karpenter uses the
-				// subnet of the HostedCluster.
-				"osDiskSizeGiB": int64(128),
-			},
+			"spec": nodeClassSpec(opts),
 		},
 	}
 	if _, err := dynamicClient.Resource(openShiftAzureNodeClassGVR).Create(ctx, nodeClass, metav1.CreateOptions{}); err != nil {
