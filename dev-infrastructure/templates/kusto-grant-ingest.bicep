@@ -12,6 +12,9 @@ param svcDatabaseName string
 @description('Hcp Database name to grant access on')
 param hcpDatabaseName string
 
+@description('Unified AllAroHcpLogs database name to grant access on')
+param allAroHcpLogsDatabaseName string
+
 @allowed(['mgmt', 'svc'])
 @description('Define type of cluster, either mgmt or svc')
 param clusterType string
@@ -23,6 +26,10 @@ param exporterPrincipalId string = ''
 
 var hcpIngestors = clusterType == 'mgmt' ? [clusterLogPrincipalId] : []
 var svcIngestors = [clusterLogPrincipalId]
+
+// The arobit forwarder writes all logs to the unified AllAroHcpLogs database,
+// regardless of cluster type, so its principal must be an ingestor there.
+var allAroHcpLogsIngestors = [clusterLogPrincipalId]
 
 var readers = clusterType == 'svc' ? [adminApiPrincipalId, exporterPrincipalId] : []
 
@@ -45,6 +52,17 @@ module grantKustoHcpDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKu
     ingestAccessPrincipalIds: hcpIngestors
     readAccessPrincipalIds: readers
     databaseName: hcpDatabaseName
+    kustoName: kustoRef.name
+  }
+  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
+}
+
+module grantKustoAllAroHcpLogsDB '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+  name: 'grantKusto-allarohcp-${uniqueString(resourceGroup().name)}'
+  params: {
+    ingestAccessPrincipalIds: allAroHcpLogsIngestors
+    readAccessPrincipalIds: readers
+    databaseName: allAroHcpLogsDatabaseName
     kustoName: kustoRef.name
   }
   scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)

@@ -565,6 +565,7 @@ kubeEvents:
     serviceAccountName: ke-serviceaccount
 kusto:
   adminGroups: ""
+  allAroHcpLogsDatabase: AllAroHcpLogs
   autoScaleMax: 10
   autoScaleMin: 2
   costReporting:

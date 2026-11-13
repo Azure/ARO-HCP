@@ -187,6 +187,7 @@ resourceGroups:
   - name: entity-groups
     action: KustoEntityGroups
     entityGroups:
+    - "AllAroHcpLogs:AllAroHcpLogs"
     - "AllServiceLogs:ServiceLogs"
     - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
     - "AllMonitoringEvents:MonitoringEvents"
