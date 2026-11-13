@@ -83,7 +83,11 @@ var kubectlTLS13PanicSignatures = []string{
 // --insecure-skip-tls-verify only skips certificate verification, not the
 // handshake itself, which is where the AROSLSRE-2481 panic lives. The dummy
 // token exists because kubectl refuses to run without credentials; the server
-// ignores it.
+// ignores it. The kubectl call is wrapped in `timeout 60` so a stall anywhere
+// in kubectl (startup, FIPS/OpenSSL init, the handshake, reading the response)
+// exits 124 and fails the pod quickly with an actionable status, instead of
+// leaving it Running until the outer pod-completion deadline; on normal
+// completion the timeout passes kubectl's own exit code through unchanged.
 const runtimeImageTLSCheckScript = `cert=/tmp/tls-check.crt
 key=/tmp/tls-check.key
 openssl req -x509 -newkey rsa:2048 -nodes \
@@ -111,7 +115,7 @@ if [ "$ready" != yes ]; then
   exit 3
 fi
 echo "TLS-CHECK: local TLS 1.3-only server is up on 127.0.0.1:8443"
-kubectl get --raw / --server=https://127.0.0.1:8443 --insecure-skip-tls-verify --token=tls-check
+timeout 60 kubectl get --raw / --server=https://127.0.0.1:8443 --insecure-skip-tls-verify --token=tls-check
 status=$?
 echo "TLS-CHECK: kubectl exited with status $status"
 exit $status
