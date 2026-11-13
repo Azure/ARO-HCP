@@ -29,6 +29,10 @@ const (
 	// computeResourceSKUCapabilityNameVCPUs is the Microsoft.Compute Resource
 	// SKU capability that advertises the number of vCPUs for a VM size.
 	computeResourceSKUCapabilityNameVCPUs = "vCPUs"
+	// computeResourceSKUCapabilityNamePremiumIO is the Microsoft.Compute Resource
+	// SKU capability that indicates whether a VM size supports Premium storage
+	// (required for a Premium_LRS OS disk).
+	computeResourceSKUCapabilityNamePremiumIO = "PremiumIO"
 
 	// computeUsageNameTotalRegionalVCPUs is the Microsoft.Compute Usage API
 	// Name.Value for the subscription's total regional vCPU quota
@@ -85,4 +89,18 @@ func lookupCapabilityVCPUs(sku *armcompute.ResourceSKU) (int, bool) {
 		return 0, false
 	}
 	return parsed, true
+}
+
+// isCapabilityPremiumIOSupported reports whether the Resource SKU advertises PremiumIO support.
+//
+// Returns:
+//   - (true, true) when the capability is present and its value is "True" (case-insensitive)
+//   - (false, true) when the capability is present but not "True"
+//   - (false, false) when the SKU is nil or the capability is missing
+func isCapabilityPremiumIOSupported(sku *armcompute.ResourceSKU) (bool, bool) {
+	value := resourceSKUCapability(sku, computeResourceSKUCapabilityNamePremiumIO)
+	if value == nil {
+		return false, false
+	}
+	return strings.EqualFold(*value, "True"), true
 }
