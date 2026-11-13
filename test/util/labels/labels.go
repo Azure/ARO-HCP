@@ -58,6 +58,14 @@ var (
 	DevelopmentOnly  = ginkgo.Label("Development-Only")
 	IntegrationOnly  = ginkgo.Label("Integration-Only")
 	StageAndProdOnly = ginkgo.Label("Stage-And-Prod-Only")
+	// ProdOnly restricts a test to the prod suites. Use it only when a test
+	// depends on something that exists exclusively in production -- a
+	// third-party integration configured against the production environment,
+	// for example -- so that running it against the int or stage RP would fail
+	// for reasons unrelated to the behavior under test. Prefer
+	// StageAndProdOnly when stage can exercise the behavior: ProdOnly means a
+	// regression is caught only after it has already reached production.
+	ProdOnly = ginkgo.Label("Prod-Only")
 	// RequiresConfig marks a test as requiring templated configuration
 	RequiresConfig = ginkgo.Label("RequiresConfig")
 	// A test case is ARO-HCP-RP-API-Compatible if it doesn't use ARM API (eg.
