@@ -184,6 +184,12 @@ defaults:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
       digest: sha256:37df117f1179d78fd372fd35878d53ff30dfb350fb571fb197f3a2bee48bd157 # master.261001.6 (2026-10-01 00:00)
+  # First-party kubectl/bash toolbox image replacing aks/command/runtime (AROSLSRE-2528)
+  toolbox:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: toolbox
+      digest: ""
   # Arobit
   arobit:
     forwarder:

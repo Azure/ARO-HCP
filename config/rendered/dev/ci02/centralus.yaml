@@ -1199,6 +1199,11 @@ swiftRecorder:
         memory: 64Mi
     serviceAccountName: swift-recorder
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
+toolbox:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: toolbox
 velero:
   azurePlugin:
     digest: sha256:24e08fb7fe4c2c73e1f666d778388cc6d1a3ba7add96e58c4bdd27fc2e31b9db
