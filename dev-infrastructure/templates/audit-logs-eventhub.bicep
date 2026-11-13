@@ -39,6 +39,9 @@ param maestroMqttEnabled bool
 ])
 param eventHubSku string = 'Premium'
 
+@description('Capacity for the audit logs Event Hub namespace: throughput units for Standard (1-40), processing units for Premium (1, 2, 4, 8, 16).')
+param eventHubCapacity int = 1
+
 // Event Hub namespace for AKS audit logs
 resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kustoEnabled && eventhubEnabled) {
   name: auditLogsEventHubNamespaceName
@@ -46,7 +49,7 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kust
   sku: {
     name: eventHubSku
     tier: eventHubSku
-    capacity: 1
+    capacity: eventHubCapacity
   }
   properties: {
     disableLocalAuth: true
