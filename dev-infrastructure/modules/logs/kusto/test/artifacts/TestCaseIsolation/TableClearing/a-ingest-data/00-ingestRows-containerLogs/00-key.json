@@ -1,0 +1,4 @@
+{
+	"database": "HostedControlPlaneLogs",
+	"table": "containerLogs"
+}

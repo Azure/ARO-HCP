@@ -1,0 +1,38 @@
+[
+	{
+		"cluster": "mgmt-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_name": "control-plane-operator",
+		"log": {
+			"log": "reconciling"
+		},
+		"namespace_name": "ocm-prod-abc123def-my-cluster",
+		"pod_name": "control-plane-operator-0",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T11:00:00Z"
+	},
+	{
+		"cluster": "mgmt-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000001/RESOURCEGROUPS/MY-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/MY-CLUSTER",
+		"container_name": "kube-apiserver",
+		"log": {
+			"log": "started"
+		},
+		"namespace_name": "ocm-prod-abc123def-my-cluster",
+		"pod_name": "kube-apiserver-0",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:00:00Z"
+	},
+	{
+		"cluster": "mgmt-01",
+		"cluster_id": "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000002/RESOURCEGROUPS/OTHER-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/OTHER-CLUSTER",
+		"container_name": "kube-apiserver",
+		"log": {
+			"log": "other-log"
+		},
+		"namespace_name": "ocm-dev-xyz789ghi-other-cluster",
+		"pod_name": "kube-apiserver-0",
+		"region": "uksouth",
+		"timestamp": "2026-09-30T12:02:00Z"
+	}
+]

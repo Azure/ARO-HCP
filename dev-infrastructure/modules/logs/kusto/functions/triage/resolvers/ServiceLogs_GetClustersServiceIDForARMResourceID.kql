@@ -1,0 +1,27 @@
+// @owner: sre-team
+// @domain: Triage/Resolvers
+// @depends: cosmosResourceSnapshots
+// @params: p_ResourceId=ARM resource ID (case-insensitive), p_StartTime=window start, p_EndTime=window end
+// @returns: single row with clusters_service_id string column
+.create-or-alter function
+with (
+  docstring = 'Gets the Clusters Service internal ID for an ARM resource ID. | Returns: single row with clusters_service_id (internal format) | Example: let csid = toscalar(GetClustersServiceIDForARMResourceID("/subscriptions/.../hcpOpenShiftClusters/foo", ago(7d), now()))',
+  folder = 'Triage\\Resolvers'
+)
+GetClustersServiceIDForARMResourceID(p_ResourceId: string, p_StartTime: datetime, p_EndTime: datetime)
+{
+    cosmosResourceSnapshots
+    | where timestamp between (p_StartTime .. p_EndTime)
+    | where resourceType =~ "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+    | where cosmosContainer == "resources"
+    | where resourceID =~ p_ResourceId
+    | extend confirmedCsid = tostring(content.properties.serviceProviderProperties.clusterServiceID),
+             pendingCsid = tostring(content.properties.serviceProviderProperties.pendingClusterServiceID)
+    | where isnotempty(confirmedCsid) or isnotempty(pendingCsid)
+    | summarize arg_max(timestamp, confirmedCsid, pendingCsid)
+    | extend csid = iff(isnotempty(confirmedCsid), confirmedCsid, pendingCsid)
+    | extend clusters_service_id = extract(@"clusters/([^/]+)$", 1, csid)
+    | where isnotempty(clusters_service_id)
+    | project clusters_service_id
+    | take 1
+}

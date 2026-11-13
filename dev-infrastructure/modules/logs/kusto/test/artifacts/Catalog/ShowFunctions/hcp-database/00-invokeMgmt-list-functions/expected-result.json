@@ -1,0 +1,18 @@
+[
+	{
+		"Description": "Gets the ARM resource ID for a Clusters Service internal ID.",
+		"Example": "let rid = toscalar(GetARMResourceIDForClustersServiceID(\"abc123\", ago(1h), now()))",
+		"Folder": "Triage\\HCP",
+		"Name": "GetARMResourceIDForClustersServiceID",
+		"Parameters": "(p_ClustersServiceId:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "single row with arm_resource_id (ARM format)"
+	},
+	{
+		"Description": "Gets the Clusters Service internal ID for an ARM resource ID.",
+		"Example": "let csid = toscalar(GetClustersServiceIDForARMResourceID(\"/subscriptions/.../hcpOpenShiftClusters/foo\", ago(1h), now()))",
+		"Folder": "Triage\\HCP",
+		"Name": "GetClustersServiceIDForARMResourceID",
+		"Parameters": "(p_ResourceId:string, p_StartTime:datetime, p_EndTime:datetime)",
+		"Returns": "single row with clusters_service_id (internal format)"
+	}
+]
