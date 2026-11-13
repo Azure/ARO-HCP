@@ -566,6 +566,34 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 		chart.setOption({tooltip: {alwaysShowContent: true}});
 		chart.dispatchAction({type: 'showTip', x, y});
 	};
+	/* Keeps the pinned panel inside the chart after its content grows, without
+	   re-rendering it: a new showTip would rebuild the tooltip and collapse any
+	   section the reader just expanded. */
+	const clampPinned = () => {
+		if (pinnedIndex === null) return;
+		const dom = chart.getDom();
+		const tooltip = Array.from(dom.querySelectorAll?.('div') || [])
+			.filter(node => getComputedStyle(node).position === 'absolute' &&
+				node.textContent && node.textContent.includes('Total duration:'))
+			.pop();
+		if (!tooltip) return;
+		const domBox = dom.getBoundingClientRect();
+		/* A resize changes the height budget the panel was built with, so update it
+		   before measuring; then keep both edges inside the chart. */
+		const content = Array.from(tooltip.querySelectorAll?.('div') || [])
+			.filter(node => node.style && node.style.maxHeight)
+			.pop();
+		if (content) content.style.maxHeight = Math.max(1, Math.round(domBox.height) - 32) + 'px';
+		const shiftTo = edge => {
+			const box = tooltip.getBoundingClientRect();
+			const move = edge === 'bottom' ? domBox.bottom - box.bottom : domBox.top - box.top;
+			if ((edge === 'bottom' && move < 0) || (edge === 'top' && move > 0)) {
+				tooltip.style.top = (parseFloat(tooltip.style.top || '0') + move) + 'px';
+			}
+		};
+		shiftTo('bottom');
+		shiftTo('top');
+	};
 	const unpin = () => {
 		pinnedIndex = null;
 		chart.setOption({tooltip: {alwaysShowContent: false}});
@@ -592,8 +620,11 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	} catch {
 		viewportWindow = null;
 	}
+	/* Narrow viewports lose too much of the screen to the 10% margin, and the detail
+	   panel cannot exceed the chart, so they use the whole viewport height. */
+	const overviewRatio = () => viewportWindow && (viewportWindow.innerWidth || 0) < 700 ? 1 : 0.9;
 	const overviewHeight = () => viewportWindow
-		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight * 0.9))
+		? Math.max(__MINIMUM_OVERVIEW_HEIGHT__, Math.floor(viewportWindow.innerHeight * overviewRatio()))
 		: __MINIMUM_OVERVIEW_HEIGHT__;
 	const renderItem = (params, api) => {
 		const test = ordered[params.dataIndex];
@@ -643,7 +674,10 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			if (text !== undefined) node.textContent = text;
 			return node;
 		};
-		const content = element('div', {width:'min(720px, 80vw)', maxHeight:Math.max(1, Math.min(520, chart.getHeight() - 32)) + 'px', overflowY:'auto', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
+		/* The panel uses the chart height it already has; a fixed cap hid the tail of the
+		   longer stage lists. The scrollbar is styled because overlay scrollbars are
+		   invisible until scrolled, which reads as truncated content. */
+		const content = element('div', {width:'min(720px, 80vw)', maxHeight:Math.max(1, chart.getHeight() - 32) + 'px', overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:'rgba(128,128,128,0.55) transparent', whiteSpace:'normal', fontSize:'12px', lineHeight:'1.4'});
 		content.append(
 			element('div', {fontWeight:'600', fontSize:'14px', overflowWrap:'anywhere'}, test.name),
 			element('div', {opacity:'0.75', margin:'4px 0 12px'}, 'Total duration: ' + formatDuration(duration))
@@ -734,6 +768,22 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 			appendRows(section, rows);
 			content.append(section);
 		}
+		/* Overlay scrollbars stay hidden until scrolled on macOS, so overflowing
+		   content also gets an explicit cue that disappears at the bottom. */
+		const more = element('div', {position:'sticky', bottom:'0', marginTop:'8px', padding:'2px 0', textAlign:'center', fontSize:'11px', opacity:'0.85', background:'rgba(128,128,128,0.12)', borderRadius:'2px'}, 'scroll for more');
+		const updateMore = () => {
+			/* The sticky cue stays in flow, so its own height counts towards
+			   scrollHeight; excluding it keeps a near-fitting list from reporting
+			   overflow that only the cue creates. */
+			const cue = more.offsetHeight ? more.offsetHeight + 8 : 0;
+			more.style.display = content.scrollHeight - cue - content.scrollTop - content.clientHeight > 4 ? 'block' : 'none';
+		};
+		content.append(more);
+		content.addEventListener?.('scroll', updateMore);
+		content.addEventListener?.('toggle', updateMore, true);
+		if (typeof requestAnimationFrame === 'function') requestAnimationFrame(updateMore);
+		else if (typeof setTimeout === 'function') setTimeout(updateMore, 0);
+
 		return content;
 	};
 	const visibleRowBounds = (start, end) => {
@@ -746,9 +796,15 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	};
 	const fitViewportHeight = () => {
 		const height = overviewHeight();
-		if (chart.getHeight() === height && chart.getDom().style.height === height + 'px') return;
-		chart.getDom().style.height = height + 'px';
-		chart.resize({height});
+		if (!(chart.getHeight() === height && chart.getDom().style.height === height + 'px')) {
+			chart.getDom().style.height = height + 'px';
+			chart.resize({height});
+		}
+			/* A resized chart moves the confine box under the pinned panel. Rather than
+		   fight ECharts' own tooltip positioning, dismiss the pin so the reader can
+		   reopen it against the new geometry; expanding a section inside the panel
+		   is still handled by clampPinned. */
+		if (pinnedIndex !== null) unpin();
 	};
 	window.addEventListener('resize', fitViewportHeight);
 	if (viewportWindow && viewportWindow !== window) viewportWindow.addEventListener('resize', fitViewportHeight);
@@ -847,6 +903,10 @@ func timingChartSortingJS(chart string, groups []timingChartGroup, totalDuration
 	/* The chart surface only sees its own clicks. A pinned detail is also dismissed
 	   by clicking anywhere else on the page, while clicks inside the chart, including
 	   its tooltip, stay with the chart handler above. */
+	/* Expanding a stage section grows the pinned panel. Rebuild its height budget
+	   and shift it back inside the chart instead of re-showing the tip, which
+	   would re-render the panel and collapse the expanded section. */
+	document.addEventListener?.('toggle', clampPinned, true);
 	document.addEventListener?.('click', event => {
 		if (pinnedIndex === null) return;
 		if (chart.getDom().contains?.(event.target)) return;
