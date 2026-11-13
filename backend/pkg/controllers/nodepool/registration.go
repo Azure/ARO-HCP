@@ -29,6 +29,7 @@ import (
 	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
 func registerNodePoolClusterServiceCreateController() controllerconfig.ControllerRegistration {
@@ -195,6 +196,26 @@ func instantiateNodePoolNSGBasedRequiredConnectivityValidationController(control
 	return nodepoolvalidation.NewNamedNodePoolValidationController(
 		nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName,
 		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(controllerContext.SMIClientBuilder),
+		controllerContext.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		controllerContext.BackendInformers,
+		controllerContext.UnionKubeApplierInformers,
+	), nil
+}
+
+func registerNodePoolCincinnatiVersionExistsValidationController() controllerconfig.ControllerRegistration {
+	return controllerconfig.ControllerRegistration{
+		Workers:     20,
+		Instantiate: controllerconfig.WithCacheSyncs(instantiateNodePoolCincinnatiVersionExistsValidationController, true),
+	}
+}
+
+func instantiateNodePoolCincinnatiVersionExistsValidationController(controllerContext controllerconfig.ControllerContext) (controllerconfig.Runnable, error) {
+	_, serviceProviderNodePoolLister := controllerContext.BackendInformers.ServiceProviderNodePools()
+	_, unionReadDesireLister := controllerContext.UnionKubeApplierInformers.ReadDesires()
+	return nodepoolvalidation.NewNamedNodePoolValidationController(
+		nodepoolvalidation.NodePoolValidationCincinnatiVersionExistsValidationControllerName,
+		validationutils.NewNodePoolCincinnatiVersionExistsValidation(unionReadDesireLister, cincinnati.NewClientCache()),
 		controllerContext.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		controllerContext.BackendInformers,
@@ -382,6 +403,7 @@ func Register(registry map[string]controllerconfig.ControllerRegistration) {
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureVMSizeSupportsEphemeralOSDiskValidationControllerName)] = registerAzureVMSizeSupportsEphemeralOSDiskValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolVMQuotaValidationControllerName)] = registerAzureNodePoolVMQuotaValidationController()
 	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationAzureNodePoolNSGBasedRequiredConnectivityValidationControllerName)] = registerNodePoolNSGBasedRequiredConnectivityValidationController()
+	registry[strings.ToLower(nodepoolvalidation.NodePoolValidationCincinnatiVersionExistsValidationControllerName)] = registerNodePoolCincinnatiVersionExistsValidationController()
 	registry[strings.ToLower(nodepoolversion.NodepoolVersionControllerName)] = registerNodePoolVersionController()
 	registry[strings.ToLower(nodepoolversion.NodePoolActiveVersionsControllerName)] = registerNodePoolActiveVersionController()
 	registry[strings.ToLower(nodepoolreaddesires.CreateNodePoolScopedReadDesiresControllerName)] = registerCreateNodePoolScopedReadDesiresController()

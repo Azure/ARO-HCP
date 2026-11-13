@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	testNodePoolVersion = "4.20.8"
+)
+
 func TestNodePoolCreateStatusHandlesClearedClusterServiceID(t *testing.T) {
 	t.Parallel()
 	fixture := operationtesting.NewNodePoolTestFixture()
@@ -66,42 +71,42 @@ func TestNodePoolCreateStatusHandlesClearedClusterServiceID(t *testing.T) {
 
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		return fixture.NewNodePool()
+		return newNodePoolWithVersion(fixture, testNodePoolVersion)
 	}
 
 	nodePoolWithoutCSID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.ServiceProviderProperties.ClusterServiceID = nil
 		return np
 	}
 
 	nodePoolWithDeletionTimestamp := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return np
 	}
 
 	nodePoolWithMismatchedActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return np
 	}
 
 	nodePoolWithEmptyActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.ServiceProviderProperties.ActiveOperationID = ""
 		return np
 	}
 
 	nodePoolWithZeroReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.Properties.Replicas = 0
 		np.Properties.AutoScaling = nil
 		return np
 	}
 
 	nodePoolWithTwoReplicas := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-		np := fixture.NewNodePool()
+		np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 		np.Properties.Replicas = 2
 		return np
 	}
@@ -144,6 +149,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		return readDesire
 	}
 
+	defaultDesiredVersionSetter := func(spnp *coreapi.ServiceProviderNodePool) {
+		semverVersion := semver.MustParse(testNodePoolVersion)
+		spnp.Spec.NodePoolVersion.DesiredVersion = &semverVersion
+	}
+
 	preconditionExistingOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	preconditionListerOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	preconditionListerOperation.CosmosETag = "stale-etag"
@@ -160,6 +170,10 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		// cachedNodePoolReadDesire is the mirrored Hypershift NodePool the hypershiftNodePoolOperationState
 		// source reads. When nil, the readDesireLister reports nothing cached, i.e. "not observed yet".
 		cachedNodePoolReadDesire *kubeapplierapi.ReadDesire
+		// serviceProviderNodePool for desired version validation testing.
+		serviceProviderNodePool *coreapi.ServiceProviderNodePool
+		// controllerDoc for version validation testing.
+		controllerDoc *coreapi.Controller
 		// When not set, the controller uses an active operations lister that contains the existingOperation
 		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
@@ -170,6 +184,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePool:                 defaultNodePool,
 			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(fixture.NewNodePool(), ""),
+			serviceProviderNodePool:  newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:            fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
 			},
@@ -189,6 +205,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePool:                 nodePoolWithZeroReplicas,
 			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(nodePoolWithZeroReplicas(fixture), "NodePool set to no replicas"),
+			serviceProviderNodePool:  newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:            fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
 			},
@@ -199,9 +217,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "node pool installing transitions to provisioning",
-			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "node pool installing transitions to provisioning",
+			nodePool:                defaultNodePool,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
@@ -217,9 +237,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "node pool error transitions to failed",
-			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "node pool error transitions to failed",
+			nodePool:                defaultNodePool,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateError), "node pool creation failed")
 			},
@@ -240,9 +262,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			// Cluster Service reports Pending (Accepted-mapped), but the hypershift NodePool mirror
 			// has not been cached yet either, and that source now correctly reports Provisioning
 			// (not Accepted) while waiting -- so the merged worst state is Provisioning.
-			name:              "node pool pending shows provisioning while hypershift mirror not cached",
-			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "node pool pending shows provisioning while hypershift mirror not cached",
+			nodePool:                defaultNodePool,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStatePending), "")
 			},
@@ -253,9 +277,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "node pool validating shows provisioning while hypershift mirror not cached",
-			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "node pool validating shows provisioning while hypershift mirror not cached",
+			nodePool:                defaultNodePool,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateValidating), "")
 			},
@@ -266,9 +292,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "ClusterServiceID nil remains provisioning",
-			nodePool:          nodePoolWithoutCSID,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "ClusterServiceID nil remains provisioning",
+			nodePool:                nodePoolWithoutCSID,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -276,9 +304,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "ActiveOperationID mismatch skips reconciliation",
-			nodePool:          nodePoolWithMismatchedActiveOperationID,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "ActiveOperationID mismatch skips reconciliation",
+			nodePool:                nodePoolWithMismatchedActiveOperationID,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -286,9 +316,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "empty ActiveOperationID skips reconciliation",
-			nodePool:          nodePoolWithEmptyActiveOperationID,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "empty ActiveOperationID skips reconciliation",
+			nodePool:                nodePoolWithEmptyActiveOperationID,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -296,9 +328,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "DeletionTimestamp set skips reconciliation",
-			nodePool:          nodePoolWithDeletionTimestamp,
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			name:                    "DeletionTimestamp set skips reconciliation",
+			nodePool:                nodePoolWithDeletionTimestamp,
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -309,12 +343,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:  "deadline exceeded marks operation as failed",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-				np := fixture.NewNodePool()
+				np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return np
 			},
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
@@ -341,6 +377,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 			existingOperation:        fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			cachedNodePoolReadDesire: newHypershiftNodePoolReadDesire(nodePoolWithTwoReplicas(fixture), "1 of 1 machines are not ready\nMachine test-nodepool-abcde: Failed: virtualmachine failed to create or update. ERROR CODE: RequestDisallowedByPolicy"),
+			serviceProviderNodePool:  newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:            fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
@@ -359,12 +397,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:  "deadline not yet exceeded continues with provisioning",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
-				np := fixture.NewNodePool()
+				np := newNodePoolWithVersion(fixture, testNodePoolVersion)
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return np
 			},
-			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
@@ -375,9 +415,10 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:              "precondition failed on status update is ignored",
-			nodePool:          defaultNodePool,
-			existingOperation: preconditionExistingOperation,
+			name:                    "precondition failed on status update is ignored",
+			nodePool:                defaultNodePool,
+			existingOperation:       preconditionExistingOperation,
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter), controllerDoc: fixture.NewNodePoolVersionController([]metav1.Condition{}),
 			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
 				Operations: []*coreapi.Operation{preconditionListerOperation},
 			},
@@ -388,6 +429,100 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
+			},
+		},
+		{
+			name:     "version validation in progress operation proceeds to check other states",
+			nodePool: nodePoolWithoutCSID,
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, func(spnp *coreapi.ServiceProviderNodePool) {
+				spnp.Spec.NodePoolVersion.DesiredVersion = nil
+			}),
+			controllerDoc:     fixture.NewNodePoolVersionController([]metav1.Condition{}),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				// Version validation returns Accepted ("Waiting for version to be accepted")
+				// Hypershift check returns Provisioning ("Waiting for Hypershift node pool object to be created")
+				// SummarizeOperationStates picks Provisioning as the more progressed state
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status, "operation should be in Provisioning while waiting for resources")
+				assert.Nil(t, op.Error, "operation should have no error")
+			},
+		},
+		{
+			name:     "version validation failed transitions operation to Failed",
+			nodePool: nodePoolWithoutCSID,
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, func(spnp *coreapi.ServiceProviderNodePool) {
+				spnp.Spec.NodePoolVersion.DesiredVersion = nil
+			}),
+			controllerDoc: fixture.NewNodePoolVersionController([]metav1.Condition{
+				{
+					Type:    coreapi.ControllerConditionTypeIntentFailed,
+					Status:  metav1.ConditionTrue,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
+					Message: "Version 4.20.8 not found",
+				},
+			}),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status, "operation should transition to Failed when version validation fails")
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "Version 4.20.8 not found")
+			},
+		},
+		{
+			name:     "version mismatch fails operation with InternalServerError",
+			nodePool: nodePoolWithoutCSID,
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, func(spnp *coreapi.ServiceProviderNodePool) {
+				semverVersion := semver.MustParse("4.20.9") // Different from customer desiredversion
+				spnp.Spec.NodePoolVersion.DesiredVersion = &semverVersion
+			}),
+			controllerDoc:     fixture.NewNodePoolVersionController([]metav1.Condition{}),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status, "operation should fail when desired version doesn't match customer version")
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "Could not resolve version 4.20.8")
+			},
+		},
+		{
+			// The NodePoolVersion controller writes its document on its first sync, which races
+			// this one on the same informer event. Its absence must read as "not reported yet",
+			// not as an observation error that fails the reconcile on every fresh create.
+			name:     "missing NodePoolVersion controller document waits instead of erroring",
+			nodePool: nodePoolWithoutCSID,
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, func(spnp *coreapi.ServiceProviderNodePool) {
+				spnp.Spec.NodePoolVersion.DesiredVersion = nil
+			}),
+			controllerDoc:     nil,
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status, "operation should keep waiting while the version controller has not reported")
+				assert.Nil(t, op.Error, "a not-yet-written controller document is not an operation error")
+			},
+		},
+		{
+			name: "unparseable customer version fails operation with InvalidRequestContent",
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.NodePool {
+				np := nodePoolWithoutCSID(fixture)
+				np.Properties.Version.ID = "not-a-semver"
+				return np
+			},
+			serviceProviderNodePool: newServiceProviderNodePool(fixture, defaultDesiredVersionSetter),
+			controllerDoc:           fixture.NewNodePoolVersionController([]metav1.Condition{}),
+			existingOperation:       fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status, "an unparseable version cannot be resolved by retrying")
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Contains(t, op.Error.Message, `Invalid version format "not-a-semver"`)
 			},
 		},
 	}
@@ -402,7 +537,15 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			cluster := fixture.NewCluster()
 			nodePool := tt.nodePool(fixture)
 
+			// Seed the optional documents only when supplied: a nil pointer in the slice is a
+			// typed nil, which still matches its case in addResource and is dereferenced there.
 			resources := []any{cluster, nodePool, tt.existingOperation}
+			if tt.serviceProviderNodePool != nil {
+				resources = append(resources, tt.serviceProviderNodePool)
+			}
+			if tt.controllerDoc != nil {
+				resources = append(resources, tt.controllerDoc)
+			}
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
@@ -425,13 +568,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				readDesireLister.Desires = []*kubeapplierapi.ReadDesire{tt.cachedNodePoolReadDesire}
 			}
 			controller := &operationNodePoolCreate{
-				clock:                  testClock,
-				resourcesDBClient:      mockResourcesDBClient,
-				activeOperationsLister: activeOperationsLister,
-				nodePoolLister:         &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				readDesireLister:       readDesireLister,
-				clusterServiceClient:   mockCSClient,
-				notificationClient:     nil,
+				clock:                         testClock,
+				resourcesDBClient:             mockResourcesDBClient,
+				activeOperationsLister:        activeOperationsLister,
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				readDesireLister:              readDesireLister,
+				clusterServiceClient:          mockCSClient,
+				notificationClient:            nil,
 			}
 			controller.statusCalculators, err = controller.newStatusCalculators()
 			require.NoError(t, err)
@@ -448,4 +592,21 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newNodePoolWithVersion(fixture *operationtesting.NodePoolTestFixture, version string) *coreapi.NodePool {
+	np := fixture.NewNodePool()
+	np.Properties.Version = coreapi.NodePoolVersionProfile{
+		ID:           version,
+		ChannelGroup: "stable",
+	}
+	return np
+}
+
+func newServiceProviderNodePool(fixture *operationtesting.NodePoolTestFixture, modifier func(*coreapi.ServiceProviderNodePool)) *coreapi.ServiceProviderNodePool {
+	spnp := fixture.NewServiceProviderNodePool()
+	if modifier != nil {
+		modifier(spnp)
+	}
+	return spnp
 }
