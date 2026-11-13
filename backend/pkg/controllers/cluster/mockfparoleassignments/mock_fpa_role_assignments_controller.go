@@ -99,6 +99,7 @@ func NewMockFPARoleAssignmentsController(
 		subscriptionLister:           subscriptionLister,
 		deploymentStackDesireLister:  deploymentStackDesireLister,
 		resourcesDBClient:            resourcesDBClient,
+		azureResourcesDBClient:       azureResourcesDBClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -372,13 +373,13 @@ func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.
 		}
 		_, err = clusterScopedStackDesiresCRUD.Create(ctx, newDesire, nil)
 		if cosmosstorageutils.IsConflictError(err) {
-			logger.Info("mock FPA role assignments DeploymentStackDesire already exists", "deploymentStackDesireResourceID", existing.ResourceID)
+			logger.Info("mock FPA role assignments DeploymentStackDesire already exists", "deploymentStackDesireResourceID", resourceID)
 			return nil
 		}
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create mock FPA role assignments DeploymentStackDesire: %w", err))
 		}
-		logger.Info("created mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", existing.ResourceID)
+		logger.Info("created mock FPA role assignments DeploymentStackDesire", "deploymentStackDesireResourceID", resourceID)
 		return nil
 	}
 	if err != nil {
