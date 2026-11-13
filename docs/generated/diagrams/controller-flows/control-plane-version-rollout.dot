@@ -43,7 +43,7 @@ digraph control_plane_version_rollout {
   forced -> desired [label="forced assignment"];
   desired -> dispatch [label="plus creation / dispatch prerequisites"];
   dispatch -> external [label="POST cluster or submit upgrade policy"];
-  external -> observe [label="mirrored HostedCluster history"];
+  external -> observe [label="controlPlaneVersion.history only\nno legacy history fallback"];
   external -> actual [label="ReadDesire HostedCluster mirror", style=dashed];
   actual -> pin [label="validate lower rollback target", style=dashed, constraint=false];
   observe -> history [label="record observed state"];
