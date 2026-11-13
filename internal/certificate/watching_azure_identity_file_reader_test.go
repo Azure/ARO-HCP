@@ -16,6 +16,7 @@ package certificate
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -102,6 +103,26 @@ func TestWatchingFileCertificateReaderCachesCertificate(t *testing.T) {
 
 	assert.Equal(t, certs1, certs2)
 	assert.Equal(t, key1, key2)
+}
+
+func TestWatchingFileCertificateReaderReadBundleReturnsRawBytes(t *testing.T) {
+	dir := t.TempDir()
+	bundleFileName := "bundle.crt"
+	certFile := filepath.Join(dir, bundleFileName)
+
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, 20)
+	wantBundle, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile)
+	require.NoError(t, err)
+	err = reader.Run(ctx, 50*time.Millisecond)
+	require.NoError(t, err)
+
+	gotBundle, err := reader.ReadBundle()
+	require.NoError(t, err)
+	assert.Equal(t, wantBundle, gotBundle, "ReadBundle should return the raw file bytes unchanged, preserving the original format")
 }
 
 func TestWatchingFileCertificateReaderStopsWatchingOnContextCancel(t *testing.T) {

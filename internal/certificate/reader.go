@@ -25,3 +25,11 @@ type Reader interface {
 	// ReadCertificate reads and parses the certificate and private key.
 	ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error)
 }
+
+// BundleReader represents a source that can read the raw certificate bundle
+// bytes, preserving whatever format (PEM or PKCS#12) the bundle was originally
+// encoded in.
+type BundleReader interface {
+	// ReadBundle reads the raw certificate bundle bytes.
+	ReadBundle() ([]byte, error)
+}

@@ -15,23 +15,27 @@
 package cmd
 
 import (
-	"encoding/base64"
+	"context"
 	"fmt"
-	"os"
+	"time"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/internal/certificate"
 )
 
-func newHardcodedIdentity(azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string) (*azureclient.HardcodedIdentity, error) {
-	bundle, err := os.ReadFile(azureMIMockCertBundlePath)
+func newHardcodedIdentity(ctx context.Context, azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string) (*azureclient.HardcodedIdentity, error) {
+	certReader, err := certificate.NewWatchingAzureIdentityFileReader(ctx, azureMIMockCertBundlePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read bundle file: %w", err)
+		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
-	bundleBase64Encoded := base64.StdEncoding.EncodeToString(bundle)
+	if err := certReader.Run(ctx, 1*time.Minute); err != nil {
+		return nil, fmt.Errorf("failed to run certificate reader: %w", err)
+	}
+
 	return &azureclient.HardcodedIdentity{
-		ClientID:     azureMIMockClientID,
-		ClientSecret: bundleBase64Encoded,
-		PrincipalID:  azureMIMockPrincipalID,
-		TenantID:     azureMIMockTenantID,
+		ClientID:                azureMIMockClientID,
+		CertificateBundleReader: certReader,
+		PrincipalID:             azureMIMockPrincipalID,
+		TenantID:                azureMIMockTenantID,
 	}, nil
 }

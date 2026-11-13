@@ -24,8 +24,20 @@ type MockReader struct {
 	Certs []*x509.Certificate
 	Key   crypto.PrivateKey
 	Err   error
+
+	Bundle    []byte
+	BundleErr error
 }
+
+var (
+	_ Reader       = (*MockReader)(nil)
+	_ BundleReader = (*MockReader)(nil)
+)
 
 func (m *MockReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
 	return m.Certs, m.Key, m.Err
+}
+
+func (m *MockReader) ReadBundle() ([]byte, error) {
+	return m.Bundle, m.BundleErr
 }
