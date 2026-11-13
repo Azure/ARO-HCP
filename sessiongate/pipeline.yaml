@@ -104,3 +104,10 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      # Retry when the step's container never starts (empty log, exit code -1).
+      # Unquoted on purpose: the status is JSON-escaped in the failure message (AROSLSRE-2711).
+      - "Waiting to run"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
