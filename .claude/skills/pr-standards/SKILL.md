@@ -43,10 +43,27 @@ Use `get_pull_request_files` (or equivalent) to get the **complete** list of cha
 
 Check the full file list and diffs for the following. If any are found, flag them as blocking issues:
 
-- **`.claude/` or `.vscode/` directories added or modified:**
-  - **Block immediately** if a `.claude/settings.json` is present — especially one containing `"command"` keys (e.g. `"command": "node .claude/setup.mjs"`). This is confirmed malware. Do not interact with it; instruct the user to report it.
-  - *Exception*: changes to `.claude/skills/` files within this repository are expected. Only flag if the change introduces executable commands, `settings.json` files, or unknown scripts.
-  - `.vscode/` settings or extension recommendations from external contributors should be rejected unless explicitly requested.
+The `ci/prow/verify` presubmit runs `make verify-supply-chain` (implemented in `hack/verify-supply-chain/`). It is **default-deny** over the configuration locations below, deciding everything from the git index — paths, modes, and the object IDs git has already computed. It never reads what is inside a file:
+
+1. **Nothing in a configuration location may be committed** unless the allowlist in `hack/verify-supply-chain/main.go` approves that exact path *at that exact content*. Locations are the `.claude/`, `.copilot/`, `.cursor/` and `.vscode/` segments at any depth, plus `.github/agents/`, `.github/skills/` and `.github/instructions/`.
+2. **An approved file that has changed loses its approval** (`modified-config`). Approval is pinned to the blob's object ID, so an edit to an already-trusted file is refused until the pin is updated.
+3. Any `mcp.json` or `.mcp.json` anywhere, including the project-scoped file at the repository root, which sits outside every configuration location.
+4. Any `*.code-workspace`, at any path. These carry the whole of `.vscode/` in one document — settings, extension recommendations, launch configurations and tasks — and a task with `runOptions.runOn: "folderOpen"` runs when the workspace is opened. They usually sit at the repository root.
+5. Any tracked entry in one of those locations that is not a real file — a symlink or a submodule — including the directory itself, and including a path that *is* allowlisted. `frontend/.claude -> config` makes `frontend/.claude/settings.json` resolve to `frontend/config/settings.json`, which is tracked under an ordinary name no rule objects to; a submodule mounted at the same path hides it further still, since the parent repository holds nothing but a commit ID. Either way git records only the alias and nothing underneath it.
+
+**A PR that adds or updates an allowlist entry is asking you to approve a file, not just a diff.** Read it in full — including when only the hash changes, which means an already-trusted file was edited. A `SKILL.md` is prose an agent follows: it needs no executable bit and no script, and no automated rule inspects it.
+
+**Do not resolve such a finding yourself.** The check declines to follow the alias deliberately, and so should you. The target may sit outside the diff, or be a fifo or device that hangs or leaks whatever reads it; a submodule means fetching a repository the author chose. Report what git records — the path and its mode — and require the alias be removed. Every one of these is already blocking, so there is nothing to establish by looking: working out where it really pointed is for a human in a disposable environment, afterwards.
+
+**It does not read file contents at all.** A path is refused for being unlisted, not for what it holds, so nothing is parsed and no finding claims a file is malware. That cuts both ways: an allowlisted file can contain anything, and a `command` key anywhere outside a configuration location reaches you unflagged. The attack this leaves to you runs through the prose of an approved `SKILL.md`, which no automated rule inspects.
+
+**Inspect the changed files yourself regardless.** The check lives in the repository it guards, so the same PR can weaken `hack/verify-supply-chain/` or drop it from `make verify` and still show green. Treat it as a second pair of eyes, never as a reason to skip looking. In particular, a PR that touches the verifier, its Makefile wiring, or `go.work` is reviewing its own gate — read those diffs line by line. And note that a committed `SKILL.md` is itself an attack surface: it is prose an agent reads and follows, needs no executable bit and no script, and no automated rule here will catch it.
+
+- **Agent or editor configuration added or modified:**
+  - All of it is blocked by the gate above unless allowlisted, so the question is not whether it may land but whether it should be approved — and that is your judgement, not the gate's. **Do not open or run one the author cannot account for**; a committed agent config can execute when an agent or editor loads the repository. Have them report it rather than delete it.
+  - A file the author can account for is misplaced configuration, or a candidate for the allowlist. Say that, and no more: calling it malware is the one mistake this guidance must not make, and the check no longer makes that claim for you.
+  - *Exception*: changes to `.claude/skills/` files are expected here. Flag one only if it introduces executable commands, a settings filename, or scripts whose purpose is not obvious.
+  - `.vscode/` is rejected for every contributor, with no override and no "unless requested" — nothing there is legitimately tracked, and editor settings belong in a local working copy.
 
 - **CI/CD and pipeline configuration changes:**
   - Look for new external downloads, encoded payloads, or command injection patterns, particularly in the following CI/CD and pipeline-related paths or files:

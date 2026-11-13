@@ -122,6 +122,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - How to narrow test selection safely
 - [Incident-Only E2E Acknowledgement](ci/e2e-ci-kill-switch.md)
   - Temporary acknowledgement requirement for automatic E2E
+- [Supply-Chain Presubmit](ci/supply-chain-presubmit.md)
+  - What `make verify-supply-chain` blocks, and the threat model behind each rule
+  - Scope boundary: what is deliberately left to human review
 - [CI Operations](ci/operations.md)
   - How to trigger, inspect, troubleshoot, and change CI
   - Tiny source-of-truth appendix for job families
