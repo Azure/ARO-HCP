@@ -417,6 +417,15 @@ func (s *mockFPARoleAssignmentsSyncer) publishDeploymentStackDesire(ctx context.
 
 func (s *mockFPARoleAssignmentsSyncer) deleteDeploymentStackDesireDatabaseEntry(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
+
+	_, err := s.deploymentStackDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get mock FPA role assignments DeploymentStackDesire: %w", err))
+	}
+
 	resourceID, err := azureresourcesapihelpers.ToClusterScopedDeploymentStackDesireResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, azureresourcesapi.MockFPARoleAssignmentsDeploymentStackDesireName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build mock FPA role assignments DeploymentStackDesire resource ID: %w", err))
