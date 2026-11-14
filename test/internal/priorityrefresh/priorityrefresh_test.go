@@ -1285,6 +1285,8 @@ var _ = Describe("shadow", func() {
 			_ = ctx
 			labels := struct{ Name string }{Name: "local"}
 			_ = labels.Name
+			other := 1
+			_ = other
 		})
 })
 `
@@ -1296,8 +1298,8 @@ func TestPlanRejectsShadowedImportRemoval(t *testing.T) {
 	before := mustRead(t, repo, "test/e2e/shadow.go")
 	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/shadow.go:"+line)}
 	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 0, 1)))
-	if err == nil || !strings.Contains(err.Error(), "shadows the labels import") {
-		t.Fatalf("error = %v, want a shadowed-import rejection", err)
+	if err == nil || !strings.Contains(err.Error(), "leave the github.com/Azure/ARO-HCP/test/util/labels import unused") {
+		t.Fatalf("error = %v, want an unused-import rejection", err)
 	}
 	if changes.Len() != 0 {
 		t.Fatalf("planned %d changes", changes.Len())
