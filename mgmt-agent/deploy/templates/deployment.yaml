@@ -28,6 +28,9 @@ spec:
         - "--log-verbosity={{ .Values.logVerbosity }}"
         - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
         - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
+        {{- if eq (toString .Values.swiftPodMitigation.enabled) "true" }}
+        - "--swift-pod-mitigation-enabled=true"
+        {{- end }}
         - "--monitoring-api-group={{ .Values.monitoringApiGroup }}"
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller

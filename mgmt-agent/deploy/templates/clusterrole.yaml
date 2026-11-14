@@ -5,6 +5,23 @@ metadata:
     app.kubernetes.io/name: mgmt-agent
   name: mgmt-agent-controller
 rules:
+{{- if eq (toString .Values.swiftPodMitigation.enabled) "true" }}
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [get, patch]
+- apiGroups: [""]
+  resources: [pods/eviction]
+  verbs: [create]
+- apiGroups: [""]
+  resources: [namespaces]
+  verbs: [get]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list]
+- apiGroups: [node.k8s.io]
+  resources: [runtimeclasses]
+  verbs: [get]
+{{- end }}
 - apiGroups:
   - ""
   resources:

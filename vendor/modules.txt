@@ -3855,6 +3855,7 @@ k8s.io/component-base/zpages/features
 # k8s.io/component-helpers v0.37.1
 ## explicit; go 1.26.0
 k8s.io/component-helpers/resource
+k8s.io/component-helpers/scheduling/corev1/nodeaffinity
 # k8s.io/cri-api v0.37.1
 ## explicit; go 1.26.0
 k8s.io/cri-api/pkg/apis/runtime/v1

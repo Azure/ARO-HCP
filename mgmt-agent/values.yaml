@@ -32,6 +32,9 @@ nodeHealth:
   # goes in git.
   config:
     enabled: {{ .mgmtAgent.nodeHealth.enabled }}
+swiftPodMitigation:
+  enabled: {{ .mgmtAgent.swiftPodMitigation.enabled }}
+  configuration: {{ printf "%q" .mgmtAgent.swiftPodMitigation.configuration }}
 serviceAccount:
   name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__msiClientId__"
