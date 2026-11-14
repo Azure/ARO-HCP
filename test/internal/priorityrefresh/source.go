@@ -28,6 +28,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -42,6 +43,9 @@ const e2eDirectory = "test/e2e"
 
 // leafCallNames are the Ginkgo leaf declarations that declare a test spec.
 var leafCallNames = map[string]bool{"It": true, "Entry": true, "Specify": true}
+
+// containerCallNames are the Ginkgo containers whose decorators a spec inherits.
+var containerCallNames = map[string]bool{"Describe": true, "Context": true, "DescribeTable": true}
 
 // textEdit replaces the byte range [start:end) of a file.
 type textEdit struct {
@@ -242,16 +246,54 @@ func (f *fileContext) indexLeaves() {
 	})
 }
 
-// matches reports whether a literal description identifies the catalog name.
-func matches(catalogName, description string) bool {
-	return catalogName == description || strings.HasSuffix(catalogName, " "+description)
+// identityPattern returns the pattern a catalog name must match for one leaf:
+// literal container fragments anchored in order, computed fragments as
+// wildcards, and the leaf description anchored at the end. Anchoring the known
+// fragments rejects a renamed container even when a sibling is computed, which a
+// suffix comparison cannot.
+func (f *fileContext) identityPattern(leaf *ast.CallExpr, description string) *regexp.Regexp {
+	var containers []ast.Expr
+	for current := f.parents[leaf]; current != nil; current = f.parents[current] {
+		call, ok := current.(*ast.CallExpr)
+		if !ok || !containerCallNames[callName(call)] || len(call.Args) == 0 {
+			continue
+		}
+		containers = append(containers, call.Args[0])
+	}
+	for i, j := 0, len(containers)-1; i < j; i, j = i+1, j-1 {
+		containers[i], containers[j] = containers[j], containers[i]
+	}
+	parts := make([]string, 0, len(containers)+1)
+	for _, container := range containers {
+		parts = append(parts, nodePattern(container))
+	}
+	parts = append(parts, regexp.QuoteMeta(description))
+	return regexp.MustCompile("^" + strings.Join(parts, " ") + "$")
+}
+
+// nodePattern renders one description expression, quoting its literal text and
+// replacing every computed fragment with a wildcard.
+func nodePattern(expression ast.Expr) string {
+	if text, ok := stringLiteral(expression); ok {
+		return regexp.QuoteMeta(text)
+	}
+	if binary, ok := expression.(*ast.BinaryExpr); ok && binary.Op == token.ADD {
+		return nodePattern(binary.X) + nodePattern(binary.Y)
+	}
+	return ".*"
+}
+
+// matchesName reports whether the resolved declaration hierarchy names the
+// catalog spec.
+func (f *fileContext) matchesName(leaf *ast.CallExpr, catalogName, description string) bool {
+	return f.identityPattern(leaf, description).MatchString(catalogName)
 }
 
 // locateAt finds the unique leaf declaration at the annotated line.
 func (f *fileContext) locateAt(line int, catalogName string) (*ast.CallExpr, bool) {
 	var found *ast.CallExpr
 	for _, leaf := range f.leaves {
-		if leaf.line != line || !matches(catalogName, leaf.description) {
+		if leaf.line != line || !f.matchesName(leaf.call, catalogName, leaf.description) {
 			continue
 		}
 		if found != nil && found != leaf.call {
@@ -267,7 +309,7 @@ func (f *fileContext) locateAt(line int, catalogName string) (*ast.CallExpr, boo
 func (f *fileContext) locateByName(catalogName string) (*ast.CallExpr, bool) {
 	var found *ast.CallExpr
 	for _, leaf := range f.leaves {
-		if !matches(catalogName, leaf.description) {
+		if !f.matchesName(leaf.call, catalogName, leaf.description) {
 			continue
 		}
 		if found != nil && found != leaf.call {
@@ -395,6 +437,9 @@ func (f *fileContext) enclosingTable(node ast.Node) *ast.CallExpr {
 }
 
 // resolve builds the source form for one leaf call and its effective priority.
+// A leaf and its containers all contribute labels, so a declaration that carries
+// StartPriority while an enclosing container also carries one is rejected rather
+// than edited into a conflicting pair.
 func (f *fileContext) resolve(leaf *ast.CallExpr) (*sourceCall, error) {
 	result := &sourceCall{file: f, leaf: leaf}
 	description, ok := stringLiteral(leaf.Args[0])
@@ -402,26 +447,44 @@ func (f *fileContext) resolve(leaf *ast.CallExpr) (*sourceCall, error) {
 		return nil, fmt.Errorf("%s:%d leaf description is not a plain string literal", f.relPath, f.fset.Position(leaf.Pos()).Line)
 	}
 	result.insertAt = f.offset(leaf.Args[0].End())
-	node, value, err := f.startPriorityIn(leaf)
+	leafNode, leafValue, err := f.startPriorityIn(leaf)
 	if err != nil {
 		return nil, err
 	}
-	imported := f.dotImport || f.labelsName != ""
-	if node == nil {
-		if table := f.enclosingTable(leaf); table != nil {
-			tableNode, tableValue, err := f.startPriorityIn(table)
-			if err != nil {
-				return nil, err
-			}
-			if tableNode != nil {
-				node, value = tableNode, tableValue
-				result.table, result.onTable = table, true
-			}
+	var container *ast.CallExpr
+	var containerNode *ast.CallExpr
+	containerValue := 0
+	for current := f.parents[leaf]; current != nil; current = f.parents[current] {
+		call, ok := current.(*ast.CallExpr)
+		if !ok || !containerCallNames[callName(call)] {
+			continue
+		}
+		node, value, err := f.startPriorityIn(call)
+		if err != nil {
+			return nil, err
+		}
+		if node == nil {
+			continue
+		}
+		if container != nil {
+			return nil, fmt.Errorf("%s:%d inherits StartPriority from more than one container; refusing to edit it",
+				f.relPath, f.fset.Position(leaf.Pos()).Line)
+		}
+		container, containerNode, containerValue = call, node, value
+	}
+	switch {
+	case leafNode != nil && container != nil:
+		return nil, fmt.Errorf("%s:%d declares StartPriority while its %s container already inherits one; refusing to edit it",
+			f.relPath, f.fset.Position(leaf.Pos()).Line, callName(container))
+	case leafNode != nil:
+		result.node, result.value = leafNode, leafValue
+	case container != nil:
+		result.node, result.value = containerNode, containerValue
+		result.table, result.onTable = container, true
+	default:
+		if f.labelsName == "" && !f.dotImport {
+			return nil, fmt.Errorf("%s does not import %s, so a StartPriority cannot be added for %q", f.relPath, labelsImportPath, description)
 		}
 	}
-	if node == nil && !imported {
-		return nil, fmt.Errorf("%s does not import %s, so a StartPriority cannot be added for %q", f.relPath, labelsImportPath, description)
-	}
-	result.node, result.value = node, value
 	return result, nil
 }

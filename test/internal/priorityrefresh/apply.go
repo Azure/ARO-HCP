@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
@@ -49,7 +50,12 @@ func Apply(changes ChangeSet) error {
 		if err := writeFile(file.context.absPath, file.replacement, file.context.mode); err != nil {
 			return restore(replaced, err)
 		}
-		replaced = append(replaced, writtenFile{path: file.context.absPath, original: current, mode: file.context.mode})
+		replaced = append(replaced, writtenFile{
+			path:      file.context.absPath,
+			original:  current,
+			published: sha256.Sum256(file.replacement),
+			mode:      file.context.mode,
+		})
 	}
 	return nil
 }
@@ -82,17 +88,28 @@ func writeFile(path string, content []byte, mode os.FileMode) error {
 	return nil
 }
 
-// writtenFile records a replaced file so a failure can restore it.
+// writtenFile records a replaced file and the content that was published, so a
+// failure can restore it only while nobody else has edited the file.
 type writtenFile struct {
-	path     string
-	original []byte
-	mode     os.FileMode
+	path      string
+	original  []byte
+	published [sha256.Size]byte
+	mode      os.FileMode
 }
 
 // restore puts back the originals of already replaced files after a failure.
 func restore(replaced []writtenFile, cause error) error {
 	var failures []string
 	for _, file := range replaced {
+		current, err := os.ReadFile(file.path)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s needs recovery: %v", file.path, err))
+			continue
+		}
+		if sha256.Sum256(current) != file.published {
+			failures = append(failures, fmt.Sprintf("%s needs recovery: changed after publication", file.path))
+			continue
+		}
 		if err := writeFile(file.path, file.original, file.mode); err != nil {
 			failures = append(failures, err.Error())
 		}
@@ -108,6 +125,7 @@ func restore(replaced []writtenFile, cause error) error {
 func Verify(before, after et.ExtensionTestSpecs, changes ChangeSet) error {
 	expected := make(map[string]int, len(before))
 	beforeLabels := make(map[string]map[string]struct{}, len(before))
+	expectedPriorities := make(map[string]map[string]struct{}, len(before))
 	for _, spec := range before {
 		if _, exists := expected[spec.Name]; exists {
 			return fmt.Errorf("catalog contains duplicate spec name %q", spec.Name)
@@ -118,12 +136,19 @@ func Verify(before, after et.ExtensionTestSpecs, changes ChangeSet) error {
 		}
 		expected[spec.Name] = priority
 		beforeLabels[spec.Name] = nonPriorityLabels(spec)
+		expectedPriorities[spec.Name] = priorityLabels(spec)
 	}
 	for _, change := range changes.changes {
 		if _, ok := expected[change.Name]; !ok {
 			return fmt.Errorf("planned change %q is absent from the before catalog", change.Name)
 		}
 		expected[change.Name] = change.NewPriority
+		// A zero proposal removes the label; any other value leaves exactly the
+		// label the planner wrote, so an explicit zero label is a real change.
+		expectedPriorities[change.Name] = map[string]struct{}{}
+		if change.NewPriority != 0 {
+			expectedPriorities[change.Name][labels.StartPriorityLabelPrefix+strconv.Itoa(change.NewPriority)] = struct{}{}
+		}
 	}
 
 	afterSeen := make(map[string]struct{}, len(after))
@@ -146,6 +171,10 @@ func Verify(before, after et.ExtensionTestSpecs, changes ChangeSet) error {
 		if got := nonPriorityLabels(spec); !equalSets(got, beforeLabels[spec.Name]) {
 			return fmt.Errorf("spec %q changed labels other than StartPriority", spec.Name)
 		}
+		if got := priorityLabels(spec); !equalSets(got, expectedPriorities[spec.Name]) {
+			return fmt.Errorf("spec %q declares start priorities %v after the refresh, want %v",
+				spec.Name, labelNames(got), labelNames(expectedPriorities[spec.Name]))
+		}
 	}
 	if len(afterSeen) != len(expected) {
 		var missing []string
@@ -157,6 +186,26 @@ func Verify(before, after et.ExtensionTestSpecs, changes ChangeSet) error {
 		return fmt.Errorf("after catalog is missing %d specs: %s", len(missing), strings.Join(sortedStrings(missing), ", "))
 	}
 	return nil
+}
+
+// priorityLabels returns the spec's start-priority labels exactly as declared.
+func priorityLabels(spec *et.ExtensionTestSpec) map[string]struct{} {
+	result := map[string]struct{}{}
+	for label := range spec.Labels {
+		if strings.HasPrefix(label, labels.StartPriorityLabelPrefix) {
+			result[label] = struct{}{}
+		}
+	}
+	return result
+}
+
+// labelNames returns sorted label names from a label set.
+func labelNames(set map[string]struct{}) []string {
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	return sortedStrings(names)
 }
 
 // nonPriorityLabels returns a spec's labels without its start priority.

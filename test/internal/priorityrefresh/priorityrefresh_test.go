@@ -15,6 +15,8 @@
 package priorityrefresh
 
 import (
+	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -803,5 +805,160 @@ func TestPlanTreatsUnresolvableTableDescendantAsShared(t *testing.T) {
 	_, err := Plan(repo, catalog, testReport(scoredRow(literal, "id", 90, 60)))
 	if err == nil || !strings.Contains(err.Error(), "shared-priority-conflict") {
 		t.Fatalf("error = %v, want shared-priority-conflict", err)
+	}
+}
+
+func TestPlanRejectsRenamedContainer(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	name := "suite should replace an existing priority"
+	line := itoa(lineOf(t, repo, "test/e2e/standalone.go", "should replace an existing priority"))
+	renamed := strings.Replace(standaloneSource, `Describe("suite"`, `Describe("renamed"`, 1)
+	if renamed == standaloneSource {
+		t.Fatal("fixture has no Describe container to rename")
+	}
+	if err := os.WriteFile(filepath.Join(repo, "test/e2e/standalone.go"), []byte(renamed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/standalone.go:"+line)}
+	_, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+	if err == nil || !strings.Contains(err.Error(), "no It or Entry declaration matches") {
+		t.Fatalf("error = %v, want a stale identity rejection", err)
+	}
+}
+
+const inheritedPrioritySource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("inherited",
+	labels.StartPriority(40),
+	func() {
+		It("should reject inherited priorities",
+			labels.StartPriority(40),
+			func(ctx context.Context) {
+				_ = ctx
+			})
+	})
+`
+
+func TestPlanRejectsInheritedPriority(t *testing.T) {
+	for _, proposal := range []int{0, 90} {
+		t.Run(itoa(proposal), func(t *testing.T) {
+			repo := testRepo(t, map[string]string{"test/e2e/inherited.go": inheritedPrioritySource})
+			name := "inherited should reject inherited priorities"
+			line := itoa(lineOf(t, repo, "test/e2e/inherited.go", "should reject inherited priorities"))
+			before := mustRead(t, repo, "test/e2e/inherited.go")
+			catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/inherited.go:"+line)}
+			changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", proposal, 20)))
+			if err == nil || !strings.Contains(err.Error(), "already inherits one") {
+				t.Fatalf("error = %v, want an inherited-priority rejection", err)
+			}
+			if changes.Len() != 0 {
+				t.Fatalf("plan returned %d changes", changes.Len())
+			}
+			if after := mustRead(t, repo, "test/e2e/inherited.go"); after != before {
+				t.Fatal("a rejected inherited-priority plan modified the source")
+			}
+		})
+	}
+}
+
+func TestRestoreKeepsConcurrentEdits(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/concurrent.go": standaloneSource})
+	path := filepath.Join(repo, "test/e2e/concurrent.go")
+	published := []byte("published content")
+	if err := os.WriteFile(path, published, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := restore([]writtenFile{{
+		path:      path,
+		original:  []byte("original content"),
+		published: sha256.Sum256([]byte("different content")),
+		mode:      0o644,
+	}}, errors.New("later file changed since planning"))
+	if err == nil || !strings.Contains(err.Error(), "needs recovery") {
+		t.Fatalf("error = %v, want an incomplete rollback report", err)
+	}
+	if got := mustRead(t, repo, "test/e2e/concurrent.go"); got != string(published) {
+		t.Fatalf("rollback overwrote a concurrent edit: %q", got)
+	}
+}
+
+func TestVerifyRejectsUnplannedZeroPriorityLabel(t *testing.T) {
+	before := et.ExtensionTestSpecs{catalogSpec("suite leaf", 0)}
+	after := et.ExtensionTestSpecs{catalogSpec("suite leaf", 1)}
+	// catalogSpec skips the label for priority 0, so set the explicit zero label.
+	after[0].Labels.Insert(labels.StartPriorityLabelPrefix + "0")
+	after[0].Labels.Delete(labels.StartPriorityLabelPrefix + "1")
+	err := Verify(before, after, ChangeSet{})
+	if err == nil || !strings.Contains(err.Error(), "declares start priorities") {
+		t.Fatalf("error = %v, want an unplanned label rejection", err)
+	}
+}
+
+const dynamicContainerSource = `package e2e
+
+import (
+	"context"
+	"fmt"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("dynamic", func() {
+	DescribeTable(fmt.Sprintf("should share %s", "across entries"),
+		labels.StartPriority(40),
+		func(ctx context.Context, version string) {
+			_ = ctx
+			_ = version
+		},
+		Entry("version 4.20", "4.20"),
+	)
+})
+`
+
+func TestPlanMatchesDynamicContainerByLiteralFragments(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/dynamic.go": dynamicContainerSource})
+	line := itoa(lineOf(t, repo, "test/e2e/dynamic.go", `Entry("version 4.20"`))
+	name := "dynamic should share across entries version 4.20"
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/dynamic.go:"+line)}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changes.Len() != 1 {
+		t.Fatalf("planned %d changes, want 1", changes.Len())
+	}
+}
+
+func TestPlanRejectsStaleOrPartialIdentity(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/dynamic.go": dynamicContainerSource})
+	line := itoa(lineOf(t, repo, "test/e2e/dynamic.go", `Entry("version 4.20"`))
+	before := mustRead(t, repo, "test/e2e/dynamic.go")
+	for _, name := range []string{
+		// The literal container anchor is part of the identity.
+		"renamed should share across entries version 4.20",
+		// A leaf suffix alone is not an identity.
+		"version 4.20",
+	} {
+		catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/dynamic.go:"+line)}
+		changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+		if err == nil || !strings.Contains(err.Error(), "no It or Entry declaration matches") {
+			t.Fatalf("%q resolved to a stale identity: %v", name, err)
+		}
+		if changes.Len() != 0 {
+			t.Fatalf("%q produced %d changes", name, changes.Len())
+		}
+	}
+	if after := mustRead(t, repo, "test/e2e/dynamic.go"); after != before {
+		t.Fatal("a rejected identity plan modified the source")
 	}
 }
