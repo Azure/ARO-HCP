@@ -131,6 +131,70 @@ func TestBillingKustoLocationSchema(t *testing.T) {
 	require.ErrorContains(t, resolver.ValidateSchema(baseline), "/billing/kusto/location", "billing Kusto location must be a string")
 }
 
+func TestKustoClusterIdentity(t *testing.T) {
+	configDir := filepath.Join(repoRootDir, "config")
+	data, err := configtypes.MergeRawConfigurationFiles(configDir, []string{
+		filepath.Join(configDir, "config.yaml"),
+		filepath.Join(configDir, "config.msft.clouds-overlay.yaml"),
+	})
+	require.NoError(t, err)
+	provider, err := config.NewConfigProviderFromData(data, configDir)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		cloud       string
+		environment string
+		region      string
+		kustoName   string
+	}{
+		{cloud: "public", environment: "int", region: "westus3", kustoName: "hcp-int-us"},
+		{cloud: "public", environment: "prod", region: "uksouth", kustoName: "hcp-prod-uk"},
+		{cloud: "public", environment: "prod", region: "westeurope", kustoName: "hcp-prod-eu"},
+		{cloud: "public", environment: "prod", region: "eastus2", kustoName: "hcp-prod-us"},
+		{cloud: "public", environment: "prod", region: "eastus2euap", kustoName: "hcp-prod-usc"},
+		{cloud: "public", environment: "prod", region: "australiaeast", kustoName: "hcp-prod-au"},
+		{cloud: "public", environment: "prod", region: "brazilsouth", kustoName: "hcp-prod-br"},
+		{cloud: "public", environment: "prod", region: "canadacentral", kustoName: "hcp-prod-ca"},
+		{cloud: "public", environment: "prod", region: "centralindia", kustoName: "hcp-prod-in"},
+		{cloud: "public", environment: "prod", region: "switzerlandnorth", kustoName: "hcp-prod-ch-2"},
+		{cloud: "public", environment: "stg", region: "uksouth", kustoName: "hcp-stg-uk-2"},
+		{cloud: "public", environment: "stg", region: "westus3", kustoName: "hcp-stg-us-1"},
+		{cloud: "dev", environment: "pers", region: "westus3", kustoName: "hcp-dev-us-2"},
+	} {
+		t.Run(test.cloud+"/"+test.environment+"/"+test.region, func(t *testing.T) {
+			ev2, err := ev2config.ResolveConfig("public", test.region)
+			require.NoError(t, err)
+			value, err := ev2.GetByPath("regionShortName")
+			require.NoError(t, err)
+			regionShort, ok := value.(string)
+			require.True(t, ok, "EV2 regionShortName must be a string")
+			resolver, err := provider.GetResolver(&config.ConfigReplacements{
+				CloudReplacement:       test.cloud,
+				EnvironmentReplacement: test.environment,
+				RegionReplacement:      test.region,
+				RegionShortReplacement: regionShort,
+				StampReplacement:       "1",
+				Ev2Config:              ev2,
+			})
+			require.NoError(t, err)
+			resolved, err := resolver.GetRegionConfiguration(test.region)
+			require.NoError(t, err)
+
+			for path, want := range map[string]string{
+				"kusto.kustoName":                      test.kustoName,
+				"kusto.serviceLogsDatabase":            "ServiceLogs",
+				"kusto.hostedControlPlaneLogsDatabase": "HostedControlPlaneLogs",
+				"kusto.allAroHcpLogsDatabase":          "AllAroHcpLogs",
+				"kusto.monitoringEventsDatabase":       "MonitoringEvents",
+			} {
+				got, err := resolved.GetByPath(path)
+				require.NoError(t, err)
+				require.Equal(t, want, got, path)
+			}
+		})
+	}
+}
+
 func TestSystemPoolOnlyConfigSchema(t *testing.T) {
 	provider, err := config.NewConfigProvider(filepath.Join(repoRootDir, "config/config.yaml"))
 	require.NoError(t, err)
