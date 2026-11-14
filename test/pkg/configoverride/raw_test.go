@@ -15,9 +15,14 @@
 package configoverride
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/Azure/ARO-HCP/test/pkg/leaseenv"
 )
 
 func TestParseRawOverrideValues(t *testing.T) {
@@ -202,8 +207,15 @@ func TestGenerateRawOverrideConflicts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		catalog := fixture(t, "msi.yaml", "miMockPool:\n  lease-1:\n    clientId: c\n    principalId: p\n    certName: n\n")
-		_, err = Generate(Inputs{DeployEnvironment: "ci00", MSIMockLease: "lease-1", RawOverrides: overrides}, Paths{MSIMockCatalog: catalog})
+		principal := func(name string) leaseenv.MockPrincipal {
+			return leaseenv.MockPrincipal{ClientID: uuid.NewString(), PrincipalID: uuid.NewString(), CertificateName: name}
+		}
+		bundle := leaseenv.MockIdentityBundlePayload{SlotName: "slot", SubscriptionID: uuid.NewString(), MSI: principal("msi"), Backend: principal("backend"), ClustersService: principal("cs")}
+		payload, err := json.Marshal(bundle)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = Generate(Inputs{DeployEnvironment: "ci00", MockIdentityBundle: string(payload), RawOverrides: overrides}, Paths{})
 		if err == nil || !strings.Contains(err.Error(), "not a mapping") {
 			t.Fatalf("err = %v, want not-a-mapping error", err)
 		}
