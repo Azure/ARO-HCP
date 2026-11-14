@@ -33,6 +33,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -41,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -170,13 +172,13 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 
 			mockClusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			tt.mockSetup(mockClusterServiceClient)
-
 			syncer := &triggerControlPlaneUpgradeSyncer{
+				readDesireLister:     &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, true)},
 				clusterServiceClient: mockClusterServiceClient,
 			}
 
 			ctx := context.Background()
-			err := syncer.createUpgradePolicyIfNeeded(ctx, tt.desiredVersion, tt.clusterServiceID)
+			err := syncer.createUpgradePolicyIfNeeded(ctx, upgradeTestKey(), tt.desiredVersion, ptr.To(semver.MustParse("4.19.15")), tt.clusterServiceID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -341,7 +343,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 			},
 			Status: coreapi.ServiceProviderClusterStatus{
 				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: &active}},
+					ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: &active, State: configv1.CompletedUpdate}},
 				},
 			},
 		}
@@ -391,6 +393,7 @@ func TestTriggerControlPlaneUpgradeSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &triggerControlPlaneUpgradeSyncer{
 				clock:                        clocktesting.NewFakePassiveClock(now),
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: upgradeReadDesires(t, true)},
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: tt.clusters},
 				clusterServiceClient:         mockClusterServiceClient,
 				activeOperationLister:        &corelistertesting.SliceActiveOperationLister{},
