@@ -21,7 +21,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -37,8 +37,8 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          summary: 'Credential operation stuck in {{ $labels.phase }} for over 1 hour'
+          title: 'Credential operation stuck in {{ $labels.phase }} for over 1 hour'
         }
         expression: '(((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -62,7 +62,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterSaturationQueueDepth] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -90,7 +90,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterSaturationRetryHotLoop] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -131,7 +131,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterErrors1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -162,7 +162,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterErrors6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -193,7 +193,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterErrors3d] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -223,7 +223,7 @@ resource arohcpAccessClusterSloWindowedErrorAlerts 'Microsoft.AlertsManagement/p
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyAccessClusterErrorsDegradation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -267,7 +267,7 @@ resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prom
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterProvisionStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -283,8 +283,8 @@ resource arohcpClusterProvisionSloLatencyAlerts 'Microsoft.AlertsManagement/prom
           description: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Cluster create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 30 minutes. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 30 minutes'
-          title: '{{ $labels.cluster }}: Cluster create operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 30 minutes'
+          summary: 'Cluster create operation stuck in {{ $labels.phase }} for over 30 minutes'
+          title: 'Cluster create operation stuck in {{ $labels.phase }} for over 30 minutes'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((latency:backend_cluster_provision:inflight_duration_seconds > 1800)[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) latency:backend_cluster_provision:inflight_duration_seconds) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -308,7 +308,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterProvisionErrors1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -339,7 +339,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterProvisionErrors6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -370,7 +370,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterProvisionErrors3d] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -400,7 +400,7 @@ resource arohcpClusterProvisionSloWindowedErrorAlerts 'Microsoft.AlertsManagemen
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterProvisionErrorsDegradation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -444,7 +444,7 @@ resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/pro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterUpgradeStuckInDesired] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -465,8 +465,8 @@ Service Cluster: {{ $labels.cluster }}
 Service Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
-          title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} not progressing'
+          summary: 'Cluster version change to version {{ $labels.version }} not progressing'
+          title: 'Cluster version change to version {{ $labels.version }} not progressing'
         }
         expression: '(hosted_control_plane_upgrade:duration_in_desired:seconds > 1200) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
         for: 'PT5M'
@@ -477,7 +477,7 @@ Service Cluster: {{ $labels.cluster }}
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterUpgradeStuckInProgress] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -498,8 +498,8 @@ Service Cluster: {{ $labels.cluster }}
 Service Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
-          title: '{{ $labels.cluster }}: Cluster version change on {{ $labels.resource_id }} to version {{ $labels.version }} stuck'
+          summary: 'Cluster version change to version {{ $labels.version }} stuck'
+          title: 'Cluster version change to version {{ $labels.version }} stuck'
         }
         expression: '(hosted_control_plane_upgrade:duration_in_progress:seconds > 1800) unless on (cluster, resource_id) (backend_cluster_provision_state{phase="deleting"} == 1)'
         for: 'PT5M'
@@ -523,7 +523,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolCreateStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -539,8 +539,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Node pool create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          summary: 'Node Pool create stuck in {{ $labels.phase }} for over 2 hours'
+          title: 'Node Pool create stuck in {{ $labels.phase }} for over 2 hours'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -551,7 +551,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolUpdateStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -567,8 +567,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Node pool update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          summary: 'Node Pool update stuck in {{ $labels.phase }} for over 2 hours'
+          title: 'Node Pool update stuck in {{ $labels.phase }} for over 2 hours'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -579,7 +579,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolDeleteStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -595,8 +595,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Node pool delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool delete for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool delete for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          summary: 'Node Pool delete stuck in {{ $labels.phase }} for over 2 hours'
+          title: 'Node Pool delete stuck in {{ $labels.phase }} for over 2 hours'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|provisioning|updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -620,7 +620,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolSaturationQueueDepth] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -661,7 +661,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolErrors1h] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -691,7 +691,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolErrors6h1h] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -722,7 +722,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolErrors3d] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -752,7 +752,7 @@ resource arohcpNodepoolSloWindowedErrorAlerts 'Microsoft.AlertsManagement/promet
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyNodePoolErrorsDegradation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -796,7 +796,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendErrors1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -827,7 +827,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendErrors6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -858,7 +858,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendErrors3d6h] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -902,7 +902,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendLatency1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -933,7 +933,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendLatency6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -964,7 +964,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendLatency3d6h] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1008,7 +1008,7 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendReady] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1050,7 +1050,7 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyFrontendSaturationMemory] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1092,7 +1092,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionErrors1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1123,7 +1123,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionErrors6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1154,7 +1154,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionErrors3d] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1184,7 +1184,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionErrorsDegradation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1214,7 +1214,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionLatency1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1245,7 +1245,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionLatency6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1276,7 +1276,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionLatency3d] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1306,7 +1306,7 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionStuckOperation] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1323,8 +1323,8 @@ resource arohcpClusterDeletionSloWindowedErrorAlerts 'Microsoft.AlertsManagement
           description: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/cluster-deletion-tsg'
-          summary: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
-          title: 'Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          summary: 'Cluster deletion operation stuck in {{ $labels.phase }} for over 1 hour'
+          title: 'Cluster deletion operation stuck in {{ $labels.phase }} for over 1 hour'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time(((max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600))[6h:5m])) and on (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1)) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -1348,7 +1348,7 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyClusterDeletionQueueDepth] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1389,7 +1389,7 @@ resource hypershiftOperatorMonitorRules 'Microsoft.AlertsManagement/prometheusRu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[hypershiftOperatorPodsUnavailable] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1423,7 +1423,7 @@ Management Cluster: {{ $labels.cluster }}
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[hypershiftOperatorPodsDown] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1457,7 +1457,7 @@ Management Cluster: {{ $labels.cluster }}
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[hypershiftOperatorIdle] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1504,7 +1504,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupAvailability6Hourly] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1534,7 +1534,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupAvailabilityDaily] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1564,7 +1564,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupAvailabilityWeekly] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1594,7 +1594,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupNeverSucceeded6Hourly] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1624,7 +1624,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupNeverSucceededDaily] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1654,7 +1654,7 @@ resource arohcpBackupSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupNeverSucceededWeekly] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1697,7 +1697,7 @@ resource arohcpBackupSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupErrors] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1739,7 +1739,7 @@ resource arohcpBackupSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupLatency] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1781,7 +1781,7 @@ resource arohcpBackupSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupTraffic] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1823,7 +1823,7 @@ resource arohcpBackupSloStorageAvailabilityAlerts 'Microsoft.AlertsManagement/pr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupStorageAvailability] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1865,7 +1865,7 @@ resource arohcpBackupSloMetricsAbsentAlerts 'Microsoft.AlertsManagement/promethe
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyBackupMetricsAbsent] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1907,7 +1907,7 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyCertificateRotationFailure] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1935,7 +1935,7 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyCertificateDisabled] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1963,7 +1963,7 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyCertificateCollectionStale] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1991,7 +1991,7 @@ resource arohcpCertificateRotationAlerts 'Microsoft.AlertsManagement/prometheusR
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyCertificateExporterUnavailable] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }

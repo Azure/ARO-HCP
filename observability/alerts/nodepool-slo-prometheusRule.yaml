@@ -70,7 +70,7 @@ spec:
         severity: "4"
       annotations:
         correlationId: "userJourneyNodePoolCreateStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}"
-        summary: "{{ $labels.cluster }}: Node Pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
+        summary: "Node Pool create stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool create operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     - alert: userJourneyNodePoolUpdateStuckOperation
@@ -101,7 +101,7 @@ spec:
         severity: "4"
       annotations:
         correlationId: "userJourneyNodePoolUpdateStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}"
-        summary: "{{ $labels.cluster }}: Node Pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
+        summary: "Node Pool update stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool update operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     - alert: userJourneyNodePoolDeleteStuckOperation
@@ -132,7 +132,7 @@ spec:
         severity: "4"
       annotations:
         correlationId: "userJourneyNodePoolDeleteStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}"
-        summary: "{{ $labels.cluster }}: Node Pool delete for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
+        summary: "Node Pool delete stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # ========================================

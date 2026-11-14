@@ -21,7 +21,7 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyKubeApiserverAvailability1h5m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -46,8 +46,8 @@ Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
-          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m) resource_id:{{ $labels.resource_id }}'
-          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m) resource_id:{{ $labels.resource_id }}'
+          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m)'
+          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m)'
         }
         expression: '(1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54)'
         for: 'PT10M'
@@ -58,7 +58,7 @@ Namespace: {{ $labels.namespace }}
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyKubeApiserverAvailability6h30m] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -83,8 +83,8 @@ Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
-          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m) resource_id:{{ $labels.resource_id }}'
-          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m) resource_id:{{ $labels.resource_id }}'
+          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m)'
+          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m)'
         }
         expression: '(1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64)'
         for: 'PT30M'
@@ -95,7 +95,7 @@ Namespace: {{ $labels.namespace }}
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[userJourneyKubeApiserverAvailability3d6h] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -120,8 +120,8 @@ Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
-          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h) resource_id:{{ $labels.resource_id }}'
-          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h) resource_id:{{ $labels.resource_id }}'
+          summary: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h)'
+          title: '[HCPKASAvailableBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h)'
         }
         expression: '(1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64) and on (name, namespace, _id, resource_id, cluster) (1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, resource_id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130)'
         for: 'PT3H'
@@ -145,7 +145,7 @@ resource hypershiftCpoMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '[hypershiftCPODown] #$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -169,8 +169,8 @@ Management Cluster: {{ $labels.cluster }}
 Namespace: {{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-hypershift'
-          summary: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
-          title: '{{ $labels.cluster }}/{{ $labels.namespace }}: control-plane-operator has no available pods'
+          summary: 'control-plane-operator has no available pods'
+          title: 'control-plane-operator has no available pods'
         }
         expression: 'max by (cluster, namespace, region) (kube_deployment_spec_replicas{deployment="control-plane-operator",namespace=~"ocm-.*"}) > 0 and on (cluster, namespace) max by (cluster, namespace, region) (kube_deployment_status_replicas_available{deployment="control-plane-operator",namespace=~"ocm-.*"}) == 0'
         for: 'PT10M'

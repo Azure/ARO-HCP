@@ -33,7 +33,7 @@ tests:
         cluster: mc1
         namespace: ocm-prefix-1
       exp_annotations:
-        summary: "mc1/ocm-prefix-1: control-plane-operator has no available pods"
+        summary: "control-plane-operator has no available pods"
         description: |
           control-plane-operator has had no available pods for 10 minutes.
           Management Cluster: mc1

@@ -868,7 +868,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
 		assert.Contains(t, generated, "title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy'")
-		assert.Contains(t, generated, "'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'")
+		assert.Contains(t, generated, "'IcM.Title': '[EnrichedAlert] #$.labels.cluster#: #$.annotations.title#'")
 	})
 
 	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {
@@ -1014,13 +1014,12 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
 	})
 
-	t.Run("rejects summary missing correlation labels", func(t *testing.T) {
+	t.Run("labels referenced only in the description are not required in summary", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
 
 		opts := &Options{
 			outputBicep: outputFile,
-			// labelsToExtract is intentionally NOT set
 			ruleFiles: []alertingRuleFile{
 				{
 					Rules: monitoringv1.PrometheusRule{
@@ -1030,15 +1029,15 @@ func TestOptionsGenerate(t *testing.T) {
 									Name: "test-group",
 									Rules: []monitoringv1.Rule{
 										{
-											Alert: "AutoTitleAlert",
+											Alert: "SafeTitleAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
 												"severity":  "warning",
 												"component": "test",
 											},
 											Annotations: map[string]string{
-												"summary":     "Instance is down",
-												"description": "Instance {{ $labels.instance }} in job {{ $labels.job }} is down",
+												"summary":     "Operation stuck in {{ $labels.phase }}",
+												"description": "Operation for {{ $labels.resource_id }} is stuck in {{ $labels.phase }}",
 											},
 										},
 									},
@@ -1051,10 +1050,16 @@ func TestOptionsGenerate(t *testing.T) {
 		}
 
 		err := opts.Generate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "summary is missing correlation label(s)")
-		assert.Contains(t, err.Error(), "instance")
-		assert.Contains(t, err.Error(), "job")
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "title: 'Operation stuck in {{ $labels.phase }}'")
+		// Still part of the correlationId, so incidents stay distinct per resource.
+		assert.Contains(t, generated, "{{ $labels.resource_id }}")
+		assert.Contains(t, generated, "correlationId: 'SafeTitleAlert/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'")
 	})
 
 	t.Run("deps excluded from output", func(t *testing.T) {
