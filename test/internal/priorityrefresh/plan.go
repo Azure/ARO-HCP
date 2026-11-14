@@ -650,6 +650,44 @@ func (p *planner) verifyFile(original *fileContext, source []byte, planned map[s
 			return fmt.Errorf("edited %s declares priority %d for %q, want %d", original.relPath, call.value, change.Name, change.NewPriority)
 		}
 	}
+	if err := importStillUsed(file, original.labelsName, original.dotImport); err != nil {
+		return fmt.Errorf("%s after edits: %w", original.relPath, err)
+	}
+	return nil
+}
+
+// importStillUsed reports whether an edited file still references the labels
+// package, so a removal cannot leave an unused import behind.
+func importStillUsed(file *ast.File, labelsName string, dotImport bool) error {
+	imported := false
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != labelsImportPath {
+			continue
+		}
+		imported = true
+	}
+	if !imported {
+		return nil
+	}
+	if dotImport {
+		return fmt.Errorf("the labels package is dot-imported, so its remaining use cannot be verified; edit the declaration by hand")
+	}
+	used := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := selector.X.(*ast.Ident)
+		if ok && ident.Name == labelsName {
+			used = true
+		}
+		return true
+	})
+	if !used {
+		return fmt.Errorf("removing the last StartPriority would leave the %s import unused; edit the declaration by hand", labelsImportPath)
+	}
 	return nil
 }
 

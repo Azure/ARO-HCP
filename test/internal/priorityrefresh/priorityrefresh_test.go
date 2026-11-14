@@ -1148,3 +1148,57 @@ func TestPlanReadsEveryGoIntegerLiteralForm(t *testing.T) {
 		})
 	}
 }
+
+const onlyPrioritySource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("orphan", func() {
+	It("should keep its labels import",
+		labels.StartPriority(50),
+		func(ctx context.Context) {
+			_ = ctx
+		})
+})
+`
+
+func TestPlanRejectsRemovalThatOrphansTheImport(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/orphan.go": onlyPrioritySource})
+	name := "orphan should keep its labels import"
+	line := itoa(lineOf(t, repo, "test/e2e/orphan.go", "should keep its labels import"))
+	before := mustRead(t, repo, "test/e2e/orphan.go")
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 50, "test/e2e/orphan.go:"+line)}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 0, 1)))
+	if err == nil || !strings.Contains(err.Error(), "unused") {
+		t.Fatalf("error = %v, want an unused-import rejection", err)
+	}
+	if changes.Len() != 0 {
+		t.Fatalf("planned %d changes", changes.Len())
+	}
+	if after := mustRead(t, repo, "test/e2e/orphan.go"); after != before {
+		t.Fatal("a rejected removal modified the source")
+	}
+
+	// With another labels decorator the import stays used and removal proceeds.
+	shared := strings.Replace(onlyPrioritySource, "\t\tlabels.StartPriority(50),\n", "\t\tlabels.MIContainers(1),\n\t\tlabels.StartPriority(50),\n", 1)
+	repo = testRepo(t, map[string]string{"test/e2e/orphan.go": shared})
+	line = itoa(lineOf(t, repo, "test/e2e/orphan.go", "should keep its labels import"))
+	catalog = et.ExtensionTestSpecs{catalogSpec(name, 50, "test/e2e/orphan.go:"+line)}
+	changes, err = Plan(repo, catalog, testReport(scoredRow(name, "id", 0, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(changes); err != nil {
+		t.Fatal(err)
+	}
+	after := mustRead(t, repo, "test/e2e/orphan.go")
+	if strings.Contains(after, "StartPriority(50)") || !strings.Contains(after, "labels.MIContainers(1)") {
+		t.Fatalf("removal did not preserve the remaining decorator:\n%s", after)
+	}
+}
