@@ -446,6 +446,18 @@ builds and environments; insufficient rows show the eligible evidence available.
 A missing or conflicting test name prevents a proposal, but valid durations
 still contribute to the normalization medians.
 
+`refresh-priorities` maps those proposals onto the exact `labels.StartPriority`
+call that declares them:
+
+```bash
+./test/aro-hcp-tests refresh-priorities --report report.json --catalog before.json --repo .
+```
+
+The catalog comes from `./test/aro-hcp-tests list tests --output json` in the
+checkout being edited. Without `--write` the command only previews the plan, and
+a single unmappable or stale proposal aborts the whole batch before any write.
+`--verify-catalog` checks a rebuilt catalog against the same plan.
+
 ### Shared Directory (SHARED_DIR)
 Set the **SHARED_DIR** environment variable to specify a directory for sharing files between different CI steps or test invocations. This directory is used for storing files that need to be accessed across multiple test runs or scripts.
 
