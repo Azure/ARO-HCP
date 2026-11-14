@@ -811,7 +811,8 @@ func planIdentityRoleAssignmentCleanup(ctx context.Context, identities *armmsi.U
 		assignment, err := roles.GetByID(ctx, assignmentID, nil)
 		if err != nil {
 			var responseErr *azcore.ResponseError
-			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound && responseErr.ErrorCode == "RoleAssignmentNotFound" {
+			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound &&
+				(responseErr.ErrorCode == "RoleAssignmentNotFound" || responseErr.ErrorCode == "ResourceGroupNotFound") {
 				plan.unassociated = append(plan.unassociated, assignmentID)
 				continue
 			}

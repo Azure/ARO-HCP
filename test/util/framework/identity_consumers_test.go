@@ -212,6 +212,40 @@ func TestIdentityGuardTeardown(t *testing.T) {
 	}
 }
 
+func TestIdentityGuardMatchesOptionalIdentityConsumers(t *testing.T) {
+	t.Parallel()
+	containers := []string{"identity-rg-00", "identity-rg-01"}
+	identityID := func(group, name string) *string {
+		return to.Ptr("/subscriptions/sub/resourceGroups/" + group + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name)
+	}
+	cluster := &hcpsdk.HcpOpenShiftCluster{
+		ID: to.Ptr("/subscriptions/sub/resourceGroups/old/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/old"),
+		Properties: &hcpsdk.HcpOpenShiftClusterProperties{
+			Platform: &hcpsdk.PlatformProfile{OperatorsAuthentication: &hcpsdk.OperatorsAuthenticationProfile{
+				UserAssignedIdentities: &hcpsdk.UserAssignedIdentitiesProfile{
+					ServiceManagedIdentity: identityID("other", "service"),
+					ControlPlaneOperators:  map[string]*string{"operator": identityID("other", "control-plane")},
+					DataPlaneOperators:     map[string]*string{"autonode": identityID(containers[1], DpAutoNodeMiName)},
+				},
+			}},
+		},
+	}
+	factory := identityGuardFactory(t, func(req *http.Request) (*http.Response, error) {
+		body := map[string]any{"value": []any{}}
+		if !strings.HasSuffix(req.URL.Path, "/nodePools") {
+			body["value"] = []*hcpsdk.HcpOpenShiftCluster{cluster}
+		}
+		return identityGuardResponse(t, req, http.StatusOK, body)
+	})
+	available, err := FilterIdentityConsumers20261001(t.Context(), factory, "sub", containers, "acquisition", "enforce")
+	if err != nil {
+		t.Fatalf("consumer guard failed: %v", err)
+	}
+	if !slices.Equal(available, containers[:1]) {
+		t.Fatalf("optional identity consumer admitted its container: available=%v", available)
+	}
+}
+
 func TestIdentityGuardVanishedParent(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {

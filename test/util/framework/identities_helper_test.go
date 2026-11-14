@@ -232,6 +232,7 @@ func TestIdentityTeardownPreservesBusyPrincipals(t *testing.T) {
 		failedTrackedGet   bool
 		allSafe            bool
 		failedUnassociated bool
+		deletedScope       bool
 	}{
 		{name: "safe B and C release while A and its RBAC remain"},
 		{name: "tracked B deletion failure does not retain C", failedTracked: true},
@@ -241,6 +242,7 @@ func TestIdentityTeardownPreservesBusyPrincipals(t *testing.T) {
 		{name: "tracked principal lookup failure blocks all mutations", failedTrackedGet: true},
 		{name: "all safe containers clean unassociated tracked roles", allSafe: true},
 		{name: "unassociated cleanup failure retains all containers", allSafe: true, failedUnassociated: true},
+		{name: "deleted tracked scope is treated as absent", deletedScope: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -292,6 +294,9 @@ func TestIdentityTeardownPreservesBusyPrincipals(t *testing.T) {
 						}
 						if test.failedTrackedGet && group == groups[2] {
 							return identityGuardResponse(t, req, 403, map[string]any{"error": map[string]string{"code": "AuthorizationFailed"}})
+						}
+						if test.deletedScope && group == groups[1] {
+							return identityGuardResponse(t, req, 404, map[string]any{"error": map[string]string{"code": "ResourceGroupNotFound"}})
 						}
 						return identityGuardResponse(t, req, 200, assignment(trackedID(group), strings.ToUpper(principal(group)), "/subscriptions/sub"))
 					}

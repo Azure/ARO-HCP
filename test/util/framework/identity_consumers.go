@@ -96,9 +96,10 @@ func checkIdentityConsumers20261001(ctx context.Context, factory *hcpsdk.ClientF
 	if factory == nil || subscriptionID == "" || len(containers) == 0 {
 		return errors.New("consumer check requires an HCP client, resolved subscription and identity containers")
 	}
+	identityNames := append(NewDefaultIdentities().ToSlice(), OptionalIdentityNames()...)
 	leased := map[string]string{}
 	for _, group := range containers {
-		for _, name := range NewDefaultIdentities().ToSlice() {
+		for _, name := range identityNames {
 			id := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, group, name)
 			leased[strings.ToLower(id)] = group
 		}
