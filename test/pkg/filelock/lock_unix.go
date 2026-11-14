@@ -17,6 +17,7 @@
 package filelock
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 )
@@ -28,9 +29,22 @@ func Lock(fd uintptr) error {
 	return nil
 }
 
+// TryLock acquires the exclusive lock without blocking. It returns ErrLockBusy
+// when another holder currently owns the lock, so callers can poll instead of
+// waiting indefinitely on a possibly stalled holder.
+func TryLock(fd uintptr) error {
+	if err := syscall.Flock(int(fd), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return ErrLockBusy
+		}
+		return fmt.Errorf("failed to acquire state file lock: %w", err)
+	}
+	return nil
+}
+
 func Unlock(fd uintptr) error {
 	if err := syscall.Flock(int(fd), syscall.LOCK_UN); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
+		return fmt.Errorf("failed to release state file lock: %w", err)
 	}
 	return nil
 }
