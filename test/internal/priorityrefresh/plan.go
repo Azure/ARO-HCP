@@ -704,6 +704,48 @@ func (p *planner) verifyFile(original *fileContext, source []byte, planned map[s
 	return nil
 }
 
+// shadowsPackage reports whether any local declaration reuses the import name,
+// which makes a selector on that name unresolvable without type information.
+func shadowsPackage(file *ast.File, name string) bool {
+	shadows := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		switch current := node.(type) {
+		case *ast.AssignStmt:
+			if current.Tok != token.DEFINE {
+				return true
+			}
+			shadows = identNamed(current.Lhs, name)
+		case *ast.RangeStmt:
+			shadows = identNamed([]ast.Expr{current.Key, current.Value}, name)
+		case *ast.ValueSpec:
+			for _, identifier := range current.Names {
+				if identifier.Name == name {
+					shadows = true
+				}
+			}
+		case *ast.Field:
+			for _, identifier := range current.Names {
+				if identifier.Name == name {
+					shadows = true
+				}
+			}
+		}
+		return !shadows
+	})
+	return shadows
+}
+
+// identNamed reports whether any expression is an identifier with the name.
+func identNamed(expressions []ast.Expr, name string) bool {
+	for _, expression := range expressions {
+		ident, ok := expression.(*ast.Ident)
+		if ok && ident.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // importStillUsed reports whether an edited file still references the labels
 // package, so a removal cannot leave an unused import behind.
 func importStillUsed(file *ast.File, labelsName string, dotImport bool) error {
@@ -720,6 +762,9 @@ func importStillUsed(file *ast.File, labelsName string, dotImport bool) error {
 	}
 	if dotImport {
 		return fmt.Errorf("the labels package is dot-imported, so its remaining use cannot be verified; edit the declaration by hand")
+	}
+	if shadowsPackage(file, labelsName) {
+		return fmt.Errorf("a local declaration named %s shadows the labels import, so its remaining use cannot be verified; edit the declaration by hand", labelsName)
 	}
 	used := false
 	ast.Inspect(file, func(node ast.Node) bool {

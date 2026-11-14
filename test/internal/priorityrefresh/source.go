@@ -277,6 +277,9 @@ func (f *fileContext) identityPattern(leaf *ast.CallExpr, description string) *r
 // nodePattern renders one description expression, quoting its literal text and
 // replacing every computed fragment with a wildcard.
 func nodePattern(expression ast.Expr) string {
+	if paren, ok := expression.(*ast.ParenExpr); ok {
+		return nodePattern(paren.X)
+	}
 	if text, ok := stringLiteral(expression); ok {
 		return regexp.QuoteMeta(text)
 	}

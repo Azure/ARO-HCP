@@ -1246,3 +1246,63 @@ func TestPlanRejectsStaleUnchangedRow(t *testing.T) {
 		t.Fatal("a rejected stale mapping modified the source")
 	}
 }
+
+func TestPlanRejectsParenthesizedContainerRename(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/standalone.go": standaloneSource})
+	name := "suite should replace an existing priority"
+	line := itoa(lineOf(t, repo, "test/e2e/standalone.go", "should replace an existing priority"))
+	renamed := strings.Replace(standaloneSource, `Describe("suite"`, `Describe(("renamed")`, 1)
+	if renamed == standaloneSource {
+		t.Fatal("fixture has no Describe container to rename")
+	}
+	if err := os.WriteFile(filepath.Join(repo, "test/e2e/standalone.go"), []byte(renamed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/standalone.go:"+line)}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 90, 60)))
+	if err == nil || !strings.Contains(err.Error(), "no It or Entry declaration matches") {
+		t.Fatalf("error = %v, want a stale identity rejection", err)
+	}
+	if changes.Len() != 0 {
+		t.Fatalf("planned %d changes", changes.Len())
+	}
+}
+
+const shadowedLabelsSource = `package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("shadow", func() {
+	It("should not be fooled by a shadowed import",
+		labels.StartPriority(40),
+		func(ctx context.Context) {
+			_ = ctx
+			labels := struct{ Name string }{Name: "local"}
+			_ = labels.Name
+		})
+})
+`
+
+func TestPlanRejectsShadowedImportRemoval(t *testing.T) {
+	repo := testRepo(t, map[string]string{"test/e2e/shadow.go": shadowedLabelsSource})
+	name := "shadow should not be fooled by a shadowed import"
+	line := itoa(lineOf(t, repo, "test/e2e/shadow.go", "should not be fooled by a shadowed import"))
+	before := mustRead(t, repo, "test/e2e/shadow.go")
+	catalog := et.ExtensionTestSpecs{catalogSpec(name, 40, "test/e2e/shadow.go:"+line)}
+	changes, err := Plan(repo, catalog, testReport(scoredRow(name, "id", 0, 1)))
+	if err == nil || !strings.Contains(err.Error(), "shadows the labels import") {
+		t.Fatalf("error = %v, want a shadowed-import rejection", err)
+	}
+	if changes.Len() != 0 {
+		t.Fatalf("planned %d changes", changes.Len())
+	}
+	if after := mustRead(t, repo, "test/e2e/shadow.go"); after != before {
+		t.Fatal("a rejected shadowed-import removal modified the source")
+	}
+}
