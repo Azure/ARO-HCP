@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/query"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/citables"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
@@ -124,26 +125,26 @@ func TestCollectRejectsRunQueryFailureBeforeObservations(t *testing.T) {
 }
 
 func TestValidateSchemaRequiresEveryColumnAndType(t *testing.T) {
-	var columns []schemaColumn
-	for table, required := range requiredSchema {
+	var columns []citables.Column
+	for table, required := range citables.Required {
 		for name, kind := range required {
-			columns = append(columns, schemaColumn{table, name, kind})
+			columns = append(columns, citables.Column{TableName: table, ColumnName: name, ColumnType: kind})
 		}
 	}
-	if err := validateSchema(columns); err != nil {
+	if err := citables.Validate(columns); err != nil {
 		t.Fatal(err)
 	}
-	broken := append([]schemaColumn(nil), columns...)
+	broken := append([]citables.Column(nil), columns...)
 	for i := range broken {
 		if broken[i].TableName == "ciTestResults" && broken[i].ColumnName == "result" {
 			broken[i].ColumnType = "string-typed"
 		}
 	}
-	err := validateSchema(broken)
+	err := citables.Validate(broken)
 	if err == nil || !strings.Contains(err.Error(), "ciTestResults.result:string") || !strings.Contains(err.Error(), "deploy") {
 		t.Fatalf("missing actionable schema error: %v", err)
 	}
-	if err := validateSchema(columns[:len(columns)-1]); err == nil {
+	if err := citables.Validate(columns[:len(columns)-1]); err == nil {
 		t.Fatal("accepted a missing schema column")
 	}
 }
@@ -267,7 +268,7 @@ func (h *wireHarness) serve(writer http.ResponseWriter, request *http.Request) {
 			harness.Error("schema was not queried first")
 		}
 		var rows [][]any
-		for table, columns := range requiredSchema {
+		for table, columns := range citables.Required {
 			for name, kind := range columns {
 				rows = append(rows, []any{table, name, kind})
 			}
