@@ -17,6 +17,7 @@ package pipeline
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,9 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"sigs.k8s.io/yaml"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/graph"
@@ -45,6 +49,130 @@ func mustStamp(v string) graph.Stamp {
 		panic(err)
 	}
 	return s
+}
+
+func TestCollectExecutionDetailsLifetime(t *testing.T) {
+	type contextKey struct{}
+	parent, cancel := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "retained"))
+	cancel()
+	var callbackContext context.Context
+	expected := &ExecutionDetails{ARM: &ARMExecutionDetails{}}
+	actual, err := collectExecutionDetails(parent, func(ctx context.Context) (*ExecutionDetails, error) {
+		callbackContext = ctx
+		assert.NoError(t, ctx.Err())
+		assert.Equal(t, "retained", ctx.Value(contextKey{}))
+		deadline, ok := ctx.Deadline()
+		assert.True(t, ok)
+		assert.WithinDuration(t, time.Now().Add(executionDetailsTimeout), deadline, time.Second)
+		return expected, nil
+	}, executionDetailsTimeout)
+	require.NoError(t, err)
+	assert.Same(t, expected, actual)
+	assert.ErrorIs(t, callbackContext.Err(), context.Canceled)
+
+	_, err = collectExecutionDetails(parent, func(ctx context.Context) (*ExecutionDetails, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}, time.Millisecond)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	expired, expire := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer expire()
+	_, err = collectExecutionDetails(expired, func(ctx context.Context) (*ExecutionDetails, error) {
+		return expected, ctx.Err()
+	}, executionDetailsTimeout)
+	require.NoError(t, err)
+}
+
+func TestPipelineDiagnosticsCompletion(t *testing.T) {
+	t.Setenv("COMPRESS_TIMING_METADATA", "false")
+	for _, failed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failed=%t", failed), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(logr.NewContext(t.Context(), testr.New(t)))
+			defer cancel()
+			pipeline := &types.Pipeline{ServiceGroup: "test", ResourceGroups: []*types.ResourceGroup{{
+				ResourceGroupMeta: &types.ResourceGroupMeta{Name: "rg", ResourceGroup: "rg", Subscription: "subscription"},
+				Steps:             []types.Step{&types.ARMStep{StepMeta: types.StepMeta{Name: "deployment"}}},
+			}}}
+			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			timingFile := filepath.Join(t.TempDir(), "timing.yaml")
+			t.Cleanup(func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+				select {
+				case <-finished:
+				case <-time.After(5 * time.Second):
+					t.Error("pipeline did not finish during cleanup")
+				}
+			})
+			primaryErr := errors.New("synthetic deployment failure")
+			expected := &ExecutionDetails{ARM: &ARMExecutionDetails{}}
+			var executionState *ExecutionState
+			var identifier graph.Identifier
+			executor := func(id graph.Identifier, _ types.Step, _ context.Context, _ ExecutionTarget, _ *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+				executionState, identifier = state, id
+				var stepErr error
+				if failed {
+					cancel()
+					stepErr = primaryErr
+				}
+				return nil, func(detailsCtx context.Context) (*ExecutionDetails, error) {
+					close(entered)
+					select {
+					case <-release:
+					case <-time.After(5 * time.Second):
+						return nil, errors.New("diagnostics were not released")
+					}
+					logr.FromContextOrDiscard(detailsCtx).Info("synthetic diagnostics finished")
+					assert.NoError(t, detailsCtx.Err())
+					return expected, errors.New("synthetic diagnostics error")
+				}, stepErr
+			}
+			var runErr error
+			go func() {
+				_, runErr = RunPipeline(&topology.Service{ServiceGroup: "test"}, pipeline, ctx, &PipelineRunOptions{
+					TimingOutputFile:      timingFile,
+					Concurrency:           1,
+					SubsciptionLookupFunc: func(context.Context, string) (string, error) { return "subscription", nil },
+					TopoDirLookupFunc:     func(string) (string, error) { return ".", nil },
+				}, executor)
+				close(finished)
+			}()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("diagnostics did not start")
+			}
+			select {
+			case <-finished:
+				t.Fatal("pipeline returned before diagnostics finished")
+			default:
+			}
+			_, statErr := os.Stat(timingFile)
+			assert.ErrorIs(t, statErr, os.ErrNotExist)
+			close(release)
+			select {
+			case <-finished:
+			case <-time.After(5 * time.Second):
+				t.Fatal("pipeline did not finish")
+			}
+			if failed {
+				assert.EqualError(t, runErr, "errors occurred during execution: [synthetic deployment failure]")
+			} else {
+				require.NoError(t, runErr)
+			}
+			assert.Same(t, expected, executionState.Details[identifier])
+			timingData, err := os.ReadFile(timingFile)
+			require.NoError(t, err)
+			var timing []NodeInfo
+			require.NoError(t, yaml.Unmarshal(timingData, &timing))
+			require.Len(t, timing, 1)
+			assert.Equal(t, expected, timing[0].Details)
+		})
+	}
 }
 
 func TestMockedPipelineRun(t *testing.T) {
