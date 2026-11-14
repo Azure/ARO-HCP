@@ -29,7 +29,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 )
 
 // EgressIPGVR identifies the cluster-scoped OVN-Kubernetes EgressIP custom
@@ -45,21 +44,70 @@ var EgressIPGVR = schema.GroupVersionResource{Group: "k8s.ovn.org", Version: "v1
 // does not relax the eligibility gate itself.
 const EgressAssignableLabel = "k8s.ovn.org/egress-assignable"
 
+// managedNodeCacheSyncMessage matches the Forbidden error the guest
+// cluster's kube-apiserver returns from its default-enabled
+// autoscaling.openshift.io/ManagedNode admission plugin while the plugin's
+// config.openshift.io Infrastructure informer has not completed its initial
+// LIST. A kube-apiserver replica rejects all node creates and updates until
+// that sync completes, and HasSynced never resets once true, so the error can
+// only come from a freshly started replica: a control plane rollout.
+const managedNodeCacheSyncMessage = "autoscaling.openshift.io/ManagedNode infra config cache not synchronized"
+
+// labelNodeRetryAttempts is how many patch attempts LabelNodeEgressAssignable
+// spreads across the caller's timeout. A control plane rollout (for example
+// the one triggered when an authentication configuration change such as the
+// console-login verifier's OIDC provider reaches the HostedCluster) rotates
+// not-yet-synced kube-apiserver replicas for several minutes on a busy
+// management cluster, so the retry budget must be measured in minutes rather
+// than retry.DefaultBackoff's ~1.6 seconds. See ARO-30455.
+const labelNodeRetryAttempts = 12
+
 // LabelNodeEgressAssignable applies EgressAssignableLabel to nodeName so
-// OVN-Kubernetes will consider it eligible to host an EgressIP.
-func LabelNodeEgressAssignable(ctx context.Context, adminRESTConfig *rest.Config, nodeName string) error {
+// OVN-Kubernetes will consider it eligible to host an EgressIP. The patch is
+// retried for up to timeout while the guest cluster's kube-apiserver reports
+// the ManagedNode admission plugin's informer cache as unsynchronized, so a
+// control plane rollout in progress when the label is applied does not fail
+// the check. Any other error fails immediately.
+func LabelNodeEgressAssignable(ctx context.Context, adminRESTConfig *rest.Config, nodeName string, timeout time.Duration) error {
+	if timeout <= 0 {
+		return fmt.Errorf("timeout must be > 0, got %s", timeout)
+	}
+
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	patch := fmt.Appendf(nil, `{"metadata":{"labels":{%q:""}}}`, EgressAssignableLabel)
-	err = retry.OnError(retry.DefaultBackoff, func(err error) bool {
-		return apierrors.IsForbidden(err) && strings.Contains(err.Error(), "autoscaling.openshift.io/ManagedNode infra config cache not synchronized")
-	}, func() error {
+	backoff := wait.Backoff{
+		Duration: timeout / time.Duration(labelNodeRetryAttempts),
+		Factor:   1.0,
+		Steps:    labelNodeRetryAttempts,
+	}
+
+	// ExponentialBackoffWithContext aborts both the retry loop and any
+	// in-progress backoff sleep as soon as ctx is done, so cancellation or
+	// the verifier's shared deadline cannot stall the label step past its
+	// budget (retry.OnError sleeps blind and could overrun by one full
+	// timeout/labelNodeRetryAttempts interval). The lastErr handling mirrors
+	// retry.OnError: exhaustion or cancellation surfaces the final API error
+	// rather than a bare wait error.
+	var lastErr error
+	err = wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		_, err := kubeClient.CoreV1().Nodes().Patch(ctx, nodeName, types.MergePatchType, patch, metav1.PatchOptions{})
-		return err
+		switch {
+		case err == nil:
+			return true, nil
+		case apierrors.IsForbidden(err) && strings.Contains(err.Error(), managedNodeCacheSyncMessage):
+			lastErr = err
+			return false, nil
+		default:
+			return false, err
+		}
 	})
+	if wait.Interrupted(err) && lastErr != nil {
+		err = lastErr
+	}
 	if err != nil {
 		return fmt.Errorf("failed to apply %s label to node %q: %w", EgressAssignableLabel, nodeName, err)
 	}

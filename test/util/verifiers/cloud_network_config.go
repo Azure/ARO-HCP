@@ -53,11 +53,25 @@ func (v verifyCloudNetworkConfigEgressIP) Name() string {
 }
 
 func (v verifyCloudNetworkConfigEgressIP) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	// Bound the whole verifier, not just each phase, to v.timeout. Labeling,
+	// waiting for assignment, and the assign/release NIC checks below each
+	// get up to v.timeout of retry budget, but they share this one deadline:
+	// time the label retry spends waiting out a control plane rollout (see
+	// ARO-30455) is time the later phases don't also get, so a slow run
+	// still finishes within v.timeout overall instead of up to 4x it.
+	ctx, cancel := context.WithTimeout(ctx, v.timeout)
+	defer cancel()
+
 	// OVN-Kubernetes only considers egress-assignable-labeled nodes eligible
 	// to host an EgressIP, on every supported platform including Azure.
 	// Label v.nodeName so it's the (only) eligible node, making assignment
-	// deterministic, and unlabel it afterward regardless of outcome.
-	if err := framework.LabelNodeEgressAssignable(ctx, adminRESTConfig, v.nodeName); err != nil {
+	// deterministic, and unlabel it afterward regardless of outcome. The
+	// labeling retries for the full verifier timeout because a control plane
+	// rollout (for example one triggered by the console-login verifier's
+	// authentication configuration change) leaves freshly started
+	// kube-apiserver replicas rejecting node writes for several minutes; see
+	// ARO-30455.
+	if err := framework.LabelNodeEgressAssignable(ctx, adminRESTConfig, v.nodeName, v.timeout); err != nil {
 		return fmt.Errorf("failed to label node %s egress-assignable: %w", v.nodeName, err)
 	}
 	defer func() {
